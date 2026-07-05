@@ -80,6 +80,8 @@
   @media (max-width:480px){ .stat{flex:1 1 42%;} }
   .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#1D3B66; border:1px solid #2D7FF9; color:#DCEAFF; padding:9px 16px; border-radius:99px; font-size:13px; font-weight:600; z-index:9; display:none; max-width:90vw; text-align:center; }
   .selectmini { padding:5px 8px; font-size:11px; border-radius:6px; }
+  .cover { width:54px; height:54px; border-radius:8px; object-fit:cover; flex-shrink:0; background:#1A2130; border:1px solid #232E44; }
+  .cover.ph { display:flex; align-items:center; justify-content:center; color:#3A465E; font-size:20px; }
   .note-inp { width:100%; margin-top:10px; font-size:12px; color:#B9C3D6; background:#0D1119; border:1px solid #1E2739; }
   .note-inp::placeholder { color:#525E76; }
   .note-inp:focus { border-color:#2D7FF9; }
@@ -454,15 +456,49 @@ function scoreBits(x){
 }
 function enrichScore(list,id){
   var key=getKey(); if(!key) return;
-  var item=byId(data[list],id); if(!item || item.score) return;
+  var item=byId(data[list],id); if(!item || (item.score && ("img" in item))) return;
   rawgFetch("https://api.rawg.io/api/games?key="+encodeURIComponent(key)+"&search="+encodeURIComponent(item.name)+"&page_size=1")
   .then(function(json){
     var g=(json.results||[])[0]; if(!g) return;
     var it=byId(data[list],id); if(!it) return;
     if(g.metacritic) it.score=g.metacritic;
     if(g.rating) it.rrating=Math.round(g.rating*10)/10;
-    if(it.score||it.rrating){ persist(); render(); }
+    it.img=g.background_image||"";
+    persist(); maybeRender();
   }).catch(function(){});
+}
+
+/* ---------- cover images ---------- */
+function thumb(u){ return u ? u.replace("/media/","/media/resize/200/-/") : u; }
+function coverImg(x){
+  if(x.img) return '<img class="cover" src="'+esc(thumb(x.img))+'" onerror="this.onerror=null;this.src=\''+esc(x.img)+'\'" alt="" loading="lazy">';
+  return '<div class="cover ph">□</div>';
+}
+/* Don't yank the DOM out from under the user mid-typing */
+function maybeRender(){
+  var ae=document.activeElement;
+  if(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+  render();
+}
+/* Fetch missing covers for the existing library, one at a time */
+var backfillBusy=false;
+function backfillImages(){
+  if(backfillBusy) return;
+  var key=getKey(); if(!key) return;
+  var p=null;
+  for(var i=0;i<data.played.length;i++){ if(!("img" in data.played[i])){ p=data.played[i]; break; } }
+  if(!p) return;
+  backfillBusy=true;
+  rawgFetch("https://api.rawg.io/api/games?key="+encodeURIComponent(key)+"&search="+encodeURIComponent(p.name)+"&page_size=1")
+  .then(function(json){
+    var g=(json.results||[])[0];
+    p.img=(g&&g.background_image)||"";
+    if(g&&g.metacritic&&!p.score) p.score=g.metacritic;
+    if(g&&g.rating&&!p.rrating) p.rrating=Math.round(g.rating*10)/10;
+    persist(); maybeRender();
+    backfillBusy=false;
+    setTimeout(backfillImages,500);
+  }).catch(function(){ backfillBusy=false; });
 }
 
 /* ---------- rendering ---------- */
@@ -735,6 +771,7 @@ function renderPlayed(){
     var chipCls=p.status==="Platinum"?"plat":p.status==="Finished"?"fin":p.status==="Playing"?"play":"drop";
     html+=
     '<div class="card"><div class="row">'+
+      coverImg(p)+
       '<div class="grow"><div class="gname">'+esc(p.name)+'</div><div class="meta">Added '+fmt(p.added)+
       (p.vendor?' \u00B7 <span style="color:#B7D6F5">'+esc(p.vendor)+'</span>':'')+
       (Number(p.cost)?' \u00B7 <span style="color:#F2B84B;font-weight:700">'+fmtMoney(p.cost)+'</span>':'')+
@@ -820,8 +857,12 @@ document.getElementById("content").addEventListener("click",function(e){
     var r2=byId(data.rentals,id);
     if(r2){
       data.rentals=data.rentals.filter(function(x){return x.id!==id;});
-      data.played.unshift({id:uid(),name:r2.name,rating:0,status:"Finished",added:localISO(),cost:Number(r2.cost)||0,vendor:r2.vendor||"",note:r2.note||"",score:r2.score||null,rrating:r2.rrating||null});
+      var rpId=uid();
+      var rpItem={id:rpId,name:r2.name,rating:0,status:"Finished",added:localISO(),cost:Number(r2.cost)||0,vendor:r2.vendor||"",note:r2.note||"",score:r2.score||null,rrating:r2.rrating||null};
+      if("img" in r2) rpItem.img=r2.img;
+      data.played.unshift(rpItem);
       save(); flash("Moved to Played \u2014 cost stays counted in Total spent");
+      enrichScore("played",rpId);
     }
   }
   else if(act==="remove-rental"){ data.rentals=data.rentals.filter(function(x){return x.id!==id;}); save(); flash("Rental removed"); }
@@ -838,8 +879,10 @@ document.getElementById("content").addEventListener("click",function(e){
     var g2=byId(data.upcoming,id);
     if(g2){
       data.upcoming=data.upcoming.filter(function(x){return x.id!==id;});
-      data.played.unshift({id:uid(),name:g2.name,rating:0,status:"Playing",added:localISO()});
+      var tpId=uid();
+      data.played.unshift({id:tpId,name:g2.name,rating:0,status:"Playing",added:localISO()});
       save(); flash("Moved to Played");
+      enrichScore("played",tpId);
     }
   }
   else if(act==="up-queue"){
@@ -849,8 +892,10 @@ document.getElementById("content").addEventListener("click",function(e){
   else if(act==="sug-played"){
     if(nm){
       var cat1=fullCatalog().filter(function(g){return norm(g.name)===norm(nm);})[0]||{};
-      data.played.unshift({id:uid(),name:nm,rating:0,status:"Finished",added:localISO(),score:cat1.score||null,rrating:cat1.rating?Math.round(cat1.rating*10)/10:null});
+      var spId=uid();
+      data.played.unshift({id:spId,name:nm,rating:0,status:"Finished",added:localISO(),score:cat1.score||null,rrating:cat1.rating?Math.round(cat1.rating*10)/10:null});
       save(); flash("Added to Played \u2014 set a rating in the Played tab");
+      enrichScore("played",spId);
     }
   }
   else if(act==="sug-queue"){
@@ -913,6 +958,7 @@ document.getElementById("content").addEventListener("click",function(e){
     });
     showImport=false; save();
     flash("Imported "+added+" game"+(added===1?"":"s")+(skipped?" ("+skipped+" duplicates skipped)":""));
+    backfillImages();
   }
   else if(act==="rate"){
     var p=byId(data.played,id);
@@ -1073,6 +1119,7 @@ window.addEventListener("pagehide",flushPendingPush);
 
 render();
 silentPullOnLoad();
+setTimeout(backfillImages,1500);
 </script>
 </body>
 </html>
