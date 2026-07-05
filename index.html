@@ -6,13 +6,16 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="apple-mobile-web-app-title" content="Game Vault">
+<meta name="apple-mobile-web-app-title" content="Sinu Game Vault">
 <meta name="theme-color" content="#0A0D13">
 <link rel="apple-touch-icon" href="icon.png">
-<title>Game Vault — PS5 Tracker</title>
+<title>Sinu Game Vault — PS5 Tracker</title>
 <style>
   * { box-sizing:border-box; margin:0; padding:0; }
-  body { min-height:100vh; background:#0A0D13; color:#EAF0FA; font-family:"Segoe UI", system-ui, -apple-system, sans-serif; }
+  html { background:#0A0D13; }
+  body { min-height:100vh; background:transparent; color:#EAF0FA; font-family:"Segoe UI", system-ui, -apple-system, sans-serif; }
+  #bg { position:fixed; inset:0; z-index:-1; background:#0A0D13 center 22%/cover no-repeat; }
+  #bg::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg, rgba(10,13,19,.80) 0%, rgba(10,13,19,.92) 38%, #0A0D13 82%); }
   .wrap { max-width:780px; margin:0 auto; padding:14px 16px 90px; }
   .topbar { display:flex; align-items:center; gap:10px; padding:8px 0 2px; }
   .brand { display:flex; align-items:baseline; gap:10px; flex:1; min-width:0; }
@@ -23,7 +26,7 @@
   .iconbtn:hover { border-color:#2D7FF9; }
   .menupanel { display:none; background:#10141D; border:1px solid #2B3852; border-radius:12px; padding:10px; margin-bottom:12px; gap:8px; flex-wrap:wrap; }
   .menupanel.open { display:flex; }
-  .tabsticky { position:sticky; top:0; z-index:10; background:#0A0D13; padding-top:4px; margin:0 -4px; }
+  .tabsticky { position:sticky; top:0; z-index:10; background:rgba(10,13,19,.88); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); padding-top:4px; margin:0 -4px; }
   .tabs { display:flex; gap:2px; border-bottom:1px solid #1C2536; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding:0 4px; }
   .tabs::-webkit-scrollbar { display:none; }
   .tab { flex:1 0 auto; min-width:60px; background:none; border:none; color:#8B96AC; font:600 12px "Segoe UI",system-ui; padding:10px 6px 12px; cursor:pointer; border-bottom:2px solid transparent; letter-spacing:0.03em; transition:color .15s; }
@@ -74,6 +77,9 @@
   .chip.fin { color:#3ECF8E; border-color:#2A6B4F; }
   .chip.play { color:#2D7FF9; border-color:#2D5288; }
   .chip.drop { color:#F05A5A; border-color:#7A3438; }
+  .chip.t-aaa { color:#F2B84B; border-color:#7A6228; }
+  .chip.t-aa { color:#B7D6F5; border-color:#4A7DB5; }
+  .chip.t-indie { color:#3ECF8E; border-color:#2A6B4F; }
   .chipbar { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
   .gchip { background:#10141D; border:1px solid #2B3852; color:#8B96AC; border-radius:99px; padding:5px 12px; font:600 11px "Segoe UI",system-ui; cursor:pointer; }
   .gchip.on { color:#DCEAFF; border-color:#2D7FF9; background:#1D3B66; }
@@ -90,8 +96,12 @@
   .sechead:after { content:""; flex:1; height:1px; background:#1C2536; }
   .hist { opacity:.62; }
   .hist:hover { opacity:.9; }
-  .plot { margin-top:12px; padding:12px 13px; background:#0D1119; border:1px solid #1E2739; border-radius:10px; font-size:12.5px; line-height:1.65; color:#B9C3D6; white-space:pre-line; }
-  .plot .src { color:#525E76; font-size:11px; margin-top:8px; white-space:normal; }
+  .plot { margin-top:12px; padding:12px 13px; background:#0D1119; border:1px solid #1E2739; border-radius:10px; font-size:12.5px; line-height:1.65; color:#B9C3D6; white-space:pre-line; max-height:300px; overflow-y:auto; overscroll-behavior:contain; }
+  .plot::-webkit-scrollbar { width:8px; }
+  .plot::-webkit-scrollbar-thumb { background:#232E44; border-radius:4px; }
+  .plot .src { color:#525E76; font-size:11px; margin-top:10px; white-space:normal; }
+  .plot .src a { color:#2D7FF9; text-decoration:none; }
+  .plot .src a:hover { text-decoration:underline; }
   .clickrow { cursor:pointer; }
   .inline-edit { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
   .inline-edit .note-inp { margin-top:0; width:auto; }
@@ -115,6 +125,7 @@
   .settings p { color:#8B96AC; font-size:12px; line-height:1.5; margin-bottom:8px; }
   .settings a { color:#2D7FF9; }
   @media (max-width:480px){
+    .brand h1 { font-size:16px; }
     .bignum { font-size:30px; min-width:54px; }
     .tab { font-size:11px; min-width:54px; }
     .stat { flex:1 1 42%; }
@@ -123,12 +134,13 @@
 </style>
 </head>
 <body>
+<div id="bg"></div>
 <div class="wrap">
   <div class="topbar">
-    <div class="brand"><h1>GAME VAULT</h1><span class="sym">&#9651;&#9675;&#10005;&#9633;</span></div>
+    <div class="brand"><h1>SINU GAME VAULT</h1><span class="sym">&#9651;&#9675;&#10005;&#9633;</span></div>
     <button class="iconbtn" id="menuBtn" title="Cloud, backup &amp; settings">&#8943;</button>
   </div>
-  <div class="sub">PS5 tracker &middot; rentals &middot; playing now &middot; watchlist &middot; library <span id="syncStatus" style="color:#8B96AC"></span></div>
+  <div class="sub">PS5 tracker &middot; rentals &middot; playing now &middot; watchlist &middot; library <span id="syncStatus" style="color:#8B96AC"></span><span id="bgCaption"></span></div>
   <div class="menupanel" id="menuPanel">
     <button class="btn" id="pushBtn">&#8657; Push to cloud</button>
     <button class="btn" id="pullBtn">&#8659; Pull from cloud</button>
@@ -161,12 +173,13 @@
 "use strict";
 var STORE_KEY = "ps5-tracker-v1";
 var KEY_STORE = "ps5-rawg-key";
-var PLOTS_KEY = "ps5-plots-v1";
+var PLOTS_KEY = "ps5-plots-v2";
 var STATUSES = ["Finished","Playing","Dropped","Platinum"];
 var PS5_LAUNCH = "2020-11-12";
 var tab = "rentals";
 var showImport = false;
 var sugGenre = "All";
+var sugTier = "All";
 var busy = false;
 var searchQ = {};      // per-tab search text
 var formOpen = {};     // per-tab "add" form visibility
@@ -468,7 +481,8 @@ function refreshCatalog(){
         rating:g.rating||null,
         genre:(g.genres&&g.genres[0]&&g.genres[0].name)||"Other",
         note:(g.genres||[]).slice(0,3).map(function(x){return x.name;}).join(" · "),
-        img:g.background_image||""
+        img:g.background_image||"",
+        tier:(g.added>=8000?"AAA":g.added>=2500?"AA":"Indie")
       });
       have[norm(g.name)]=1; added++;
     });
@@ -563,6 +577,52 @@ function backfillImages(){
   }).catch(function(){ backfillBusy=false; });
 }
 
+/* ---------- game tier classification (AAA / AA / Indie) ---------- */
+/* Curated overrides for well-known AA titles in the built-in catalog;
+   everything else in the catalog is AAA. Fetched games are classified by
+   how widely tracked they are on RAWG (a budget proxy, imperfect but useful). */
+var TIER_AA = ["clairobscurexpedition33","splitfiction","liesofp","helldivers2"];
+function tierFor(name){
+  var n=norm(name);
+  if(TIER_AA.indexOf(n)>-1) return "AA";
+  for(var i=0;i<BUILTIN_CATALOG.length;i++) if(norm(BUILTIN_CATALOG[i].name)===n) return "AAA";
+  var ce=data.catalogExtra||[];
+  for(var j=0;j<ce.length;j++) if(norm(ce[j].name)===n) return ce[j].tier||"";
+  for(var k=0;k<data.upcoming.length;k++) if(norm(data.upcoming[k].name)===n && data.upcoming[k].src==="seed") return "AAA";
+  return "";
+}
+function tierRank(name){ var t=tierFor(name); return t==="AAA"?0:t==="AA"?1:t==="Indie"?2:1.5; }
+function tierChip(name){
+  var t=tierFor(name); if(!t) return "";
+  return '<span class="chip t-'+t.toLowerCase()+'">'+t+'</span> ';
+}
+
+/* ---------- dynamic backdrop: next big AAA release ---------- */
+function nextBigGame(){
+  var t0=localISO(today());
+  var cands=data.upcoming.filter(function(g){
+    var t=tierFor(g.name);
+    return g.date && g.date>=t0 && coverUrl(g) && t!=="AA" && t!=="Indie";
+  });
+  cands.sort(function(a,b){
+    if(a.date!==b.date) return a.date<b.date?-1:1;
+    return (b.want?1:0)-(a.want?1:0);
+  });
+  return cands[0]||null;
+}
+var bgShown="";
+function applyBackground(){
+  var el=document.getElementById("bg"); if(!el) return;
+  var cap=document.getElementById("bgCaption");
+  var g=nextBigGame();
+  var u=g?coverUrl(g):"";
+  if(u!==bgShown){
+    bgShown=u;
+    el.style.backgroundImage=u?('url("'+u+'")'):"none";
+  }
+  if(cap) cap.textContent=g?(" · Backdrop: "+g.name+" — "+(g.date?fmt(g.date):"TBC")):"";
+}
+
 /* ---------- plot summaries (Wikipedia) ---------- */
 var plotCache={};
 try{ plotCache=JSON.parse(localStorage.getItem(PLOTS_KEY)||"{}")||{}; }catch(e){ plotCache={}; }
@@ -573,34 +633,49 @@ function ensurePlot(name){
   if((k in plotCache) || plotPending[k]) return;
   plotPending[k]=1;
   var api="https://en.wikipedia.org/w/api.php";
+  var articleTitle="";
   rawgFetch(api+"?action=query&list=search&format=json&origin=*&srlimit=1&srsearch="+encodeURIComponent(name+" video game"))
   .then(function(j){
     var hit=j.query&&j.query.search&&j.query.search[0];
     if(!hit) throw new Error("no article");
+    articleTitle=hit.title;
     return rawgFetch(api+"?action=query&prop=extracts&explaintext=1&redirects=1&format=json&origin=*&titles="+encodeURIComponent(hit.title));
   })
   .then(function(j){
     var pages=(j.query&&j.query.pages)||{}; var text="";
     for(var pid in pages){ if(pages[pid]&&pages[pid].extract){ text=pages[pid].extract; break; } }
-    var plot="";
+    var plot="", anchor="";
     var m=text.match(/==\s*(Plot|Synopsis|Story|Premise|Narrative|Setting)\s*==\n?([\s\S]*?)(\n==[^=]|$)/);
-    if(m) plot=m[2]; else plot=text.split("\n\n").slice(0,2).join("\n\n");
-    plot=plot.replace(/\n?===[^=]*===\n?/g,"\n").trim();
-    if(plot.length>1900) plot=plot.slice(0,1900)+"…";
-    plotCache[k]=plot;
+    if(m){ anchor=m[1]; plot=m[2]; }
+    else plot=text.split("\n\n").slice(0,3).join("\n\n");
+    // keep the FULL section; turn sub-headings into separators instead of dropping text
+    plot=plot.replace(/\n?===\s*([^=]*?)\s*===\n?/g,"\n— $1 —\n").trim();
+    if(plot.length>12000) plot=plot.slice(0,12000)+"…";
+    plotCache[k]={p:plot, t:articleTitle, a:anchor};
     savePlots(); delete plotPending[k]; maybeRender();
   })
   .catch(function(){
-    plotCache[k]="";
+    plotCache[k]={p:"", t:articleTitle, a:""};
     savePlots(); delete plotPending[k]; maybeRender();
   });
+}
+function plotLinks(name, entry){
+  var out='<div class="src">Read more: ';
+  if(entry && entry.t){
+    var u="https://en.wikipedia.org/wiki/"+encodeURIComponent(entry.t.replace(/ /g,"_"))+(entry.a?("#"+encodeURIComponent(entry.a)):"");
+    out+='<a href="'+u+'" target="_blank" rel="noopener">Wikipedia'+(entry.a?" story section":"")+' ↗</a> · ';
+  }
+  out+='<a href="https://www.fandom.com/?s='+encodeURIComponent(name)+'" target="_blank" rel="noopener">Fandom ↗</a> · '+
+       '<a href="https://gamefaqs.gamespot.com/search?game='+encodeURIComponent(name)+'" target="_blank" rel="noopener">GameFAQs ↗</a></div>';
+  return out;
 }
 function plotBlock(name){
   var k=norm(name);
   if(plotPending[k] || !(k in plotCache)) return '<div class="plot">Fetching the story from Wikipedia…</div>';
-  var p=plotCache[k];
-  if(!p) return '<div class="plot">No plot found on Wikipedia for this game.</div>';
-  return '<div class="plot">'+esc(p)+'<div class="src">— Plot summary from Wikipedia</div></div>';
+  var entry=plotCache[k];
+  if(typeof entry==="string") entry={p:entry,t:"",a:""};
+  if(!entry.p) return '<div class="plot">No story section found on Wikipedia for this game — try the sources below.'+plotLinks(name,entry)+'</div>';
+  return '<div class="plot">'+esc(entry.p)+plotLinks(name,entry)+'</div>';
 }
 
 /* ---------- shared render helpers ---------- */
@@ -679,7 +754,7 @@ function renderRentals(){
     '<div class="card"'+(r.left<=0?' style="opacity:.65"':'')+'>'+
       '<div class="row">'+coverImg(r)+'<div class="grow">'+
         '<div class="gname">'+esc(r.name)+'</div>'+
-        '<div class="meta">Rented '+fmt(r.start)+' · '+r.days+'-day period · due '+fmt(localISO(due))+
+        '<div class="meta">'+tierChip(r.name)+'Rented '+fmt(r.start)+' · '+r.days+'-day period · due '+fmt(localISO(due))+
         (r.vendor?' · <span style="color:#B7D6F5">'+esc(r.vendor)+'</span>':'')+
         (Number(r.cost)?' · <span style="color:#F2B84B;font-weight:700">'+fmtMoney(r.cost)+'</span>':'')+
         scoreBits(r)+'</div>'+
@@ -776,7 +851,7 @@ function renderPlaying(){
     var h=
     '<div class="card">'+
       '<div class="row clickrow" data-act="pl-toggle" data-id="'+x.id+'">'+coverImg(x)+
-        '<div class="grow"><div class="gname">'+esc(x.name)+'</div><div class="meta">'+sub+scoreBits(x)+'</div></div>'+
+        '<div class="grow"><div class="gname">'+esc(x.name)+'</div><div class="meta">'+tierChip(x.name)+sub+scoreBits(x)+'</div></div>'+
         '<span style="color:#525E76;font-size:12px;flex-shrink:0">'+(open?"▲":"▼")+'</span>'+
       '</div>';
     if(open){
@@ -808,13 +883,15 @@ function renderPlaying(){
 
 /* ---------- Queue tab ---------- */
 function renderQueue(){
+  var t0=today();
   var html = toolbar("Add to queue","Search queue…");
   if(formOpen[tab]){
     html+=
     '<div class="form"><h3>Add to queue</h3><div class="fields">'+
     '<div class="ac-wrap f-name"><input id="qName" class="ac-input" placeholder="Game name — start typing for suggestions" autocomplete="off"><div class="ac-drop"></div></div>'+
+    '<input class="f-sm" id="qAvail" type="date" title="Available from vendor (optional)">'+
     '<button class="btn blue" data-act="add-queue">Add</button>'+
-    '</div></div>';
+    '</div><div class="meta" style="margin-top:8px">The date is optional — set it when the vendor tells you when the game will be available.</div></div>';
   }
   html+='<div class="meta" style="margin-bottom:12px">Your rental wishlist in priority order — <b style="color:#EAF0FA">#1 is what you rent next</b>. Reorder with the arrows.</div>';
 
@@ -825,13 +902,20 @@ function renderQueue(){
   var last=data.queue.length-1;
   shown.forEach(function(q1){
     var i=qIndex(q1.id);
+    var availBits="";
+    if(q1.avail){
+      var ad=parseD(q1.avail); var dl=daysBetween(t0,ad);
+      availBits = dl>0
+        ? '<br><span style="color:#F2B84B;font-weight:700">Available from '+fmt(q1.avail)+' · in '+dl+' day'+(dl===1?"":"s")+'</span>'
+        : '<br><span style="color:#3ECF8E;font-weight:700">Available now · since '+fmt(q1.avail)+'</span>';
+    }
     html+=
     '<div class="card"><div class="row">'+
       '<div class="scorebadge"><div class="s1" style="color:'+(i===0?"#3ECF8E":"#2D7FF9")+'">#'+(i+1)+'</div><div class="s2">'+(i===0?"Next up":"Priority")+'</div></div>'+
       coverImg(q1)+
       '<div class="grow">'+
         '<div class="gname">'+esc(q1.name)+'</div>'+
-        '<div class="meta">Queued '+fmt(q1.added)+scoreBits(q1)+(q1.note?' · '+esc(q1.note):'')+'</div>'+
+        '<div class="meta">'+tierChip(q1.name)+'Queued '+fmt(q1.added)+scoreBits(q1)+(q1.note?' · '+esc(q1.note):'')+availBits+'</div>'+
       '</div>'+
     '</div><div class="actions">'+
       (i>0?'<button class="btn" data-act="q-top" data-id="'+q1.id+'" title="Move to top">⤒ Top</button>':'')+
@@ -840,19 +924,22 @@ function renderQueue(){
       (i<last?'<button class="btn" data-act="q-bottom" data-id="'+q1.id+'" title="Move to bottom">⤓ Bottom</button>':'')+
       '<button class="btn blue" data-act="q-rent" data-id="'+q1.id+'">Start rental →</button>'+
       '<button class="btn ghost danger" data-act="q-del" data-id="'+q1.id+'">Remove</button>'+
+    '</div>'+
+    '<div class="inline-edit"><span class="syncnote" style="align-self:center">Available from:</span>'+
+    '<input class="note-inp q-avail" data-id="'+q1.id+'" type="date" value="'+esc(q1.avail||"")+'" style="flex:0 1 150px">'+
     '</div></div>';
   });
   return html;
 }
 function qIndex(id){ for(var i=0;i<data.queue.length;i++) if(data.queue[i].id===id) return i; return -1; }
-function addToQueue(name, note, score, rrating){
+function addToQueue(name, note, score, rrating, avail){
   if(!name) return;
   var n=norm(name);
   for(var i=0;i<data.queue.length;i++){
     if(norm(data.queue[i].name)===n){ flash("Already in your queue at #"+(i+1)); return; }
   }
   var qid=uid();
-  data.queue.push({id:qid, name:name, note:note||"", score:score||null, rrating:rrating||null, added:localISO()});
+  data.queue.push({id:qid, name:name, note:note||"", score:score||null, rrating:rrating||null, avail:avail||null, added:localISO()});
   save(); flash("Added to rental queue at #"+data.queue.length);
   enrichScore("queue",qid);
 }
@@ -894,7 +981,7 @@ function renderUpcoming(){
     html+=
     '<div class="card"><div class="row">'+
       coverImg(g)+
-      '<div class="grow"><div class="gname">'+esc(g.name)+'</div><div class="meta"><b style="color:#C9D4E8">'+when+'</b>'+extra+(g.note?'<br>'+esc(g.note):'')+'</div></div>'+
+      '<div class="grow"><div class="gname">'+esc(g.name)+'</div><div class="meta">'+tierChip(g.name)+'<b style="color:#C9D4E8">'+when+'</b>'+extra+(g.note?'<br>'+esc(g.note):'')+'</div></div>'+
       '<button class="star '+(g.want?"on":"")+'" data-act="want" data-id="'+g.id+'" title="I want this">★</button>'+
     '</div><div class="actions">'+
       '<button class="btn" data-act="up-queue" data-id="'+g.id+'">◇ Add to queue</button>'+
@@ -937,7 +1024,11 @@ function getSuggestions(){
   var dis={}; (data.dismissed||[]).forEach(function(x){ dis[x]=1; });
   return fullCatalog().filter(function(g){
     return !dis[norm(g.name)] && !isOwned(g.name, owned);
-  }).sort(function(a,b){ return (b.score||0)-(a.score||0); });
+  }).sort(function(a,b){
+    var ta=tierRank(a.name), tb=tierRank(b.name);
+    if(ta!==tb) return ta-tb; // AAA first, then acclaimed AA, then indies
+    return (b.score||0)-(a.score||0);
+  });
 }
 
 function renderSuggest(){
@@ -946,6 +1037,7 @@ function renderSuggest(){
   var genreList=["All"].concat(Object.keys(genres).sort());
   if(genreList.indexOf(sugGenre)<0) sugGenre="All";
   var shown=(sugGenre==="All"?sugs:sugs.filter(function(g){ return g.genre===sugGenre; }))
+    .filter(function(g){ return sugTier==="All" || tierFor(g.name)===sugTier; })
     .filter(function(g){ return matchQ(g.name); });
 
   var html =
@@ -956,7 +1048,10 @@ function renderSuggest(){
     (q()?'<button class="sclear" data-act="clear-search" title="Clear">✕</button>':'')+
     '</div></div>'+
     '<div class="syncbar"><span class="syncnote">'+(data.lastCatalogSync?("Last updated "+esc(data.lastCatalogSync)):"Built-in top 40 — add API key in Settings for live data")+'</span></div>'+
-    '<div class="meta" style="margin-bottom:10px">Top-rated released PS5 AAA games, minus everything you’ve played, rented or queued.</div>'+
+    '<div class="meta" style="margin-bottom:10px">Top-rated released PS5 games — AAA first, plus only the must-play AA and indie hits — minus everything you’ve played, rented or queued.</div>'+
+    '<div class="chipbar">'+["All","AAA","AA","Indie"].map(function(t){
+      return '<button class="gchip '+(t===sugTier?"on":"")+'" data-tier="'+t+'">'+(t==="All"?"All tiers":t)+'</button>';
+    }).join("")+'</div>'+
     '<div class="chipbar">'+genreList.map(function(g){
       return '<button class="gchip '+(g===sugGenre?"on":"")+'" data-genre="'+esc(g)+'">'+esc(g)+'</button>';
     }).join("")+'</div>';
@@ -969,7 +1064,7 @@ function renderSuggest(){
       coverImg(g)+
       '<div class="grow">'+
         '<div class="gname">'+esc(g.name)+'</div>'+
-        '<div class="meta"><span style="color:'+scoreColor(g.score)+';font-weight:700">'+(g.score?("Critic "+g.score):"Unrated")+'</span> · '+(g.year||"")+' · '+esc(g.genre||"")+(g.rating?' · '+(Math.round(g.rating*10)/10)+'★ users':'')+(g.note?'<br>'+esc(g.note):'')+'</div>'+
+        '<div class="meta">'+tierChip(g.name)+'<span style="color:'+scoreColor(g.score)+';font-weight:700">'+(g.score?("Critic "+g.score):"Unrated")+'</span> · '+(g.year||"")+' · '+esc(g.genre||"")+(g.rating?' · '+(Math.round(g.rating*10)/10)+'★ users':'')+(g.note?'<br>'+esc(g.note):'')+'</div>'+
       '</div>'+
     '</div><div class="actions">'+
       '<button class="btn blue" data-act="sug-queue" data-name="'+esc(g.name)+'">◇ Add to queue</button>'+
@@ -1016,7 +1111,7 @@ function renderPlayed(){
     html+=
     '<div class="card"><div class="row">'+
       coverImg(p)+
-      '<div class="grow"><div class="gname">'+esc(p.name)+'</div><div class="meta">Added '+fmt(p.added)+
+      '<div class="grow"><div class="gname">'+esc(p.name)+'</div><div class="meta">'+tierChip(p.name)+'Added '+fmt(p.added)+
       (p.vendor?' · <span style="color:#B7D6F5">'+esc(p.vendor)+'</span>':'')+
       (Number(p.cost)?' · <span style="color:#F2B84B;font-weight:700">'+fmtMoney(p.cost)+'</span>':'')+
       scoreBits(p)+'</div></div>'+
@@ -1042,6 +1137,7 @@ function render(){
     tab==="queue"   ? renderQueue() :
     tab==="upcoming"? renderUpcoming() :
     tab==="suggest" ? renderSuggest() : renderPlayed();
+  applyBackground();
 }
 
 /* ---------- actions ---------- */
@@ -1091,6 +1187,8 @@ document.getElementById("pushBtn").addEventListener("click",pushCloud);
 document.getElementById("pullBtn").addEventListener("click",pullCloud);
 
 document.getElementById("content").addEventListener("click",function(e){
+  var tc=e.target.closest("[data-tier]");
+  if(tc){ sugTier=tc.getAttribute("data-tier"); render(); return; }
   var gc=e.target.closest("[data-genre]");
   if(gc){ sugGenre=gc.getAttribute("data-genre"); render(); return; }
   var b=e.target.closest("[data-act]"); if(!b) return;
@@ -1181,8 +1279,9 @@ document.getElementById("content").addEventListener("click",function(e){
 
   else if(act==="add-queue"){
     var qn=document.getElementById("qName").value.trim(); if(!qn) return;
+    var qav=document.getElementById("qAvail").value||null;
     formOpen[tab]=false;
-    addToQueue(qn);
+    addToQueue(qn,"",null,null,qav);
   }
   else if(act==="q-up"||act==="q-down"||act==="q-top"||act==="q-bottom"){
     var qi=qIndex(id);
@@ -1302,6 +1401,12 @@ document.getElementById("content").addEventListener("change",function(e){
   }
   if(e.target.id==="rVendor"){
     if(e.target.value==="__new__") handleVendorNew(e.target);
+    return;
+  }
+  var qa=e.target.closest(".q-avail");
+  if(qa){
+    var qq=byId(data.queue,qa.getAttribute("data-id"));
+    if(qq){ qq.avail=qa.value||null; save(); flash(qq.avail?("Availability set: "+fmt(qq.avail)):"Availability cleared"); }
     return;
   }
   var ni=e.target.closest(".note-inp");
