@@ -37,36 +37,39 @@
     --datescheme:dark;
   }
   html.light {
-    --bg:#E9EDF4;
-    --stickybg:rgba(233,237,244,.82);
-    --card:rgba(255,255,255,.88);
-    --card2:rgba(248,250,253,.9);
-    --inset:#F0F3F9;
-    --border:#D3DBE8;
-    --border2:#C2CDDE;
-    --border3:#D8DFEA;
-    --inborder:#D3DBE8;
-    --text:#151B28;
-    --text2:#3A4356;
-    --btntext:#33405C;
-    --muted:#5C687E;
-    --dim:#8792A6;
-    --faint:#C0C9D9;
+    --bg:#CDD6E4;
+    --stickybg:rgba(205,214,228,.86);
+    --card:rgba(255,255,255,.96);
+    --card2:rgba(255,255,255,.92);
+    --inset:#EEF2F8;
+    --border:#B9C5D8;
+    --border2:#AAB8CE;
+    --border3:#BDC8DA;
+    --inborder:#C4CEDE;
+    --text:#141A26;
+    --text2:#39435A;
+    --btntext:#2E3B54;
+    --muted:#586178;
+    --dim:#7C889E;
+    --faint:#AEB9CB;
     --inputbg:#FFFFFF;
-    --btnbg:#EDF1F8;
+    --btnbg:#F2F5FA;
     --accent:#1F6FE0;
     --accentbg:#2D7FF9;
     --accenttext:#FFFFFF;
-    --vendor:#2F62A5;
+    --vendor:#2A5C9E;
     --dropbg:#FFFFFF;
     --datescheme:light;
+    --shadow:0 2px 10px rgba(28,45,80,.13);
+    --shadowlg:0 6px 22px rgba(28,45,80,.18);
   }
+  :root { --shadow:0 1px 3px rgba(0,0,0,.22); --shadowlg:0 8px 24px rgba(0,0,0,.42); }
   * { box-sizing:border-box; margin:0; padding:0; }
   html { background:var(--bg); }
   body { min-height:100vh; background:transparent; color:var(--text); font-family:"Segoe UI", system-ui, -apple-system, sans-serif; }
-  #bg { position:fixed; inset:0; z-index:-1; background:var(--bg) center 22%/cover no-repeat; }
-  #bg::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg, rgba(10,13,19,.45) 0%, rgba(10,13,19,.66) 42%, rgba(10,13,19,.94) 88%); }
-  html.light #bg::after { background:linear-gradient(180deg, rgba(233,237,244,.50) 0%, rgba(233,237,244,.72) 42%, rgba(233,237,244,.96) 88%); }
+  #bg { position:fixed; inset:0; z-index:-1; background:var(--bg) center 20%/cover no-repeat; }
+  #bg::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg, rgba(10,13,19,.38) 0%, rgba(10,13,19,.60) 44%, rgba(10,13,19,.92) 86%); }
+  html.light #bg::after { background:linear-gradient(180deg, rgba(205,214,228,.34) 0%, rgba(205,214,228,.62) 44%, rgba(205,214,228,.93) 86%); }
   .wrap { max-width:780px; margin:0 auto; padding:14px 16px 90px; }
   .topbar { display:flex; align-items:center; gap:10px; padding:8px 0 2px; }
   .brand { display:flex; align-items:baseline; gap:10px; flex:1; min-width:0; }
@@ -84,8 +87,8 @@
   .tab .shp { margin-right:4px; font-size:11px; }
   .tab.on { color:var(--text); border-bottom-color:var(--accent); }
   .tab.on .shp { color:var(--accent); }
-  .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:13px 14px 12px; margin-bottom:10px; transition:border-color .15s ease; backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); }
-  .card:hover { border-color:var(--accent); }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:13px 14px 12px; margin-bottom:10px; transition:border-color .15s ease, box-shadow .15s ease; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); box-shadow:var(--shadow); }
+  .card:hover { border-color:var(--accent); box-shadow:var(--shadowlg); }
   .row { display:flex; align-items:center; gap:11px; }
   .grow { flex:1; min-width:0; }
   .gname { font-weight:700; font-size:15px; line-height:1.3; overflow-wrap:anywhere; }
@@ -177,7 +180,32 @@
   .settings a { color:var(--accent); }
   #toTop { position:fixed; right:16px; bottom:66px; z-index:15; display:none; background:var(--accentbg); color:var(--accenttext); border:1px solid var(--accent); border-radius:99px; width:42px; height:42px; font-size:17px; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.35); }
   #toTop.show { display:block; }
+  .stat { box-shadow:var(--shadow); }
+  .form, .settings, .menupanel { box-shadow:var(--shadow); }
+  /* PS5 Pro + remaster badges */
+  .chip.pro { color:#0A0D13; background:linear-gradient(90deg,#E8B84B,#F2CE6E); border-color:#E8B84B; }
+  html.light .chip.pro { color:#3A2A00; }
+  .chip.rem { color:#C8A2E8; border-color:#7A5AA8; }
+  html.light .chip.rem { color:#6B3FA8; }
+  /* external link buttons (Google / Trailer) */
+  a.btn { text-decoration:none; display:inline-flex; align-items:center; gap:4px; }
+  /* hero banner (featured backdrop game) */
+  #hero { position:relative; border-radius:16px; overflow:hidden; margin-bottom:14px; min-height:120px; display:none; border:1px solid var(--border); box-shadow:var(--shadowlg); }
+  #hero.show { display:block; }
+  #hero .art { position:absolute; inset:0; background-size:cover; background-position:center 28%; }
+  #hero .scrim { position:absolute; inset:0; background:linear-gradient(100deg, rgba(6,9,15,.90) 0%, rgba(6,9,15,.60) 52%, rgba(6,9,15,.18) 100%); }
+  #hero .txt { position:relative; padding:16px 16px 15px; }
+  #hero .lbl { font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#9DC2FF; font-weight:700; }
+  #hero .ttl { font-size:23px; font-weight:800; color:#fff; margin-top:5px; line-height:1.14; text-shadow:0 2px 12px rgba(0,0,0,.65); }
+  #hero .dt { font-size:12.5px; color:#E7EEFB; margin-top:6px; font-weight:600; }
+  #hero .badges { margin-top:9px; }
+  /* view toggle + grid */
+  #content.grid .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(232px, 1fr)); gap:11px; align-items:start; }
+  #content.grid .cards .card { margin-bottom:0; }
+  .cards { margin:0; }
   @media (max-width:480px){
+    #content.grid .cards { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:9px; }
+    #hero .ttl { font-size:19px; }
     .brand h1 { font-size:16px; }
     .bignum { font-size:30px; min-width:54px; }
     .tab { font-size:11px; min-width:54px; }
@@ -191,10 +219,12 @@
 <div class="wrap">
   <div class="topbar">
     <div class="brand"><h1>SINU GAME VAULT</h1><span class="sym">&#9651;&#9675;&#10005;&#9633;</span></div>
+    <button class="iconbtn" id="viewBtn" title="Switch list / grid view">&#9638;</button>
     <button class="iconbtn" id="themeBtn" title="Switch light / dark mode">&#9788;</button>
     <button class="iconbtn" id="menuBtn" title="Cloud, backup &amp; settings">&#8943;</button>
   </div>
-  <div class="sub">PS5 tracker &middot; rentals &middot; playing now &middot; watchlist &middot; library <span id="syncStatus" style="color:#8B96AC"></span><span id="bgCaption"></span></div>
+  <div class="sub">PS5 tracker &middot; rentals &middot; playing now &middot; watchlist &middot; library <span id="syncStatus" style="color:var(--muted)"></span></div>
+  <div id="hero"></div>
   <div class="menupanel" id="menuPanel">
     <button class="btn" id="pushBtn">&#8657; Push to cloud</button>
     <button class="btn" id="pullBtn">&#8659; Pull from cloud</button>
@@ -275,25 +305,31 @@ var BUILTIN_CATALOG = [
   ["God of War Ragnarök",2022,94,"Action","Kratos & Atreus vs the Norse apocalypse"],
   ["Astro Bot",2024,94,"Platformer","GOTY 2024 — pure PS5 joy"],
   ["Metaphor: ReFantazio",2024,94,"RPG","Fantasy epic from the Persona team"],
-  ["Resident Evil 4",2023,93,"Horror","Remake of the all-time classic"],
-  ["Demon's Souls",2020,92,"Action","Stunning Bluepoint remake"],
-  ["Final Fantasy VII Rebirth",2024,92,"RPG","Part 2 of the remake trilogy"],
+  ["Resident Evil 4",2023,93,"Horror","Remake of the all-time classic","Remake"],
+  ["Demon's Souls",2020,92,"Action","Stunning Bluepoint remake","Remake"],
+  ["Final Fantasy VII Rebirth",2024,92,"RPG","Part 2 of the remake trilogy","Remake"],
   ["Clair Obscur: Expedition 33",2025,92,"RPG","Turn-based stunner — 2025's surprise hit"],
   ["Split Fiction",2025,91,"Co-op","Hazelight co-op hit — grab a friend"],
   ["Marvel's Spider-Man 2",2023,90,"Action","Venom, symbiote suit, two Spider-Men"],
   ["Ghost of Yōtei",2025,90,"Action","Sucker Punch's follow-up to Tsushima"],
   ["Resident Evil Requiem",2026,90,"Horror","RE9 — this year's big horror release"],
   ["Death Stranding 2: On the Beach",2025,89,"Adventure","Kojima's strand sequel"],
-  ["Ghost of Tsushima Director's Cut",2021,89,"Action","Samurai open world + Iki Island"],
+  ["Ghost of Tsushima Director's Cut",2021,89,"Action","Samurai open world + Iki Island","Remaster"],
+  ["Dead Space",2023,89,"Horror","Ground-up remake of the sci-fi horror classic","Remake"],
+  ["The Last of Us Part II Remastered",2024,90,"Adventure","Definitive PS5 version + No Return mode","Remaster"],
   ["Alan Wake 2",2023,89,"Horror","Remedy's survival-horror masterpiece"],
   ["Horizon Forbidden West",2022,88,"Action","Aloy vs machines in the forbidden west"],
   ["Ratchet & Clank: Rift Apart",2021,88,"Platformer","The PS5 SSD showcase"],
   ["Monster Hunter Wilds",2025,88,"Action","Capcom's massive hunting sandbox"],
   ["Kingdom Come: Deliverance II",2025,88,"RPG","Hardcore medieval realism"],
-  ["The Last of Us Part I",2022,88,"Adventure","Full ground-up PS5 remake"],
+  ["The Last of Us Part I",2022,88,"Adventure","Full ground-up PS5 remake","Remake"],
+  ["Persona 3 Reload",2024,87,"RPG","Full remake of the beloved JRPG","Remake"],
+  ["Horizon Zero Dawn Remastered",2024,85,"Action","Aloy's origin story rebuilt for PS5","Remaster"],
   ["Final Fantasy XVI",2023,87,"RPG","Dark fantasy with real-time combat"],
   ["Gran Turismo 7",2022,87,"Racing","The definitive sim racer"],
-  ["Silent Hill 2",2024,87,"Horror","Bloober's acclaimed remake"],
+  ["Silent Hill 2",2024,87,"Horror","Bloober's acclaimed remake","Remake"],
+  ["The Elder Scrolls IV: Oblivion Remastered",2025,82,"RPG","Cyrodiil reborn in Unreal 5","Remaster"],
+  ["Metal Gear Solid Delta: Snake Eater",2025,75,"Action","Faithful remake of MGS3","Remake"],
   ["Dragon's Dogma 2",2024,87,"RPG","Emergent open-world chaos"],
   ["Cyberpunk 2077",2022,86,"RPG","With Phantom Liberty it's essential"],
   ["Armored Core VI: Fires of Rubicon",2023,86,"Action","FromSoftware does mechs"],
@@ -310,7 +346,7 @@ var BUILTIN_CATALOG = [
   ["Stellar Blade",2024,81,"Action","Stylish character action"],
   ["Black Myth: Wukong",2024,81,"Action","Chinese mythology epic"],
   ["Assassin's Creed Shadows",2025,81,"Action","Feudal Japan, dual protagonists"]
-].map(function(g){ return {name:g[0], year:g[1], score:g[2], genre:g[3], note:g[4]}; });
+].map(function(g){ return {name:g[0], year:g[1], score:g[2], genre:g[3], note:g[4], rem:g[5]||""}; });
 
 /* ---------- storage ---------- */
 function load(){
@@ -342,6 +378,7 @@ function migrate(d){
   if(!d.rentalHistory) d.rentalHistory = [];
   if(!d.playing) d.playing = [];
   if(!d.covers) d.covers = {};
+  if(!d.dismissedNames) d.dismissedNames = {};
   if(!d.updatedAt) d.updatedAt = Date.now();
   d.version = SCHEMA_VERSION;
   return d;
@@ -355,14 +392,23 @@ function persist(){
 }
 function save(){ persist(); render(); }
 
-var toastTimer = null;
-function flash(msg){
+var toastTimer = null, undoFn = null;
+function flash(msg, undoCb){
   var t=document.getElementById("toast");
-  t.textContent=msg; t.style.display="none";
+  undoFn=undoCb||null;
+  t.innerHTML=esc(msg)+(undoCb?'&nbsp; <b id="undoBtn" style="cursor:pointer;text-decoration:underline">UNDO</b>':'');
+  t.style.display="none";
   void t.offsetWidth; t.style.display="block";
   clearTimeout(toastTimer);
-  toastTimer=setTimeout(function(){ t.style.display="none"; },2600);
+  toastTimer=setTimeout(function(){ t.style.display="none"; undoFn=null; }, undoCb?6000:2600);
 }
+document.getElementById("toast").addEventListener("click",function(e){
+  if(e.target.id==="undoBtn" && undoFn){
+    var f=undoFn; undoFn=null;
+    this.style.display="none";
+    f();
+  }
+});
 
 /* ---------- fetch helper ---------- */
 function rawgFetch(url){
@@ -637,7 +683,7 @@ function backfillImages(){
 /* Curated overrides for well-known AA titles in the built-in catalog;
    everything else in the catalog is AAA. Fetched games are classified by
    how widely tracked they are on RAWG (a budget proxy, imperfect but useful). */
-var TIER_AA = ["clairobscurexpedition33","splitfiction","liesofp","helldivers2"];
+var TIER_AA = ["clairobscurexpedition33","splitfiction","liesofp","helldivers2","persona3reload"];
 function tierFor(name){
   var n=norm(name);
   if(TIER_AA.indexOf(n)>-1) return "AA";
@@ -651,6 +697,40 @@ function tierRank(name){ var t=tierFor(name); return t==="AAA"?0:t==="AA"?1:t===
 function tierChip(name){
   var t=tierFor(name); if(!t) return "";
   return '<span class="chip t-'+t.toLowerCase()+'">'+t+'</span> ';
+}
+
+/* Officially PS5 Pro Enhanced titles (curated) */
+var PS5PRO = [
+  "Marvel's Spider-Man 2","Marvel's Spider-Man: Miles Morales","God of War Ragnarök",
+  "Horizon Forbidden West","Horizon Zero Dawn Remastered","The Last of Us Part I",
+  "The Last of Us Part II Remastered","Demon's Souls","Ratchet & Clank: Rift Apart",
+  "Gran Turismo 7","Ghost of Tsushima Director's Cut","Ghost of Yōtei","Astro Bot",
+  "Alan Wake 2","Final Fantasy VII Rebirth","Final Fantasy XVI","Dragon's Dogma 2",
+  "Resident Evil 4","Resident Evil Village","Silent Hill 2","Star Wars Jedi: Survivor",
+  "Hogwarts Legacy","Stellar Blade","Black Myth: Wukong","Cyberpunk 2077",
+  "Kingdom Come: Deliverance II","Monster Hunter Wilds","Assassin's Creed Shadows",
+  "Death Stranding 2: On the Beach","Doom: The Dark Ages","Clair Obscur: Expedition 33",
+  "Lies of P","Dead Space"
+].map(norm);
+function remFor(name){
+  var n=norm(name);
+  var all=BUILTIN_CATALOG.concat(data.catalogExtra||[]);
+  for(var i=0;i<all.length;i++) if(norm(all[i].name)===n) return all[i].rem||"";
+  return "";
+}
+/* One badge strip per game: tier + PS5 Pro + Remake/Remaster */
+function badges(name){
+  var b=tierChip(name);
+  if(PS5PRO.indexOf(norm(name))>-1) b+='<span class="chip pro">PS5 Pro</span> ';
+  var r=remFor(name);
+  if(r) b+='<span class="chip rem">'+r+'</span> ';
+  return b;
+}
+/* Google + YouTube trailer buttons — plain https links, so on iPhone the
+   YouTube universal link opens the app when installed */
+function linkBtns(name){
+  return '<a class="btn" href="https://www.google.com/search?q='+encodeURIComponent(name+" PS5")+'" target="_blank" rel="noopener">⌕ Google</a>'+
+         '<a class="btn" href="https://www.youtube.com/results?search_query='+encodeURIComponent(name+" PS5 trailer")+'" target="_blank" rel="noopener">▶ Trailer</a>';
 }
 
 /* ---------- dynamic backdrop: next big AAA release ---------- */
@@ -669,14 +749,29 @@ function nextBigGame(){
 var bgShown="";
 function applyBackground(){
   var el=document.getElementById("bg"); if(!el) return;
-  var cap=document.getElementById("bgCaption");
+  var hero=document.getElementById("hero");
   var g=nextBigGame();
   var u=g?coverUrl(g):"";
   if(u!==bgShown){
     bgShown=u;
     el.style.backgroundImage=u?('url("'+u+'")'):"none";
   }
-  if(cap) cap.textContent=g?(" · Backdrop: "+g.name+" — "+(g.date?fmt(g.date):"TBC")):"";
+  if(!hero) return;
+  if(g&&u){
+    var dl=g.date?daysBetween(today(),parseD(g.date)):null;
+    hero.className="show";
+    hero.innerHTML=
+      '<div class="art" style="background-image:url(\''+esc(u)+'\')"></div><div class="scrim"></div>'+
+      '<div class="txt">'+
+        '<div class="lbl">Coming up next</div>'+
+        '<div class="ttl">'+esc(g.name)+'</div>'+
+        '<div class="dt">'+(g.date?fmt(g.date)+(dl!==null&&dl>=0?' · in '+dl+' day'+(dl===1?"":"s"):''):"Date TBC")+'</div>'+
+        '<div class="badges">'+badges(g.name)+'</div>'+
+      '</div>';
+  } else {
+    hero.className="";
+    hero.innerHTML="";
+  }
 }
 
 /* ---------- plot summaries (Wikipedia) ---------- */
@@ -825,6 +920,7 @@ function renderRentals(){
 
   if(!list.length && !q() && rentVendor==="All") html+='<div class="empty">No active rentals. Press <b>+ Add rental</b> when you rent a game — the countdown starts automatically.</div>';
 
+  html+='<div class="cards">';
   list.forEach(function(r){
     var c=urgency(r.left);
     var due=parseD(r.start); due.setDate(due.getDate()+r.days);
@@ -839,7 +935,7 @@ function renderRentals(){
     '<div class="card"'+(r.left<=0?' style="opacity:.65"':'')+'>'+
       '<div class="row">'+coverImg(r)+'<div class="grow">'+
         '<div class="gname">'+esc(r.name)+'</div>'+
-        '<div class="meta">'+tierChip(r.name)+'Rented '+fmt(r.start)+' · '+r.days+'-day period · due '+fmt(localISO(due))+
+        '<div class="meta">'+badges(r.name)+'Rented '+fmt(r.start)+' · '+r.days+'-day period · due '+fmt(localISO(due))+
         (r.vendor?' · <span style="color:var(--vendor)">'+esc(r.vendor)+'</span>':'')+
         (Number(r.cost)?' · <span style="color:#F2B84B;font-weight:700">'+fmtMoney(r.cost)+'</span>':'')+
         scoreBits(r)+'</div>'+
@@ -853,6 +949,7 @@ function renderRentals(){
         '<button class="btn" data-act="extend" data-id="'+r.id+'" data-n="30">+30 days</button>'+
         '<button class="btn blue" data-act="return-played" data-id="'+r.id+'">Return → Played</button>'+
         '<button class="btn" data-act="return-only" data-id="'+r.id+'">↩ Return</button>'+
+        linkBtns(r.name)+
         '<button class="btn ghost danger" data-act="remove-rental" data-id="'+r.id+'">Delete</button>'+
       '</div>'+
       '<div class="inline-edit">'+
@@ -862,27 +959,44 @@ function renderRentals(){
       '</div>'+
     '</div>';
   });
+  html+='</div>';
 
-  // ---- rental history ----
+  // ---- rental history (fully editable) ----
   var hist=data.rentalHistory.filter(function(h){ return matchQ(h.name) && vendorMatch(h); });
   if(data.rentalHistory.length){
     html+='<div class="sechead">Rental history · '+data.rentalHistory.length+'</div>';
     if(!hist.length) html+=noMatch();
+    html+='<div class="cards">';
     hist.forEach(function(h){
       html+=
       '<div class="card hist"><div class="row">'+coverImg(h)+'<div class="grow">'+
         '<div class="gname">'+esc(h.name)+'</div>'+
-        '<div class="meta">'+fmt(h.start)+' → '+fmt(h.end)+' · '+
+        '<div class="meta">'+badges(h.name)+fmt(h.start)+' → '+fmt(h.end)+' · '+
         (h.used===1?"1 day":h.used+" days")+' used of '+h.days+
         (h.vendor?' · <span style="color:var(--vendor)">'+esc(h.vendor)+'</span>':'')+
         (Number(h.cost)?' · <span style="color:#F2B84B;font-weight:700">'+fmtMoney(h.cost)+'</span>':'')+
         (h.note?'<br>“'+esc(h.note)+'”':'')+'</div>'+
-      '</div></div>'+
+      '</div>'+
       '<div class="actions">'+
         '<button class="btn" data-act="hist-again" data-id="'+h.id+'">↻ Rent again</button>'+
+        linkBtns(h.name)+
         '<button class="btn ghost danger" data-act="hist-del" data-id="'+h.id+'">Delete record</button>'+
-      '</div></div>';
+      '</div>'+
+      '<div class="inline-edit">'+
+        '<input class="note-inp h-note r-note-w" data-id="'+h.id+'" placeholder="Remark — condition, deposit refunded…" value="'+esc(h.note||"")+'" style="flex:3 1 160px">'+
+        '<input class="note-inp h-cost" data-id="'+h.id+'" type="number" min="0" placeholder="Cost ₹" value="'+(Number(h.cost)?Number(h.cost):"")+'" style="flex:1 1 84px">'+
+        '<select class="note-inp h-vendor" data-id="'+h.id+'">'+vendorOptions(h.vendor||"")+'</select>'+
+      '</div>'+
+      '<div class="inline-edit">'+
+        '<span class="syncnote" style="align-self:center">Rented:</span>'+
+        '<input class="note-inp h-start" data-id="'+h.id+'" type="date" value="'+esc(h.start||"")+'" style="flex:0 1 140px">'+
+        '<span class="syncnote" style="align-self:center">Returned:</span>'+
+        '<input class="note-inp h-end" data-id="'+h.id+'" type="date" value="'+esc(h.end||"")+'" style="flex:0 1 140px">'+
+        '<input class="note-inp h-days" data-id="'+h.id+'" type="number" min="1" value="'+(Number(h.days)||30)+'" title="Rental period (days)" style="flex:0 1 74px">'+
+      '</div>'+
+      '</div>';
     });
+    html+='</div>';
   }
   if(!list.length && q() && !hist.length) html+=noMatch();
 
@@ -953,19 +1067,20 @@ function renderPlaying(){
     var h=
     '<div class="card">'+
       '<div class="row clickrow" data-act="pl-toggle" data-id="'+x.id+'">'+coverImg(x)+
-        '<div class="grow"><div class="gname">'+esc(x.name)+'</div><div class="meta">'+tierChip(x.name)+sub+scoreBits(x)+'</div></div>'+
+        '<div class="grow"><div class="gname">'+esc(x.name)+'</div><div class="meta">'+badges(x.name)+sub+scoreBits(x)+'</div></div>'+
         '<span style="color:var(--dim);font-size:12px;flex-shrink:0">'+(open?"▲":"▼")+'</span>'+
       '</div>';
     if(open){
       var u=coverUrl(x);
       if(u) h+='<img class="cover lg" src="'+esc(u)+'" alt="" loading="lazy">';
       h+=plotBlock(x.name);
-      h+='<div class="actions">'+actionsHtml+'</div>';
+      h+='<div class="actions">'+actionsHtml+linkBtns(x.name)+'</div>';
     }
     h+='</div>';
     return h;
   }
 
+  html+='<div class="cards">';
   live.forEach(function(r){
     var c=urgency(r.left);
     var sub='<span style="color:'+c+';font-weight:700">'+r.left+' day'+(r.left===1?"":"s")+' left</span> on rental'+
@@ -980,6 +1095,7 @@ function renderPlaying(){
       '<button class="btn blue" data-act="pl-played" data-id="'+p.id+'">Finished → Played</button>'+
       '<button class="btn ghost danger" data-act="pl-del" data-id="'+p.id+'">Remove</button>');
   });
+  html+='</div>';
   return html;
 }
 
@@ -1002,6 +1118,7 @@ function renderQueue(){
   else if(!shown.length) html+=noMatch();
 
   var last=data.queue.length-1;
+  html+='<div class="cards">';
   shown.forEach(function(q1){
     var i=qIndex(q1.id);
     var availBits="";
@@ -1017,7 +1134,7 @@ function renderQueue(){
       coverImg(q1)+
       '<div class="grow">'+
         '<div class="gname">'+esc(q1.name)+'</div>'+
-        '<div class="meta">'+tierChip(q1.name)+'Queued '+fmt(q1.added)+scoreBits(q1)+(q1.note?' · '+esc(q1.note):'')+availBits+'</div>'+
+        '<div class="meta">'+badges(q1.name)+'Queued '+fmt(q1.added)+scoreBits(q1)+(q1.note?' · '+esc(q1.note):'')+availBits+'</div>'+
       '</div>'+
     '</div><div class="actions">'+
       (i>0?'<button class="btn" data-act="q-top" data-id="'+q1.id+'" title="Move to top">⤒ Top</button>':'')+
@@ -1025,12 +1142,14 @@ function renderQueue(){
       (i<last?'<button class="btn" data-act="q-down" data-id="'+q1.id+'">↓</button>':'')+
       (i<last?'<button class="btn" data-act="q-bottom" data-id="'+q1.id+'" title="Move to bottom">⤓ Bottom</button>':'')+
       '<button class="btn blue" data-act="q-rent" data-id="'+q1.id+'">Start rental →</button>'+
+      linkBtns(q1.name)+
       '<button class="btn ghost danger" data-act="q-del" data-id="'+q1.id+'">Remove</button>'+
     '</div>'+
     '<div class="inline-edit"><span class="syncnote" style="align-self:center">Available from:</span>'+
     '<input class="note-inp q-avail" data-id="'+q1.id+'" type="date" value="'+esc(q1.avail||"")+'" style="flex:0 1 150px">'+
     '</div></div>';
   });
+  html+='</div>';
   return html;
 }
 function qIndex(id){ for(var i=0;i<data.queue.length;i++) if(data.queue[i].id===id) return i; return -1; }
@@ -1072,6 +1191,7 @@ function renderUpcoming(){
 
   if(!list.length) html+= q()?noMatch():'<div class="empty">Nothing on the watchlist.</div>';
 
+  html+='<div class="cards">';
   list.forEach(function(g){
     var d=g.date?parseD(g.date):null;
     var dleft=d?daysBetween(t0,d):null;
@@ -1083,14 +1203,16 @@ function renderUpcoming(){
     html+=
     '<div class="card"><div class="row">'+
       coverImg(g)+
-      '<div class="grow"><div class="gname">'+esc(g.name)+'</div><div class="meta">'+tierChip(g.name)+'<b style="color:var(--text)">'+when+'</b>'+extra+(g.note?'<br>'+esc(g.note):'')+'</div></div>'+
+      '<div class="grow"><div class="gname">'+esc(g.name)+'</div><div class="meta">'+badges(g.name)+'<b style="color:var(--text)">'+when+'</b>'+extra+(g.note?'<br>'+esc(g.note):'')+'</div></div>'+
       '<button class="star '+(g.want?"on":"")+'" data-act="want" data-id="'+g.id+'" title="I want this">★</button>'+
     '</div><div class="actions">'+
       '<button class="btn" data-act="up-queue" data-id="'+g.id+'">◇ Add to queue</button>'+
       (out?'<button class="btn blue" data-act="to-played" data-id="'+g.id+'">Playing it → Played</button>':'')+
+      linkBtns(g.name)+
       '<button class="btn ghost danger" data-act="del-upcoming" data-id="'+g.id+'">Remove</button>'+
     '</div></div>';
   });
+  html+='</div>';
   return html;
 }
 
@@ -1160,21 +1282,102 @@ function renderSuggest(){
 
   if(!shown.length) html+= q()?noMatch():'<div class="empty">Nothing left to suggest here — either you’ve played everything (impressive) or try Refresh for more.</div>';
 
-  shown.forEach(function(g){
-    html+=
-    '<div class="card"><div class="row">'+
+  function sugCard(g, tierHtml){
+    return '<div class="card"><div class="row">'+
       coverImg(g)+
       '<div class="grow">'+
         '<div class="gname">'+esc(g.name)+'</div>'+
-        '<div class="meta">'+tierChip(g.name)+'<span style="color:'+scoreColor(g.score)+';font-weight:700">'+(g.score?("Critic "+g.score):"Unrated")+'</span> · '+(g.year||"")+' · '+esc(g.genre||"")+(g.rating?' · '+(Math.round(g.rating*10)/10)+'★ users':'')+(g.note?'<br>'+esc(g.note):'')+'</div>'+
+        '<div class="meta">'+tierHtml+'<span style="color:'+scoreColor(g.score)+';font-weight:700">'+(g.score?("Critic "+g.score):"Unrated")+'</span> · '+(g.year||"")+' · '+esc(g.genre||"")+(g.rating?' · '+(Math.round(g.rating*10)/10)+'★ users':'')+(g.note?'<br>'+esc(g.note):'')+'</div>'+
       '</div>'+
     '</div><div class="actions">'+
       '<button class="btn blue" data-act="sug-queue" data-name="'+esc(g.name)+'">◇ Add to queue</button>'+
       '<button class="btn" data-act="sug-played" data-name="'+esc(g.name)+'">✓ Played it</button>'+
+      linkBtns(g.name)+
       '<button class="btn ghost danger" data-act="sug-hide" data-name="'+esc(g.name)+'">Not interested</button>'+
     '</div></div>';
-  });
+  }
+
+  html+='<div class="cards">';
+  shown.forEach(function(g){ html+=sugCard(g, badges(g.name)); });
+  html+='</div>';
+
+  // ---- internet-wide search results ----
+  var qs=q().trim();
+  if(qs.length>=3){
+    html+='<div class="sechead">From the internet</div>';
+    if(!getKey()){
+      html+='<div class="empty">Add your free RAWG API key in Settings to search the whole games database.</div>';
+    } else if(webResults.q!==qs){
+      html+='<div class="empty">Searching the games database for “'+esc(qs)+'”…</div>';
+    } else {
+      var ownedW=ownedSet();
+      var seenLocal={}; shown.forEach(function(g){ seenLocal[norm(g.name)]=1; });
+      var webShown=webResults.items.filter(function(g){ return !seenLocal[norm(g.name)] && !isOwned(g.name, ownedW); });
+      if(!webShown.length) html+='<div class="empty">No new games found for “'+esc(qs)+'”.</div>';
+      else{
+        html+='<div class="cards">';
+        webShown.forEach(function(g){
+          var tierHtml = g.tier ? '<span class="chip t-'+g.tier.toLowerCase()+'">'+g.tier+'</span> ' : '';
+          html+=sugCard(g, tierHtml);
+        });
+        html+='</div>';
+      }
+    }
+  }
+
+  // ---- hidden (Not interested) games, restorable ----
+  var dis=data.dismissed||[];
+  if(dis.length){
+    html+='<div class="sechead">Hidden games · '+dis.length+'</div><div class="cards">';
+    dis.forEach(function(k){
+      var nm2=(data.dismissedNames&&data.dismissedNames[k])||k;
+      html+='<div class="card hist"><div class="row">'+
+        coverImg({name:nm2})+
+        '<div class="grow"><div class="gname">'+esc(nm2)+'</div><div class="meta">Hidden from suggestions</div></div>'+
+        '<button class="btn" data-act="sug-restore" data-key="'+esc(k)+'">↩ Restore</button>'+
+      '</div></div>';
+    });
+    html+='</div>';
+  }
   return html;
+}
+
+/* Search RAWG for the For You internet-wide search */
+var webResults={q:"",items:[]};
+var webTimer=null;
+function searchWeb(qs){
+  var key=getKey(); if(!key) return;
+  clearTimeout(webTimer);
+  webTimer=setTimeout(function(){
+    rawgFetch("https://api.rawg.io/api/games?key="+encodeURIComponent(key)+"&search="+encodeURIComponent(qs)+"&page_size=8&platforms=187")
+    .then(function(json){
+      if((searchQ.suggest||"").trim()!==qs) return; // stale response
+      var items=(json.results||[]).filter(function(g){ return g&&g.name; }).map(function(g){
+        if(g.background_image) data.covers[norm(g.name)]=g.background_image;
+        return {
+          name:g.name,
+          year:g.released?Number(g.released.slice(0,4)):null,
+          score:g.metacritic||null,
+          rating:g.rating||null,
+          genre:(g.genres&&g.genres[0]&&g.genres[0].name)||"",
+          tier:(g.added>=8000?"AAA":g.added>=2500?"AA":"Indie")
+        };
+      });
+      webResults={q:qs, items:items};
+      renderKeepSearch();
+    }).catch(function(){});
+  },500);
+}
+/* Re-render without losing the search box focus/caret */
+function renderKeepSearch(){
+  var el=document.getElementById("tabSearch");
+  var had=el && document.activeElement===el;
+  var pos=had?el.selectionStart:0;
+  render();
+  if(had){
+    var n=document.getElementById("tabSearch");
+    if(n){ n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} }
+  }
 }
 
 /* ---------- Played tab ---------- */
@@ -1206,6 +1409,7 @@ function renderPlayed(){
   if(!data.played.length) html+='<div class="empty">Your library is empty. Add games one by one, or open the PlayStation App → Game Library, copy your titles and use Bulk import (inside + Add game). The For You tab gets smarter as this list grows.</div>';
   else if(!shown.length) html+=noMatch();
 
+  html+='<div class="cards">';
   shown.forEach(function(p){
     var dots="";
     for(var n=1;n<=5;n++) dots+='<button class="dot '+(p.rating>=n?"on":"")+'" data-act="rate" data-id="'+p.id+'" data-n="'+n+'">●</button>';
@@ -1213,7 +1417,7 @@ function renderPlayed(){
     html+=
     '<div class="card"><div class="row">'+
       coverImg(p)+
-      '<div class="grow"><div class="gname">'+esc(p.name)+'</div><div class="meta">'+tierChip(p.name)+'Added '+fmt(p.added)+
+      '<div class="grow"><div class="gname">'+esc(p.name)+'</div><div class="meta">'+badges(p.name)+'Added '+fmt(p.added)+
       (p.vendor?' · <span style="color:var(--vendor)">'+esc(p.vendor)+'</span>':'')+
       (Number(p.cost)?' · <span style="color:#F2B84B;font-weight:700">'+fmtMoney(p.cost)+'</span>':'')+
       scoreBits(p)+'</div></div>'+
@@ -1221,11 +1425,13 @@ function renderPlayed(){
     '</div><div class="actions">'+
       '<span class="chip '+chipCls+'">'+p.status+'</span>'+
       '<select class="selectmini status-sel" data-id="'+p.id+'">'+STATUSES.map(function(s){return '<option'+(s===p.status?" selected":"")+'>'+s+'</option>';}).join("")+'</select>'+
+      linkBtns(p.name)+
       '<button class="btn ghost danger" data-act="del-played" data-id="'+p.id+'">Remove</button>'+
     '</div>'+
     '<input class="note-inp" data-id="'+p.id+'" placeholder="Add a note — thoughts, playtime, DLC left…" value="'+esc(p.note||"")+'">'+
     '</div>';
   });
+  html+='</div>';
   return html;
 }
 
@@ -1378,7 +1584,24 @@ document.getElementById("content").addEventListener("click",function(e){
     }
   }
   else if(act==="sug-hide"){
-    if(nm){ data.dismissed.push(norm(nm)); save(); }
+    if(nm){
+      var hk=norm(nm);
+      data.dismissed.push(hk);
+      if(!data.dismissedNames) data.dismissedNames={};
+      data.dismissedNames[hk]=nm;
+      save();
+      flash("Hidden from suggestions", function(){
+        data.dismissed=data.dismissed.filter(function(x){ return x!==hk; });
+        if(data.dismissedNames) delete data.dismissedNames[hk];
+        save();
+      });
+    }
+  }
+  else if(act==="sug-restore"){
+    var rk=b.getAttribute("data-key");
+    data.dismissed=(data.dismissed||[]).filter(function(x){ return x!==rk; });
+    if(data.dismissedNames) delete data.dismissedNames[rk];
+    save(); flash("Restored to suggestions");
   }
 
   else if(act==="add-queue"){
@@ -1507,6 +1730,23 @@ document.getElementById("content").addEventListener("change",function(e){
     if(e.target.value==="__new__") handleVendorNew(e.target);
     return;
   }
+  // rental-history fields stay editable forever
+  var hEl=e.target.closest(".h-note,.h-cost,.h-vendor,.h-start,.h-end,.h-days");
+  if(hEl){
+    var hh=byId(data.rentalHistory,hEl.getAttribute("data-id"));
+    if(hh){
+      if(hEl.classList.contains("h-note")) hh.note=hEl.value.trim();
+      else if(hEl.classList.contains("h-cost")) hh.cost=Number(hEl.value)||0;
+      else if(hEl.classList.contains("h-vendor")) hh.vendor=(hEl.value==="__new__"?handleVendorNew(hEl):hEl.value);
+      else if(hEl.classList.contains("h-days")) hh.days=Math.max(1,Number(hEl.value)||hh.days);
+      else if(hEl.classList.contains("h-start")) hh.start=hEl.value||hh.start;
+      else if(hEl.classList.contains("h-end")) hh.end=hEl.value||hh.end;
+      var hs=parseD(hh.start), he=parseD(hh.end);
+      if(hs&&he) hh.used=Math.max(0,daysBetween(hs,he));
+      persist(); renderStats(); flash("History record updated");
+    }
+    return;
+  }
   var qa=e.target.closest(".q-avail");
   if(qa){
     var qq=byId(data.queue,qa.getAttribute("data-id"));
@@ -1545,6 +1785,11 @@ document.getElementById("content").addEventListener("input",function(e){
     render();
     var el=document.getElementById("tabSearch");
     if(el){ el.focus(); try{ el.setSelectionRange(pos,pos); }catch(err){} }
+    if(tab==="suggest"){
+      var wq=ts.value.trim();
+      if(wq.length>=3) searchWeb(wq);
+      else webResults={q:"",items:[]};
+    }
     return;
   }
   var inp=e.target.closest(".ac-input");
@@ -1657,6 +1902,22 @@ document.getElementById("themeBtn").addEventListener("click",function(){
   theme = theme==="light" ? "dark" : "light";
   try{ localStorage.setItem(THEME_KEY,theme); }catch(e){}
   applyTheme(theme);
+});
+
+/* ---------- list / grid view ---------- */
+var VIEW_KEY="ps5-view";
+var view="list";
+try{ view=localStorage.getItem(VIEW_KEY)||"list"; }catch(e){}
+function applyView(){
+  document.getElementById("content").classList.toggle("grid", view==="grid");
+  var b=document.getElementById("viewBtn");
+  if(b){ b.innerHTML = view==="grid" ? "&#9776;" : "&#9638;"; b.title = view==="grid" ? "Switch to list view" : "Switch to grid view"; }
+}
+applyView();
+document.getElementById("viewBtn").addEventListener("click",function(){
+  view = view==="grid" ? "list" : "grid";
+  try{ localStorage.setItem(VIEW_KEY,view); }catch(e){}
+  applyView();
 });
 
 /* ---------- back to top ---------- */
