@@ -3,6 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Game Vault">
+<meta name="theme-color" content="#0A0D13">
+<link rel="apple-touch-icon" href="icon.png">
 <title>Game Vault — PS5 Tracker</title>
 <style>
   * { box-sizing:border-box; margin:0; padding:0; }
@@ -63,12 +69,26 @@
   .dot { background:none; border:none; cursor:pointer; font-size:14px; color:#3A465E; padding:2px; }
   .dot.on { color:#2D7FF9; }
   .empty { text-align:center; color:#8B96AC; font-size:13px; padding:36px 16px; border:1px dashed #232E44; border-radius:12px; }
-  .stats { display:flex; gap:8px; margin-bottom:16px; }
-  .stat { flex:1; background:#131822; border:1px solid #232E44; border-radius:10px; padding:10px 12px; }
+  .stats { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+  .stat { flex:1 1 100px; background:#131822; border:1px solid #232E44; border-radius:10px; padding:10px 12px; }
   .stat .v { font-size:20px; font-weight:800; font-variant-numeric:tabular-nums; }
   .stat .k { font-size:10px; color:#8B96AC; letter-spacing:0.1em; text-transform:uppercase; margin-top:2px; }
+  .inline-edit { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .inline-edit .note-inp { margin-top:0; width:auto; }
+  .inline-edit .r-note { flex:3 1 180px; }
+  .inline-edit .r-cost { flex:1 1 90px; }
+  @media (max-width:480px){ .stat{flex:1 1 42%;} }
   .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#1D3B66; border:1px solid #2D7FF9; color:#DCEAFF; padding:9px 16px; border-radius:99px; font-size:13px; font-weight:600; z-index:9; display:none; max-width:90vw; text-align:center; }
   .selectmini { padding:5px 8px; font-size:11px; border-radius:6px; }
+  .note-inp { width:100%; margin-top:10px; font-size:12px; color:#B9C3D6; background:#0D1119; border:1px solid #1E2739; }
+  .note-inp::placeholder { color:#525E76; }
+  .note-inp:focus { border-color:#2D7FF9; }
+  .ac-wrap { position:relative; }
+  .ac-wrap input { width:100%; }
+  .ac-drop { position:absolute; top:calc(100% + 4px); left:0; right:0; background:#10151F; border:1px solid #2B3852; border-radius:10px; z-index:20; max-height:240px; overflow:auto; display:none; box-shadow:0 8px 24px rgba(0,0,0,.5); }
+  .ac-item { padding:9px 12px; font-size:13px; cursor:pointer; color:#C9D4E8; display:flex; justify-content:space-between; gap:10px; align-items:baseline; }
+  .ac-item:hover { background:#1D3B66; }
+  .ac-tag { color:#5B6880; font-size:11px; flex-shrink:0; }
   .syncbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
   .syncnote { color:#8B96AC; font-size:11px; }
   .settings { background:#10141D; border:1px solid #2B3852; border-radius:12px; padding:14px; margin-bottom:16px; }
@@ -82,6 +102,8 @@
   <div class="brand"><h1>GAME VAULT</h1><span class="sym">&#9651;&#9675;&#10005;&#9633;</span></div>
   <div class="sub">PS5 rental countdown &middot; live release watchlist &middot; AAA suggestions &middot; played library</div>
   <div class="topbtns">
+    <button class="btn" id="pushBtn">&#8657; Push to cloud</button>
+    <button class="btn" id="pullBtn">&#8659; Pull from cloud</button>
     <button class="btn" id="exportBtn">Export backup</button>
     <button class="btn" id="importBtn">Restore backup</button>
     <button class="btn" id="settingsBtn">Settings</button>
@@ -92,6 +114,13 @@
     <div class="fields">
       <input class="f-name" id="apiKeyInput" placeholder="Paste RAWG API key here" autocomplete="off">
       <button class="btn blue" id="saveKeyBtn">Save key</button>
+    </div>
+    <hr style="border:none; border-top:1px solid #232E44; margin:14px 0">
+    <p><b style="color:#EAF0FA">Cloud sync between your PC and phone (optional).</b> Get a free account at <a href="https://jsonbin.io" target="_blank" rel="noopener">jsonbin.io</a> &rarr; open <b>API Keys</b> &rarr; copy your <b>Master Key</b> and paste it below. Then press <b>Push to cloud</b> once &mdash; it creates your private storage bin and shows its Bin ID here. On your phone, open this same app, paste the same Master Key and Bin ID, and press <b>Pull from cloud</b>. After that: Push when you finish on one device, Pull when you open the other.</p>
+    <div class="fields">
+      <input class="f-name" id="jbKeyInput" placeholder="JSONBin Master Key" autocomplete="off">
+      <input class="f-name" id="jbBinInput" placeholder="Bin ID (auto-filled after first push)" autocomplete="off">
+      <button class="btn blue" id="saveSyncBtn">Save sync settings</button>
     </div>
   </div>
   <div class="stats" id="stats"></div>
@@ -187,10 +216,28 @@ function load(){
   var d = null;
   try { var raw = localStorage.getItem(STORE_KEY); if(raw) d = JSON.parse(raw); } catch(e){}
   if(!d) d = { rentals:[], upcoming:SEED_UPCOMING, played:[] };
+  return migrate(d);
+}
+/* Schema migrations: bump SCHEMA_VERSION when structure changes and add an
+   upgrade step below. Old data is always upgraded in place, never recreated. */
+var SCHEMA_VERSION = 3;
+function migrate(d){
   if(!d.dismissed) d.dismissed = [];
   if(!d.catalogExtra) d.catalogExtra = [];
   if(!("lastUpcomingSync" in d)) d.lastUpcomingSync = null;
   if(!("lastCatalogSync" in d)) d.lastCatalogSync = null;
+  var v = d.version || 1;
+  if(v < 2){ // v2: expenses, remarks, vendors
+    if(!d.vendors) d.vendors = [];
+    d.rentals.forEach(function(r){ if(!("cost" in r)) r.cost=0; if(!("note" in r)) r.note=""; if(!("vendor" in r)) r.vendor=""; });
+    d.played.forEach(function(p){ if(!("cost" in p)) p.cost=0; if(!("note" in p)) p.note=""; if(!("vendor" in p)) p.vendor=""; });
+  }
+  if(v < 3){ // v3: rental queue / wishlist with priority order
+    if(!d.queue) d.queue = [];
+  }
+  if(!d.vendors) d.vendors = [];
+  if(!d.queue) d.queue = [];
+  d.version = SCHEMA_VERSION;
   return d;
 }
 var data = load();
@@ -212,6 +259,50 @@ function rawgFetch(url){
     if(!res.ok) throw new Error("HTTP "+res.status);
     return res.json();
   });
+}
+
+/* ---------- cloud sync (JSONBin) ---------- */
+var JB_KEY_STORE="ps5-jsonbin-key", JB_BIN_STORE="ps5-jsonbin-bin";
+function getJB(){
+  try { return { key:localStorage.getItem(JB_KEY_STORE)||"", bin:localStorage.getItem(JB_BIN_STORE)||"" }; }
+  catch(e){ return {key:"",bin:""}; }
+}
+function pushCloud(){
+  var jb=getJB();
+  if(!jb.key){ flash("Set up cloud sync in Settings first"); toggleSettings(true); return; }
+  if(busy) return; busy=true;
+  var isNew=!jb.bin;
+  var url=isNew?"https://api.jsonbin.io/v3/b":"https://api.jsonbin.io/v3/b/"+jb.bin;
+  var headers={ "Content-Type":"application/json", "X-Master-Key":jb.key };
+  if(isNew){ headers["X-Bin-Private"]="true"; headers["X-Bin-Name"]="game-vault"; }
+  fetch(url,{ method:isNew?"POST":"PUT", headers:headers, body:JSON.stringify(data) })
+  .then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return res.json(); })
+  .then(function(json){
+    if(isNew && json.metadata && json.metadata.id){
+      try{ localStorage.setItem(JB_BIN_STORE,json.metadata.id); }catch(e){}
+    }
+    busy=false;
+    var bin=getJB().bin;
+    flash("Pushed to cloud"+(isNew&&bin?(" \u2014 Bin ID saved: "+bin+" (see Settings)"):""));
+    toggleSettings(false);
+  })
+  .catch(function(err){ busy=false; flash("Push failed \u2014 check internet and Master Key"); });
+}
+function pullCloud(){
+  var jb=getJB();
+  if(!jb.key||!jb.bin){ flash("Enter Master Key and Bin ID in Settings first"); toggleSettings(true); return; }
+  if(busy) return;
+  if(!confirm("Replace the data on THIS device with the cloud copy?")) return;
+  busy=true;
+  fetch("https://api.jsonbin.io/v3/b/"+jb.bin+"/latest",{ headers:{ "X-Master-Key":jb.key } })
+  .then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return res.json(); })
+  .then(function(json){
+    var d=json.record;
+    if(d&&d.rentals&&d.upcoming&&d.played){
+      data=migrate(d); busy=false; save(); flash("Pulled from cloud \u2014 this device is up to date");
+    } else { busy=false; flash("Cloud data doesn't look like a Game Vault backup"); }
+  })
+  .catch(function(err){ busy=false; flash("Pull failed \u2014 check internet, Master Key and Bin ID"); });
 }
 
 function refreshUpcoming(){
@@ -261,6 +352,7 @@ function refreshCatalog(){
         name:g.name,
         year:g.released?Number(g.released.slice(0,4)):null,
         score:g.metacritic||null,
+        rating:g.rating||null,
         genre:(g.genres&&g.genres[0]&&g.genres[0].name)||"Other",
         note:(g.genres||[]).slice(0,3).map(function(x){return x.name;}).join(" \u00B7 ")
       });
@@ -276,6 +368,33 @@ function refreshCatalog(){
   });
 }
 
+/* ---------- expenses & score enrichment ---------- */
+function fmtMoney(n){ return "\u20B9"+Number(n||0).toLocaleString("en-IN"); }
+function totalSpent(){
+  var t=0;
+  data.rentals.forEach(function(r){ t+=Number(r.cost)||0; });
+  data.played.forEach(function(p){ t+=Number(p.cost)||0; });
+  return t;
+}
+function scoreBits(x){
+  var s="";
+  if(x.score) s+=' \u00B7 <span style="color:'+scoreColor(x.score)+';font-weight:700">Critic '+x.score+'</span>';
+  if(x.rrating) s+=' \u00B7 '+x.rrating+'\u2605';
+  return s;
+}
+function enrichScore(list,id){
+  var key=getKey(); if(!key) return;
+  var item=byId(data[list],id); if(!item || item.score) return;
+  rawgFetch("https://api.rawg.io/api/games?key="+encodeURIComponent(key)+"&search="+encodeURIComponent(item.name)+"&page_size=1")
+  .then(function(json){
+    var g=(json.results||[])[0]; if(!g) return;
+    var it=byId(data[list],id); if(!it) return;
+    if(g.metacritic) it.score=g.metacritic;
+    if(g.rating) it.rrating=Math.round(g.rating*10)/10;
+    if(it.score||it.rrating){ persist(); render(); }
+  }).catch(function(){});
+}
+
 /* ---------- rendering ---------- */
 function renderStats(){
   var t0=today();
@@ -284,15 +403,23 @@ function renderStats(){
   var sug=getSuggestions().length;
   document.getElementById("stats").innerHTML =
     '<div class="stat"><div class="v" style="color:'+(urgent?"#F05A5A":"#EAF0FA")+'">'+active+'</div><div class="k">Active rentals</div></div>'+
+    '<div class="stat"><div class="v" style="color:#F2B84B">'+fmtMoney(totalSpent())+'</div><div class="k">Total spent</div></div>'+
     '<div class="stat"><div class="v">'+sug+'</div><div class="k">Games to try</div></div>'+
     '<div class="stat"><div class="v">'+data.played.length+'</div><div class="k">Games played</div></div>';
 }
 
 function renderTabs(){
-  var defs=[["rentals","\u2715","Rentals"],["upcoming","\u25B3","Upcoming"],["suggest","\u25CB","For You"],["played","\u25A1","Played"]];
+  var defs=[["rentals","\u2715","Rentals"],["queue","\u25C7","Queue"],["upcoming","\u25B3","Upcoming"],["suggest","\u25CB","For You"],["played","\u25A1","Played"]];
   document.getElementById("tabs").innerHTML = defs.map(function(d){
     return '<button class="tab '+(tab===d[0]?"on":"")+'" data-tab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
   }).join("");
+}
+
+function vendorOptions(sel){
+  var o='<option value="">Vendor\u2026</option>';
+  (data.vendors||[]).forEach(function(v){ o+='<option'+(v===sel?' selected':'')+'>'+esc(v)+'</option>'; });
+  o+='<option value="__new__">+ Add new vendor</option>';
+  return o;
 }
 
 function renderRentals(){
@@ -304,9 +431,11 @@ function renderRentals(){
 
   var html =
     '<div class="form"><h3>Add a rental</h3><div class="fields">'+
-    '<input class="f-name" id="rName" placeholder="Game name">'+
+    '<div class="ac-wrap f-name"><input id="rName" class="ac-input" placeholder="Game name \u2014 start typing for suggestions" autocomplete="off"><div class="ac-drop"></div></div>'+
     '<input class="f-sm" id="rStart" type="date" value="'+localISO()+'">'+
-    '<input class="f-sm" id="rDays" type="number" min="1" value="30">'+
+    '<input class="f-sm" id="rDays" type="number" min="1" value="30" title="Rental days">'+
+    '<input class="f-sm" id="rCost" type="number" min="0" placeholder="Cost \u20B9">'+
+    '<select class="f-sm" id="rVendor">'+vendorOptions("")+'</select>'+
     '<button class="btn blue" data-act="add-rental">Add rental</button>'+
     '</div></div>';
 
@@ -326,7 +455,10 @@ function renderRentals(){
     '<div class="card"'+(r.left<=0?' style="opacity:.65"':'')+'>'+
       '<div class="row"><div class="grow">'+
         '<div class="gname">'+esc(r.name)+'</div>'+
-        '<div class="meta">Rented '+fmt(r.start)+' \u00B7 '+r.days+'-day period \u00B7 due '+fmt(localISO(due))+'</div>'+
+        '<div class="meta">Rented '+fmt(r.start)+' \u00B7 '+r.days+'-day period \u00B7 due '+fmt(localISO(due))+
+        (r.vendor?' \u00B7 <span style="color:#B7D6F5">'+esc(r.vendor)+'</span>':'')+
+        (Number(r.cost)?' \u00B7 <span style="color:#F2B84B;font-weight:700">'+fmtMoney(r.cost)+'</span>':'')+
+        scoreBits(r)+'</div>'+
       '</div><div>'+
         '<div class="bignum" style="color:'+c+'">'+(r.left>0?r.left:0)+'</div>'+
         '<div class="biglabel">'+(r.left<=0?"Expired":(r.left===1?"Day left":"Days left"))+'</div>'+
@@ -337,7 +469,13 @@ function renderRentals(){
         '<button class="btn" data-act="extend" data-id="'+r.id+'" data-n="30">+30 days</button>'+
         '<button class="btn blue" data-act="return-played" data-id="'+r.id+'">Return \u2192 Played</button>'+
         '<button class="btn ghost danger" data-act="remove-rental" data-id="'+r.id+'">Remove</button>'+
-      '</div></div>';
+      '</div>'+
+      '<div class="inline-edit">'+
+        '<input class="note-inp r-note" data-id="'+r.id+'" placeholder="Remark \u2014 deposit, return reminder, disc condition\u2026" value="'+esc(r.note||"")+'">'+
+        '<input class="note-inp r-cost" data-id="'+r.id+'" type="number" min="0" placeholder="Cost \u20B9" value="'+(Number(r.cost)?Number(r.cost):"")+'">'+
+        '<select class="note-inp r-vendor" data-id="'+r.id+'">'+vendorOptions(r.vendor||"")+'</select>'+
+      '</div>'+
+    '</div>';
   });
   return html;
 }
@@ -355,7 +493,7 @@ function renderUpcoming(){
     '<span class="syncnote">'+(data.lastUpcomingSync?("Last updated "+esc(data.lastUpcomingSync)):"Needs free API key \u2014 see Settings")+'</span>'+
     '</div>'+
     '<div class="form"><h3>Watch a new release</h3><div class="fields">'+
-    '<input class="f-name" id="uName" placeholder="Game name">'+
+    '<div class="ac-wrap f-name"><input id="uName" class="ac-input" placeholder="Game name \u2014 start typing for suggestions" autocomplete="off"><div class="ac-drop"></div></div>'+
     '<input class="f-sm" id="uDate" type="date">'+
     '<input class="f-name" id="uNote" placeholder="Note (optional)">'+
     '<button class="btn blue" data-act="add-upcoming">Add</button>'+
@@ -377,6 +515,7 @@ function renderUpcoming(){
       '<div class="grow"><div class="gname">'+esc(g.name)+'</div><div class="meta">'+esc(g.note||"")+extra+'</div></div>'+
       '<button class="star '+(g.want?"on":"")+'" data-act="want" data-id="'+g.id+'" title="I want this">\u2605</button>'+
     '</div><div class="actions">'+
+      '<button class="btn" data-act="up-queue" data-id="'+g.id+'">\u25C7 Add to queue</button>'+
       (out?'<button class="btn blue" data-act="to-played" data-id="'+g.id+'">Playing it \u2192 Played</button>':'')+
       '<button class="btn ghost danger" data-act="del-upcoming" data-id="'+g.id+'">Remove</button>'+
     '</div></div>';
@@ -439,31 +578,81 @@ function renderSuggest(){
   shown.forEach(function(g){
     html+=
     '<div class="card"><div class="row">'+
-      '<div class="scorebadge"><div class="s1" style="color:'+scoreColor(g.score)+'">'+(g.score||"\u2014")+'</div><div class="s2">Score</div></div>'+
+      '<div class="scorebadge"><div class="s1" style="color:'+scoreColor(g.score)+'">'+(g.score||"\u2014")+'</div><div class="s2">Critics</div></div>'+
       '<div class="grow">'+
         '<div class="gname">'+esc(g.name)+'</div>'+
-        '<div class="meta">'+(g.year||"")+' \u00B7 '+esc(g.genre||"")+(g.note?' \u00B7 '+esc(g.note):'')+'</div>'+
+        '<div class="meta">'+(g.year||"")+' \u00B7 '+esc(g.genre||"")+(g.rating?' \u00B7 '+(Math.round(g.rating*10)/10)+'\u2605 users':'')+(g.note?' \u00B7 '+esc(g.note):'')+'</div>'+
       '</div>'+
     '</div><div class="actions">'+
-      '<button class="btn blue" data-act="sug-played" data-name="'+esc(g.name)+'">\u2713 Played it</button>'+
-      '<button class="btn" data-act="sug-rent" data-name="'+esc(g.name)+'">Rent this next</button>'+
+      '<button class="btn blue" data-act="sug-queue" data-name="'+esc(g.name)+'">\u25C7 Add to queue</button>'+
+      '<button class="btn" data-act="sug-played" data-name="'+esc(g.name)+'">\u2713 Played it</button>'+
       '<button class="btn ghost danger" data-act="sug-hide" data-name="'+esc(g.name)+'">Not interested</button>'+
     '</div></div>';
   });
   return html;
 }
 
+/* ---------- rental queue / wishlist ---------- */
+function renderQueue(){
+  var html =
+    '<div class="meta" style="margin-bottom:10px">Your rental wishlist in priority order \u2014 <b style="color:#EAF0FA">#1 is what you rent next</b>. Add games here from Upcoming, For You, or manually below, then reorder with the arrows.</div>'+
+    '<div class="form"><h3>Add to queue</h3><div class="fields">'+
+    '<div class="ac-wrap f-name"><input id="qName" class="ac-input" placeholder="Game name \u2014 start typing for suggestions" autocomplete="off"><div class="ac-drop"></div></div>'+
+    '<button class="btn blue" data-act="add-queue">Add</button>'+
+    '</div></div>';
+
+  if(!data.queue.length) html+='<div class="empty">Your queue is empty. Add the games you plan to rent next \u2014 from the \u25B3 Upcoming and \u25CB For You tabs, or type one above.</div>';
+
+  var last=data.queue.length-1;
+  data.queue.forEach(function(q,i){
+    html+=
+    '<div class="card"><div class="row">'+
+      '<div class="scorebadge"><div class="s1" style="color:'+(i===0?"#3ECF8E":"#2D7FF9")+'">#'+(i+1)+'</div><div class="s2">'+(i===0?"Next up":"Priority")+'</div></div>'+
+      '<div class="grow">'+
+        '<div class="gname">'+esc(q.name)+'</div>'+
+        '<div class="meta">Queued '+fmt(q.added)+scoreBits(q)+(q.note?' \u00B7 '+esc(q.note):'')+'</div>'+
+      '</div>'+
+    '</div><div class="actions">'+
+      (i>0?'<button class="btn" data-act="q-top" data-id="'+q.id+'" title="Move to top">\u2912 Top</button>':'')+
+      (i>0?'<button class="btn" data-act="q-up" data-id="'+q.id+'">\u2191</button>':'')+
+      (i<last?'<button class="btn" data-act="q-down" data-id="'+q.id+'">\u2193</button>':'')+
+      (i<last?'<button class="btn" data-act="q-bottom" data-id="'+q.id+'" title="Move to bottom">\u2913 Bottom</button>':'')+
+      '<button class="btn blue" data-act="q-rent" data-id="'+q.id+'">Start rental \u2192</button>'+
+      '<button class="btn ghost danger" data-act="q-del" data-id="'+q.id+'">Remove</button>'+
+    '</div></div>';
+  });
+  return html;
+}
+function qIndex(id){ for(var i=0;i<data.queue.length;i++) if(data.queue[i].id===id) return i; return -1; }
+function addToQueue(name, note, score, rrating){
+  if(!name) return;
+  var n=norm(name);
+  for(var i=0;i<data.queue.length;i++){
+    if(norm(data.queue[i].name)===n){ flash("Already in your queue at #"+(i+1)); return; }
+  }
+  var qid=uid();
+  data.queue.push({id:qid, name:name, note:note||"", score:score||null, rrating:rrating||null, added:localISO()});
+  save(); flash("Added to rental queue at #"+data.queue.length);
+  enrichScore("queue",qid);
+}
+
 function renderPlayed(){
   var html =
     '<div class="form"><h3>Add to your library</h3><div class="fields">'+
-    '<input class="f-name" id="pName" placeholder="Game name">'+
+    '<div class="ac-wrap f-name"><input id="pName" class="ac-input" placeholder="Game name \u2014 start typing for suggestions" autocomplete="off"><div class="ac-drop"></div></div>'+
     '<select class="f-sm" id="pStatus">'+STATUSES.map(function(s){return '<option>'+s+'</option>';}).join("")+'</select>'+
     '<button class="btn blue" data-act="add-played">Add</button>'+
     '<button class="btn" data-act="toggle-import">'+(showImport?"Close import":"Bulk import")+'</button>'+
     '</div>';
   if(showImport){
-    html+='<div style="margin-top:10px"><div class="meta" style="margin-bottom:6px">Paste your game list from the PlayStation App (one per line). Optional format: <b>Game name | rating 1\u20135 | status</b></div>'+
-    '<textarea id="importText" placeholder="God of War Ragnar\u00F6k | 5 | Platinum\nElden Ring | 5 | Finished\nFC 25"></textarea>'+
+    html+='<div style="margin-top:10px">'+
+    '<div class="meta" style="margin-bottom:8px; line-height:1.6">'+
+    '<b style="color:#EAF0FA">Getting your list out of PSN:</b><br>'+
+    '1. Easiest \u2014 go to <b>psnprofiles.com</b>, enter your PSN ID and press Update (your profile must be public: PS5 \u2192 Settings \u2192 Users and Accounts \u2192 Privacy \u2192 Gaming | Trophies \u2192 Anyone). Open your profile, and every game you\u2019ve ever launched is listed with trophy progress. Copy the game names.<br>'+
+    '2. Or open the <b>PlayStation App \u2192 Game Library \u2192 Purchased</b> and copy the titles manually.<br>'+
+    '3. Paste below \u2014 one game per line. Junk lines that are only numbers or percentages get skipped automatically.<br>'+
+    'Optional format per line: <b>Game name | rating 1\u20135 | status | note</b></div>'+
+    '<textarea id="importText" placeholder="God of War Ragnar\u00F6k | 5 | Platinum | 100% story done\nElden Ring | 5 | Finished\nFC 25"></textarea>'+
     '<div class="actions"><button class="btn blue" data-act="run-import">Import list</button></div></div>';
   }
   html+='</div>';
@@ -476,13 +665,18 @@ function renderPlayed(){
     var chipCls=p.status==="Platinum"?"plat":p.status==="Finished"?"fin":p.status==="Playing"?"play":"drop";
     html+=
     '<div class="card"><div class="row">'+
-      '<div class="grow"><div class="gname">'+esc(p.name)+'</div><div class="meta">Added '+fmt(p.added)+'</div></div>'+
+      '<div class="grow"><div class="gname">'+esc(p.name)+'</div><div class="meta">Added '+fmt(p.added)+
+      (p.vendor?' \u00B7 <span style="color:#B7D6F5">'+esc(p.vendor)+'</span>':'')+
+      (Number(p.cost)?' \u00B7 <span style="color:#F2B84B;font-weight:700">'+fmtMoney(p.cost)+'</span>':'')+
+      scoreBits(p)+'</div></div>'+
       '<div class="dots">'+dots+'</div>'+
     '</div><div class="actions">'+
       '<span class="chip '+chipCls+'">'+p.status+'</span>'+
       '<select class="selectmini status-sel" data-id="'+p.id+'">'+STATUSES.map(function(s){return '<option'+(s===p.status?" selected":"")+'>'+s+'</option>';}).join("")+'</select>'+
       '<button class="btn ghost danger" data-act="del-played" data-id="'+p.id+'">Remove</button>'+
-    '</div></div>';
+    '</div>'+
+    '<input class="note-inp" data-id="'+p.id+'" placeholder="Add a note \u2014 thoughts, playtime, DLC left\u2026" value="'+esc(p.note||"")+'">'+
+    '</div>';
   });
   return html;
 }
@@ -491,7 +685,7 @@ function render(){
   renderStats();
   renderTabs();
   var c=document.getElementById("content");
-  c.innerHTML = tab==="rentals"?renderRentals():tab==="upcoming"?renderUpcoming():tab==="suggest"?renderSuggest():renderPlayed();
+  c.innerHTML = tab==="rentals"?renderRentals():tab==="queue"?renderQueue():tab==="upcoming"?renderUpcoming():tab==="suggest"?renderSuggest():renderPlayed();
 }
 
 /* ---------- actions ---------- */
@@ -500,7 +694,12 @@ function toggleSettings(force){
   var box=document.getElementById("settingsBox");
   var show=(typeof force==="boolean")?force:(box.style.display==="none");
   box.style.display=show?"block":"none";
-  if(show) document.getElementById("apiKeyInput").value=getKey();
+  if(show){
+    document.getElementById("apiKeyInput").value=getKey();
+    var jb=getJB();
+    document.getElementById("jbKeyInput").value=jb.key;
+    document.getElementById("jbBinInput").value=jb.bin;
+  }
 }
 
 document.getElementById("tabs").addEventListener("click",function(e){
@@ -516,6 +715,15 @@ document.getElementById("saveKeyBtn").addEventListener("click",function(){
   flash(v?"API key saved \u2014 refresh buttons are live now":"API key cleared");
   render();
 });
+document.getElementById("saveSyncBtn").addEventListener("click",function(){
+  try{
+    localStorage.setItem(JB_KEY_STORE,document.getElementById("jbKeyInput").value.trim());
+    localStorage.setItem(JB_BIN_STORE,document.getElementById("jbBinInput").value.trim());
+  }catch(e){}
+  flash("Sync settings saved \u2014 use Push / Pull buttons at the top");
+});
+document.getElementById("pushBtn").addEventListener("click",pushCloud);
+document.getElementById("pullBtn").addEventListener("click",pullCloud);
 
 document.getElementById("content").addEventListener("click",function(e){
   var gc=e.target.closest("[data-genre]");
@@ -527,8 +735,12 @@ document.getElementById("content").addEventListener("click",function(e){
     var name=document.getElementById("rName").value.trim(); if(!name) return;
     var start=document.getElementById("rStart").value||localISO();
     var days=Math.max(1,Number(document.getElementById("rDays").value)||30);
-    data.rentals.push({id:uid(),name:name,start:start,days:days});
+    var cost=Number(document.getElementById("rCost").value)||0;
+    var vend=document.getElementById("rVendor").value; if(vend==="__new__") vend="";
+    var newId=uid();
+    data.rentals.push({id:newId,name:name,start:start,days:days,cost:cost,vendor:vend,note:""});
     save(); flash("Rental added");
+    enrichScore("rentals",newId);
   }
   else if(act==="extend"){
     var r=byId(data.rentals,id); if(r){ r.days+=Number(b.getAttribute("data-n")); save(); flash("Extended by "+b.getAttribute("data-n")+" days"); }
@@ -537,8 +749,8 @@ document.getElementById("content").addEventListener("click",function(e){
     var r2=byId(data.rentals,id);
     if(r2){
       data.rentals=data.rentals.filter(function(x){return x.id!==id;});
-      data.played.unshift({id:uid(),name:r2.name,rating:0,status:"Finished",added:localISO()});
-      save(); flash("Moved to Played");
+      data.played.unshift({id:uid(),name:r2.name,rating:0,status:"Finished",added:localISO(),cost:Number(r2.cost)||0,vendor:r2.vendor||"",note:r2.note||"",score:r2.score||null,rrating:r2.rrating||null});
+      save(); flash("Moved to Played \u2014 cost stays counted in Total spent");
     }
   }
   else if(act==="remove-rental"){ data.rentals=data.rentals.filter(function(x){return x.id!==id;}); save(); flash("Rental removed"); }
@@ -559,25 +771,56 @@ document.getElementById("content").addEventListener("click",function(e){
       save(); flash("Moved to Played");
     }
   }
+  else if(act==="up-queue"){
+    var gq=byId(data.upcoming,id);
+    if(gq) addToQueue(gq.name, gq.note||"");
+  }
   else if(act==="sug-played"){
     if(nm){
-      data.played.unshift({id:uid(),name:nm,rating:0,status:"Finished",added:localISO()});
+      var cat1=fullCatalog().filter(function(g){return norm(g.name)===norm(nm);})[0]||{};
+      data.played.unshift({id:uid(),name:nm,rating:0,status:"Finished",added:localISO(),score:cat1.score||null,rrating:cat1.rating?Math.round(cat1.rating*10)/10:null});
       save(); flash("Added to Played \u2014 set a rating in the Played tab");
     }
   }
-  else if(act==="sug-rent"){
+  else if(act==="sug-queue"){
     if(nm){
-      data.rentals.push({id:uid(),name:nm,start:localISO(),days:30});
-      save(); flash("Added as a 30-day rental starting today \u2014 edit in Rentals");
+      var cat2=fullCatalog().filter(function(g){return norm(g.name)===norm(nm);})[0]||{};
+      addToQueue(nm, "", cat2.score||null, cat2.rating?Math.round(cat2.rating*10)/10:null);
     }
   }
   else if(act==="sug-hide"){
     if(nm){ data.dismissed.push(norm(nm)); save(); }
   }
+  else if(act==="add-queue"){
+    var qn=document.getElementById("qName").value.trim(); if(!qn) return;
+    addToQueue(qn);
+  }
+  else if(act==="q-up"||act==="q-down"||act==="q-top"||act==="q-bottom"){
+    var qi=qIndex(id);
+    if(qi>-1){
+      var item=data.queue.splice(qi,1)[0];
+      var ni2 = act==="q-top"?0 : act==="q-bottom"?data.queue.length : act==="q-up"?Math.max(0,qi-1) : Math.min(data.queue.length,qi+1);
+      data.queue.splice(ni2,0,item);
+      save();
+    }
+  }
+  else if(act==="q-rent"){
+    var qr=byId(data.queue,id);
+    if(qr){
+      data.queue=data.queue.filter(function(x){return x.id!==id;});
+      var rid=uid();
+      data.rentals.push({id:rid,name:qr.name,start:localISO(),days:30,cost:0,vendor:"",note:qr.note||"",score:qr.score||null,rrating:qr.rrating||null});
+      tab="rentals"; save(); flash("Rental started today \u2014 set the cost and vendor below");
+      enrichScore("rentals",rid);
+    }
+  }
+  else if(act==="q-del"){ data.queue=data.queue.filter(function(x){return x.id!==id;}); save(); }
   else if(act==="add-played"){
     var pn=document.getElementById("pName").value.trim(); if(!pn) return;
-    data.played.unshift({id:uid(),name:pn,rating:0,status:document.getElementById("pStatus").value,added:localISO()});
+    var pid=uid();
+    data.played.unshift({id:pid,name:pn,rating:0,status:document.getElementById("pStatus").value,added:localISO()});
     save();
+    enrichScore("played",pid);
   }
   else if(act==="toggle-import"){ showImport=!showImport; render(); }
   else if(act==="run-import"){
@@ -587,11 +830,14 @@ document.getElementById("content").addEventListener("click",function(e){
     var added=0, skipped=0;
     lines.forEach(function(l){
       var parts=l.split("|").map(function(s){return s.trim();});
-      if(!parts[0]) return;
+      if(!parts[0] || parts[0].length<2) return;
+      // skip junk lines from trophy-site copies: pure numbers, percentages, trophy counts
+      if(/^[\d\s.,%\/\u2022\u00B7-]+$/.test(parts[0])) return;
+      if(/^(trophies|platinum|gold|silver|bronze|completed?|level|rank)\b[\d\s%]*$/i.test(parts[0])) return;
       if(existing[parts[0].toLowerCase()]){ skipped++; return; }
       var rating=Math.min(5,Math.max(0,Number(parts[1])||0));
       var status=STATUSES.filter(function(s){return s.toLowerCase()===(parts[2]||"").toLowerCase();})[0]||"Finished";
-      data.played.unshift({id:uid(),name:parts[0],rating:rating,status:status,added:localISO()});
+      data.played.unshift({id:uid(),name:parts[0],rating:rating,status:status,note:parts[3]||"",added:localISO()});
       existing[parts[0].toLowerCase()]=1; added++;
     });
     showImport=false; save();
@@ -604,10 +850,115 @@ document.getElementById("content").addEventListener("click",function(e){
   else if(act==="del-played"){ data.played=data.played.filter(function(x){return x.id!==id;}); save(); }
 });
 
+function handleVendorNew(sel){
+  var v=prompt("New vendor name (e.g. Mayank, GameHub, CEX):");
+  v=v?v.trim():"";
+  if(v && data.vendors.indexOf(v)<0){ data.vendors.push(v); data.vendors.sort(); persist(); }
+  sel.innerHTML=vendorOptions(v);
+  return v;
+}
+
 document.getElementById("content").addEventListener("change",function(e){
+  var rn=e.target.closest(".r-note");
+  if(rn){
+    var rr1=byId(data.rentals,rn.getAttribute("data-id"));
+    if(rr1){ rr1.note=rn.value.trim(); persist(); flash("Remark saved"); }
+    return;
+  }
+  var rc=e.target.closest(".r-cost");
+  if(rc){
+    var rr2=byId(data.rentals,rc.getAttribute("data-id"));
+    if(rr2){ rr2.cost=Number(rc.value)||0; persist(); renderStats(); flash("Cost saved \u2014 total updated"); }
+    return;
+  }
+  var rv=e.target.closest(".r-vendor");
+  if(rv){
+    var val=rv.value==="__new__" ? handleVendorNew(rv) : rv.value;
+    var rr3=byId(data.rentals,rv.getAttribute("data-id"));
+    if(rr3){ rr3.vendor=val; persist(); flash(val?("Vendor set: "+val):"Vendor cleared"); }
+    return;
+  }
+  if(e.target.id==="rVendor"){
+    if(e.target.value==="__new__") handleVendorNew(e.target);
+    return;
+  }
+  var ni=e.target.closest(".note-inp");
+  if(ni){
+    var pn=byId(data.played,ni.getAttribute("data-id"));
+    if(pn){ pn.note=ni.value.trim(); persist(); flash("Note saved"); }
+    return;
+  }
   var s=e.target.closest(".status-sel"); if(!s) return;
   var p=byId(data.played,s.getAttribute("data-id"));
   if(p){ p.status=s.value; save(); }
+});
+
+/* ---------- autocomplete ---------- */
+var AC_LIMIT=7, acTimer=null, acSeq=0;
+function localNames(q){
+  var ql=q.toLowerCase(); var seen={}; var out=[];
+  function push(n,tag){
+    var k=norm(n);
+    if(!seen[k] && n.toLowerCase().indexOf(ql)>-1){ seen[k]=1; out.push({name:n, tag:tag}); }
+  }
+  fullCatalog().forEach(function(g){ push(g.name, g.year?String(g.year):""); });
+  data.upcoming.forEach(function(g){ push(g.name, g.date?g.date.slice(0,4):"TBC"); });
+  return out.slice(0,AC_LIMIT);
+}
+function renderAc(drop, items){
+  if(!items || !items.length){ drop.style.display="none"; drop.innerHTML=""; return; }
+  drop.innerHTML=items.slice(0,AC_LIMIT).map(function(it){
+    return '<div class="ac-item" data-name="'+esc(it.name)+'"><span>'+esc(it.name)+'</span>'+(it.tag?'<span class="ac-tag">'+esc(it.tag)+'</span>':'')+'</div>';
+  }).join("");
+  drop.style.display="block";
+}
+function handleAc(inp){
+  var q=inp.value.trim();
+  var drop=inp.parentElement.querySelector(".ac-drop");
+  if(!drop) return;
+  if(q.length<2){ renderAc(drop,[]); return; }
+  var items=localNames(q);
+  renderAc(drop, items);
+  var key=getKey();
+  if(!key) return;
+  clearTimeout(acTimer);
+  var seq=++acSeq;
+  acTimer=setTimeout(function(){
+    rawgFetch("https://api.rawg.io/api/games?key="+encodeURIComponent(key)+"&search="+encodeURIComponent(q)+"&page_size=6&platforms=187")
+    .then(function(json){
+      if(seq!==acSeq) return;
+      if(!document.body.contains(inp) || inp.value.trim()!==q) return;
+      var merged=items.slice(); var seen={};
+      merged.forEach(function(i){ seen[norm(i.name)]=1; });
+      (json.results||[]).forEach(function(g){
+        if(g && g.name && !seen[norm(g.name)]){
+          seen[norm(g.name)]=1;
+          merged.push({name:g.name, tag:g.released?g.released.slice(0,4):""});
+        }
+      });
+      renderAc(drop, merged);
+    }).catch(function(){});
+  },400);
+}
+document.getElementById("content").addEventListener("input",function(e){
+  var inp=e.target.closest(".ac-input");
+  if(inp) handleAc(inp);
+});
+document.getElementById("content").addEventListener("mousedown",function(e){
+  var it=e.target.closest(".ac-item");
+  if(it){
+    var wrap=it.closest(".ac-wrap");
+    var inp=wrap.querySelector("input");
+    inp.value=it.getAttribute("data-name");
+    renderAc(wrap.querySelector(".ac-drop"),[]);
+    e.preventDefault();
+  }
+});
+document.addEventListener("click",function(e){
+  if(!e.target.closest(".ac-wrap")){
+    var drops=document.querySelectorAll(".ac-drop");
+    for(var i=0;i<drops.length;i++){ drops[i].style.display="none"; }
+  }
 });
 
 /* ---------- backup / restore ---------- */
@@ -628,9 +979,7 @@ document.getElementById("importFile").addEventListener("change",function(e){
     try{
       var d=JSON.parse(reader.result);
       if(d&&d.rentals&&d.upcoming&&d.played){
-        if(!d.dismissed) d.dismissed=[];
-        if(!d.catalogExtra) d.catalogExtra=[];
-        data=d; save(); flash("Backup restored");
+        data=migrate(d); save(); flash("Backup restored");
       }
       else flash("That file isn't a Game Vault backup");
     }catch(err){ flash("Couldn't read that file"); }
