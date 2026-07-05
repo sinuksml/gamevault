@@ -327,7 +327,7 @@ function scheduleAutoPush(){
   setSyncStatus("Saving\u2026");
   autoPushTimer=setTimeout(silentPush, 2500);
 }
-function silentPush(){
+function silentPush(keepalive){
   var jb=getJB();
   if(!jb.key) return;
   var isNew=!jb.bin;
@@ -335,7 +335,7 @@ function silentPush(){
   var headers={ "Content-Type":"application/json", "X-Master-Key":jb.key };
   if(isNew){ headers["X-Bin-Private"]="true"; headers["X-Bin-Name"]="game-vault"; }
   var snapshot=JSON.stringify(data);
-  fetch(url,{ method:isNew?"POST":"PUT", headers:headers, body:snapshot })
+  fetch(url,{ method:isNew?"POST":"PUT", headers:headers, body:snapshot, keepalive:!!keepalive })
   .then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return res.json(); })
   .then(function(json){
     if(isNew && json.metadata && json.metadata.id){
@@ -1058,6 +1058,18 @@ document.getElementById("importFile").addEventListener("change",function(e){
   reader.readAsText(f);
   e.target.value="";
 });
+
+/* Re-sync whenever the app comes back to the foreground (phone unlocked,
+   tab refocused), and flush any pending change immediately when it leaves. */
+function flushPendingPush(){
+  if(!getJB().key) return;
+  if(data.updatedAt>lastSyncedAt){ clearTimeout(autoPushTimer); silentPush(true); }
+}
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState==="visible") silentPullOnLoad();
+  else flushPendingPush();
+});
+window.addEventListener("pagehide",flushPendingPush);
 
 render();
 silentPullOnLoad();
