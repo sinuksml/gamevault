@@ -379,6 +379,7 @@ function migrate(d){
   if(!d.playing) d.playing = [];
   if(!d.covers) d.covers = {};
   if(!d.dismissedNames) d.dismissedNames = {};
+  if(!d.fandom) d.fandom = {}; // per-game saved Fandom reading spot (URL, keyed by norm name)
   if(!d.updatedAt) d.updatedAt = Date.now();
   d.version = SCHEMA_VERSION;
   return d;
@@ -1074,7 +1075,24 @@ function renderPlaying(){
       var u=coverUrl(x);
       if(u) h+='<img class="cover lg" src="'+esc(u)+'" alt="" loading="lazy">';
       h+=plotBlock(x.name);
-      h+='<div class="actions">'+actionsHtml+linkBtns(x.name)+'</div>';
+      var fk=norm(x.name), fsaved=data.fandom[fk]||"";
+      var fhref=fsaved||("https://www.fandom.com/?s="+encodeURIComponent(x.name+" wiki"));
+      h+='<div class="actions">'+
+        '<a class="btn'+(fsaved?' blue':'')+'" href="'+esc(fhref)+'" target="_blank" rel="noopener">'+(fsaved?"▷ Continue on Fandom":"▷ Fandom")+'</a>'+
+        actionsHtml+linkBtns(x.name)+'</div>';
+      var fanchor="";
+      if(fsaved && fsaved.indexOf("#")>-1){
+        try{ fanchor=decodeURIComponent(fsaved.split("#")[1]).replace(/_/g," "); }
+        catch(e2){ fanchor=fsaved.split("#")[1]; }
+      }
+      h+='<div class="inline-edit">'+
+        '<input class="note-inp fd-link" data-key="'+fk+'" placeholder="Paste the Fandom page link (with #section) where you stopped reading" value="'+esc(fsaved)+'">'+
+      '</div>';
+      h+='<div class="meta" style="margin-top:6px">'+
+        (fsaved
+          ? (fanchor?'Saved reading spot: <b style="color:var(--text)">'+esc(fanchor)+'</b> — the Fandom button jumps straight there.':'Saved page — the Fandom button reopens it directly.')
+          : 'Tip: on the Fandom page, tap the section you’re reading in its table of contents, copy the address (it ends with #Section) and paste it above. The button will then take you back to that exact spot.')+
+      '</div>';
     }
     h+='</div>';
     return h;
@@ -1728,6 +1746,22 @@ document.getElementById("content").addEventListener("change",function(e){
   }
   if(e.target.id==="rVendor"){
     if(e.target.value==="__new__") handleVendorNew(e.target);
+    return;
+  }
+  // per-game Fandom reading spot (Playing tab)
+  var fd=e.target.closest(".fd-link");
+  if(fd){
+    var fv=fd.value.trim();
+    var fkk=fd.getAttribute("data-key");
+    if(!fv){
+      delete data.fandom[fkk];
+      save(); flash("Fandom reading spot cleared");
+    } else if(/^https?:\/\//i.test(fv)){
+      data.fandom[fkk]=fv;
+      save(); flash("Reading spot saved — the Fandom button now returns you there");
+    } else {
+      flash("That doesn't look like a link — paste the full page URL from your browser");
+    }
     return;
   }
   // rental-history fields stay editable forever
