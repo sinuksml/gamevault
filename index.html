@@ -100,7 +100,7 @@
 <body>
 <div class="wrap">
   <div class="brand"><h1>GAME VAULT</h1><span class="sym">&#9651;&#9675;&#10005;&#9633;</span></div>
-  <div class="sub">PS5 rental countdown &middot; live release watchlist &middot; AAA suggestions &middot; played library</div>
+  <div class="sub">PS5 rental countdown &middot; live release watchlist &middot; AAA suggestions &middot; played library <span id="syncStatus" style="color:#8B96AC"></span></div>
   <div class="topbtns">
     <button class="btn" id="pushBtn">&#8657; Push to cloud</button>
     <button class="btn" id="pullBtn">&#8659; Pull from cloud</button>
@@ -116,7 +116,7 @@
       <button class="btn blue" id="saveKeyBtn">Save key</button>
     </div>
     <hr style="border:none; border-top:1px solid #232E44; margin:14px 0">
-    <p><b style="color:#EAF0FA">Cloud sync between your PC and phone (optional).</b> Get a free account at <a href="https://jsonbin.io" target="_blank" rel="noopener">jsonbin.io</a> &rarr; open <b>API Keys</b> &rarr; copy your <b>Master Key</b> and paste it below. Then press <b>Push to cloud</b> once &mdash; it creates your private storage bin and shows its Bin ID here. On your phone, open this same app, paste the same Master Key and Bin ID, and press <b>Pull from cloud</b>. After that: Push when you finish on one device, Pull when you open the other.</p>
+    <p><b style="color:#EAF0FA">Automatic sync between your PC and phone (optional).</b> Get a free account at <a href="https://jsonbin.io" target="_blank" rel="noopener">jsonbin.io</a> &rarr; open <b>API Keys</b> &rarr; copy your <b>Master Key</b> and paste it below on <b>this device</b>, then Save. Every change you make here now saves to the cloud automatically a couple of seconds after you type &mdash; no button to press. On your <b>other device</b> (phone or PC), open the app, paste the <b>same Master Key</b>, then copy the <b>Bin ID</b> shown here into that device's Settings too, and Save. From then on both devices silently stay in sync: whichever has the newest change wins, checked every time the app opens. The Push/Pull buttons above still work if you ever want to force a sync manually.</p>
     <div class="fields">
       <input class="f-name" id="jbKeyInput" placeholder="JSONBin Master Key" autocomplete="off">
       <input class="f-name" id="jbBinInput" placeholder="Bin ID (auto-filled after first push)" autocomplete="off">
@@ -237,12 +237,17 @@ function migrate(d){
   }
   if(!d.vendors) d.vendors = [];
   if(!d.queue) d.queue = [];
+  if(!d.updatedAt) d.updatedAt = Date.now();
   d.version = SCHEMA_VERSION;
   return d;
 }
 var data = load();
 function getKey(){ try { return localStorage.getItem(KEY_STORE) || ""; } catch(e){ return ""; } }
-function persist(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){} }
+function persist(){
+  data.updatedAt = Date.now();
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
+  scheduleAutoPush();
+}
 function save(){ persist(); render(); }
 
 var toastTimer = null;
@@ -282,6 +287,8 @@ function pushCloud(){
       try{ localStorage.setItem(JB_BIN_STORE,json.metadata.id); }catch(e){}
     }
     busy=false;
+    lastSyncedAt=data.updatedAt;
+    setSyncStatus("Synced just now");
     var bin=getJB().bin;
     flash("Pushed to cloud"+(isNew&&bin?(" \u2014 Bin ID saved: "+bin+" (see Settings)"):""));
     toggleSettings(false);
@@ -299,10 +306,73 @@ function pullCloud(){
   .then(function(json){
     var d=json.record;
     if(d&&d.rentals&&d.upcoming&&d.played){
-      data=migrate(d); busy=false; save(); flash("Pulled from cloud \u2014 this device is up to date");
+      data=migrate(d); busy=false; lastSyncedAt=data.updatedAt; render(); persist(); flash("Pulled from cloud \u2014 this device is up to date");
     } else { busy=false; flash("Cloud data doesn't look like a Game Vault backup"); }
   })
   .catch(function(err){ busy=false; flash("Pull failed \u2014 check internet, Master Key and Bin ID"); });
+}
+
+/* ---------- automatic sync engine ---------- */
+/* Every device that has the same Master Key + Bin ID stays in step without
+   any button presses: the newest updatedAt timestamp always wins. */
+var lastSyncedAt = 0;
+var autoPushTimer = null;
+var syncStatus = "";
+function setSyncStatus(s){ syncStatus=s; var el=document.getElementById("syncStatus"); if(el) el.textContent=s; }
+
+function scheduleAutoPush(){
+  var jb=getJB();
+  if(!jb.key) return; // nothing to sync to yet
+  clearTimeout(autoPushTimer);
+  setSyncStatus("Saving\u2026");
+  autoPushTimer=setTimeout(silentPush, 2500);
+}
+function silentPush(){
+  var jb=getJB();
+  if(!jb.key) return;
+  var isNew=!jb.bin;
+  var url=isNew?"https://api.jsonbin.io/v3/b":"https://api.jsonbin.io/v3/b/"+jb.bin;
+  var headers={ "Content-Type":"application/json", "X-Master-Key":jb.key };
+  if(isNew){ headers["X-Bin-Private"]="true"; headers["X-Bin-Name"]="game-vault"; }
+  var snapshot=JSON.stringify(data);
+  fetch(url,{ method:isNew?"POST":"PUT", headers:headers, body:snapshot })
+  .then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return res.json(); })
+  .then(function(json){
+    if(isNew && json.metadata && json.metadata.id){
+      try{ localStorage.setItem(JB_BIN_STORE,json.metadata.id); }catch(e){}
+      flash("Cloud sync connected \u2014 Bin ID saved automatically");
+    }
+    lastSyncedAt=data.updatedAt;
+    setSyncStatus("Synced just now");
+  })
+  .catch(function(){ setSyncStatus("Sync failed \u2014 will retry on next change"); });
+}
+function silentPullOnLoad(){
+  var jb=getJB();
+  if(!jb.key||!jb.bin) return;
+  setSyncStatus("Checking for updates\u2026");
+  fetch("https://api.jsonbin.io/v3/b/"+jb.bin+"/latest",{ headers:{ "X-Master-Key":jb.key } })
+  .then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return res.json(); })
+  .then(function(json){
+    var d=json.record;
+    if(!d||!d.rentals||!d.upcoming||!d.played){ setSyncStatus(""); return; }
+    var cloudTime=d.updatedAt||0, localTime=data.updatedAt||0;
+    if(cloudTime>localTime){
+      data=migrate(d);
+      try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
+      lastSyncedAt=data.updatedAt;
+      render();
+      setSyncStatus("Synced from your other device");
+      flash("Pulled the newer data from your other device");
+    } else if(localTime>cloudTime){
+      lastSyncedAt=cloudTime;
+      silentPush(); // this device is ahead, push it up
+    } else {
+      lastSyncedAt=cloudTime;
+      setSyncStatus("Up to date");
+    }
+  })
+  .catch(function(){ setSyncStatus(""); });
 }
 
 function refreshUpcoming(){
@@ -720,7 +790,8 @@ document.getElementById("saveSyncBtn").addEventListener("click",function(){
     localStorage.setItem(JB_KEY_STORE,document.getElementById("jbKeyInput").value.trim());
     localStorage.setItem(JB_BIN_STORE,document.getElementById("jbBinInput").value.trim());
   }catch(e){}
-  flash("Sync settings saved \u2014 use Push / Pull buttons at the top");
+  flash("Sync settings saved \u2014 syncing now\u2026");
+  silentPullOnLoad();
 });
 document.getElementById("pushBtn").addEventListener("click",pushCloud);
 document.getElementById("pullBtn").addEventListener("click",pullCloud);
@@ -989,6 +1060,7 @@ document.getElementById("importFile").addEventListener("change",function(e){
 });
 
 render();
+silentPullOnLoad();
 </script>
 </body>
 </html>
