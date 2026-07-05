@@ -11,119 +11,172 @@
 <link rel="apple-touch-icon" href="icon.png">
 <title>Sinu Game Vault — PS5 Tracker</title>
 <style>
+  :root {
+    --bg:#0A0D13;
+    --stickybg:rgba(10,13,19,.82);
+    --card:rgba(19,24,34,.88);
+    --card2:rgba(16,20,29,.88);
+    --inset:#0D1119;
+    --border:#232E44;
+    --border2:#2B3852;
+    --border3:#1C2536;
+    --inborder:#1E2739;
+    --text:#EAF0FA;
+    --text2:#B9C3D6;
+    --btntext:#C9D4E8;
+    --muted:#8B96AC;
+    --dim:#525E76;
+    --faint:#3A465E;
+    --inputbg:#0A0D13;
+    --btnbg:#1A2130;
+    --accent:#2D7FF9;
+    --accentbg:#1D3B66;
+    --accenttext:#DCEAFF;
+    --vendor:#B7D6F5;
+    --dropbg:#10151F;
+    --datescheme:dark;
+  }
+  html.light {
+    --bg:#E9EDF4;
+    --stickybg:rgba(233,237,244,.82);
+    --card:rgba(255,255,255,.88);
+    --card2:rgba(248,250,253,.9);
+    --inset:#F0F3F9;
+    --border:#D3DBE8;
+    --border2:#C2CDDE;
+    --border3:#D8DFEA;
+    --inborder:#D3DBE8;
+    --text:#151B28;
+    --text2:#3A4356;
+    --btntext:#33405C;
+    --muted:#5C687E;
+    --dim:#8792A6;
+    --faint:#C0C9D9;
+    --inputbg:#FFFFFF;
+    --btnbg:#EDF1F8;
+    --accent:#1F6FE0;
+    --accentbg:#2D7FF9;
+    --accenttext:#FFFFFF;
+    --vendor:#2F62A5;
+    --dropbg:#FFFFFF;
+    --datescheme:light;
+  }
   * { box-sizing:border-box; margin:0; padding:0; }
-  html { background:#0A0D13; }
-  body { min-height:100vh; background:transparent; color:#EAF0FA; font-family:"Segoe UI", system-ui, -apple-system, sans-serif; }
-  #bg { position:fixed; inset:0; z-index:-1; background:#0A0D13 center 22%/cover no-repeat; }
-  #bg::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg, rgba(10,13,19,.80) 0%, rgba(10,13,19,.92) 38%, #0A0D13 82%); }
+  html { background:var(--bg); }
+  body { min-height:100vh; background:transparent; color:var(--text); font-family:"Segoe UI", system-ui, -apple-system, sans-serif; }
+  #bg { position:fixed; inset:0; z-index:-1; background:var(--bg) center 22%/cover no-repeat; }
+  #bg::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg, rgba(10,13,19,.45) 0%, rgba(10,13,19,.66) 42%, rgba(10,13,19,.94) 88%); }
+  html.light #bg::after { background:linear-gradient(180deg, rgba(233,237,244,.50) 0%, rgba(233,237,244,.72) 42%, rgba(233,237,244,.96) 88%); }
   .wrap { max-width:780px; margin:0 auto; padding:14px 16px 90px; }
   .topbar { display:flex; align-items:center; gap:10px; padding:8px 0 2px; }
   .brand { display:flex; align-items:baseline; gap:10px; flex:1; min-width:0; }
   .brand h1 { font-size:20px; font-weight:800; letter-spacing:0.14em; }
-  .brand .sym { color:#2D7FF9; font-size:15px; letter-spacing:0.35em; white-space:nowrap; }
-  .sub { color:#8B96AC; font-size:12px; margin-bottom:10px; letter-spacing:0.04em; }
-  .iconbtn { background:#131822; border:1px solid #232E44; color:#C9D4E8; border-radius:10px; padding:7px 13px; font:700 14px "Segoe UI",system-ui; cursor:pointer; line-height:1; }
-  .iconbtn:hover { border-color:#2D7FF9; }
-  .menupanel { display:none; background:#10141D; border:1px solid #2B3852; border-radius:12px; padding:10px; margin-bottom:12px; gap:8px; flex-wrap:wrap; }
+  .brand .sym { color:var(--accent); font-size:15px; letter-spacing:0.35em; white-space:nowrap; }
+  .sub { color:var(--muted); font-size:12px; margin-bottom:10px; letter-spacing:0.04em; }
+  .iconbtn { background:var(--card); border:1px solid var(--border); color:var(--btntext); border-radius:10px; padding:7px 13px; font:700 14px "Segoe UI",system-ui; cursor:pointer; line-height:1; }
+  .iconbtn:hover { border-color:var(--accent); }
+  .menupanel { display:none; background:var(--card2); border:1px solid var(--border2); border-radius:12px; padding:10px; margin-bottom:12px; gap:8px; flex-wrap:wrap; }
   .menupanel.open { display:flex; }
-  .tabsticky { position:sticky; top:0; z-index:10; background:rgba(10,13,19,.88); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); padding-top:4px; margin:0 -4px; }
-  .tabs { display:flex; gap:2px; border-bottom:1px solid #1C2536; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding:0 4px; }
+  .tabsticky { position:sticky; top:0; z-index:10; background:var(--stickybg); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); padding-top:4px; margin:0 -4px; }
+  .tabs { display:flex; gap:2px; border-bottom:1px solid var(--border3); overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding:0 4px; }
   .tabs::-webkit-scrollbar { display:none; }
-  .tab { flex:1 0 auto; min-width:60px; background:none; border:none; color:#8B96AC; font:600 12px "Segoe UI",system-ui; padding:10px 6px 12px; cursor:pointer; border-bottom:2px solid transparent; letter-spacing:0.03em; transition:color .15s; }
+  .tab { flex:1 0 auto; min-width:60px; background:none; border:none; color:var(--muted); font:600 12px "Segoe UI",system-ui; padding:10px 6px 12px; cursor:pointer; border-bottom:2px solid transparent; letter-spacing:0.03em; transition:color .15s; }
   .tab .shp { margin-right:4px; font-size:11px; }
-  .tab.on { color:#EAF0FA; border-bottom-color:#2D7FF9; }
-  .tab.on .shp { color:#2D7FF9; }
-  .card { background:#131822; border:1px solid #232E44; border-radius:14px; padding:13px 14px 12px; margin-bottom:10px; transition:border-color .15s ease; }
-  .card:hover { border-color:#2D5288; }
+  .tab.on { color:var(--text); border-bottom-color:var(--accent); }
+  .tab.on .shp { color:var(--accent); }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:13px 14px 12px; margin-bottom:10px; transition:border-color .15s ease; backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); }
+  .card:hover { border-color:var(--accent); }
   .row { display:flex; align-items:center; gap:11px; }
   .grow { flex:1; min-width:0; }
   .gname { font-weight:700; font-size:15px; line-height:1.3; overflow-wrap:anywhere; }
-  .meta { color:#8B96AC; font-size:12px; margin-top:2px; line-height:1.5; }
+  .meta { color:var(--muted); font-size:12px; margin-top:2px; line-height:1.5; }
   .bignum { font-size:38px; font-weight:800; line-height:1; font-variant-numeric:tabular-nums; text-align:right; min-width:64px; }
-  .biglabel { font-size:10px; letter-spacing:0.12em; color:#8B96AC; text-align:right; text-transform:uppercase; margin-top:2px; }
+  .biglabel { font-size:10px; letter-spacing:0.12em; color:var(--muted); text-align:right; text-transform:uppercase; margin-top:2px; }
   .ticks { display:flex; gap:2px; margin-top:12px; }
-  .tick { flex:1; height:5px; border-radius:2px; background:#232E44; }
+  .tick { flex:1; height:5px; border-radius:2px; background:var(--border); }
   .actions { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; align-items:center; }
-  .btn { background:#1A2130; border:1px solid #2B3852; color:#C9D4E8; border-radius:9px; padding:7px 12px; font:600 12px "Segoe UI",system-ui; cursor:pointer; transition:border-color .15s; }
-  .btn:hover { border-color:#2D7FF9; }
-  .btn.blue { background:#1D3B66; border-color:#2D7FF9; color:#DCEAFF; }
-  .btn.ghost { background:none; border-color:transparent; color:#8B96AC; }
+  .btn { background:var(--btnbg); border:1px solid var(--border2); color:var(--btntext); border-radius:9px; padding:7px 12px; font:600 12px "Segoe UI",system-ui; cursor:pointer; transition:border-color .15s; }
+  .btn:hover { border-color:var(--accent); }
+  .btn.blue { background:var(--accentbg); border-color:var(--accent); color:var(--accenttext); }
+  .btn.ghost { background:none; border-color:transparent; color:var(--muted); }
   .btn.danger:hover { border-color:#F05A5A; color:#F05A5A; }
   .btn:disabled { opacity:.5; cursor:wait; }
   .toolbar { display:flex; gap:8px; margin:14px 0 12px; align-items:center; }
   .searchwrap { position:relative; flex:1; min-width:0; }
-  .searchwrap .sic { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#525E76; font-size:14px; pointer-events:none; }
-  .searchwrap input { width:100%; padding:9px 32px 9px 32px; border-radius:99px; background:#10141D; border:1px solid #232E44; font-size:13px; }
-  .sclear { position:absolute; right:5px; top:50%; transform:translateY(-50%); background:none; border:none; color:#8B96AC; cursor:pointer; font-size:12px; padding:5px 8px; }
-  .form { background:#10141D; border:1px dashed #2B3852; border-radius:12px; padding:14px; margin-bottom:14px; }
-  .form h3 { font-size:11px; letter-spacing:0.14em; color:#8B96AC; text-transform:uppercase; margin-bottom:10px; }
+  .searchwrap .sic { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--dim); font-size:14px; pointer-events:none; }
+  .searchwrap input { width:100%; padding:9px 32px 9px 32px; border-radius:99px; background:var(--card2); border:1px solid var(--border); font-size:13px; }
+  .sclear { position:absolute; right:5px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); cursor:pointer; font-size:12px; padding:5px 8px; }
+  .form { background:var(--card2); border:1px dashed var(--border2); border-radius:12px; padding:14px; margin-bottom:14px; }
+  .form h3 { font-size:11px; letter-spacing:0.14em; color:var(--muted); text-transform:uppercase; margin-bottom:10px; }
   .fields { display:flex; gap:8px; flex-wrap:wrap; }
-  input, select, textarea { background:#0A0D13; border:1px solid #2B3852; color:#EAF0FA; border-radius:8px; padding:9px 10px; font:400 13px "Segoe UI",system-ui; outline:none; }
-  input:focus, select:focus, textarea:focus { border-color:#2D7FF9; }
-  input[type="date"] { color-scheme:dark; }
+  input, select, textarea { background:var(--inputbg); border:1px solid var(--border2); color:var(--text); border-radius:8px; padding:9px 10px; font:400 13px "Segoe UI",system-ui; outline:none; }
+  input:focus, select:focus, textarea:focus { border-color:var(--accent); }
+  input[type="date"] { color-scheme:var(--datescheme); }
   .f-name { flex:2 1 180px; }
   .f-sm { flex:1 1 110px; }
   textarea { width:100%; min-height:110px; resize:vertical; font-family:ui-monospace,monospace; font-size:12px; }
-  .cover { width:56px; height:56px; border-radius:9px; object-fit:cover; flex-shrink:0; background:#1A2130; border:1px solid #232E44; }
-  .cover.ph { display:flex; align-items:center; justify-content:center; color:#3A465E; font-size:20px; }
+  .cover { width:56px; height:56px; border-radius:9px; object-fit:cover; flex-shrink:0; background:var(--btnbg); border:1px solid var(--border); }
+  .cover.ph { display:flex; align-items:center; justify-content:center; color:var(--faint); font-size:20px; }
   .cover.lg { width:100%; height:150px; border-radius:10px; margin-top:12px; }
-  .scorebadge { background:#1A2130; border:1px solid #2B3852; border-radius:8px; padding:6px 8px; text-align:center; min-width:50px; flex-shrink:0; }
+  .scorebadge { background:var(--btnbg); border:1px solid var(--border2); border-radius:8px; padding:6px 8px; text-align:center; min-width:50px; flex-shrink:0; }
   .scorebadge .s1 { font-size:17px; font-weight:800; line-height:1.1; }
-  .scorebadge .s2 { font-size:9px; color:#8B96AC; text-transform:uppercase; letter-spacing:0.08em; }
-  .star { background:none; border:none; cursor:pointer; font-size:18px; color:#3A465E; padding:4px; flex-shrink:0; }
+  .scorebadge .s2 { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; }
+  .star { background:none; border:none; cursor:pointer; font-size:18px; color:var(--faint); padding:4px; flex-shrink:0; }
   .star.on { color:#F2B84B; }
-  .chip { display:inline-block; font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; padding:3px 8px; border-radius:99px; border:1px solid #2B3852; color:#8B96AC; }
-  .chip.plat { color:#B7D6F5; border-color:#4A7DB5; }
+  .chip { display:inline-block; font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; padding:3px 8px; border-radius:99px; border:1px solid var(--border2); color:var(--muted); }
+  .chip.plat { color:var(--vendor); border-color:#4A7DB5; }
   .chip.fin { color:#3ECF8E; border-color:#2A6B4F; }
-  .chip.play { color:#2D7FF9; border-color:#2D5288; }
+  .chip.play { color:var(--accent); border-color:#2D5288; }
   .chip.drop { color:#F05A5A; border-color:#7A3438; }
-  .chip.t-aaa { color:#F2B84B; border-color:#7A6228; }
-  .chip.t-aa { color:#B7D6F5; border-color:#4A7DB5; }
-  .chip.t-indie { color:#3ECF8E; border-color:#2A6B4F; }
+  .chip.t-aaa { color:#D99A22; border-color:#B08A3A; }
+  .chip.t-aa { color:var(--vendor); border-color:#4A7DB5; }
+  .chip.t-indie { color:#2AA870; border-color:#2A6B4F; }
   .chipbar { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
-  .gchip { background:#10141D; border:1px solid #2B3852; color:#8B96AC; border-radius:99px; padding:5px 12px; font:600 11px "Segoe UI",system-ui; cursor:pointer; }
-  .gchip.on { color:#DCEAFF; border-color:#2D7FF9; background:#1D3B66; }
+  .gchip { background:var(--card2); border:1px solid var(--border2); color:var(--muted); border-radius:99px; padding:5px 12px; font:600 11px "Segoe UI",system-ui; cursor:pointer; }
+  .gchip.on { color:var(--accenttext); border-color:var(--accent); background:var(--accentbg); }
   .dots { display:flex; gap:3px; flex-shrink:0; }
-  .dot { background:none; border:none; cursor:pointer; font-size:14px; color:#3A465E; padding:2px; }
-  .dot.on { color:#2D7FF9; }
-  .empty { text-align:center; color:#8B96AC; font-size:13px; padding:36px 16px; border:1px dashed #232E44; border-radius:12px; line-height:1.6; }
+  .dot { background:none; border:none; cursor:pointer; font-size:14px; color:var(--faint); padding:2px; }
+  .dot.on { color:var(--accent); }
+  .empty { text-align:center; color:var(--muted); font-size:13px; padding:36px 16px; border:1px dashed var(--border); border-radius:12px; line-height:1.6; }
   .stats { display:flex; gap:8px; margin-bottom:4px; flex-wrap:wrap; }
-  .stat { flex:1 1 100px; background:#131822; border:1px solid #232E44; border-radius:10px; padding:10px 12px; cursor:pointer; transition:border-color .15s; }
-  .stat:hover { border-color:#2D7FF9; }
+  .stat { flex:1 1 100px; background:var(--card); border:1px solid var(--border); border-radius:10px; padding:10px 12px; cursor:pointer; transition:border-color .15s; }
+  .stat:hover { border-color:var(--accent); }
   .stat .v { font-size:19px; font-weight:800; font-variant-numeric:tabular-nums; }
-  .stat .k { font-size:10px; color:#8B96AC; letter-spacing:0.1em; text-transform:uppercase; margin-top:2px; }
-  .sechead { display:flex; align-items:center; gap:10px; color:#8B96AC; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; margin:24px 0 10px; }
-  .sechead:after { content:""; flex:1; height:1px; background:#1C2536; }
+  .stat .k { font-size:10px; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; margin-top:2px; }
+  .sechead { display:flex; align-items:center; gap:10px; color:var(--muted); font-size:11px; letter-spacing:0.14em; text-transform:uppercase; margin:24px 0 10px; }
+  .sechead:after { content:""; flex:1; height:1px; background:var(--border3); }
   .hist { opacity:.62; }
   .hist:hover { opacity:.9; }
-  .plot { margin-top:12px; padding:12px 13px; background:#0D1119; border:1px solid #1E2739; border-radius:10px; font-size:12.5px; line-height:1.65; color:#B9C3D6; white-space:pre-line; max-height:300px; overflow-y:auto; overscroll-behavior:contain; }
+  .plot { margin-top:12px; padding:12px 13px; background:var(--inset); border:1px solid var(--inborder); border-radius:10px; font-size:12.5px; line-height:1.65; color:var(--text2); white-space:pre-line; max-height:300px; overflow-y:auto; overscroll-behavior:contain; }
   .plot::-webkit-scrollbar { width:8px; }
-  .plot::-webkit-scrollbar-thumb { background:#232E44; border-radius:4px; }
-  .plot .src { color:#525E76; font-size:11px; margin-top:10px; white-space:normal; }
-  .plot .src a { color:#2D7FF9; text-decoration:none; }
+  .plot::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+  .plot .src { color:var(--dim); font-size:11px; margin-top:10px; white-space:normal; }
+  .plot .src a { color:var(--accent); text-decoration:none; }
   .plot .src a:hover { text-decoration:underline; }
   .clickrow { cursor:pointer; }
   .inline-edit { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
   .inline-edit .note-inp { margin-top:0; width:auto; }
   .inline-edit .r-note { flex:3 1 180px; }
   .inline-edit .r-cost { flex:1 1 90px; }
-  .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#1D3B66; border:1px solid #2D7FF9; color:#DCEAFF; padding:9px 16px; border-radius:99px; font-size:13px; font-weight:600; z-index:20; display:none; max-width:90vw; text-align:center; animation:toastin .2s ease; }
+  .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--accentbg); border:1px solid var(--accent); color:var(--accenttext); padding:9px 16px; border-radius:99px; font-size:13px; font-weight:600; z-index:20; display:none; max-width:90vw; text-align:center; animation:toastin .2s ease; }
   @keyframes toastin { from { transform:translate(-50%,12px); opacity:0; } to { transform:translate(-50%,0); opacity:1; } }
   .selectmini { padding:5px 8px; font-size:11px; border-radius:6px; }
-  .note-inp { width:100%; margin-top:10px; font-size:12px; color:#B9C3D6; background:#0D1119; border:1px solid #1E2739; }
-  .note-inp::placeholder { color:#525E76; }
-  .note-inp:focus { border-color:#2D7FF9; }
+  .note-inp { width:100%; margin-top:10px; font-size:12px; color:var(--text2); background:var(--inset); border:1px solid var(--inborder); }
+  .note-inp::placeholder { color:var(--dim); }
+  .note-inp:focus { border-color:var(--accent); }
   .ac-wrap { position:relative; }
   .ac-wrap input { width:100%; }
-  .ac-drop { position:absolute; top:calc(100% + 4px); left:0; right:0; background:#10151F; border:1px solid #2B3852; border-radius:10px; z-index:20; max-height:240px; overflow:auto; display:none; box-shadow:0 8px 24px rgba(0,0,0,.5); }
-  .ac-item { padding:9px 12px; font-size:13px; cursor:pointer; color:#C9D4E8; display:flex; justify-content:space-between; gap:10px; align-items:baseline; }
-  .ac-item:hover { background:#1D3B66; }
-  .ac-tag { color:#5B6880; font-size:11px; flex-shrink:0; }
+  .ac-drop { position:absolute; top:calc(100% + 4px); left:0; right:0; background:var(--dropbg); border:1px solid var(--border2); border-radius:10px; z-index:20; max-height:240px; overflow:auto; display:none; box-shadow:0 8px 24px rgba(0,0,0,.35); }
+  .ac-item { padding:9px 12px; font-size:13px; cursor:pointer; color:var(--btntext); display:flex; justify-content:space-between; gap:10px; align-items:baseline; }
+  .ac-item:hover { background:var(--accentbg); color:var(--accenttext); }
+  .ac-tag { color:var(--dim); font-size:11px; flex-shrink:0; }
   .syncbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
-  .syncnote { color:#8B96AC; font-size:11px; }
-  .settings { background:#10141D; border:1px solid #2B3852; border-radius:12px; padding:14px; margin-bottom:16px; }
-  .settings p { color:#8B96AC; font-size:12px; line-height:1.5; margin-bottom:8px; }
-  .settings a { color:#2D7FF9; }
+  .syncnote { color:var(--muted); font-size:11px; }
+  .settings { background:var(--card2); border:1px solid var(--border2); border-radius:12px; padding:14px; margin-bottom:16px; }
+  .settings p { color:var(--muted); font-size:12px; line-height:1.5; margin-bottom:8px; }
+  .settings a { color:var(--accent); }
+  #toTop { position:fixed; right:16px; bottom:66px; z-index:15; display:none; background:var(--accentbg); color:var(--accenttext); border:1px solid var(--accent); border-radius:99px; width:42px; height:42px; font-size:17px; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.35); }
+  #toTop.show { display:block; }
   @media (max-width:480px){
     .brand h1 { font-size:16px; }
     .bignum { font-size:30px; min-width:54px; }
@@ -138,6 +191,7 @@
 <div class="wrap">
   <div class="topbar">
     <div class="brand"><h1>SINU GAME VAULT</h1><span class="sym">&#9651;&#9675;&#10005;&#9633;</span></div>
+    <button class="iconbtn" id="themeBtn" title="Switch light / dark mode">&#9788;</button>
     <button class="iconbtn" id="menuBtn" title="Cloud, backup &amp; settings">&#8943;</button>
   </div>
   <div class="sub">PS5 tracker &middot; rentals &middot; playing now &middot; watchlist &middot; library <span id="syncStatus" style="color:#8B96AC"></span><span id="bgCaption"></span></div>
@@ -150,13 +204,13 @@
     <input type="file" id="importFile" accept=".json" style="display:none">
   </div>
   <div class="settings" id="settingsBox" style="display:none">
-    <p><b style="color:#EAF0FA">Live internet updates (optional).</b> Get a free API key from <a href="https://rawg.io/apidocs" target="_blank" rel="noopener">rawg.io/apidocs</a> (sign up &rarr; Get API Key), paste it below, and the app can fetch cover art, scores, autocomplete and live lists for the Upcoming and For You tabs from the RAWG games database. Without a key, the built-in curated lists still work fully offline.</p>
+    <p><b style="color:var(--text)">Live internet updates (optional).</b> Get a free API key from <a href="https://rawg.io/apidocs" target="_blank" rel="noopener">rawg.io/apidocs</a> (sign up &rarr; Get API Key), paste it below, and the app can fetch cover art, scores, autocomplete and live lists for the Upcoming and For You tabs from the RAWG games database. Without a key, the built-in curated lists still work fully offline.</p>
     <div class="fields">
       <input class="f-name" id="apiKeyInput" placeholder="Paste RAWG API key here" autocomplete="off">
       <button class="btn blue" id="saveKeyBtn">Save key</button>
     </div>
-    <hr style="border:none; border-top:1px solid #232E44; margin:14px 0">
-    <p><b style="color:#EAF0FA">Automatic sync between your PC and phone (optional).</b> Get a free account at <a href="https://jsonbin.io" target="_blank" rel="noopener">jsonbin.io</a> &rarr; open <b>API Keys</b> &rarr; copy your <b>Master Key</b> and paste it below on <b>this device</b>, then Save. Every change you make here now saves to the cloud automatically a couple of seconds after you type &mdash; no button to press. On your <b>other device</b> (phone or PC), open the app, paste the <b>same Master Key</b>, then copy the <b>Bin ID</b> shown here into that device's Settings too, and Save. From then on both devices silently stay in sync: whichever has the newest change wins, checked every time the app opens. The Push/Pull buttons in the &#8943; menu still work if you ever want to force a sync manually.</p>
+    <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
+    <p><b style="color:var(--text)">Automatic sync between your PC and phone (optional).</b> Get a free account at <a href="https://jsonbin.io" target="_blank" rel="noopener">jsonbin.io</a> &rarr; open <b>API Keys</b> &rarr; copy your <b>Master Key</b> and paste it below on <b>this device</b>, then Save. Every change you make here now saves to the cloud automatically a couple of seconds after you type &mdash; no button to press. On your <b>other device</b> (phone or PC), open the app, paste the <b>same Master Key</b>, then copy the <b>Bin ID</b> shown here into that device's Settings too, and Save. From then on both devices silently stay in sync: whichever has the newest change wins, checked every time the app opens. The Push/Pull buttons in the &#8943; menu still work if you ever want to force a sync manually.</p>
     <div class="fields">
       <input class="f-name" id="jbKeyInput" placeholder="JSONBin Master Key" autocomplete="off">
       <input class="f-name" id="jbBinInput" placeholder="Bin ID (auto-filled after first push)" autocomplete="off">
@@ -167,6 +221,7 @@
   <div class="tabsticky"><div class="tabs" id="tabs"></div></div>
   <div id="content"></div>
 </div>
+<button id="toTop" title="Back to top">&#8679;</button>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -180,6 +235,7 @@ var tab = "rentals";
 var showImport = false;
 var sugGenre = "All";
 var sugTier = "All";
+var rentVendor = "All";
 var busy = false;
 var searchQ = {};      // per-tab search text
 var formOpen = {};     // per-tab "add" form visibility
@@ -695,9 +751,11 @@ function renderStats(){
   var t0=today();
   var active=data.rentals.filter(function(r){ return r.days-daysBetween(parseD(r.start),t0)>0; }).length;
   var urgent=data.rentals.some(function(r){ var l=r.days-daysBetween(parseD(r.start),t0); return l>0&&l<=3; });
+  var totalRented=data.rentals.length+data.rentalHistory.length;
   document.getElementById("stats").innerHTML =
-    '<div class="stat" data-tab="rentals" title="Open Rentals"><div class="v" style="color:'+(urgent?"#F05A5A":"#EAF0FA")+'">'+active+'</div><div class="k">Active rentals</div></div>'+
-    '<div class="stat" data-tab="playing" title="Open Playing"><div class="v" style="color:#2D7FF9">'+(active+data.playing.length)+'</div><div class="k">Now playing</div></div>'+
+    '<div class="stat" data-tab="rentals" title="Open Rentals"><div class="v" style="color:'+(urgent?"#F05A5A":"var(--text)")+'">'+active+'</div><div class="k">Active rentals</div></div>'+
+    '<div class="stat" data-tab="rentals" title="Open Rentals"><div class="v">'+totalRented+'</div><div class="k">Total rented</div></div>'+
+    '<div class="stat" data-tab="playing" title="Open Playing"><div class="v" style="color:var(--accent)">'+(active+data.playing.length)+'</div><div class="k">Now playing</div></div>'+
     '<div class="stat" data-tab="rentals" title="Open Rentals"><div class="v" style="color:#F2B84B">'+fmtMoney(totalSpent())+'</div><div class="k">Total spent</div></div>'+
     '<div class="stat" data-tab="played" title="Open Played"><div class="v">'+data.played.length+'</div><div class="k">Played</div></div>';
 }
@@ -717,12 +775,28 @@ function vendorOptions(sel){
 }
 
 /* ---------- Rentals tab (active + history) ---------- */
+function vendorName(x){ return (x.vendor||"").trim()||"(no vendor)"; }
+function vendorMatch(x){ return rentVendor==="All" || vendorName(x)===rentVendor; }
+function vendorStats(){
+  var m={};
+  function addV(x){
+    var v=vendorName(x);
+    if(!m[v]) m[v]={n:0,cost:0};
+    m[v].n++; m[v].cost+=Number(x.cost)||0;
+  }
+  data.rentals.forEach(addV);
+  data.rentalHistory.forEach(addV);
+  // old-format returns live only in Played and still carry their rental cost
+  data.played.forEach(function(p){ if(Number(p.cost)>0) addV(p); });
+  return m;
+}
 function renderRentals(){
   var t0=today();
   var list=data.rentals.map(function(r){
     var used=daysBetween(parseD(r.start),t0);
     return Object.assign({},r,{used:used,left:r.days-used});
-  }).filter(function(r){ return matchQ(r.name); }).sort(function(a,b){ return a.left-b.left; });
+  }).filter(function(r){ return matchQ(r.name) && vendorMatch(r); })
+    .sort(function(a,b){ return a.start<b.start?1:a.start>b.start?-1:0; }); // latest rented first
 
   var html = toolbar("Add rental","Search rentals & history…");
 
@@ -738,7 +812,18 @@ function renderRentals(){
     '</div></div>';
   }
 
-  if(!list.length && !q()) html+='<div class="empty">No active rentals. Press <b>+ Add rental</b> when you rent a game — the countdown starts automatically.</div>';
+  // vendor filter chips
+  var vs=vendorStats();
+  var vnames=Object.keys(vs).sort();
+  if(rentVendor!=="All" && vnames.indexOf(rentVendor)<0) rentVendor="All";
+  if(vnames.length>1 || (vnames.length===1 && vnames[0]!=="(no vendor)")){
+    html+='<div class="chipbar">'+["All"].concat(vnames).map(function(v){
+      return '<button class="gchip '+(v===rentVendor?"on":"")+'" data-vendor="'+esc(v)+'">'+esc(v)+
+        (v!=="All"?' · '+fmtMoney(vs[v].cost):'')+'</button>';
+    }).join("")+'</div>';
+  }
+
+  if(!list.length && !q() && rentVendor==="All") html+='<div class="empty">No active rentals. Press <b>+ Add rental</b> when you rent a game — the countdown starts automatically.</div>';
 
   list.forEach(function(r){
     var c=urgency(r.left);
@@ -755,7 +840,7 @@ function renderRentals(){
       '<div class="row">'+coverImg(r)+'<div class="grow">'+
         '<div class="gname">'+esc(r.name)+'</div>'+
         '<div class="meta">'+tierChip(r.name)+'Rented '+fmt(r.start)+' · '+r.days+'-day period · due '+fmt(localISO(due))+
-        (r.vendor?' · <span style="color:#B7D6F5">'+esc(r.vendor)+'</span>':'')+
+        (r.vendor?' · <span style="color:var(--vendor)">'+esc(r.vendor)+'</span>':'')+
         (Number(r.cost)?' · <span style="color:#F2B84B;font-weight:700">'+fmtMoney(r.cost)+'</span>':'')+
         scoreBits(r)+'</div>'+
       '</div><div>'+
@@ -779,7 +864,7 @@ function renderRentals(){
   });
 
   // ---- rental history ----
-  var hist=data.rentalHistory.filter(function(h){ return matchQ(h.name); });
+  var hist=data.rentalHistory.filter(function(h){ return matchQ(h.name) && vendorMatch(h); });
   if(data.rentalHistory.length){
     html+='<div class="sechead">Rental history · '+data.rentalHistory.length+'</div>';
     if(!hist.length) html+=noMatch();
@@ -789,7 +874,7 @@ function renderRentals(){
         '<div class="gname">'+esc(h.name)+'</div>'+
         '<div class="meta">'+fmt(h.start)+' → '+fmt(h.end)+' · '+
         (h.used===1?"1 day":h.used+" days")+' used of '+h.days+
-        (h.vendor?' · <span style="color:#B7D6F5">'+esc(h.vendor)+'</span>':'')+
+        (h.vendor?' · <span style="color:var(--vendor)">'+esc(h.vendor)+'</span>':'')+
         (Number(h.cost)?' · <span style="color:#F2B84B;font-weight:700">'+fmtMoney(h.cost)+'</span>':'')+
         (h.note?'<br>“'+esc(h.note)+'”':'')+'</div>'+
       '</div></div>'+
@@ -800,6 +885,23 @@ function renderRentals(){
     });
   }
   if(!list.length && q() && !hist.length) html+=noMatch();
+
+  // ---- spend by vendor ----
+  if(vnames.length){
+    html+='<div class="sechead">Spend by vendor</div><div class="card">'+
+      vnames.map(function(v){
+        return '<div class="row" style="padding:5px 0">'+
+          '<div class="grow" style="font-weight:600">'+esc(v)+'</div>'+
+          '<div class="meta" style="margin:0">'+vs[v].n+' rental'+(vs[v].n===1?"":"s")+'</div>'+
+          '<div style="color:#F2B84B;font-weight:700;min-width:88px;text-align:right">'+fmtMoney(vs[v].cost)+'</div>'+
+        '</div>';
+      }).join("")+
+      '<div class="row" style="padding:9px 0 2px;margin-top:4px;border-top:1px solid var(--border)">'+
+        '<div class="grow" style="font-weight:700">Total</div>'+
+        '<div style="color:#F2B84B;font-weight:800">'+fmtMoney(totalSpent())+'</div>'+
+      '</div>'+
+    '</div>';
+  }
   return html;
 }
 
@@ -852,7 +954,7 @@ function renderPlaying(){
     '<div class="card">'+
       '<div class="row clickrow" data-act="pl-toggle" data-id="'+x.id+'">'+coverImg(x)+
         '<div class="grow"><div class="gname">'+esc(x.name)+'</div><div class="meta">'+tierChip(x.name)+sub+scoreBits(x)+'</div></div>'+
-        '<span style="color:#525E76;font-size:12px;flex-shrink:0">'+(open?"▲":"▼")+'</span>'+
+        '<span style="color:var(--dim);font-size:12px;flex-shrink:0">'+(open?"▲":"▼")+'</span>'+
       '</div>';
     if(open){
       var u=coverUrl(x);
@@ -867,7 +969,7 @@ function renderPlaying(){
   live.forEach(function(r){
     var c=urgency(r.left);
     var sub='<span style="color:'+c+';font-weight:700">'+r.left+' day'+(r.left===1?"":"s")+' left</span> on rental'+
-      (r.vendor?' · <span style="color:#B7D6F5">'+esc(r.vendor)+'</span>':'');
+      (r.vendor?' · <span style="color:var(--vendor)">'+esc(r.vendor)+'</span>':'');
     html+=playCard(r, sub,
       '<button class="btn blue" data-act="return-played" data-id="'+r.id+'">Finished → Played</button>'+
       '<button class="btn" data-act="goto" data-dest="rentals">Manage in Rentals</button>');
@@ -893,7 +995,7 @@ function renderQueue(){
     '<button class="btn blue" data-act="add-queue">Add</button>'+
     '</div><div class="meta" style="margin-top:8px">The date is optional — set it when the vendor tells you when the game will be available.</div></div>';
   }
-  html+='<div class="meta" style="margin-bottom:12px">Your rental wishlist in priority order — <b style="color:#EAF0FA">#1 is what you rent next</b>. Reorder with the arrows.</div>';
+  html+='<div class="meta" style="margin-bottom:12px">Your rental wishlist in priority order — <b style="color:var(--text)">#1 is what you rent next</b>. Reorder with the arrows.</div>';
 
   var shown=data.queue.filter(function(x){ return matchQ(x.name); });
   if(!data.queue.length) html+='<div class="empty">Your queue is empty. Add the games you plan to rent next — from the △ Upcoming and ○ For You tabs, or press + above.</div>';
@@ -981,7 +1083,7 @@ function renderUpcoming(){
     html+=
     '<div class="card"><div class="row">'+
       coverImg(g)+
-      '<div class="grow"><div class="gname">'+esc(g.name)+'</div><div class="meta">'+tierChip(g.name)+'<b style="color:#C9D4E8">'+when+'</b>'+extra+(g.note?'<br>'+esc(g.note):'')+'</div></div>'+
+      '<div class="grow"><div class="gname">'+esc(g.name)+'</div><div class="meta">'+tierChip(g.name)+'<b style="color:var(--text)">'+when+'</b>'+extra+(g.note?'<br>'+esc(g.note):'')+'</div></div>'+
       '<button class="star '+(g.want?"on":"")+'" data-act="want" data-id="'+g.id+'" title="I want this">★</button>'+
     '</div><div class="actions">'+
       '<button class="btn" data-act="up-queue" data-id="'+g.id+'">◇ Add to queue</button>'+
@@ -1089,7 +1191,7 @@ function renderPlayed(){
     if(showImport){
       html+='<div style="margin-top:10px">'+
       '<div class="meta" style="margin-bottom:8px; line-height:1.6">'+
-      '<b style="color:#EAF0FA">Getting your list out of PSN:</b><br>'+
+      '<b style="color:var(--text)">Getting your list out of PSN:</b><br>'+
       '1. Easiest — go to <b>psnprofiles.com</b>, enter your PSN ID and press Update (your profile must be public: PS5 → Settings → Users and Accounts → Privacy → Gaming | Trophies → Anyone). Open your profile, and every game you’ve ever launched is listed with trophy progress. Copy the game names.<br>'+
       '2. Or open the <b>PlayStation App → Game Library → Purchased</b> and copy the titles manually.<br>'+
       '3. Paste below — one game per line. Junk lines that are only numbers or percentages get skipped automatically.<br>'+
@@ -1112,7 +1214,7 @@ function renderPlayed(){
     '<div class="card"><div class="row">'+
       coverImg(p)+
       '<div class="grow"><div class="gname">'+esc(p.name)+'</div><div class="meta">'+tierChip(p.name)+'Added '+fmt(p.added)+
-      (p.vendor?' · <span style="color:#B7D6F5">'+esc(p.vendor)+'</span>':'')+
+      (p.vendor?' · <span style="color:var(--vendor)">'+esc(p.vendor)+'</span>':'')+
       (Number(p.cost)?' · <span style="color:#F2B84B;font-weight:700">'+fmtMoney(p.cost)+'</span>':'')+
       scoreBits(p)+'</div></div>'+
       '<div class="dots">'+dots+'</div>'+
@@ -1187,6 +1289,8 @@ document.getElementById("pushBtn").addEventListener("click",pushCloud);
 document.getElementById("pullBtn").addEventListener("click",pullCloud);
 
 document.getElementById("content").addEventListener("click",function(e){
+  var vc=e.target.closest("[data-vendor]");
+  if(vc){ rentVendor=vc.getAttribute("data-vendor"); render(); return; }
   var tc=e.target.closest("[data-tier]");
   if(tc){ sugTier=tc.getAttribute("data-tier"); render(); return; }
   var gc=e.target.closest("[data-genre]");
@@ -1538,6 +1642,29 @@ document.getElementById("importFile").addEventListener("change",function(e){
   reader.readAsText(f);
   e.target.value="";
 });
+
+/* ---------- theme (dark / light) ---------- */
+var THEME_KEY="ps5-theme";
+var theme="dark";
+try{ theme=localStorage.getItem(THEME_KEY)||"dark"; }catch(e){}
+function applyTheme(t){
+  document.documentElement.classList.toggle("light", t==="light");
+  var b=document.getElementById("themeBtn");
+  if(b) b.innerHTML = t==="light" ? "&#9790;" : "&#9788;";
+}
+applyTheme(theme);
+document.getElementById("themeBtn").addEventListener("click",function(){
+  theme = theme==="light" ? "dark" : "light";
+  try{ localStorage.setItem(THEME_KEY,theme); }catch(e){}
+  applyTheme(theme);
+});
+
+/* ---------- back to top ---------- */
+var toTopBtn=document.getElementById("toTop");
+window.addEventListener("scroll",function(){
+  toTopBtn.classList.toggle("show", window.scrollY>600);
+},{passive:true});
+toTopBtn.addEventListener("click",function(){ window.scrollTo({top:0,behavior:"smooth"}); });
 
 /* ---------- startup ---------- */
 /* Re-sync whenever the app comes back to the foreground (phone unlocked,
