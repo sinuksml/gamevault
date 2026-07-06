@@ -1471,7 +1471,7 @@ function playedCard(p){
     '<div class="dots">'+dots+'</div>'+
   '</div><div class="actions">'+
     '<span class="chip '+chipCls+'">'+p.status+'</span>'+
-    '<select class="selectmini status-sel" data-id="'+p.id+'">'+STATUSES.map(function(s){return '<option'+(s===p.status?" selected":"")+'>'+s+'</option>';}).join("")+'</select>'+
+    '<select class="selectmini status-sel" data-id="'+p.id+'">'+STATUSES.map(function(s){return '<option'+(s===p.status?" selected":"")+'>'+s+'</option>';}).join("")+'<option value="__nowplaying__">▶ Now Playing</option></select>'+
     linkBtns(p.name)+
     '<button class="btn ghost danger" data-act="del-played" data-id="'+p.id+'">Remove</button>'+
   '</div>'+
@@ -1736,8 +1736,8 @@ document.getElementById("content").addEventListener("click",function(e){
     if(pl2){
       data.playing=data.playing.filter(function(x){return x.id!==id;});
       var ppId=uid();
-      data.played.unshift({id:ppId,name:pl2.name,rating:0,status:"Finished",added:localISO(),score:pl2.score||null,rrating:pl2.rrating||null,img:coverUrl(pl2)||undefined});
-      save(); flash("Moved to Played — set a rating there");
+      data.played.unshift({id:ppId,name:pl2.name,rating:pl2.rating||0,note:pl2.note||"",vendor:pl2.vendor||"",cost:pl2.cost||0,status:"Finished",added:localISO(),score:pl2.score||null,rrating:pl2.rrating||null,img:coverUrl(pl2)||undefined});
+      save(); flash(pl2.rating?"Moved to Played — rating kept":"Moved to Played — set a rating there");
       enrichScore("played",ppId);
     }
   }
@@ -1860,6 +1860,15 @@ document.getElementById("content").addEventListener("change",function(e){
   var s=e.target.closest(".status-sel"); if(!s) return;
   var p=byId(data.played,s.getAttribute("data-id"));
   if(p){
+    if(s.value==="__nowplaying__"){
+      // move to the live "playing now" section at the top of the Playing tab,
+      // carrying rating/note/cost so nothing is lost on the way back to Played
+      data.played=data.played.filter(function(x){ return x.id!==p.id; });
+      data.playing.unshift({id:uid(),name:p.name,added:localISO(),rating:p.rating||0,note:p.note||"",vendor:p.vendor||"",cost:p.cost||0,score:p.score||null,rrating:p.rrating||null,img:coverUrl(p)||undefined});
+      tab="playing"; save();
+      flash("▶ Now playing — moved to the top of the Playing tab");
+      return;
+    }
     p.status=s.value; save();
     if(s.value==="Playing") flash("Moved to Playing → Resume Later");
     else if(s.value==="Dropped") flash("Moved to Playing → On Hold");
