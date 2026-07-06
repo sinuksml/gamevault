@@ -63,7 +63,9 @@
     --shadow:0 2px 10px rgba(28,45,80,.13);
     --shadowlg:0 6px 22px rgba(28,45,80,.18);
   }
-  :root { --shadow:0 1px 3px rgba(0,0,0,.22); --shadowlg:0 8px 24px rgba(0,0,0,.42); }
+  :root { --shadow:0 1px 3px rgba(0,0,0,.22); --shadowlg:0 8px 24px rgba(0,0,0,.42);
+    --glass:rgba(18,24,36,.52); --glassbrd:rgba(255,255,255,.12); --glasson:rgba(255,255,255,.14); }
+  html.light { --glass:rgba(255,255,255,.52); --glassbrd:rgba(255,255,255,.75); --glasson:rgba(255,255,255,.95); }
   * { box-sizing:border-box; margin:0; padding:0; }
   html { background:var(--bg); }
   body { min-height:100vh; background:transparent; color:var(--text); font-family:"Segoe UI", system-ui, -apple-system, sans-serif; }
@@ -80,13 +82,40 @@
   .iconbtn:hover { border-color:var(--accent); }
   .menupanel { display:none; background:var(--card2); border:1px solid var(--border2); border-radius:12px; padding:10px; margin-bottom:12px; gap:8px; flex-wrap:wrap; }
   .menupanel.open { display:flex; }
-  .tabsticky { position:sticky; top:0; z-index:10; background:var(--stickybg); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); padding-top:4px; margin:0 -4px; }
-  .tabs { display:flex; gap:2px; border-bottom:1px solid var(--border3); overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding:0 4px; }
+  .tabsticky { position:sticky; top:0; z-index:10; padding:6px 0 8px; margin:0 -4px; }
+  /* Apple-style liquid glass segmented control */
+  .tabs {
+    display:flex; gap:3px;
+    background:var(--glass);
+    border:1px solid var(--glassbrd);
+    border-radius:99px;
+    padding:4px;
+    margin:0 4px;
+    backdrop-filter:blur(22px) saturate(1.8);
+    -webkit-backdrop-filter:blur(22px) saturate(1.8);
+    box-shadow:0 10px 30px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.14), inset 0 -1px 0 rgba(0,0,0,.10);
+    overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+  }
   .tabs::-webkit-scrollbar { display:none; }
-  .tab { flex:1 0 auto; min-width:60px; background:none; border:none; color:var(--muted); font:600 12px "Segoe UI",system-ui; padding:10px 6px 12px; cursor:pointer; border-bottom:2px solid transparent; letter-spacing:0.03em; transition:color .15s; }
+  .tab {
+    flex:1 0 auto; min-width:60px;
+    background:transparent; border:none;
+    color:var(--muted); font:600 12px "Segoe UI",system-ui;
+    padding:9px 10px; border-radius:99px; cursor:pointer;
+    letter-spacing:0.03em; white-space:nowrap;
+    transition:background .4s cubic-bezier(.34,1.56,.64,1), color .2s ease,
+               box-shadow .4s cubic-bezier(.34,1.56,.64,1), transform .25s cubic-bezier(.34,1.56,.64,1);
+  }
+  .tab:active { transform:scale(.93); }
   .tab .shp { margin-right:4px; font-size:11px; }
-  .tab.on { color:var(--text); border-bottom-color:var(--accent); }
+  .tab.on {
+    color:var(--text);
+    background:var(--glasson);
+    box-shadow:0 3px 12px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.28), inset 0 0 0 1px rgba(255,255,255,.08);
+  }
   .tab.on .shp { color:var(--accent); }
+  html.light .tabs { box-shadow:0 8px 26px rgba(28,45,80,.16), inset 0 1px 0 rgba(255,255,255,.85), inset 0 -1px 0 rgba(28,45,80,.05); }
+  html.light .tab.on { box-shadow:0 3px 10px rgba(28,45,80,.18), inset 0 1px 0 rgba(255,255,255,.95); }
   .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:13px 14px 12px; margin-bottom:10px; transition:border-color .15s ease, box-shadow .15s ease; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); box-shadow:var(--shadow); }
   .card:hover { border-color:var(--accent); box-shadow:var(--shadowlg); }
   .row { display:flex; align-items:center; gap:11px; }
