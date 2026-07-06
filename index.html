@@ -961,6 +961,15 @@ function renderStats(){
     '<div class="stat" data-tab="played" title="Open Played"><div class="v">'+data.played.length+'</div><div class="k">Played</div></div>';
 }
 
+/* Per-tab scroll memory: leaving a tab saves its position, returning restores it */
+var tabScroll={};
+function switchTab(next){
+  tabScroll[tab]=window.scrollY;
+  tab=next; expandedId=null;
+  render();
+  window.scrollTo(0, tabScroll[next]||0);
+}
+
 function renderTabs(){
   var defs=[["rentals","✕","Rentals"],["playing","▶","Playing"],["queue","◇","Queue"],["upcoming","△","Upcoming"],["suggest","○","For You"],["played","□","Played"]];
   document.getElementById("tabs").innerHTML = defs.map(function(d){
@@ -1656,11 +1665,11 @@ document.getElementById("menuBtn").addEventListener("click",function(){
 });
 document.getElementById("tabs").addEventListener("click",function(e){
   var b=e.target.closest("[data-tab]"); if(!b) return;
-  tab=b.getAttribute("data-tab"); expandedId=null; render();
+  switchTab(b.getAttribute("data-tab"));
 });
 document.getElementById("stats").addEventListener("click",function(e){
   var s=e.target.closest("[data-tab]"); if(!s) return;
-  tab=s.getAttribute("data-tab"); render();
+  switchTab(s.getAttribute("data-tab"));
 });
 
 document.getElementById("settingsBtn").addEventListener("click",function(){ toggleSettings(); });
@@ -1695,7 +1704,7 @@ document.getElementById("content").addEventListener("click",function(e){
 
   if(act==="toggle-form"){ formOpen[tab]=!formOpen[tab]; render(); }
   else if(act==="clear-search"){ searchQ[tab]=""; render(); }
-  else if(act==="goto"){ tab=b.getAttribute("data-dest")||"rentals"; render(); }
+  else if(act==="goto"){ switchTab(b.getAttribute("data-dest")||"rentals"); }
 
   else if(act==="add-rental"){
     var name=document.getElementById("rName").value.trim(); if(!name) return;
@@ -1823,7 +1832,8 @@ document.getElementById("content").addEventListener("click",function(e){
       data.queue=data.queue.filter(function(x){return x.id!==id;});
       var rid=uid();
       data.rentals.push({id:rid,name:qr.name,start:localISO(),days:30,cost:0,vendor:"",note:qr.note||"",score:qr.score||null,rrating:qr.rrating||null,img:coverUrl(qr)||undefined});
-      tab="rentals"; save(); flash("Rental started today — set the cost and vendor below");
+      tabScroll[tab]=window.scrollY; tab="rentals"; save(); window.scrollTo(0,0);
+      flash("Rental started today — set the cost and vendor below");
       enrichScore("rentals",rid);
     }
   }
@@ -2026,7 +2036,7 @@ document.getElementById("content").addEventListener("change",function(e){
         if(!exN.rating && p.rating) exN.rating=p.rating;
         if(!exN.note && p.note) exN.note=p.note;
         data.played=data.played.filter(function(x){ return x.id!==p.id; });
-        tab="playing"; save();
+        tabScroll[tab]=window.scrollY; tab="playing"; save(); window.scrollTo(0,0);
         flash("Merged with the copy already in the playing list");
         return;
       }
@@ -2037,7 +2047,7 @@ document.getElementById("content").addEventListener("change",function(e){
       }
       data.played=data.played.filter(function(x){ return x.id!==p.id; });
       data.playing.unshift({id:uid(),name:p.name,added:localISO(),rating:p.rating||0,note:p.note||"",vendor:p.vendor||"",cost:p.cost||0,score:p.score||null,rrating:p.rrating||null,img:coverUrl(p)||undefined});
-      tab="playing"; save();
+      tabScroll[tab]=window.scrollY; tab="playing"; save(); window.scrollTo(0,0);
       flash("▶ Now playing — moved to the top of the Playing tab");
       return;
     }
@@ -2235,8 +2245,7 @@ document.addEventListener("touchend",function(e){
   var i=TAB_ORDER.indexOf(tab); if(i<0) return;
   var ni=i+(dx<0?1:-1);
   if(ni<0 || ni>=TAB_ORDER.length) return;
-  tab=TAB_ORDER[ni]; expandedId=null;
-  render(); window.scrollTo(0,0);
+  switchTab(TAB_ORDER[ni]);
 },{passive:true});
 
 /* ---------- back to top ---------- */
