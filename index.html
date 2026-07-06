@@ -187,6 +187,8 @@
   html.light .chip.pro { color:#3A2A00; }
   .chip.rem { color:#C8A2E8; border-color:#7A5AA8; }
   html.light .chip.rem { color:#6B3FA8; }
+  .chip.pref { color:#2BD46B; border-color:#2BD46B; }
+  html.light .chip.pref { color:#127A3C; border-color:#3FBF6E; }
   /* external link buttons (Google / Trailer) */
   a.btn { text-decoration:none; display:inline-flex; align-items:center; gap:4px; }
   /* hero banner (featured backdrop game) */
@@ -623,6 +625,7 @@ function enrichScore(list,id){
     var it=byId(data[list],id); if(!it) return;
     if(g.metacritic) it.score=g.metacritic;
     if(g.rating) it.rrating=Math.round(g.rating*10)/10;
+    if(g.genres&&g.genres[0]&&g.genres[0].name) it.genre=g.genres[0].name;
     it.img=g.background_image||"";
     if(it.img) data.covers[norm(it.name)]=it.img;
     persist(); maybeRender();
@@ -848,10 +851,11 @@ function renderStats(){
   var active=data.rentals.filter(function(r){ return r.days-daysBetween(parseD(r.start),t0)>0; }).length;
   var urgent=data.rentals.some(function(r){ var l=r.days-daysBetween(parseD(r.start),t0); return l>0&&l<=3; });
   var totalRented=data.rentals.length+data.rentalHistory.length;
+  var resumeCount=data.played.filter(function(p){ return p.status==="Playing"; }).length;
   document.getElementById("stats").innerHTML =
     '<div class="stat" data-tab="rentals" title="Open Rentals"><div class="v" style="color:'+(urgent?"#F05A5A":"var(--text)")+'">'+active+'</div><div class="k">Active rentals</div></div>'+
     '<div class="stat" data-tab="rentals" title="Open Rentals"><div class="v">'+totalRented+'</div><div class="k">Total rented</div></div>'+
-    '<div class="stat" data-tab="playing" title="Open Playing"><div class="v" style="color:var(--accent)">'+(active+data.playing.length)+'</div><div class="k">Now playing</div></div>'+
+    '<div class="stat" data-tab="playing" title="Open Playing"><div class="v" style="color:var(--accent)">'+(active+data.playing.length+resumeCount)+'</div><div class="k">Now playing</div></div>'+
     '<div class="stat" data-tab="rentals" title="Open Rentals"><div class="v" style="color:#F2B84B">'+fmtMoney(totalSpent())+'</div><div class="k">Total spent</div></div>'+
     '<div class="stat" data-tab="played" title="Open Played"><div class="v">'+data.played.length+'</div><div class="k">Played</div></div>';
 }
@@ -1047,6 +1051,8 @@ function renderPlaying(){
     return Object.assign({},r,{left:left,_rental:true});
   }).filter(function(r){ return r.left>0 && matchQ(r.name); });
   var manual=data.playing.filter(function(p){ return matchQ(p.name); });
+  var resume=data.played.filter(function(p){ return p.status==="Playing" && matchQ(p.name); });
+  var hold=data.played.filter(function(p){ return p.status==="Dropped" && matchQ(p.name); });
 
   var html = toolbar("Add game","Search playing…");
   if(formOpen[tab]){
@@ -1058,7 +1064,7 @@ function renderPlaying(){
   }
   html+='<div class="meta" style="margin-bottom:12px">Active rentals show up here automatically. Tap a game to read what it’s about.</div>';
 
-  if(!live.length && !manual.length){
+  if(!live.length && !manual.length && !resume.length && !hold.length){
     html+= q() ? noMatch() : '<div class="empty">Nothing on the go right now. Active rentals appear here automatically, or press <b>+ Add game</b> for anything else you’re playing.</div>';
     return html;
   }
@@ -1098,22 +1104,39 @@ function renderPlaying(){
     return h;
   }
 
-  html+='<div class="cards">';
-  live.forEach(function(r){
-    var c=urgency(r.left);
-    var sub='<span style="color:'+c+';font-weight:700">'+r.left+' day'+(r.left===1?"":"s")+' left</span> on rental'+
-      (r.vendor?' · <span style="color:var(--vendor)">'+esc(r.vendor)+'</span>':'');
-    html+=playCard(r, sub,
-      '<button class="btn blue" data-act="return-played" data-id="'+r.id+'">Finished → Played</button>'+
-      '<button class="btn" data-act="goto" data-dest="rentals">Manage in Rentals</button>');
-  });
-  manual.forEach(function(p){
-    var sub='Playing since '+fmt(p.added);
-    html+=playCard(p, sub,
-      '<button class="btn blue" data-act="pl-played" data-id="'+p.id+'">Finished → Played</button>'+
-      '<button class="btn ghost danger" data-act="pl-del" data-id="'+p.id+'">Remove</button>');
-  });
-  html+='</div>';
+  if(live.length||manual.length){
+    html+='<div class="cards">';
+    live.forEach(function(r){
+      var c=urgency(r.left);
+      var sub='<span style="color:'+c+';font-weight:700">'+r.left+' day'+(r.left===1?"":"s")+' left</span> on rental'+
+        (r.vendor?' · <span style="color:var(--vendor)">'+esc(r.vendor)+'</span>':'');
+      html+=playCard(r, sub,
+        '<button class="btn blue" data-act="return-played" data-id="'+r.id+'">Finished → Played</button>'+
+        '<button class="btn" data-act="goto" data-dest="rentals">Manage in Rentals</button>');
+    });
+    manual.forEach(function(p){
+      var sub='Playing since '+fmt(p.added);
+      html+=playCard(p, sub,
+        '<button class="btn blue" data-act="pl-played" data-id="'+p.id+'">Finished → Played</button>'+
+        '<button class="btn ghost danger" data-act="pl-del" data-id="'+p.id+'">Remove</button>');
+    });
+    html+='</div>';
+  }
+
+  if(resume.length){
+    html+='<div class="sechead">↺ Resume Later · '+resume.length+'</div>';
+    html+='<div class="meta" style="margin-bottom:8px">Games from your library you’ve picked back up. Set them to Finished or Platinum when you’re done to send them back to Played.</div>';
+    html+='<div class="cards">';
+    resume.forEach(function(p){ html+=playedCard(p); });
+    html+='</div>';
+  }
+  if(hold.length){
+    html+='<div class="sechead">⏸ On Hold · '+hold.length+'</div>';
+    html+='<div class="meta" style="margin-bottom:8px">Dropped or paused games, kept here so you can pick them up again anytime.</div>';
+    html+='<div class="cards">';
+    hold.forEach(function(p){ html+=playedCard(p); });
+    html+='</div>';
+  }
   return html;
 }
 
@@ -1261,12 +1284,45 @@ function isOwned(name, owned){
   }
   return false;
 }
+/* Learn taste from Played ratings: loved genres score high, disliked ones sink.
+   Higher ratings carry the most weight (5★ ≫ 4★ ≫ neutral 3★ ≫ low). */
+var RATING_INFL={1:-2,2:-1,3:0,4:2,5:4};
+function genreOf(name){
+  var n=norm(name), cat=fullCatalog();
+  for(var i=0;i<cat.length;i++) if(norm(cat[i].name)===n) return cat[i].genre||null;
+  return null;
+}
+function genrePrefs(){
+  var pref={}, byName={};
+  fullCatalog().forEach(function(g){ byName[norm(g.name)]=g; });
+  data.played.forEach(function(p){
+    if(!p.rating) return;
+    var g=byName[norm(p.name)];
+    var genre=(g&&g.genre)||p.genre||null;
+    if(!genre) return;
+    pref[genre]=(pref[genre]||0)+(RATING_INFL[p.rating]||0);
+  });
+  return pref;
+}
+function topGenres(pref){
+  return Object.keys(pref||{}).filter(function(k){ return pref[k]>0; })
+    .sort(function(a,b){ return pref[b]-pref[a]; });
+}
 function getSuggestions(){
   var owned=ownedSet();
   var dis={}; (data.dismissed||[]).forEach(function(x){ dis[x]=1; });
+  var pref=genrePrefs();
+  function sc(g){
+    var pf=pref[g.genre||"Other"]||0;          // taste match (dominant)
+    var tier=3-tierRank(g.name);               // AAA 3 · AA 2 · Indie 1
+    var critic=(g.score||0)/100;               // 0..1 tie-breaker
+    return pf*2 + tier*0.6 + critic;
+  }
   return fullCatalog().filter(function(g){
     return !dis[norm(g.name)] && !isOwned(g.name, owned);
   }).sort(function(a,b){
+    var d=sc(b)-sc(a);
+    if(d) return d;
     var ta=tierRank(a.name), tb=tierRank(b.name);
     if(ta!==tb) return ta-tb; // AAA first, then acclaimed AA, then indies
     return (b.score||0)-(a.score||0);
@@ -1275,6 +1331,8 @@ function getSuggestions(){
 
 function renderSuggest(){
   var sugs=getSuggestions();
+  var pref=genrePrefs();
+  var tops=topGenres(pref);
   var genres={}; sugs.forEach(function(g){ genres[g.genre||"Other"]=1; });
   var genreList=["All"].concat(Object.keys(genres).sort());
   if(genreList.indexOf(sugGenre)<0) sugGenre="All";
@@ -1290,7 +1348,7 @@ function renderSuggest(){
     (q()?'<button class="sclear" data-act="clear-search" title="Clear">✕</button>':'')+
     '</div></div>'+
     '<div class="syncbar"><span class="syncnote">'+(data.lastCatalogSync?("Last updated "+esc(data.lastCatalogSync)):"Built-in top 40 — add API key in Settings for live data")+'</span></div>'+
-    '<div class="meta" style="margin-bottom:10px">Top-rated released PS5 games — AAA first, plus only the must-play AA and indie hits — minus everything you’ve played, rented or queued.</div>'+
+    '<div class="meta" style="margin-bottom:10px">'+(tops.length?('<span style="color:var(--text)">Personalised from your ratings</span> — more <b style="color:#2BD46B">'+esc(tops.slice(0,2).join(" & "))+'</b> up top. ':''))+'Top-rated released PS5 games — best matches first, minus everything you’ve played, rented or queued.</div>'+
     '<div class="chipbar">'+["All","AAA","AA","Indie"].map(function(t){
       return '<button class="gchip '+(t===sugTier?"on":"")+'" data-tier="'+t+'">'+(t==="All"?"All tiers":t)+'</button>';
     }).join("")+'</div>'+
@@ -1301,11 +1359,12 @@ function renderSuggest(){
   if(!shown.length) html+= q()?noMatch():'<div class="empty">Nothing left to suggest here — either you’ve played everything (impressive) or try Refresh for more.</div>';
 
   function sugCard(g, tierHtml){
+    var prefChip=(g.genre&&tops.indexOf(g.genre)>-1)?'<span class="chip pref">♥ Your taste</span> ':'';
     return '<div class="card"><div class="row">'+
       coverImg(g)+
       '<div class="grow">'+
         '<div class="gname">'+esc(g.name)+'</div>'+
-        '<div class="meta">'+tierHtml+'<span style="color:'+scoreColor(g.score)+';font-weight:700">'+(g.score?("Critic "+g.score):"Unrated")+'</span> · '+(g.year||"")+' · '+esc(g.genre||"")+(g.rating?' · '+(Math.round(g.rating*10)/10)+'★ users':'')+(g.note?'<br>'+esc(g.note):'')+'</div>'+
+        '<div class="meta">'+prefChip+tierHtml+'<span style="color:'+scoreColor(g.score)+';font-weight:700">'+(g.score?("Critic "+g.score):"Unrated")+'</span> · '+(g.year||"")+' · '+esc(g.genre||"")+(g.rating?' · '+(Math.round(g.rating*10)/10)+'★ users':'')+(g.note?'<br>'+esc(g.note):'')+'</div>'+
       '</div>'+
     '</div><div class="actions">'+
       '<button class="btn blue" data-act="sug-queue" data-name="'+esc(g.name)+'">◇ Add to queue</button>'+
@@ -1398,6 +1457,28 @@ function renderKeepSearch(){
   }
 }
 
+/* ---------- Played card (shared by Played tab + Playing subsections) ---------- */
+function playedCard(p){
+  var dots="";
+  for(var n=1;n<=5;n++) dots+='<button class="dot '+(p.rating>=n?"on":"")+'" data-act="rate" data-id="'+p.id+'" data-n="'+n+'">●</button>';
+  var chipCls=p.status==="Platinum"?"plat":p.status==="Finished"?"fin":p.status==="Playing"?"play":"drop";
+  return '<div class="card"><div class="row">'+
+    coverImg(p)+
+    '<div class="grow"><div class="gname">'+esc(p.name)+'</div><div class="meta">'+badges(p.name)+'Added '+fmt(p.added)+
+    (p.vendor?' · <span style="color:var(--vendor)">'+esc(p.vendor)+'</span>':'')+
+    (Number(p.cost)?' · <span style="color:#F2B84B;font-weight:700">'+fmtMoney(p.cost)+'</span>':'')+
+    scoreBits(p)+'</div></div>'+
+    '<div class="dots">'+dots+'</div>'+
+  '</div><div class="actions">'+
+    '<span class="chip '+chipCls+'">'+p.status+'</span>'+
+    '<select class="selectmini status-sel" data-id="'+p.id+'">'+STATUSES.map(function(s){return '<option'+(s===p.status?" selected":"")+'>'+s+'</option>';}).join("")+'</select>'+
+    linkBtns(p.name)+
+    '<button class="btn ghost danger" data-act="del-played" data-id="'+p.id+'">Remove</button>'+
+  '</div>'+
+  '<input class="note-inp" data-id="'+p.id+'" placeholder="Add a note — thoughts, playtime, DLC left…" value="'+esc(p.note||"")+'">'+
+  '</div>';
+}
+
 /* ---------- Played tab ---------- */
 function renderPlayed(){
   var html = toolbar("Add game","Search played…");
@@ -1423,32 +1504,15 @@ function renderPlayed(){
     html+='</div>';
   }
 
-  var shown=data.played.filter(function(p){ return matchQ(p.name); });
+  var elsewhere=data.played.filter(function(p){ return p.status==="Playing"||p.status==="Dropped"; }).length;
+  var shown=data.played.filter(function(p){ return matchQ(p.name) && p.status!=="Playing" && p.status!=="Dropped"; });
   if(!data.played.length) html+='<div class="empty">Your library is empty. Add games one by one, or open the PlayStation App → Game Library, copy your titles and use Bulk import (inside + Add game). The For You tab gets smarter as this list grows.</div>';
-  else if(!shown.length) html+=noMatch();
+  else if(!shown.length) html+= q()?noMatch():'<div class="empty">Every game in your library is currently in the <b>▶ Playing</b> tab — under <b>Resume Later</b> or <b>On Hold</b>. Set one back to Finished or Platinum to return it here.</div>';
+
+  if(elsewhere && shown.length) html+='<div class="meta" style="margin-bottom:10px">'+elsewhere+' game'+(elsewhere===1?" is":"s are")+' in the <b style="color:var(--text)">▶ Playing</b> tab — under Resume Later or On Hold.</div>';
 
   html+='<div class="cards">';
-  shown.forEach(function(p){
-    var dots="";
-    for(var n=1;n<=5;n++) dots+='<button class="dot '+(p.rating>=n?"on":"")+'" data-act="rate" data-id="'+p.id+'" data-n="'+n+'">●</button>';
-    var chipCls=p.status==="Platinum"?"plat":p.status==="Finished"?"fin":p.status==="Playing"?"play":"drop";
-    html+=
-    '<div class="card"><div class="row">'+
-      coverImg(p)+
-      '<div class="grow"><div class="gname">'+esc(p.name)+'</div><div class="meta">'+badges(p.name)+'Added '+fmt(p.added)+
-      (p.vendor?' · <span style="color:var(--vendor)">'+esc(p.vendor)+'</span>':'')+
-      (Number(p.cost)?' · <span style="color:#F2B84B;font-weight:700">'+fmtMoney(p.cost)+'</span>':'')+
-      scoreBits(p)+'</div></div>'+
-      '<div class="dots">'+dots+'</div>'+
-    '</div><div class="actions">'+
-      '<span class="chip '+chipCls+'">'+p.status+'</span>'+
-      '<select class="selectmini status-sel" data-id="'+p.id+'">'+STATUSES.map(function(s){return '<option'+(s===p.status?" selected":"")+'>'+s+'</option>';}).join("")+'</select>'+
-      linkBtns(p.name)+
-      '<button class="btn ghost danger" data-act="del-played" data-id="'+p.id+'">Remove</button>'+
-    '</div>'+
-    '<input class="note-inp" data-id="'+p.id+'" placeholder="Add a note — thoughts, playtime, DLC left…" value="'+esc(p.note||"")+'">'+
-    '</div>';
-  });
+  shown.forEach(function(p){ html+=playedCard(p); });
   html+='</div>';
   return html;
 }
@@ -1795,7 +1859,12 @@ document.getElementById("content").addEventListener("change",function(e){
   }
   var s=e.target.closest(".status-sel"); if(!s) return;
   var p=byId(data.played,s.getAttribute("data-id"));
-  if(p){ p.status=s.value; save(); }
+  if(p){
+    p.status=s.value; save();
+    if(s.value==="Playing") flash("Moved to Playing → Resume Later");
+    else if(s.value==="Dropped") flash("Moved to Playing → On Hold");
+    else if(tab==="playing") flash("Sent back to the Played library");
+  }
 });
 
 /* Enter key adds, no reaching for the button */
