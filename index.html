@@ -1118,6 +1118,7 @@ function renderPlaying(){
       var sub='Playing since '+fmt(p.added);
       html+=playCard(p, sub,
         '<button class="btn blue" data-act="pl-played" data-id="'+p.id+'">Finished → Played</button>'+
+        '<button class="btn" data-act="pl-resume" data-id="'+p.id+'">↺ Resume Later</button>'+
         '<button class="btn ghost danger" data-act="pl-del" data-id="'+p.id+'">Remove</button>');
     });
     html+='</div>';
@@ -1739,6 +1740,14 @@ document.getElementById("content").addEventListener("click",function(e){
       data.played.unshift({id:ppId,name:pl2.name,rating:pl2.rating||0,note:pl2.note||"",vendor:pl2.vendor||"",cost:pl2.cost||0,status:"Finished",added:localISO(),score:pl2.score||null,rrating:pl2.rrating||null,img:coverUrl(pl2)||undefined});
       save(); flash(pl2.rating?"Moved to Played — rating kept":"Moved to Played — set a rating there");
       enrichScore("played",ppId);
+    }
+  }
+  else if(act==="pl-resume"){
+    var pl3=byId(data.playing,id);
+    if(pl3){
+      data.playing=data.playing.filter(function(x){return x.id!==id;});
+      data.played.unshift({id:uid(),name:pl3.name,rating:pl3.rating||0,note:pl3.note||"",vendor:pl3.vendor||"",cost:pl3.cost||0,status:"Playing",added:localISO(),score:pl3.score||null,rrating:pl3.rrating||null,img:coverUrl(pl3)||undefined});
+      save(); flash("↺ Moved down to Resume Later");
     }
   }
   else if(act==="pl-del"){ data.playing=data.playing.filter(function(x){return x.id!==id;}); save(); }
