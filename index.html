@@ -262,6 +262,8 @@ var STORE_KEY = "ps5-tracker-v1";
 var KEY_STORE = "ps5-rawg-key";
 var PLOTS_KEY = "ps5-plots-v2";
 var STATUSES = ["Finished","Playing","Dropped","Platinum"];
+/* display labels — "Playing" files under Resume Later, "Dropped" under On Hold */
+var STATUS_LABEL = {Finished:"Finished", Playing:"↺ Resume Later", Dropped:"⏸ On Hold", Platinum:"Platinum"};
 var PS5_LAUNCH = "2020-11-12";
 var tab = "rentals";
 var showImport = false;
@@ -736,6 +738,28 @@ function linkBtns(name){
   return '<a class="btn" href="https://www.google.com/search?q='+encodeURIComponent(name+" PS5")+'" target="_blank" rel="noopener">⌕ Google</a>'+
          '<a class="btn" href="https://www.youtube.com/results?search_query='+encodeURIComponent(name+" PS5 trailer")+'" target="_blank" rel="noopener">▶ Trailer</a>';
 }
+/* Fandom button + per-game reading-spot editor (shared by all Playing sections) */
+function fandomBtn(name){
+  var fsaved=data.fandom[norm(name)]||"";
+  var fhref=fsaved||("https://www.fandom.com/?s="+encodeURIComponent(name+" wiki"));
+  return '<a class="btn'+(fsaved?' blue':'')+'" href="'+esc(fhref)+'" target="_blank" rel="noopener">'+(fsaved?"▷ Continue on Fandom":"▷ Fandom")+'</a>';
+}
+function fandomEditor(name){
+  var fk=norm(name), fsaved=data.fandom[fk]||"";
+  var fanchor="";
+  if(fsaved && fsaved.indexOf("#")>-1){
+    try{ fanchor=decodeURIComponent(fsaved.split("#")[1]).replace(/_/g," "); }
+    catch(e2){ fanchor=fsaved.split("#")[1]; }
+  }
+  return '<div class="inline-edit">'+
+    '<input class="note-inp fd-link" data-key="'+fk+'" placeholder="Paste the Fandom page link (with #section) where you stopped reading" value="'+esc(fsaved)+'">'+
+  '</div>'+
+  '<div class="meta" style="margin-top:6px">'+
+    (fsaved
+      ? (fanchor?'Saved reading spot: <b style="color:var(--text)">'+esc(fanchor)+'</b> — the Fandom button jumps straight there.':'Saved page — the Fandom button reopens it directly.')
+      : 'Tip: on the Fandom page, tap the section you’re reading in its table of contents, copy the address (it ends with #Section) and paste it above. The button will then take you back to that exact spot.')+
+  '</div>';
+}
 
 /* ---------- dynamic backdrop: next big AAA release ---------- */
 function nextBigGame(){
@@ -1081,24 +1105,8 @@ function renderPlaying(){
       var u=coverUrl(x);
       if(u) h+='<img class="cover lg" src="'+esc(u)+'" alt="" loading="lazy">';
       h+=plotBlock(x.name);
-      var fk=norm(x.name), fsaved=data.fandom[fk]||"";
-      var fhref=fsaved||("https://www.fandom.com/?s="+encodeURIComponent(x.name+" wiki"));
-      h+='<div class="actions">'+
-        '<a class="btn'+(fsaved?' blue':'')+'" href="'+esc(fhref)+'" target="_blank" rel="noopener">'+(fsaved?"▷ Continue on Fandom":"▷ Fandom")+'</a>'+
-        actionsHtml+linkBtns(x.name)+'</div>';
-      var fanchor="";
-      if(fsaved && fsaved.indexOf("#")>-1){
-        try{ fanchor=decodeURIComponent(fsaved.split("#")[1]).replace(/_/g," "); }
-        catch(e2){ fanchor=fsaved.split("#")[1]; }
-      }
-      h+='<div class="inline-edit">'+
-        '<input class="note-inp fd-link" data-key="'+fk+'" placeholder="Paste the Fandom page link (with #section) where you stopped reading" value="'+esc(fsaved)+'">'+
-      '</div>';
-      h+='<div class="meta" style="margin-top:6px">'+
-        (fsaved
-          ? (fanchor?'Saved reading spot: <b style="color:var(--text)">'+esc(fanchor)+'</b> — the Fandom button jumps straight there.':'Saved page — the Fandom button reopens it directly.')
-          : 'Tip: on the Fandom page, tap the section you’re reading in its table of contents, copy the address (it ends with #Section) and paste it above. The button will then take you back to that exact spot.')+
-      '</div>';
+      h+='<div class="actions">'+fandomBtn(x.name)+actionsHtml+linkBtns(x.name)+'</div>';
+      h+=fandomEditor(x.name);
     }
     h+='</div>';
     return h;
@@ -1128,14 +1136,14 @@ function renderPlaying(){
     html+='<div class="sechead">↺ Resume Later · '+resume.length+'</div>';
     html+='<div class="meta" style="margin-bottom:8px">Games from your library you’ve picked back up. Set them to Finished or Platinum when you’re done to send them back to Played.</div>';
     html+='<div class="cards">';
-    resume.forEach(function(p){ html+=playedCard(p); });
+    resume.forEach(function(p){ html+=playedCard(p,true); });
     html+='</div>';
   }
   if(hold.length){
     html+='<div class="sechead">⏸ On Hold · '+hold.length+'</div>';
     html+='<div class="meta" style="margin-bottom:8px">Dropped or paused games, kept here so you can pick them up again anytime.</div>';
     html+='<div class="cards">';
-    hold.forEach(function(p){ html+=playedCard(p); });
+    hold.forEach(function(p){ html+=playedCard(p,true); });
     html+='</div>';
   }
   return html;
@@ -1459,25 +1467,36 @@ function renderKeepSearch(){
 }
 
 /* ---------- Played card (shared by Played tab + Playing subsections) ---------- */
-function playedCard(p){
+function playedCard(p, expandable){
+  var open = !!expandable && expandedId===p.id;
   var dots="";
   for(var n=1;n<=5;n++) dots+='<button class="dot '+(p.rating>=n?"on":"")+'" data-act="rate" data-id="'+p.id+'" data-n="'+n+'">●</button>';
   var chipCls=p.status==="Platinum"?"plat":p.status==="Finished"?"fin":p.status==="Playing"?"play":"drop";
-  return '<div class="card"><div class="row">'+
+  var h='<div class="card">'+
+    (expandable?'<div class="row clickrow" data-act="pl-toggle" data-id="'+p.id+'">':'<div class="row">')+
     coverImg(p)+
     '<div class="grow"><div class="gname">'+esc(p.name)+'</div><div class="meta">'+badges(p.name)+'Added '+fmt(p.added)+
     (p.vendor?' · <span style="color:var(--vendor)">'+esc(p.vendor)+'</span>':'')+
     (Number(p.cost)?' · <span style="color:#F2B84B;font-weight:700">'+fmtMoney(p.cost)+'</span>':'')+
     scoreBits(p)+'</div></div>'+
     '<div class="dots">'+dots+'</div>'+
+    (expandable?'<span style="color:var(--dim);font-size:12px;flex-shrink:0">'+(open?"▲":"▼")+'</span>':'')+
   '</div><div class="actions">'+
-    '<span class="chip '+chipCls+'">'+p.status+'</span>'+
-    '<select class="selectmini status-sel" data-id="'+p.id+'">'+STATUSES.map(function(s){return '<option'+(s===p.status?" selected":"")+'>'+s+'</option>';}).join("")+'<option value="__nowplaying__">▶ Now Playing</option></select>'+
+    '<span class="chip '+chipCls+'">'+(STATUS_LABEL[p.status]||p.status)+'</span>'+
+    '<select class="selectmini status-sel" data-id="'+p.id+'">'+STATUSES.map(function(s){return '<option value="'+s+'"'+(s===p.status?" selected":"")+'>'+(STATUS_LABEL[s]||s)+'</option>';}).join("")+'<option value="__nowplaying__">▶ Now Playing</option></select>'+
     linkBtns(p.name)+
     '<button class="btn ghost danger" data-act="del-played" data-id="'+p.id+'">Remove</button>'+
   '</div>'+
-  '<input class="note-inp" data-id="'+p.id+'" placeholder="Add a note — thoughts, playtime, DLC left…" value="'+esc(p.note||"")+'">'+
-  '</div>';
+  '<input class="note-inp" data-id="'+p.id+'" placeholder="Add a note — thoughts, playtime, DLC left…" value="'+esc(p.note||"")+'">';
+  if(open){
+    var u=coverUrl(p);
+    if(u) h+='<img class="cover lg" src="'+esc(u)+'" alt="" loading="lazy">';
+    h+=plotBlock(p.name);
+    h+='<div class="actions">'+fandomBtn(p.name)+'</div>';
+    h+=fandomEditor(p.name);
+  }
+  h+='</div>';
+  return h;
 }
 
 /* ---------- Played tab ---------- */
@@ -1487,7 +1506,7 @@ function renderPlayed(){
     html+=
     '<div class="form"><h3>Add to your library</h3><div class="fields">'+
     '<div class="ac-wrap f-name"><input id="pName" class="ac-input" placeholder="Game name — start typing for suggestions" autocomplete="off"><div class="ac-drop"></div></div>'+
-    '<select class="f-sm" id="pStatus">'+STATUSES.map(function(s){return '<option>'+s+'</option>';}).join("")+'</select>'+
+    '<select class="f-sm" id="pStatus">'+STATUSES.map(function(s){return '<option value="'+s+'">'+(STATUS_LABEL[s]||s)+'</option>';}).join("")+'</select>'+
     '<button class="btn blue" data-act="add-played">Add</button>'+
     '<button class="btn" data-act="toggle-import">'+(showImport?"Close import":"Bulk import")+'</button>'+
     '</div>';
@@ -1774,7 +1793,10 @@ document.getElementById("content").addEventListener("click",function(e){
       if(/^(trophies|platinum|gold|silver|bronze|completed?|level|rank)\b[\d\s%]*$/i.test(parts[0])) return;
       if(existing[parts[0].toLowerCase()]){ skipped++; return; }
       var rating=Math.min(5,Math.max(0,Number(parts[1])||0));
-      var status=STATUSES.filter(function(s){return s.toLowerCase()===(parts[2]||"").toLowerCase();})[0]||"Finished";
+      var stTxt=(parts[2]||"").toLowerCase();
+      if(stTxt==="resume later") stTxt="playing";
+      if(stTxt==="on hold") stTxt="dropped";
+      var status=STATUSES.filter(function(s){return s.toLowerCase()===stTxt;})[0]||"Finished";
       data.played.unshift({id:uid(),name:parts[0],rating:rating,status:status,note:parts[3]||"",added:localISO()});
       existing[parts[0].toLowerCase()]=1; added++;
     });
