@@ -221,6 +221,7 @@
 <div class="wrap">
   <div class="topbar">
     <div class="brand"><h1>SINU GAME VAULT</h1><span class="sym">&#9651;&#9675;&#10005;&#9633;</span></div>
+    <button class="iconbtn" id="refreshBtn" title="Refresh all data">&#8635;</button>
     <button class="iconbtn" id="viewBtn" title="Switch list / grid view">&#9638;</button>
     <button class="iconbtn" id="themeBtn" title="Switch light / dark mode">&#9788;</button>
     <button class="iconbtn" id="menuBtn" title="Cloud, backup &amp; settings">&#8943;</button>
@@ -384,9 +385,31 @@ function migrate(d){
   if(!d.covers) d.covers = {};
   if(!d.dismissedNames) d.dismissedNames = {};
   if(!d.fandom) d.fandom = {}; // per-game saved Fandom reading spot (URL, keyed by norm name)
+  // v5: a game appears at most once per library — merge accidental duplicates
+  d.played = dedupeList(d.played);
+  d.playing = dedupeList(d.playing);
   if(!d.updatedAt) d.updatedAt = Date.now();
   d.version = SCHEMA_VERSION;
   return d;
+}
+/* keep the newest entry per game name, folding missing details in from the duplicates */
+function dedupeList(arr){
+  var seen={}, out=[];
+  (arr||[]).forEach(function(x){
+    if(!x||!x.name) return;
+    var n=norm(x.name);
+    var first=seen[n];
+    if(!first){ seen[n]=x; out.push(x); return; }
+    if(!first.rating && x.rating) first.rating=x.rating;
+    if(!first.note && x.note) first.note=x.note;
+    if(!first.vendor && x.vendor) first.vendor=x.vendor;
+    if(!Number(first.cost) && Number(x.cost)) first.cost=x.cost;
+    if(!first.score && x.score) first.score=x.score;
+    if(!first.rrating && x.rrating) first.rrating=x.rrating;
+    if(!first.img && x.img) first.img=x.img;
+    if(first.status!=="Platinum" && x.status==="Platinum") first.status="Platinum";
+  });
+  return out;
 }
 var data = load();
 function getKey(){ try { return localStorage.getItem(KEY_STORE) || ""; } catch(e){ return ""; } }
@@ -396,6 +419,12 @@ function persist(){
   scheduleAutoPush();
 }
 function save(){ persist(); render(); }
+/* Save derived data (covers, fetched scores) WITHOUT bumping updatedAt, so an
+   idle device backfilling artwork can never out-timestamp real edits made on
+   another device and roll them back via cloud sync */
+function persistSilent(){
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
+}
 
 var toastTimer = null, undoFn = null;
 function flash(msg, undoCb){
@@ -630,7 +659,7 @@ function enrichScore(list,id){
     if(g.genres&&g.genres[0]&&g.genres[0].name) it.genre=g.genres[0].name;
     it.img=g.background_image||"";
     if(it.img) data.covers[norm(it.name)]=it.img;
-    persist(); maybeRender();
+    persistSilent(); maybeRender();
   }).catch(function(){});
 }
 
@@ -678,7 +707,7 @@ function backfillImages(){
     var g=(json.results||[])[0];
     if(g&&g.background_image){
       data.covers[norm(name)]=g.background_image;
-      persist(); maybeRender();
+      persistSilent(); maybeRender();
     }
     backfillBusy=false;
     setTimeout(backfillImages,450);
@@ -807,14 +836,16 @@ function applyBackground(){
 var plotCache={};
 try{ plotCache=JSON.parse(localStorage.getItem(PLOTS_KEY)||"{}")||{}; }catch(e){ plotCache={}; }
 var plotPending={};
+var plotErr={};
 function savePlots(){ try{ localStorage.setItem(PLOTS_KEY, JSON.stringify(plotCache)); }catch(e){} }
 function ensurePlot(name){
   var k=norm(name);
-  if((k in plotCache) || plotPending[k]) return;
+  if((k in plotCache) || plotPending[k] || plotErr[k]) return;
   plotPending[k]=1;
   var api="https://en.wikipedia.org/w/api.php";
   var articleTitle="";
-  rawgFetch(api+"?action=query&list=search&format=json&origin=*&srlimit=1&srsearch="+encodeURIComponent(name+" video game"))
+  var timer=new Promise(function(_,rej){ setTimeout(function(){ rej(new Error("timeout")); },15000); });
+  var chain=rawgFetch(api+"?action=query&list=search&format=json&origin=*&srlimit=1&srsearch="+encodeURIComponent(name+" video game"))
   .then(function(j){
     var hit=j.query&&j.query.search&&j.query.search[0];
     if(!hit) throw new Error("no article");
@@ -832,11 +863,20 @@ function ensurePlot(name){
     plot=plot.replace(/\n?===\s*([^=]*?)\s*===\n?/g,"\n— $1 —\n").trim();
     if(plot.length>12000) plot=plot.slice(0,12000)+"…";
     plotCache[k]={p:plot, t:articleTitle, a:anchor};
-    savePlots(); delete plotPending[k]; maybeRender();
-  })
-  .catch(function(){
-    plotCache[k]={p:"", t:articleTitle, a:""};
-    savePlots(); delete plotPending[k]; maybeRender();
+    savePlots();
+  });
+  Promise.race([chain,timer])
+  .then(function(){ delete plotPending[k]; maybeRender(); })
+  .catch(function(err){
+    delete plotPending[k];
+    if(err && err.message==="no article"){
+      // Wikipedia genuinely has nothing — cache that so we don't retry forever
+      plotCache[k]={p:"", t:articleTitle, a:""}; savePlots();
+    } else {
+      // network hiccup / timeout — do NOT poison the cache; offer a retry
+      plotErr[k]=1;
+    }
+    maybeRender();
   });
 }
 function plotLinks(name, entry){
@@ -851,7 +891,8 @@ function plotLinks(name, entry){
 }
 function plotBlock(name){
   var k=norm(name);
-  if(plotPending[k] || !(k in plotCache)) return '<div class="plot">Fetching the story from Wikipedia…</div>';
+  if(plotErr[k]) return '<div class="plot">Couldn’t reach Wikipedia — check your connection.<div class="actions" style="margin-top:8px"><button class="btn" data-act="plot-retry" data-name="'+esc(name)+'">↻ Try again</button></div></div>';
+  if(plotPending[k] || !(k in plotCache)){ ensurePlot(name); return '<div class="plot">Fetching the story from Wikipedia…</div>'; }
   var entry=plotCache[k];
   if(typeof entry==="string") entry={p:entry,t:"",a:""};
   if(!entry.p) return '<div class="plot">No story section found on Wikipedia for this game — try the sources below.'+plotLinks(name,entry)+'</div>';
@@ -870,6 +911,12 @@ function toolbar(addLabel, searchPh){
     '</div></div>';
 }
 function noMatch(){ return '<div class="empty">No games match “'+esc(q())+'” in this tab.</div>'; }
+/* find a game by name (norm-equal) in any list — the duplicate gate */
+function inList(list,name){
+  var n=norm(name);
+  for(var i=0;i<(list||[]).length;i++){ if(list[i]&&list[i].name&&norm(list[i].name)===n) return list[i]; }
+  return null;
+}
 
 function renderStats(){
   var t0=today();
@@ -1059,10 +1106,19 @@ function endRental(id, toPlayed){
     vendor:r.vendor||"", cost:Number(r.cost)||0, note:r.note||"", img:coverUrl(r)||""
   });
   if(toPlayed){
-    var pid=uid();
-    data.played.unshift({id:pid,name:r.name,rating:0,status:"Finished",added:localISO(),cost:0,vendor:r.vendor||"",note:"",score:r.score||null,rrating:r.rrating||null,img:coverUrl(r)||undefined});
-    save(); flash("Returned — saved to history and added to Played");
-    enrichScore("played",pid);
+    var exP=inList(data.played,r.name);
+    if(exP){
+      exP.status="Finished";
+      if(!exP.vendor) exP.vendor=r.vendor||"";
+      if(!exP.score && r.score) exP.score=r.score;
+      if(!exP.rrating && r.rrating) exP.rrating=r.rrating;
+      save(); flash("Returned — history saved, existing Played entry updated");
+    } else {
+      var pid=uid();
+      data.played.unshift({id:pid,name:r.name,rating:0,status:"Finished",added:localISO(),cost:0,vendor:r.vendor||"",note:"",score:r.score||null,rrating:r.rrating||null,img:coverUrl(r)||undefined});
+      save(); flash("Returned — saved to history and added to Played");
+      enrichScore("played",pid);
+    }
   } else {
     save(); flash("Returned — saved to rental history");
   }
@@ -1399,7 +1455,8 @@ function renderSuggest(){
     } else {
       var ownedW=ownedSet();
       var seenLocal={}; shown.forEach(function(g){ seenLocal[norm(g.name)]=1; });
-      var webShown=webResults.items.filter(function(g){ return !seenLocal[norm(g.name)] && !isOwned(g.name, ownedW); });
+      var disW={}; (data.dismissed||[]).forEach(function(x){ disW[x]=1; });
+      var webShown=webResults.items.filter(function(g){ return !disW[norm(g.name)] && !seenLocal[norm(g.name)] && !isOwned(g.name, ownedW); });
       if(!webShown.length) html+='<div class="empty">No new games found for “'+esc(qs)+'”.</div>';
       else{
         html+='<div class="cards">';
@@ -1635,6 +1692,7 @@ document.getElementById("content").addEventListener("click",function(e){
   else if(act==="hist-again"){
     var h=byId(data.rentalHistory,id);
     if(h){
+      if(inList(data.rentals,h.name)){ flash("Already an active rental"); return; }
       var rid2=uid();
       data.rentals.push({id:rid2,name:h.name,start:localISO(),days:30,cost:0,vendor:h.vendor||"",note:"",img:h.img||undefined});
       save(); flash("Rented again — 30-day countdown started today");
@@ -1660,10 +1718,16 @@ document.getElementById("content").addEventListener("click",function(e){
     var g2=byId(data.upcoming,id);
     if(g2){
       data.upcoming=data.upcoming.filter(function(x){return x.id!==id;});
-      var tpId=uid();
-      data.played.unshift({id:tpId,name:g2.name,rating:0,status:"Playing",added:localISO(),img:coverUrl(g2)||undefined});
-      save(); flash("Moved to Played");
-      enrichScore("played",tpId);
+      var exT=inList(data.played,g2.name);
+      if(exT){
+        exT.status="Playing";
+        save(); flash("Already in your library — set to ↺ Resume Later");
+      } else {
+        var tpId=uid();
+        data.played.unshift({id:tpId,name:g2.name,rating:0,status:"Playing",added:localISO(),img:coverUrl(g2)||undefined});
+        save(); flash("Moved to Played");
+        enrichScore("played",tpId);
+      }
     }
   }
   else if(act==="up-queue"){
@@ -1673,6 +1737,7 @@ document.getElementById("content").addEventListener("click",function(e){
 
   else if(act==="sug-played"){
     if(nm){
+      if(inList(data.played,nm)){ flash("Already in your Played library"); return; }
       var cat1=fullCatalog().filter(function(g){return norm(g.name)===norm(nm);})[0]||{};
       var spId=uid();
       data.played.unshift({id:spId,name:nm,rating:0,status:"Finished",added:localISO(),score:cat1.score||null,rrating:cat1.rating?Math.round(cat1.rating*10)/10:null,img:coverUrl(cat1)||undefined});
@@ -1725,6 +1790,7 @@ document.getElementById("content").addEventListener("click",function(e){
   else if(act==="q-rent"){
     var qr=byId(data.queue,id);
     if(qr){
+      if(inList(data.rentals,qr.name)){ flash("Already an active rental"); return; }
       data.queue=data.queue.filter(function(x){return x.id!==id;});
       var rid=uid();
       data.rentals.push({id:rid,name:qr.name,start:localISO(),days:30,cost:0,vendor:"",note:qr.note||"",score:qr.score||null,rrating:qr.rrating||null,img:coverUrl(qr)||undefined});
@@ -1736,6 +1802,10 @@ document.getElementById("content").addEventListener("click",function(e){
 
   else if(act==="add-playing"){
     var pln=document.getElementById("plName").value.trim(); if(!pln) return;
+    var exPl=inList(data.played,pln);
+    if(inList(data.playing,pln) || inList(data.rentals,pln) || (exPl&&(exPl.status==="Playing"||exPl.status==="Dropped"))){
+      flash("Already in the Playing tab"); return;
+    }
     var plId=uid();
     data.playing.unshift({id:plId,name:pln,added:localISO()});
     formOpen[tab]=false;
@@ -1743,10 +1813,14 @@ document.getElementById("content").addEventListener("click",function(e){
     enrichScore("playing",plId);
     ensurePlot(pln);
   }
+  else if(act==="plot-retry"){
+    var pn2=b.getAttribute("data-name");
+    if(pn2){ delete plotErr[norm(pn2)]; delete plotPending[norm(pn2)]; ensurePlot(pn2); render(); }
+  }
   else if(act==="pl-toggle"){
     expandedId = (expandedId===id) ? null : id;
     if(expandedId){
-      var all=data.rentals.concat(data.playing);
+      var all=data.rentals.concat(data.playing,data.played);
       var px=byId(all,id);
       if(px) ensurePlot(px.name);
     }
@@ -1756,17 +1830,32 @@ document.getElementById("content").addEventListener("click",function(e){
     var pl2=byId(data.playing,id);
     if(pl2){
       data.playing=data.playing.filter(function(x){return x.id!==id;});
-      var ppId=uid();
-      data.played.unshift({id:ppId,name:pl2.name,rating:pl2.rating||0,note:pl2.note||"",vendor:pl2.vendor||"",cost:pl2.cost||0,status:"Finished",added:localISO(),score:pl2.score||null,rrating:pl2.rrating||null,img:coverUrl(pl2)||undefined});
-      save(); flash(pl2.rating?"Moved to Played — rating kept":"Moved to Played — set a rating there");
-      enrichScore("played",ppId);
+      var exF=inList(data.played,pl2.name);
+      if(exF){
+        exF.status="Finished";
+        if(!exF.rating && pl2.rating) exF.rating=pl2.rating;
+        if(!exF.note && pl2.note) exF.note=pl2.note;
+        save(); flash("Finished — updated the existing entry in Played");
+      } else {
+        var ppId=uid();
+        data.played.unshift({id:ppId,name:pl2.name,rating:pl2.rating||0,note:pl2.note||"",vendor:pl2.vendor||"",cost:pl2.cost||0,status:"Finished",added:localISO(),score:pl2.score||null,rrating:pl2.rrating||null,img:coverUrl(pl2)||undefined});
+        save(); flash(pl2.rating?"Moved to Played — rating kept":"Moved to Played — set a rating there");
+        enrichScore("played",ppId);
+      }
     }
   }
   else if(act==="pl-resume"){
     var pl3=byId(data.playing,id);
     if(pl3){
       data.playing=data.playing.filter(function(x){return x.id!==id;});
-      data.played.unshift({id:uid(),name:pl3.name,rating:pl3.rating||0,note:pl3.note||"",vendor:pl3.vendor||"",cost:pl3.cost||0,status:"Playing",added:localISO(),score:pl3.score||null,rrating:pl3.rrating||null,img:coverUrl(pl3)||undefined});
+      var exR=inList(data.played,pl3.name);
+      if(exR){
+        exR.status="Playing";
+        if(!exR.rating && pl3.rating) exR.rating=pl3.rating;
+        if(!exR.note && pl3.note) exR.note=pl3.note;
+      } else {
+        data.played.unshift({id:uid(),name:pl3.name,rating:pl3.rating||0,note:pl3.note||"",vendor:pl3.vendor||"",cost:pl3.cost||0,status:"Playing",added:localISO(),score:pl3.score||null,rrating:pl3.rrating||null,img:coverUrl(pl3)||undefined});
+      }
       save(); flash("↺ Moved down to Resume Later");
     }
   }
@@ -1774,6 +1863,13 @@ document.getElementById("content").addEventListener("click",function(e){
 
   else if(act==="add-played"){
     var pn=document.getElementById("pName").value.trim(); if(!pn) return;
+    var exA=inList(data.played,pn);
+    if(exA){
+      exA.status=document.getElementById("pStatus").value;
+      formOpen[tab]=false;
+      save(); flash("Already in your library — status updated");
+      return;
+    }
     var pid=uid();
     data.played.unshift({id:pid,name:pn,rating:0,status:document.getElementById("pStatus").value,added:localISO()});
     formOpen[tab]=false;
@@ -1895,6 +1991,21 @@ document.getElementById("content").addEventListener("change",function(e){
     if(s.value==="__nowplaying__"){
       // move to the live "playing now" section at the top of the Playing tab,
       // carrying rating/note/cost so nothing is lost on the way back to Played
+      var exN=inList(data.playing,p.name);
+      if(exN){
+        // already there — merge instead of creating a duplicate
+        if(!exN.rating && p.rating) exN.rating=p.rating;
+        if(!exN.note && p.note) exN.note=p.note;
+        data.played=data.played.filter(function(x){ return x.id!==p.id; });
+        tab="playing"; save();
+        flash("Merged with the copy already in the playing list");
+        return;
+      }
+      if(inList(data.rentals,p.name)){
+        flash("It’s already at the top of Playing as an active rental");
+        s.value=p.status; // snap the dropdown back
+        return;
+      }
       data.played=data.played.filter(function(x){ return x.id!==p.id; });
       data.playing.unshift({id:uid(),name:p.name,added:localISO(),rating:p.rating||0,note:p.note||"",vendor:p.vendor||"",cost:p.cost||0,score:p.score||null,rrating:p.rrating||null,img:coverUrl(p)||undefined});
       tab="playing"; save();
@@ -2064,6 +2175,41 @@ document.getElementById("viewBtn").addEventListener("click",function(){
   applyView();
 });
 
+/* ---------- global refresh ---------- */
+function globalRefresh(){
+  plotPending={}; plotErr={};   // unstick any hung Wikipedia loads
+  triedCovers={};               // let cover backfill retry everything
+  flash("Refreshing — cloud sync, covers and artwork…");
+  silentPullOnLoad();
+  applyBackground();
+  render();
+  setTimeout(backfillImages,600);
+}
+document.getElementById("refreshBtn").addEventListener("click",globalRefresh);
+
+/* ---------- swipe between tabs (phone) ---------- */
+var TAB_ORDER=["rentals","playing","queue","upcoming","suggest","played"];
+var swX=null,swY=0,swT=0;
+document.addEventListener("touchstart",function(e){
+  if(e.touches.length!==1){ swX=null; return; }
+  // don't hijack horizontal gestures on inputs or scrollable strips
+  if(e.target && e.target.closest && e.target.closest("input,textarea,select,.chipbar,#tabs,.ac-drop")){ swX=null; return; }
+  swX=e.touches[0].clientX; swY=e.touches[0].clientY; swT=Date.now();
+},{passive:true});
+document.addEventListener("touchend",function(e){
+  if(swX===null) return;
+  var dx=e.changedTouches[0].clientX-swX;
+  var dy=e.changedTouches[0].clientY-swY;
+  swX=null;
+  if(Date.now()-swT>600) return;                                 // slow drag, not a swipe
+  if(Math.abs(dx)<70 || Math.abs(dx)<Math.abs(dy)*1.8) return;   // mostly vertical → scrolling
+  var i=TAB_ORDER.indexOf(tab); if(i<0) return;
+  var ni=i+(dx<0?1:-1);
+  if(ni<0 || ni>=TAB_ORDER.length) return;
+  tab=TAB_ORDER[ni]; expandedId=null;
+  render(); window.scrollTo(0,0);
+},{passive:true});
+
 /* ---------- back to top ---------- */
 var toTopBtn=document.getElementById("toTop");
 window.addEventListener("scroll",function(){
@@ -2083,6 +2229,11 @@ document.addEventListener("visibilitychange",function(){
   else flushPendingPush();
 });
 window.addEventListener("pagehide",flushPendingPush);
+/* iOS restores pages from the back-forward cache with in-flight fetches dead —
+   clear the pending flags so plot loads restart instead of spinning forever */
+window.addEventListener("pageshow",function(e){
+  if(e.persisted){ plotPending={}; render(); }
+});
 
 render();
 silentPullOnLoad();
