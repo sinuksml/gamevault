@@ -1348,7 +1348,7 @@ function renderSuggest(){
     (q()?'<button class="sclear" data-act="clear-search" title="Clear">✕</button>':'')+
     '</div></div>'+
     '<div class="syncbar"><span class="syncnote">'+(data.lastCatalogSync?("Last updated "+esc(data.lastCatalogSync)):"Built-in top 40 — add API key in Settings for live data")+'</span></div>'+
-    '<div class="meta" style="margin-bottom:10px">'+(tops.length?('<span style="color:var(--text)">Personalised from your ratings</span> — more <b style="color:#2BD46B">'+esc(tops.slice(0,2).join(" & "))+'</b> up top. ':''))+'Top-rated released PS5 games — best matches first, minus everything you’ve played, rented or queued.</div>'+
+    '<div class="meta" style="margin-bottom:10px">'+(tops.length?('<span style="color:var(--text)">Personalised from your ratings</span> — more <b style="color:#2BD46B">'+esc(tops.slice(0,2).join(" & "))+'</b> up top. '):'')+'Top-rated released PS5 games — best matches first, minus everything you’ve played, rented or queued.</div>'+
     '<div class="chipbar">'+["All","AAA","AA","Indie"].map(function(t){
       return '<button class="gchip '+(t===sugTier?"on":"")+'" data-tier="'+t+'">'+(t==="All"?"All tiers":t)+'</button>';
     }).join("")+'</div>'+
