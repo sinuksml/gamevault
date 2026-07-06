@@ -953,11 +953,9 @@ function renderStats(){
   var active=data.rentals.filter(function(r){ return r.days-daysBetween(parseD(r.start),t0)>0; }).length;
   var urgent=data.rentals.some(function(r){ var l=r.days-daysBetween(parseD(r.start),t0); return l>0&&l<=3; });
   var totalRented=data.rentals.length+data.rentalHistory.length;
-  var resumeCount=data.played.filter(function(p){ return p.status==="Playing"; }).length;
   document.getElementById("stats").innerHTML =
     '<div class="stat" data-tab="rentals" title="Open Rentals"><div class="v" style="color:'+(urgent?"#F05A5A":"var(--text)")+'">'+active+'</div><div class="k">Active rentals</div></div>'+
     '<div class="stat" data-tab="rentals" title="Open Rentals"><div class="v">'+totalRented+'</div><div class="k">Total rented</div></div>'+
-    '<div class="stat" data-tab="playing" title="Open Playing"><div class="v" style="color:var(--accent)">'+(active+data.playing.length+resumeCount)+'</div><div class="k">Now playing</div></div>'+
     '<div class="stat" data-tab="rentals" title="Open Rentals"><div class="v" style="color:#F2B84B">'+fmtMoney(totalSpent())+'</div><div class="k">Total spent</div></div>'+
     '<div class="stat" data-tab="played" title="Open Played"><div class="v">'+data.played.length+'</div><div class="k">Played</div></div>';
 }
