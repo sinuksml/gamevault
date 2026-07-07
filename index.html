@@ -653,16 +653,23 @@ function gdApi(url,opts,tok){
   });
 }
 function gdFind(tok){
-  var fid=""; try{ fid=localStorage.getItem(GD_FILE_STORE)||""; }catch(e){}
-  if(fid) return Promise.resolve(fid);
+  // Always re-list (never trust a cached id): if two devices ever raced and
+  // each created its own backup file, every device converges on the newest
+  // one and the older duplicates are moved to trash — self-healing.
   var q=encodeURIComponent("name='"+GD_FILENAME+"' and trashed=false");
-  return gdApi("https://www.googleapis.com/drive/v3/files?q="+q+"&fields=files(id)&pageSize=3",{},tok)
+  return gdApi("https://www.googleapis.com/drive/v3/files?q="+q+"&fields=files(id,modifiedTime)&orderBy=modifiedTime%20desc&pageSize=10",{},tok)
   .then(function(r){ return r.json(); })
   .then(function(j){
-    var f=(j.files||[])[0];
-    if(!f) return "";
-    try{ localStorage.setItem(GD_FILE_STORE,f.id); }catch(e){}
-    return f.id;
+    var files=j.files||[];
+    if(!files.length) return "";
+    var keep=files[0].id;
+    try{ localStorage.setItem(GD_FILE_STORE,keep); }catch(e){}
+    files.slice(1).forEach(function(f){
+      gdApi("https://www.googleapis.com/drive/v3/files/"+f.id,
+        {method:"PATCH",headers:{"Content-Type":"application/json"},body:'{"trashed":true}'},tok)
+      .catch(function(){});
+    });
+    return keep;
   });
 }
 function gdUpload(keepalive){
@@ -719,6 +726,14 @@ function gdSignOut(){
   gdSetStatus(); setSyncStatus("");
   flash("Google Drive disconnected"+(getJB().key?" — JSONBin fallback is active":""));
 }
+/* while the tab is open and idle, look for changes from the other device */
+setInterval(function(){
+  if(document.visibilityState!=="visible") return;
+  if(cloudMode()!=="drive") return;
+  if(data.updatedAt>lastSyncedAt) return; // local edits pending — push wins first
+  silentPullOnLoad();
+},120000);
+
 /* access tokens last ~1h and renewing needs a user gesture — piggyback on taps */
 document.addEventListener("click",function(){
   if(gdRefreshing || !gdClientId()) return;
