@@ -2428,7 +2428,7 @@ document.getElementById("content").addEventListener("change",function(e){
       else if(hEl.classList.contains("h-end")) hh.end=hEl.value||hh.end;
       var hs=parseD(hh.start), he=parseD(hh.end);
       if(hs&&he) hh.used=Math.max(0,daysBetween(hs,he));
-      persist(); renderStats(); flash("History record updated");
+      save(); flash("History record updated");
     }
     return;
   }
