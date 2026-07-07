@@ -268,7 +268,7 @@
     <input type="file" id="importFile" accept=".json" style="display:none">
   </div>
   <div class="settings" id="settingsBox" style="display:none">
-    <p><b style="color:var(--text)">Google Drive sync (primary).</b> Your entire vault is saved as one file (<b>SinuGameVault.json</b>) in your own Google Drive and kept in sync automatically &mdash; every change uploads a couple of seconds after you make it, and the app pulls the newest copy whenever it opens. One-time setup: open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">console.cloud.google.com</a> &rarr; create a project &rarr; enable the <b>Google Drive API</b> &rarr; configure the OAuth consent screen (External, then <b>Publish</b>) &rarr; Create Credentials &rarr; <b>OAuth client ID</b> &rarr; Web application &rarr; add <b>https://sinuksml.github.io</b> under Authorized JavaScript origins &rarr; copy the Client ID below. Then press Sign in with Google on each device &mdash; same Google account, same data everywhere. If you ever clear the cache, just sign in again and the app finds your file.</p>
+    <p><b style="color:var(--text)">Google Drive sync (primary).</b> For Google Drive backup, click <b>Sign in with Google</b> below. Your data syncs automatically to a file in your Drive called <b>game-vault-backup.json</b>. If you clear your browser cache, just sign back in with the same Google account and your data reappears. Every change uploads a couple of seconds after you make it, and the app pulls the newest copy whenever it opens. One-time setup: open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">console.cloud.google.com</a> &rarr; create a project &rarr; enable the <b>Google Drive API</b> &rarr; configure the OAuth consent screen (External, then <b>Publish</b>) &rarr; Create Credentials &rarr; <b>OAuth client ID</b> &rarr; Web application &rarr; add <b>https://sinuksml.github.io</b> under Authorized JavaScript origins &rarr; copy the Client ID below. Then press Sign in with Google on each device &mdash; same Google account, same data everywhere. If you ever clear the cache, just sign in again and the app finds your file.</p>
     <div class="fields">
       <input class="f-name" id="gdClientInput" placeholder="Google OAuth Client ID (…apps.googleusercontent.com)" autocomplete="off">
       <button class="btn blue" id="gdSaveBtn">Save Client ID</button>
@@ -610,7 +610,7 @@ function jbSilentPullOnLoad(){
    can always find its own file again after a sign-in, so clearing the cache
    loses nothing. */
 var GD_CLIENT_STORE="ps5-gd-client", GD_TOKEN_STORE="ps5-gd-token", GD_FILE_STORE="ps5-gd-file";
-var GD_FILENAME="SinuGameVault.json";
+var GD_FILENAME="game-vault-backup.json";
 var GD_SCOPE="https://www.googleapis.com/auth/drive.file";
 var gdTokenClient=null, gdRefreshing=false;
 function gdClientId(){ try{ return localStorage.getItem(GD_CLIENT_STORE)||""; }catch(e){ return ""; } }
