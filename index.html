@@ -399,8 +399,19 @@ var BUILTIN_CATALOG = [
 function load(){
   var d = null;
   try { var raw = localStorage.getItem(STORE_KEY); if(raw) d = JSON.parse(raw); } catch(e){}
+  var fresh = !d;
   if(!d) d = { rentals:[], upcoming:SEED_UPCOMING, played:[] };
-  return migrate(d);
+  d = migrate(d);
+  // A brand-new or cache-wiped device must NEVER look newer than the cloud
+  // backup — stamp it as the oldest possible data so any cloud copy wins.
+  if(fresh) d.updatedAt = 0;
+  return d;
+}
+/* how much real user data a vault holds — the guard against empty overwrites */
+function vaultSize(d){
+  return ((d&&d.played)||[]).length + ((d&&d.rentals)||[]).length +
+         ((d&&d.rentalHistory)||[]).length + ((d&&d.queue)||[]).length +
+         ((d&&d.playing)||[]).length;
 }
 /* Schema migrations: bump SCHEMA_VERSION when structure changes and add an
    upgrade step below. Old data is always upgraded in place, never recreated. */
@@ -582,9 +593,10 @@ function jbSilentPullOnLoad(){
   .then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return res.json(); })
   .then(function(json){
     var d=json.record;
+    cloudChecked=true;
     if(!d||!d.rentals||!d.upcoming||!d.played){ setSyncStatus(""); return; }
     var cloudTime=d.updatedAt||0, localTime=data.updatedAt||0;
-    if(cloudTime>localTime){
+    if(cloudTime>localTime || (vaultSize(data)===0 && vaultSize(d)>0)){
       data=migrate(d);
       try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
       lastSyncedAt=data.updatedAt;
@@ -744,7 +756,11 @@ document.addEventListener("click",function(){
 },true);
 
 /* ---------- cloud dispatch: Google Drive primary, JSONBin fallback ---------- */
+var cloudChecked=false; // true once this session has compared against the cloud copy
 function silentPush(keepalive){
+  // never auto-push an empty vault before we've seen what the cloud holds —
+  // a cache-wiped device must pull the backup, not overwrite it
+  if(vaultSize(data)===0 && !cloudChecked){ silentPullOnLoad(); return; }
   if(cloudMode()==="drive"){
     gdUpload(keepalive).then(function(){
       lastSyncedAt=data.updatedAt;
@@ -758,10 +774,14 @@ function silentPullOnLoad(){
   if(cloudMode()==="drive"){
     setSyncStatus("Checking Google Drive…");
     gdDownload().then(function(d){
+      cloudChecked=true;
       if(!d){ silentPush(); return; } // no backup file yet — seed Drive from this device
       if(!d.rentals||!d.upcoming||!d.played){ setSyncStatus(""); return; }
       var cloudTime=d.updatedAt||0, localTime=data.updatedAt||0;
-      if(cloudTime>localTime){
+      // empty-vault guard: whatever the timestamps say, a device holding no
+      // games must adopt a cloud copy that has them — never the reverse
+      var mustAdopt = vaultSize(data)===0 && vaultSize(d)>0;
+      if(cloudTime>localTime || mustAdopt){
         data=migrate(d);
         try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
         lastSyncedAt=data.updatedAt;
@@ -782,6 +802,7 @@ function silentPullOnLoad(){
   jbSilentPullOnLoad();
 }
 function pushCloud(){
+  if(vaultSize(data)===0 && !confirm("This device's vault is EMPTY.\n\nPushing now would overwrite your cloud backup with nothing. Use Pull from cloud to get your data back instead.\n\nReally push an empty vault?")) return;
   if(cloudMode()==="drive"){
     flash("Uploading to Google Drive…");
     gdUpload().then(function(){
