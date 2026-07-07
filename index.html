@@ -245,6 +245,7 @@
     .cover { width:50px; height:50px; }
   }
 </style>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 <div id="bg"></div>
@@ -267,13 +268,24 @@
     <input type="file" id="importFile" accept=".json" style="display:none">
   </div>
   <div class="settings" id="settingsBox" style="display:none">
+    <p><b style="color:var(--text)">Google Drive sync (primary).</b> Your entire vault is saved as one file (<b>SinuGameVault.json</b>) in your own Google Drive and kept in sync automatically &mdash; every change uploads a couple of seconds after you make it, and the app pulls the newest copy whenever it opens. One-time setup: open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">console.cloud.google.com</a> &rarr; create a project &rarr; enable the <b>Google Drive API</b> &rarr; configure the OAuth consent screen (External, then <b>Publish</b>) &rarr; Create Credentials &rarr; <b>OAuth client ID</b> &rarr; Web application &rarr; add <b>https://sinuksml.github.io</b> under Authorized JavaScript origins &rarr; copy the Client ID below. Then press Sign in with Google on each device &mdash; same Google account, same data everywhere. If you ever clear the cache, just sign in again and the app finds your file.</p>
+    <div class="fields">
+      <input class="f-name" id="gdClientInput" placeholder="Google OAuth Client ID (…apps.googleusercontent.com)" autocomplete="off">
+      <button class="btn blue" id="gdSaveBtn">Save Client ID</button>
+    </div>
+    <div class="fields" style="margin-top:8px">
+      <button class="btn blue" id="gdSignInBtn">Sign in with Google</button>
+      <button class="btn ghost danger" id="gdSignOutBtn" style="display:none">Disconnect Drive</button>
+      <span class="syncnote" id="gdStatus" style="align-self:center"></span>
+    </div>
+    <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
     <p><b style="color:var(--text)">Live internet updates (optional).</b> Get a free API key from <a href="https://rawg.io/apidocs" target="_blank" rel="noopener">rawg.io/apidocs</a> (sign up &rarr; Get API Key), paste it below, and the app can fetch cover art, scores, autocomplete and live lists for the Upcoming and For You tabs from the RAWG games database. Without a key, the built-in curated lists still work fully offline.</p>
     <div class="fields">
       <input class="f-name" id="apiKeyInput" placeholder="Paste RAWG API key here" autocomplete="off">
       <button class="btn blue" id="saveKeyBtn">Save key</button>
     </div>
     <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
-    <p><b style="color:var(--text)">Automatic sync between your PC and phone (optional).</b> Get a free account at <a href="https://jsonbin.io" target="_blank" rel="noopener">jsonbin.io</a> &rarr; open <b>API Keys</b> &rarr; copy your <b>Master Key</b> and paste it below on <b>this device</b>, then Save. Every change you make here now saves to the cloud automatically a couple of seconds after you type &mdash; no button to press. On your <b>other device</b> (phone or PC), open the app, paste the <b>same Master Key</b>, then copy the <b>Bin ID</b> shown here into that device's Settings too, and Save. From then on both devices silently stay in sync: whichever has the newest change wins, checked every time the app opens. The Push/Pull buttons in the &#8943; menu still work if you ever want to force a sync manually.</p>
+    <p><b style="color:var(--text)">JSONBin sync (optional fallback).</b> Used only when Google Drive is not connected. Get a free account at <a href="https://jsonbin.io" target="_blank" rel="noopener">jsonbin.io</a> &rarr; open <b>API Keys</b> &rarr; copy your <b>Master Key</b> and paste it below on <b>this device</b>, then Save. Every change you make here now saves to the cloud automatically a couple of seconds after you type &mdash; no button to press. On your <b>other device</b> (phone or PC), open the app, paste the <b>same Master Key</b>, then copy the <b>Bin ID</b> shown here into that device's Settings too, and Save. From then on both devices silently stay in sync: whichever has the newest change wins, checked every time the app opens. The Push/Pull buttons in the &#8943; menu still work if you ever want to force a sync manually.</p>
     <div class="fields">
       <input class="f-name" id="jbKeyInput" placeholder="JSONBin Master Key" autocomplete="off">
       <input class="f-name" id="jbBinInput" placeholder="Bin ID (auto-filled after first push)" autocomplete="off">
@@ -489,7 +501,7 @@ function getJB(){
   try { return { key:localStorage.getItem(JB_KEY_STORE)||"", bin:localStorage.getItem(JB_BIN_STORE)||"" }; }
   catch(e){ return {key:"",bin:""}; }
 }
-function pushCloud(){
+function jbPushCloud(){
   var jb=getJB();
   if(!jb.key){ flash("Set up cloud sync in Settings first"); toggleSettings(true); return; }
   if(busy) return; busy=true;
@@ -512,7 +524,7 @@ function pushCloud(){
   })
   .catch(function(err){ busy=false; flash("Push failed — check internet and Master Key"); });
 }
-function pullCloud(){
+function jbPullCloud(){
   var jb=getJB();
   if(!jb.key||!jb.bin){ flash("Enter Master Key and Bin ID in Settings first"); toggleSettings(true); return; }
   if(busy) return;
@@ -537,13 +549,12 @@ var autoPushTimer = null;
 function setSyncStatus(s){ var el=document.getElementById("syncStatus"); if(el) el.textContent=s?(" · "+s):""; }
 
 function scheduleAutoPush(){
-  var jb=getJB();
-  if(!jb.key) return; // nothing to sync to yet
+  if(!cloudMode()) return; // nothing to sync to yet
   clearTimeout(autoPushTimer);
   setSyncStatus("Saving…");
-  autoPushTimer=setTimeout(silentPush, 2500);
+  autoPushTimer=setTimeout(function(){ silentPush(); }, 2500);
 }
-function silentPush(keepalive){
+function jbSilentPush(keepalive){
   var jb=getJB();
   if(!jb.key) return;
   var isNew=!jb.bin;
@@ -563,7 +574,7 @@ function silentPush(keepalive){
   })
   .catch(function(){ setSyncStatus("Sync failed — will retry on next change"); });
 }
-function silentPullOnLoad(){
+function jbSilentPullOnLoad(){
   var jb=getJB();
   if(!jb.key||!jb.bin) return;
   setSyncStatus("Checking for updates…");
@@ -590,6 +601,197 @@ function silentPullOnLoad(){
     }
   })
   .catch(function(){ setSyncStatus(""); });
+}
+
+/* ---------- Google Drive sync (primary) ----------
+   Browser-only OAuth via Google Identity Services (loaded from CDN in <head>).
+   The whole vault lives as one JSON file (SinuGameVault.json) created by this
+   app in the user's Drive under the non-sensitive drive.file scope — the app
+   can always find its own file again after a sign-in, so clearing the cache
+   loses nothing. */
+var GD_CLIENT_STORE="ps5-gd-client", GD_TOKEN_STORE="ps5-gd-token", GD_FILE_STORE="ps5-gd-file";
+var GD_FILENAME="SinuGameVault.json";
+var GD_SCOPE="https://www.googleapis.com/auth/drive.file";
+var gdTokenClient=null, gdRefreshing=false;
+function gdClientId(){ try{ return localStorage.getItem(GD_CLIENT_STORE)||""; }catch(e){ return ""; } }
+function gdTok(){ try{ return JSON.parse(localStorage.getItem(GD_TOKEN_STORE)||"null"); }catch(e){ return null; } }
+function gdSaveTok(t){ try{ if(t) localStorage.setItem(GD_TOKEN_STORE,JSON.stringify(t)); else localStorage.removeItem(GD_TOKEN_STORE); }catch(e){} }
+function gdConnected(){ return !!(gdClientId() && gdTok()); }
+function cloudMode(){ return gdConnected() ? "drive" : (getJB().key ? "jsonbin" : ""); }
+
+function gdEnsureClient(){
+  if(gdTokenClient) return gdTokenClient;
+  var cid=gdClientId();
+  if(!cid || !(window.google && google.accounts && google.accounts.oauth2)) return null;
+  gdTokenClient=google.accounts.oauth2.initTokenClient({client_id:cid, scope:GD_SCOPE, callback:function(){}});
+  return gdTokenClient;
+}
+function gdToken(){
+  var t=gdTok();
+  if(t && t.access_token && Date.now()<(t.exp||0)-60000) return Promise.resolve(t.access_token);
+  var tc=gdEnsureClient();
+  if(!tc) return Promise.reject(new Error(gdClientId()?"Google sign-in library still loading — try again":"No Client ID saved"));
+  return new Promise(function(resolve,reject){
+    tc.callback=function(resp){
+      if(resp && resp.access_token){
+        gdSaveTok({access_token:resp.access_token, exp:Date.now()+(Number(resp.expires_in)||3600)*1000});
+        gdSetStatus();
+        resolve(resp.access_token);
+      } else reject(new Error((resp&&resp.error)||"Sign-in failed"));
+    };
+    tc.error_callback=function(err){ reject(new Error((err&&err.type)||"Sign-in failed")); };
+    try{ tc.requestAccessToken({prompt:""}); }catch(e){ reject(e); }
+  });
+}
+function gdApi(url,opts,tok){
+  opts=opts||{}; opts.headers=opts.headers||{};
+  opts.headers.Authorization="Bearer "+tok;
+  return fetch(url,opts).then(function(r){
+    if(r.status===401){ gdSaveTok(null); gdSetStatus(); throw new Error("Google session expired — sign in again"); }
+    if(!r.ok) throw new Error("Drive HTTP "+r.status);
+    return r;
+  });
+}
+function gdFind(tok){
+  var fid=""; try{ fid=localStorage.getItem(GD_FILE_STORE)||""; }catch(e){}
+  if(fid) return Promise.resolve(fid);
+  var q=encodeURIComponent("name='"+GD_FILENAME+"' and trashed=false");
+  return gdApi("https://www.googleapis.com/drive/v3/files?q="+q+"&fields=files(id)&pageSize=3",{},tok)
+  .then(function(r){ return r.json(); })
+  .then(function(j){
+    var f=(j.files||[])[0];
+    if(!f) return "";
+    try{ localStorage.setItem(GD_FILE_STORE,f.id); }catch(e){}
+    return f.id;
+  });
+}
+function gdUpload(keepalive){
+  var body=JSON.stringify(data);
+  return gdToken().then(function(tok){
+    return gdFind(tok).then(function(fid){
+      if(fid){
+        return gdApi("https://www.googleapis.com/upload/drive/v3/files/"+fid+"?uploadType=media",
+          {method:"PATCH", headers:{"Content-Type":"application/json"}, body:body, keepalive:!!keepalive}, tok);
+      }
+      var boundary="gv"+Date.now();
+      var mp="--"+boundary+"\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"+
+        JSON.stringify({name:GD_FILENAME, mimeType:"application/json"})+
+        "\r\n--"+boundary+"\r\nContent-Type: application/json\r\n\r\n"+body+"\r\n--"+boundary+"--";
+      return gdApi("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id",
+        {method:"POST", headers:{"Content-Type":"multipart/related; boundary="+boundary}, body:mp}, tok)
+      .then(function(r){ return r.json(); })
+      .then(function(j){ try{ localStorage.setItem(GD_FILE_STORE,j.id); }catch(e){} });
+    });
+  });
+}
+function gdDownload(){
+  return gdToken().then(function(tok){
+    return gdFind(tok).then(function(fid){
+      if(!fid) return null;
+      return gdApi("https://www.googleapis.com/drive/v3/files/"+fid+"?alt=media",{},tok)
+      .then(function(r){ return r.json(); });
+    });
+  });
+}
+function gdSetStatus(){
+  var el=document.getElementById("gdStatus");
+  var out=document.getElementById("gdSignOutBtn");
+  var inn=document.getElementById("gdSignInBtn");
+  if(!el) return;
+  if(!gdClientId()){ el.textContent="Paste your Client ID above, then sign in."; out.style.display="none"; inn.style.display=""; return; }
+  var t=gdTok();
+  if(!t){ el.textContent="Not connected."; out.style.display="none"; inn.style.display=""; return; }
+  el.textContent = Date.now()<(t.exp||0)-60000 ? "✓ Connected — auto-sync to Drive is on." : "✓ Connected — session renews on your next tap.";
+  out.style.display=""; inn.style.display="none";
+}
+function gdSignIn(){
+  if(!gdClientId()){ flash("Paste your Google OAuth Client ID first"); return; }
+  gdToken().then(function(){
+    flash("Google Drive connected — it is now your primary sync");
+    gdSetStatus(); silentPullOnLoad();
+  }).catch(function(e){ flash("Google sign-in failed — "+e.message); });
+}
+function gdSignOut(){
+  var t=gdTok();
+  try{ if(t && t.access_token && window.google && google.accounts && google.accounts.oauth2) google.accounts.oauth2.revoke(t.access_token,function(){}); }catch(e){}
+  gdSaveTok(null);
+  try{ localStorage.removeItem(GD_FILE_STORE); }catch(e){}
+  gdSetStatus(); setSyncStatus("");
+  flash("Google Drive disconnected"+(getJB().key?" — JSONBin fallback is active":""));
+}
+/* access tokens last ~1h and renewing needs a user gesture — piggyback on taps */
+document.addEventListener("click",function(){
+  if(gdRefreshing || !gdClientId()) return;
+  var t=gdTok(); if(!t) return;
+  if(Date.now()<(t.exp||0)-10*60000) return;
+  gdRefreshing=true;
+  gdToken().catch(function(){}).then(function(){ gdRefreshing=false; });
+},true);
+
+/* ---------- cloud dispatch: Google Drive primary, JSONBin fallback ---------- */
+function silentPush(keepalive){
+  if(cloudMode()==="drive"){
+    gdUpload(keepalive).then(function(){
+      lastSyncedAt=data.updatedAt;
+      setSyncStatus("Synced to Drive just now");
+    }).catch(function(){ setSyncStatus("Drive sync failed — will retry on next change"); });
+    return;
+  }
+  jbSilentPush(keepalive);
+}
+function silentPullOnLoad(){
+  if(cloudMode()==="drive"){
+    setSyncStatus("Checking Google Drive…");
+    gdDownload().then(function(d){
+      if(!d){ silentPush(); return; } // no backup file yet — seed Drive from this device
+      if(!d.rentals||!d.upcoming||!d.played){ setSyncStatus(""); return; }
+      var cloudTime=d.updatedAt||0, localTime=data.updatedAt||0;
+      if(cloudTime>localTime){
+        data=migrate(d);
+        try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
+        lastSyncedAt=data.updatedAt;
+        render();
+        setSyncStatus("Synced from Google Drive");
+        flash("Pulled the newer data from Google Drive");
+        setTimeout(backfillImages,800);
+      } else if(localTime>cloudTime){
+        lastSyncedAt=cloudTime;
+        silentPush(); // this device is ahead, push it up
+      } else {
+        lastSyncedAt=cloudTime;
+        setSyncStatus("Up to date");
+      }
+    }).catch(function(){ setSyncStatus("Drive check failed — tap ↻ to retry"); });
+    return;
+  }
+  jbSilentPullOnLoad();
+}
+function pushCloud(){
+  if(cloudMode()==="drive"){
+    flash("Uploading to Google Drive…");
+    gdUpload().then(function(){
+      lastSyncedAt=data.updatedAt;
+      setSyncStatus("Synced to Drive just now");
+      flash("Pushed to Google Drive");
+    }).catch(function(e){ flash("Drive push failed — "+e.message); });
+    return;
+  }
+  if(!cloudMode()){ flash("Connect Google Drive (or JSONBin) in Settings first"); toggleSettings(true); return; }
+  jbPushCloud();
+}
+function pullCloud(){
+  if(cloudMode()==="drive"){
+    if(!confirm("Replace the data on THIS device with the Google Drive copy?")) return;
+    gdDownload().then(function(d){
+      if(d && d.rentals && d.upcoming && d.played){
+        data=migrate(d); lastSyncedAt=data.updatedAt; render(); persist();
+        flash("Pulled from Google Drive — this device is up to date");
+      } else flash(d ? "Drive data doesn't look like a Game Vault backup" : "No backup in Drive yet — push first");
+    }).catch(function(e){ flash("Drive pull failed — "+e.message); });
+    return;
+  }
+  if(!cloudMode()){ flash("Connect Google Drive (or JSONBin) in Settings first"); toggleSettings(true); return; }
+  jbPullCloud();
 }
 
 /* ---------- RAWG live updates ---------- */
@@ -1829,6 +2031,8 @@ function toggleSettings(force){
   box.style.display=show?"block":"none";
   if(show){
     document.getElementById("apiKeyInput").value=getKey();
+    document.getElementById("gdClientInput").value=gdClientId();
+    gdSetStatus();
     var jb=getJB();
     document.getElementById("jbKeyInput").value=jb.key;
     document.getElementById("jbBinInput").value=jb.bin;
@@ -1866,6 +2070,15 @@ document.getElementById("saveSyncBtn").addEventListener("click",function(){
 });
 document.getElementById("pushBtn").addEventListener("click",pushCloud);
 document.getElementById("pullBtn").addEventListener("click",pullCloud);
+document.getElementById("gdSaveBtn").addEventListener("click",function(){
+  var v=document.getElementById("gdClientInput").value.trim();
+  try{ localStorage.setItem(GD_CLIENT_STORE,v); }catch(e){}
+  gdTokenClient=null; // re-init with the new id on next request
+  gdSetStatus();
+  flash(v?"Client ID saved — now press Sign in with Google":"Client ID cleared");
+});
+document.getElementById("gdSignInBtn").addEventListener("click",gdSignIn);
+document.getElementById("gdSignOutBtn").addEventListener("click",gdSignOut);
 
 document.getElementById("content").addEventListener("click",function(e){
   var vc=e.target.closest("[data-vendor]");
@@ -2339,6 +2552,7 @@ document.getElementById("exportBtn").addEventListener("click",function(){
   a.download="game-vault-backup-"+localISO()+".json";
   a.click();
   URL.revokeObjectURL(a.href);
+  if(cloudMode()==="drive"){ silentPush(); flash("Backup downloaded — Google Drive copy refreshed too"); }
   flash("Backup downloaded");
 });
 document.getElementById("importBtn").addEventListener("click",function(){ document.getElementById("importFile").click(); });
@@ -2435,7 +2649,7 @@ toTopBtn.addEventListener("click",function(){ window.scrollTo({top:0,behavior:"s
 /* Re-sync whenever the app comes back to the foreground (phone unlocked,
    tab refocused), and flush any pending change immediately when it leaves. */
 function flushPendingPush(){
-  if(!getJB().key) return;
+  if(!cloudMode()) return;
   if(data.updatedAt>lastSyncedAt){ clearTimeout(autoPushTimer); silentPush(true); }
 }
 document.addEventListener("visibilitychange",function(){
