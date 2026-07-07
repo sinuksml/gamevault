@@ -1324,7 +1324,7 @@ function renderRentals(){
         (h.vendor?' · <span style="color:var(--vendor)">'+esc(h.vendor)+'</span>':'')+
         (Number(h.cost)?' · <span style="color:#F2B84B;font-weight:700">'+fmtMoney(h.cost)+'</span>':'')+
         (h.note?'<br>“'+esc(h.note)+'”':'')+'</div>'+
-      '</div>'+
+      '</div></div>'+
       '<div class="actions">'+
         '<button class="btn" data-act="hist-again" data-id="'+h.id+'">↻ Rent again</button>'+
         linkBtns(h.name)+
