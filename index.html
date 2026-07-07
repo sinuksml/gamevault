@@ -1360,29 +1360,36 @@ function hubRows(sku,url,title){
 }
 /* one Game Hub slot (Primary/Secondary PS5): available now > earliest future date > blocked */
 function slotStatus(rows,slotKey){
-  var seen=false,avail=false,next=null;
+  var seen=false,availPrice=null,avail=false,next=null;
   rows.forEach(function(r){
     if(foldName(r["Slot"])!==slotKey) return;
     seen=true;
     if(String(r["Remarks (Pre-booking)"]||"").trim().toLowerCase()==="booked") return;
     var a=String(r["Availability"]||"").trim().toLowerCase();
     var nx=String(r["Next Available on or After"]||"").trim();
-    if(a==="available"){ avail=true; return; }
+    var pr=Number(String(r["Price (INR) Per Month"]||"").replace(/[^\d.]/g,""))||null;
+    if(a==="available"){ avail=true; if(pr&&(!availPrice||pr<availPrice)) availPrice=pr; return; }
     if(nx && nx.toUpperCase()!=="BOOKED"){
       var d=new Date(nx.replace(/^(\d{1,2}) (\w+) (\d{4})$/,"$2 $1, $3"));
-      if(!isNaN(d.getTime()) && d.getTime()>Date.now()){ if(!next||d.getTime()<next.d) next={d:d.getTime(),s:nx}; }
+      if(!isNaN(d.getTime()) && d.getTime()>Date.now()){ if(!next||d.getTime()<next.d) next={d:d.getTime(),s:nx,p:pr}; }
     }
   });
   if(!seen) return null;
-  if(avail) return {now:1};
-  if(next) return {next:next.s};
+  if(avail) return {now:1,price:availPrice};
+  if(next) return {next:next.s,price:next.p};
   return {no:1};
 }
 function slotHtml(st){
   if(!st) return '<span style="color:var(--dim)">—</span>';
-  if(st.now) return '<span style="color:#2BD46B;font-weight:700">Available now</span>';
-  if(st.next) return '<span style="color:#F2B84B;font-weight:700">Next: '+esc(st.next)+'</span>';
+  var pr=st.price?' <span style="color:var(--muted)">₹'+st.price+'/mo</span>':'';
+  if(st.now) return '<span style="color:#2BD46B;font-weight:700">Available now</span>'+pr;
+  if(st.next) return '<span style="color:#F2B84B;font-weight:700">Next: '+esc(st.next)+'</span>'+pr;
   return '<span style="color:#F05A5A">Not available</span>';
+}
+/* WhatsApp deep links — wa.me opens the app directly on iPhone */
+var WA_HUB="918595235976", WA_GP="919428298882";
+function waLink(num,game){
+  return 'https://wa.me/'+num+'?text='+encodeURIComponent("Hi! Is "+game+" available for rent?");
 }
 function availHtml(q1){
   var h='<div class="meta" style="margin-top:7px;line-height:1.75">';
@@ -1390,12 +1397,12 @@ function availHtml(q1){
   var av=q1.shops;
   if(!av) return h+'<span style="color:var(--dim)">Rental availability not checked yet — tap ⟳ Availability.</span></div>';
   var hub=av.hub||{}, gp=av.gp||{};
-  h+='<b style="color:var(--text2)">Game Hub</b>: ';
+  h+='<a href="'+waLink(WA_HUB,q1.name)+'" target="_blank" rel="noopener" title="Chat with The Game Hub on WhatsApp" style="color:var(--text2);font-weight:700;text-decoration:none">✆ Game Hub</a>: ';
   if(hub.err) h+='<span style="color:var(--dim)">check failed — tap ⟳</span>';
   else if(!hub.found) h+='<span style="color:var(--dim)">not listed</span>';
   else if(!("primary" in hub)) h+='<a href="'+esc(hub.url)+'" target="_blank" rel="noopener">listed — check site ↗</a>';
   else h+='Primary '+slotHtml(hub.primary)+' · Secondary '+slotHtml(hub.secondary)+(hub.url?' <a href="'+esc(hub.url)+'" target="_blank" rel="noopener">↗</a>':'');
-  h+='<br><b style="color:var(--text2)">Gamer Planet</b>: ';
+  h+='<br><a href="'+waLink(WA_GP,q1.name)+'" target="_blank" rel="noopener" title="Chat with Gamer Planet on WhatsApp" style="color:var(--text2);font-weight:700;text-decoration:none">✆ Gamer Planet</a>: ';
   if(gp.err) h+='<span style="color:var(--dim)">check failed — tap ⟳</span>';
   else if(!gp.found) h+='<span style="color:var(--dim)">not listed</span>';
   else{
