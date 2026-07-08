@@ -678,7 +678,7 @@ var gdTokenClient=null, gdRefreshing=false;
    Authorized JavaScript origins list, not secrecy). Lets a fresh/wiped device
    connect Drive and pull everything back with no manual entry. A value saved
    in Settings still overrides it. */
-var GD_CLIENT_DEFAULT="";
+var GD_CLIENT_DEFAULT="898110284062-76km1uptkth506kgaecoafohu15js0rh.apps.googleusercontent.com";
 function gdClientId(){ try{ return localStorage.getItem(GD_CLIENT_STORE)||GD_CLIENT_DEFAULT; }catch(e){ return GD_CLIENT_DEFAULT; } }
 function gdTok(){ try{ return JSON.parse(localStorage.getItem(GD_TOKEN_STORE)||"null"); }catch(e){ return null; } }
 function gdSaveTok(t){ try{ if(t) localStorage.setItem(GD_TOKEN_STORE,JSON.stringify(t)); else localStorage.removeItem(GD_TOKEN_STORE); }catch(e){} }
