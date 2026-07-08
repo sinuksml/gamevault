@@ -2165,8 +2165,11 @@ function fetchUpHw(){
     "primary_release_date.gte":localISO(), sort_by:"popularity.desc",
     with_release_type:"2|3", "vote_count.gte":0, page:1
   }).then(function(j){
-    return (j.results||[]).filter(function(m){ return m.release_date && m.popularity>18; })
+    // pick the major (popular) upcoming films, then show them earliest release first
+    var list=(j.results||[]).filter(function(m){ return m.release_date && m.popularity>18; })
       .slice(0,25).map(mapMovie);
+    list.sort(function(a,b){ return (a.date||"9999-99-99")<(b.date||"9999-99-99") ? -1 : 1; });
+    return list;
   });
 }
 function fetchRelHw(){
@@ -2260,6 +2263,12 @@ function movieLinks(title,year){
   return '<a class="btn" href="https://www.google.com/search?q='+encodeURIComponent(q+" movie")+'" target="_blank" rel="noopener">⌕ Google</a>'+
          '<a class="btn" href="https://www.youtube.com/results?search_query='+encodeURIComponent(q+" trailer")+'" target="_blank" rel="noopener">▶ Trailer</a>';
 }
+/* Malayalam reviewer channels — YouTube search pinned to the channel + film,
+   so the reviewer's video is the top result (opens the app on iPhone) */
+function mlReviewLinks(title){
+  return '<a class="btn" href="https://www.youtube.com/results?search_query='+encodeURIComponent(title+" Malayalam review Monsoon Media")+'" target="_blank" rel="noopener">★ Monsoon Media</a>'+
+         '<a class="btn" href="https://www.youtube.com/results?search_query='+encodeURIComponent(title+" Malayalam review Aswanth Kok")+'" target="_blank" rel="noopener">★ Aswanth Kok</a>';
+}
 function moviePoster(m){
   return m.poster ? '<img class="cover" src="'+esc(m.poster)+'" alt="" loading="lazy">' : '<div class="cover ph">🎬</div>';
 }
@@ -2288,6 +2297,7 @@ function movieCard(m, key){
       '<div class="meta">'+meta+(m.overview?'<br><span style="color:var(--muted)">'+esc(m.overview.slice(0,160))+(m.overview.length>160?"…":"")+'</span>':'')+'</div>'+
     '</div></div>'+
     '<div class="actions">'+movieLinks(m.title,m.year)+
+      ((key==="mlott"||key==="mlup") ? mlReviewLinks(m.title) : "")+
       '<a class="btn" href="https://www.themoviedb.org/movie/'+m.id+'" target="_blank" rel="noopener">TMDB ↗</a>'+
     '</div></div>';
 }
