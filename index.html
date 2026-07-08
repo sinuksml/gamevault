@@ -124,6 +124,8 @@
   /* movie provider / rating chips */
   .prov { display:inline-block; font-size:11px; font-weight:600; color:var(--text2); background:var(--inset); border:1px solid var(--border); border-radius:6px; padding:1px 7px; margin:2px 4px 0 0; }
   .imdb { color:#0A0D13; background:#F5C518; border-color:#F5C518; font-weight:800; }
+  a.btn.imdbbtn { color:#0A0D13; background:#F5C518; border-color:#F5C518; font-weight:800; }
+  a.btn.imdbbtn:hover { background:#f7d040; }
   .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:13px 14px 12px; margin-bottom:10px; transition:border-color .15s ease, box-shadow .15s ease; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); box-shadow:var(--shadow); }
   .card:hover { border-color:var(--accent); box-shadow:var(--shadowlg); }
   .row { display:flex; align-items:center; gap:11px; }
@@ -2224,6 +2226,20 @@ function omdbRatingById(imdbId){
     .catch(function(){ return null; });
 }
 function imdbBadge(m){ return (typeof m.imdb==="number") ? '<span class="prov imdb">IMDb '+m.imdb.toFixed(1)+'</span> ' : ''; }
+/* OMDb lookup returning both rating and the IMDb id (for a direct IMDb link) */
+function omdbLookup(title, year){
+  var k=omdbKey(); if(!k) return Promise.resolve(null);
+  return fetch("https://www.omdbapi.com/?apikey="+encodeURIComponent(k)+"&t="+encodeURIComponent(title)+(year?"&y="+year:""))
+    .then(function(r){ return r.json(); })
+    .then(function(j){ return j ? { rating:(j.imdbRating&&j.imdbRating!=="N/A")?parseFloat(j.imdbRating):null, imdbId:j.imdbID||null } : null; })
+    .catch(function(){ return null; });
+}
+/* Direct IMDb link when we know the title id, else an IMDb title search */
+function imdbLink(m){
+  var url = m.imdbId ? ("https://www.imdb.com/title/"+m.imdbId+"/")
+                     : ("https://www.imdb.com/find/?q="+encodeURIComponent(m.title+" "+(m.year||""))+"&s=tt");
+  return '<a class="btn imdbbtn" href="'+url+'" target="_blank" rel="noopener">IMDb ↗</a>';
+}
 /* run an async step over a list one at a time, with a small gap (rate-limit safe) */
 function serialEach(list, gap, fn){
   var i=0;
@@ -2256,7 +2272,7 @@ function fetchRelHw(){
   }).then(function(j){
     var cands=(j.results||[]).filter(function(m){ return m.release_date; }).slice(0,32).map(mapMovie);
     return serialEach(cands, 200, function(m){
-      return omdbRating(m.title, m.year).then(function(r){ m.imdb = r; });
+      return omdbLookup(m.title, m.year).then(function(o){ if(o){ m.imdb=o.rating; m.imdbId=o.imdbId; } });
     }).then(function(){
       return cands.filter(function(m){ return typeof m.imdb==="number" && m.imdb>=7.0; })
         .sort(function(a,b){ return b.imdb-a.imdb; }).slice(0,25);
@@ -2377,7 +2393,7 @@ function movieCard(m, key){
     '<div class="grow"><div class="gname">'+esc(m.title)+'</div>'+
       '<div class="meta">'+meta+(m.overview?'<br><span style="color:var(--muted)">'+esc(m.overview.slice(0,160))+(m.overview.length>160?"…":"")+'</span>':'')+'</div>'+
     '</div></div>'+
-    '<div class="actions">'+movieLinks(m.title,m.year)+
+    '<div class="actions">'+movieLinks(m.title,m.year)+imdbLink(m)+
       ((key==="mlott"||key==="mlup") ? mlReviewLinks(m.title) : "")+
       '<a class="btn" href="https://www.themoviedb.org/movie/'+m.id+'" target="_blank" rel="noopener">TMDB ↗</a>'+
     '</div></div>';
