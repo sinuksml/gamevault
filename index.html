@@ -528,6 +528,28 @@ function backfillKeysToData(){
   }
   if(changed) persistSilent();
 }
+/* Bidirectional key merge run on every cloud sync — self-healing:
+   this device adopts any key the cloud has that it lacks, and flags a push
+   for any key it holds that the cloud is missing. Returns {changed, push}. */
+function reconcileKeys(cloudData){
+  var ck=(cloudData&&cloudData.keys)||{};
+  if(!data.keys) data.keys={};
+  var res={changed:false, push:false};
+  for(var w in SYNCED_KEYS){
+    var local=""; try{ local=localStorage.getItem(SYNCED_KEYS[w])||""; }catch(e){}
+    var mine=data.keys[w]||local||"";
+    var cloud=ck[w]||"";
+    if(!mine && cloud){                       // cloud has it, we don't → adopt
+      try{ localStorage.setItem(SYNCED_KEYS[w], cloud); }catch(e){}
+      data.keys[w]=cloud; res.changed=true;
+    } else if(mine){                          // we have it → keep, and push if cloud lacks/differs
+      if(local!==mine){ try{ localStorage.setItem(SYNCED_KEYS[w], mine); }catch(e){} res.changed=true; }
+      data.keys[w]=mine;
+      if(mine!==cloud) res.push=true;
+    }
+  }
+  return res;
+}
 
 var toastTimer = null, undoFn = null;
 function flash(msg, undoCb){
@@ -836,19 +858,24 @@ function silentPullOnLoad(){
       // games must adopt a cloud copy that has them — never the reverse
       var mustAdopt = vaultSize(data)===0 && vaultSize(d)>0;
       if(cloudTime>localTime || mustAdopt){
-        data=migrate(d); applyKeysFromData();
+        data=migrate(d); var rkA=reconcileKeys(d);
         try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
         lastSyncedAt=data.updatedAt;
         render();
         setSyncStatus("Synced from Google Drive");
         flash("Pulled the newer data from Google Drive");
         setTimeout(backfillImages,800);
+        if(rkA.push) persist(); // we hold keys the cloud lacked → push them up
       } else if(localTime>cloudTime){
         lastSyncedAt=cloudTime;
-        silentPush(); // this device is ahead, push it up
+        reconcileKeys(d);
+        silentPush(); // this device is ahead (incl. its keys), push it up
       } else {
         lastSyncedAt=cloudTime;
-        setSyncStatus("Up to date");
+        var rkC=reconcileKeys(d);
+        if(rkC.changed) render();           // a key arrived from the cloud → reflect it
+        if(rkC.push){ persist(); setSyncStatus("Synced keys to Drive"); }
+        else setSyncStatus("Up to date");
       }
     }).catch(function(){ setSyncStatus("Drive check failed — tap ↻ to retry"); });
     return;
