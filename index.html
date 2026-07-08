@@ -434,6 +434,7 @@ function migrate(d){
   if(!d.dismissedNames) d.dismissedNames = {};
   if(!d.fandom) d.fandom = {}; // per-game saved Fandom reading spot (URL, keyed by norm name)
   if(!d.hubkeys) d.hubkeys = {}; // The Game Hub SKU cache (norm name → {sku,url,title})
+  if(!d.upcomingRemoved) d.upcomingRemoved = []; // games removed from Upcoming — never re-added by refresh
   // v5: a game appears at most once per library — merge accidental duplicates
   d.played = dedupeList(d.played);
   d.playing = dedupeList(d.playing);
@@ -845,6 +846,8 @@ function refreshUpcoming(){
     // keep: starred entries, manual entries, seeds the user hasn't removed; replace old auto entries
     var kept=data.upcoming.filter(function(g){ return g.want || g.src!=="auto"; });
     var have={}; kept.forEach(function(g){ have[norm(g.name)]=1; });
+    // never re-add games the user explicitly removed
+    (data.upcomingRemoved||[]).forEach(function(g){ have[norm(g.name)]=1; });
     var added=0;
     fetched.forEach(function(g){
       if(g.img) data.covers[norm(g.name)]=g.img;
@@ -1766,6 +1769,23 @@ function renderUpcoming(){
     '</div></div>';
   });
   html+='</div>';
+
+  // ---- removed games (kept out of internet refresh, restorable) ----
+  var rem=(data.upcomingRemoved||[]).filter(function(g){ return matchQ(g.name); });
+  if(rem.length){
+    html+='<div class="sechead">✕ Removed games · '+rem.length+'</div>';
+    html+='<div class="meta" style="margin-bottom:8px">Hidden from the watchlist and skipped by internet refreshes. Restore any time.</div>';
+    html+='<div class="cards">';
+    rem.forEach(function(g){
+      html+='<div class="card hist"><div class="row">'+coverImg(g)+
+        '<div class="grow"><div class="gname">'+esc(g.name)+'</div><div class="meta">'+badges(g.name)+(g.date?fmt(g.date):"Date TBC")+(g.note?' · '+esc(g.note):'')+'</div></div>'+
+      '</div><div class="actions">'+
+        '<button class="btn blue" data-act="up-restore" data-id="'+g.id+'">↩ Restore</button>'+
+        '<button class="btn ghost danger" data-act="up-purge" data-id="'+g.id+'">Delete for good</button>'+
+      '</div></div>';
+    });
+    html+='</div>';
+  }
   return html;
 }
 
@@ -2165,12 +2185,34 @@ document.getElementById("content").addEventListener("click",function(e){
   else if(act==="sync-catalog"){ refreshCatalog(); }
   else if(act==="add-upcoming"){
     var un=document.getElementById("uName").value.trim(); if(!un) return;
+    data.upcomingRemoved=(data.upcomingRemoved||[]).filter(function(x){return norm(x.name)!==norm(un);}); // un-remove if re-added
     data.upcoming.push({id:uid(),name:un,date:document.getElementById("uDate").value||null,note:document.getElementById("uNote").value.trim(),want:false,src:"manual"});
     formOpen[tab]=false;
     save(); flash("Game added to watchlist");
   }
   else if(act==="want"){ var g=byId(data.upcoming,id); if(g){ g.want=!g.want; save(); } }
-  else if(act==="del-upcoming"){ data.upcoming=data.upcoming.filter(function(x){return x.id!==id;}); save(); }
+  else if(act==="del-upcoming"){
+    var gd=byId(data.upcoming,id);
+    data.upcoming=data.upcoming.filter(function(x){return x.id!==id;});
+    if(gd){
+      if(!data.upcomingRemoved) data.upcomingRemoved=[];
+      if(!data.upcomingRemoved.some(function(x){return norm(x.name)===norm(gd.name);})) data.upcomingRemoved.unshift(gd);
+    }
+    save(); flash("Removed — it won’t come back on refresh"+(gd?" (restore below)":""));
+  }
+  else if(act==="up-restore"){
+    var gr=byId(data.upcomingRemoved,id);
+    if(gr){
+      data.upcomingRemoved=data.upcomingRemoved.filter(function(x){return x.id!==id;});
+      if(!inList(data.upcoming,gr.name)) data.upcoming.push(gr);
+      save(); flash("Restored to the watchlist");
+    }
+  }
+  else if(act==="up-purge"){
+    var gp=byId(data.upcomingRemoved,id);
+    data.upcomingRemoved=(data.upcomingRemoved||[]).filter(function(x){return x.id!==id;});
+    save(); flash(gp?"Deleted for good — refresh may re-add it later":"Deleted");
+  }
   else if(act==="to-played"){
     var g2=byId(data.upcoming,id);
     if(g2){
