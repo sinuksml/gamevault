@@ -458,6 +458,7 @@ function migrate(d){
   if(!d.upcomingRemoved) d.upcomingRemoved = []; // games removed from Upcoming — never re-added by refresh
   if(!d.keys) d.keys = {}; // synced API keys (rawg, tmdb, omdb) — travel to every device via the cloud backup
   if(!d.watchedMovies) d.watchedMovies = []; // films marked Watched — hidden from lists forever, synced
+  if(!d.movieWatchlist) d.movieWatchlist = []; // personal movie watchlist, synced
   // v5: a game appears at most once per library — merge accidental duplicates
   d.played = dedupeList(d.played);
   d.playing = dedupeList(d.playing);
@@ -1193,14 +1194,16 @@ try{ plotCache=JSON.parse(localStorage.getItem(PLOTS_KEY)||"{}")||{}; }catch(e){
 var plotPending={};
 var plotErr={};
 function savePlots(){ try{ localStorage.setItem(PLOTS_KEY, JSON.stringify(plotCache)); }catch(e){} }
-function ensurePlot(name){
-  var k=norm(name);
+function plotKey(name, kind){ return (kind==="film"?"f:":"")+norm(name); }
+function ensurePlot(name, kind){
+  kind=kind||"video game";
+  var k=plotKey(name,kind);
   if((k in plotCache) || plotPending[k] || plotErr[k]) return;
   plotPending[k]=1;
   var api="https://en.wikipedia.org/w/api.php";
   var articleTitle="";
   var timer=new Promise(function(_,rej){ setTimeout(function(){ rej(new Error("timeout")); },15000); });
-  var chain=rawgFetch(api+"?action=query&list=search&format=json&origin=*&srlimit=1&srsearch="+encodeURIComponent(name+" video game"))
+  var chain=rawgFetch(api+"?action=query&list=search&format=json&origin=*&srlimit=1&srsearch="+encodeURIComponent(name+" "+kind))
   .then(function(j){
     var hit=j.query&&j.query.search&&j.query.search[0];
     if(!hit) throw new Error("no article");
@@ -1234,24 +1237,29 @@ function ensurePlot(name){
     maybeRender();
   });
 }
-function plotLinks(name, entry){
+function plotLinks(name, entry, kind){
   var out='<div class="src">Read more: ';
   if(entry && entry.t){
     var u="https://en.wikipedia.org/wiki/"+encodeURIComponent(entry.t.replace(/ /g,"_"))+(entry.a?("#"+encodeURIComponent(entry.a)):"");
-    out+='<a href="'+u+'" target="_blank" rel="noopener">Wikipedia'+(entry.a?" story section":"")+' ↗</a> · ';
+    out+='<a href="'+u+'" target="_blank" rel="noopener">Wikipedia'+(entry.a?(kind==="film"?" plot section":" story section"):"")+' ↗</a> · ';
   }
-  out+='<a href="https://www.fandom.com/?s='+encodeURIComponent(name)+'" target="_blank" rel="noopener">Fandom ↗</a> · '+
-       '<a href="https://gamefaqs.gamespot.com/search?game='+encodeURIComponent(name)+'" target="_blank" rel="noopener">GameFAQs ↗</a></div>';
+  if(kind==="film"){
+    out+='<a href="https://www.google.com/search?q='+encodeURIComponent(name+" film plot")+'" target="_blank" rel="noopener">Google ↗</a></div>';
+  } else {
+    out+='<a href="https://www.fandom.com/?s='+encodeURIComponent(name)+'" target="_blank" rel="noopener">Fandom ↗</a> · '+
+         '<a href="https://gamefaqs.gamespot.com/search?game='+encodeURIComponent(name)+'" target="_blank" rel="noopener">GameFAQs ↗</a></div>';
+  }
   return out;
 }
-function plotBlock(name){
-  var k=norm(name);
-  if(plotErr[k]) return '<div class="plot">Couldn’t reach Wikipedia — check your connection.<div class="actions" style="margin-top:8px"><button class="btn" data-act="plot-retry" data-name="'+esc(name)+'">↻ Try again</button></div></div>';
-  if(plotPending[k] || !(k in plotCache)){ ensurePlot(name); return '<div class="plot">Fetching the story from Wikipedia…</div>'; }
+function plotBlock(name, kind){
+  kind=kind||"video game";
+  var k=plotKey(name,kind);
+  if(plotErr[k]) return '<div class="plot">Couldn’t reach Wikipedia — check your connection.<div class="actions" style="margin-top:8px"><button class="btn" data-act="plot-retry" data-name="'+esc(name)+'" data-kind="'+kind+'">↻ Try again</button></div></div>';
+  if(plotPending[k] || !(k in plotCache)){ ensurePlot(name,kind); return '<div class="plot">Fetching the '+(kind==="film"?"plot":"story")+' from Wikipedia…</div>'; }
   var entry=plotCache[k];
   if(typeof entry==="string") entry={p:entry,t:"",a:""};
-  if(!entry.p) return '<div class="plot">No story section found on Wikipedia for this game — try the sources below.'+plotLinks(name,entry)+'</div>';
-  return '<div class="plot">'+esc(entry.p)+plotLinks(name,entry)+'</div>';
+  if(!entry.p) return '<div class="plot">No '+(kind==="film"?"plot":"story")+' section found on Wikipedia for this '+(kind==="film"?"film":"game")+' — try the sources below.'+plotLinks(name,entry,kind)+'</div>';
+  return '<div class="plot">'+esc(entry.p)+plotLinks(name,entry,kind)+'</div>';
 }
 
 /* ---------- shared render helpers ---------- */
@@ -1296,7 +1304,7 @@ function switchTab(next){
 
 function renderTabs(){
   if(section==="films"){
-    var fd=[["uphw","△","Upcoming HW"],["relhw","★","Released HW"],["mlott","▶","Malayalam OTT"],["mlup","◇","Upcoming ML"],["watched","✓","Watched"]];
+    var fd=[["uphw","△","Upcoming HW"],["relhw","★","Released HW"],["mlott","▶","Malayalam OTT"],["mlup","◇","Upcoming ML"],["watchlist","♥","Watchlist"],["watched","✓","Watched"]];
     document.getElementById("tabs").innerHTML = fd.map(function(d){
       return '<button class="tab '+(filmTab===d[0]?"on":"")+'" data-ftab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
     }).join("");
@@ -2189,7 +2197,7 @@ try{ section=localStorage.getItem(SECTION_KEY)||"games"; }catch(e){}
 try{ filmTab=localStorage.getItem(FILMTAB_KEY)||"uphw"; }catch(e){}
 function tmdbKey(){ try{ return localStorage.getItem(TMDB_KEY_STORE)||""; }catch(e){ return ""; } }
 function omdbKey(){ try{ return localStorage.getItem(OMDB_KEY_STORE)||""; }catch(e){ return ""; } }
-var FILM_ORDER=["uphw","relhw","mlott","mlup","watched"];
+var FILM_ORDER=["uphw","relhw","mlott","mlup","watchlist","watched"];
 var FILM_TTL={uphw:24*3600*1000, relhw:24*3600*1000, mlott:6*3600*1000, mlup:6*3600*1000};
 var filmCache={}, filmBusy={}, filmErr={};
 try{ filmCache=JSON.parse(localStorage.getItem(FILM_CACHE_KEY)||"{}")||{}; }catch(e){ filmCache={}; }
@@ -2395,6 +2403,67 @@ function findCachedMovie(id){
 }
 var provChips=function(list){ return (list||[]).map(function(p){ return '<span class="prov">'+esc(p)+'</span>'; }).join(""); };
 
+/* ---- Movies Watchlist: internet search + add + Wikipedia plot ---- */
+var movieSearchQ="", movieSearchItems=[], movieSearchBusy=false, movieSearchSeq=0, movieSearchTimer=null;
+var filmExpanded=null; // expanded watchlist movie id (for the plot)
+function searchMovies(qs){
+  if(!tmdbKey()) return;
+  var seq=++movieSearchSeq; movieSearchBusy=true;
+  tmdbGet("/search/movie", {query:qs, include_adult:"false", page:1}).then(function(j){
+    if(seq!==movieSearchSeq) return;
+    movieSearchItems=(j.results||[]).filter(function(m){ return m.title; }).slice(0,12).map(mapMovie);
+    movieSearchBusy=false; renderFilmsKeepSearch();
+  }).catch(function(){ if(seq===movieSearchSeq){ movieSearchBusy=false; renderFilmsKeepSearch(); } });
+}
+function renderFilmsKeepSearch(){
+  if(section!=="films") return;
+  var el=document.getElementById("mwSearch");
+  var had=el && document.activeElement===el, pos=had?el.selectionStart:0;
+  document.getElementById("content").innerHTML=renderFilms();
+  if(had){ var n=document.getElementById("mwSearch"); if(n){ n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} } }
+}
+function findSearchMovie(id){ for(var i=0;i<movieSearchItems.length;i++){ if(String(movieSearchItems[i].id)===String(id)) return movieSearchItems[i]; } return null; }
+function findWatchlistMovie(id){ return (data.movieWatchlist||[]).filter(function(x){ return String(x.id)===String(id); })[0]||null; }
+function inWatchlist(m){ return (data.movieWatchlist||[]).some(function(x){ return String(x.id)===String(m.id); }); }
+function addToWatchlist(m){
+  if(!m) return;
+  if(!data.movieWatchlist) data.movieWatchlist=[];
+  if(inWatchlist(m)){ flash("Already in your watchlist"); return; }
+  data.movieWatchlist.unshift({id:m.id, title:m.title, year:m.year||"", poster:m.poster||"",
+    imdb:(typeof m.imdb==="number"?m.imdb:null), imdbId:m.imdbId||null, tmdb:m.tmdb||null, overview:m.overview||"", added:Date.now()});
+  save(); flash("Added to your watchlist");
+}
+function removeFromWatchlist(id){
+  data.movieWatchlist=(data.movieWatchlist||[]).filter(function(x){ return String(x.id)!==String(id); });
+  save(); flash("Removed from watchlist");
+}
+function watchlistSearchCard(m){
+  var already=inWatchlist(m);
+  return '<div class="card"><div class="row">'+moviePoster(m)+
+    '<div class="grow"><div class="gname">'+esc(m.title)+'</div>'+
+      '<div class="meta">'+(m.year||"")+(m.tmdb?' · TMDB '+m.tmdb:'')+(m.overview?'<br><span style="color:var(--muted)">'+esc(m.overview.slice(0,120))+(m.overview.length>120?"…":"")+'</span>':'')+'</div></div>'+
+      (already?'<span class="chip fin">✓ In list</span>':'<button class="btn blue" data-act="mw-add" data-id="'+esc(String(m.id))+'">+ Add</button>')+
+    '</div></div>';
+}
+function watchlistCard(m){
+  var open=String(filmExpanded)===String(m.id);
+  var h='<div class="card">'+
+    '<div class="row clickrow" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+moviePoster(m)+
+      '<div class="grow"><div class="gname">'+esc(m.title)+'</div>'+
+      '<div class="meta">'+(typeof m.imdb==="number"?'<span class="prov imdb">IMDb '+m.imdb.toFixed(1)+'</span> ':'')+(m.year||"")+(m.tmdb?' · TMDB '+m.tmdb:'')+'</div></div>'+
+      '<span style="color:var(--dim);font-size:12px;flex-shrink:0">'+(open?"▲":"▼")+'</span>'+
+    '</div>';
+  if(open){
+    if(m.poster) h+='<img class="cover lg" src="'+esc(m.poster)+'" alt="" loading="lazy">';
+    h+=plotBlock(m.title,"film");
+  }
+  h+='<div class="actions">'+movieLinks(m.title,m.year)+imdbLink(m)+
+    '<button class="btn" data-act="mw-watched" data-id="'+esc(String(m.id))+'">✓ Watched</button>'+
+    '<button class="btn ghost danger" data-act="mw-remove" data-id="'+esc(String(m.id))+'">Remove</button>'+
+  '</div></div>';
+  return h;
+}
+
 function movieCard(m, key){
   var t0=today();
   var meta="";
@@ -2438,8 +2507,29 @@ function renderFilms(){
     relhw:"Recently released Hollywood films, critically acclaimed only — exact IMDb rating 7.0 and above.",
     mlott:"Latest Malayalam films now streaming on OTT in India (Prime Video, JioHotstar, Netflix, SonyLIV, ZEE5 and more), by OTT release date — newest first. No rating filter.",
     mlup:"Confirmed upcoming Malayalam OTT premieres with their announced streaming date and platform, soonest first.",
+    watchlist:"Search any movie on the internet and add it to your personal watchlist. Tap a saved film to read its Wikipedia plot.",
     watched:"Films you’ve marked as watched. They’re hidden from every other tab and never come back on refresh — synced across your devices."
   };
+
+  // Watchlist tab: internet search + personal list, from the synced vault
+  if(key==="watchlist"){
+    var wl=data.movieWatchlist||[];
+    var wh='<div class="toolbar" style="margin-top:14px"><div class="searchwrap"><span class="sic">⌕</span>'+
+      '<input class="tab-search" id="mwSearch" placeholder="Search any movie to add…" value="'+esc(movieSearchQ)+'" autocomplete="off">'+
+      (movieSearchQ?'<button class="sclear" data-act="mw-clear" title="Clear">✕</button>':'')+'</div></div>'+
+      '<div class="meta" style="margin-bottom:10px">'+blurbs.watchlist+'</div>';
+    if(!tmdbKey()) return wh+'<div class="empty">Add your free <b>TMDB API key</b> in Settings to search movies.</div>';
+    if(movieSearchQ.trim().length>=2){
+      wh+='<div class="sechead">Search results</div>';
+      if(movieSearchBusy && !movieSearchItems.length) wh+='<div class="empty">Searching the internet…</div>';
+      else if(!movieSearchItems.length) wh+='<div class="empty">No movies match “'+esc(movieSearchQ)+'”.</div>';
+      else{ wh+='<div class="cards">'; movieSearchItems.forEach(function(m){ wh+=watchlistSearchCard(m); }); wh+='</div>'; }
+    }
+    wh+='<div class="sechead">My Watchlist · '+wl.length+'</div>';
+    if(!wl.length) wh+='<div class="empty">Your movie watchlist is empty. Search above and tap <b>+ Add</b>. Tap a saved film to read its plot.</div>';
+    else{ wh+='<div class="cards">'; wl.forEach(function(m){ wh+=watchlistCard(m); }); wh+='</div>'; }
+    return wh;
+  }
 
   // Watched tab: rendered straight from the synced vault, no internet needed
   if(key==="watched"){
@@ -2586,6 +2676,20 @@ document.getElementById("content").addEventListener("click",function(e){
 
   if(act==="film-refresh"){ ensureFilms(filmTab,true); return; }
   if(act==="mv-unwatch"){ unwatchMovie(b.getAttribute("data-key")); return; }
+  if(act==="mw-add"){ addToWatchlist(findSearchMovie(id)); return; }
+  if(act==="mw-remove"){ removeFromWatchlist(id); return; }
+  if(act==="mw-clear"){ movieSearchQ=""; movieSearchItems=[]; movieSearchSeq++; render(); return; }
+  if(act==="mw-toggle"){
+    filmExpanded = String(filmExpanded)===String(id) ? null : id;
+    var wm=findWatchlistMovie(id);
+    if(filmExpanded && wm) ensurePlot(wm.title,"film");
+    render(); return;
+  }
+  if(act==="mw-watched"){
+    var wmv=findWatchlistMovie(id);
+    if(wmv){ removeFromWatchlist(id); markMovieWatched(wmv); }  // → Watched tab, out of the watchlist
+    return;
+  }
   if(act==="toggle-form"){ formOpen[tab]=!formOpen[tab]; render(); }
   else if(act==="clear-search"){ searchQ[tab]=""; render(); }
   else if(act==="goto"){ switchTab(b.getAttribute("data-dest")||"rentals"); }
@@ -2760,8 +2864,8 @@ document.getElementById("content").addEventListener("click",function(e){
     ensurePlot(pln);
   }
   else if(act==="plot-retry"){
-    var pn2=b.getAttribute("data-name");
-    if(pn2){ delete plotErr[norm(pn2)]; delete plotPending[norm(pn2)]; ensurePlot(pn2); render(); }
+    var pn2=b.getAttribute("data-name"), pk2=b.getAttribute("data-kind")||"video game";
+    if(pn2){ var kk2=plotKey(pn2,pk2); delete plotErr[kk2]; delete plotPending[kk2]; ensurePlot(pn2,pk2); render(); }
   }
   else if(act==="pl-toggle"){
     expandedId = (expandedId===id) ? null : id;
@@ -2984,6 +3088,14 @@ document.getElementById("content").addEventListener("keydown",function(e){
 
 /* ---------- per-tab search + autocomplete (input delegation) ---------- */
 document.getElementById("content").addEventListener("input",function(e){
+  if(e.target.id==="mwSearch"){
+    movieSearchQ=e.target.value;
+    var q=movieSearchQ.trim();
+    clearTimeout(movieSearchTimer);
+    if(q.length<2){ movieSearchItems=[]; movieSearchSeq++; renderFilmsKeepSearch(); return; }
+    movieSearchTimer=setTimeout(function(){ searchMovies(q); }, 350);
+    return;
+  }
   var ts=e.target.closest(".tab-search");
   if(ts){
     searchQ[tab]=ts.value;
