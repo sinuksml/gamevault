@@ -116,6 +116,14 @@
   .tab.on .shp { color:var(--accent); }
   html.light .tabs { box-shadow:0 8px 26px rgba(28,45,80,.16), inset 0 1px 0 rgba(255,255,255,.85), inset 0 -1px 0 rgba(28,45,80,.05); }
   html.light .tab.on { box-shadow:0 3px 10px rgba(28,45,80,.18), inset 0 1px 0 rgba(255,255,255,.95); }
+  /* Games / Films section switch */
+  .sectionsw { display:flex; gap:5px; justify-content:center; margin:2px 0 10px; }
+  .sectionsw button { flex:0 0 auto; background:var(--glass); border:1px solid var(--glassbrd); color:var(--muted); font:700 12.5px "Segoe UI",system-ui; padding:7px 20px; border-radius:99px; cursor:pointer; backdrop-filter:blur(14px) saturate(1.6); -webkit-backdrop-filter:blur(14px) saturate(1.6); transition:color .2s ease, background .3s cubic-bezier(.34,1.56,.64,1); }
+  .sectionsw button.on { color:var(--text); background:var(--glasson); box-shadow:0 3px 12px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.24); }
+  .sectionsw button:active { transform:scale(.95); }
+  /* movie provider / rating chips */
+  .prov { display:inline-block; font-size:11px; font-weight:600; color:var(--text2); background:var(--inset); border:1px solid var(--border); border-radius:6px; padding:1px 7px; margin:2px 4px 0 0; }
+  .imdb { color:#0A0D13; background:#F5C518; border-color:#F5C518; font-weight:800; }
   .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:13px 14px 12px; margin-bottom:10px; transition:border-color .15s ease, box-shadow .15s ease; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); box-shadow:var(--shadow); }
   .card:hover { border-color:var(--accent); box-shadow:var(--shadowlg); }
   .row { display:flex; align-items:center; gap:11px; }
@@ -253,6 +261,10 @@
     <button class="iconbtn" id="menuBtn" title="Cloud, backup &amp; settings">&#8943;</button>
   </div>
   <div class="sub">PS5 tracker &middot; rentals &middot; playing now &middot; watchlist &middot; library <span id="syncStatus" style="color:var(--muted)"></span></div>
+  <div class="sectionsw" id="sectionSw">
+    <button data-section="games" class="on">&#127918; Games</button>
+    <button data-section="films">&#127916; Films</button>
+  </div>
   <div id="hero"></div>
   <div class="menupanel" id="menuPanel">
     <button class="btn" id="pushBtn">&#8657; Push to cloud</button>
@@ -278,6 +290,13 @@
     <div class="fields">
       <input class="f-name" id="apiKeyInput" placeholder="Paste RAWG API key here" autocomplete="off">
       <button class="btn blue" id="saveKeyBtn">Save key</button>
+    </div>
+    <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
+    <p><b style="color:var(--text)">Films section (TMDB + IMDb).</b> The Films tabs pull live data from <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">TMDB</a> &mdash; sign up free &rarr; Settings &rarr; API &rarr; copy the <b>API Key (v3 auth)</b>. For exact IMDb ratings on Released Hollywood, also get a free key from <a href="https://www.omdbapi.com/apikey.aspx" target="_blank" rel="noopener">OMDb</a> (activate the link they email you). Paste both below.</p>
+    <div class="fields">
+      <input class="f-name" id="tmdbKeyInput" placeholder="TMDB API key (v3 auth)" autocomplete="off">
+      <input class="f-name" id="omdbKeyInput" placeholder="OMDb API key (for IMDb ratings)" autocomplete="off">
+      <button class="btn blue" id="saveFilmKeysBtn">Save film keys</button>
     </div>
     <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
     <p><b style="color:var(--text)">JSONBin sync (optional fallback).</b> Used only when Google Drive is not connected. Get a free account at <a href="https://jsonbin.io" target="_blank" rel="noopener">jsonbin.io</a> &rarr; open <b>API Keys</b> &rarr; copy your <b>Master Key</b> and paste it below on <b>this device</b>, then Save. Every change you make here now saves to the cloud automatically a couple of seconds after you type &mdash; no button to press. On your <b>other device</b> (phone or PC), open the app, paste the <b>same Master Key</b>, then copy the <b>Bin ID</b> shown here into that device's Settings too, and Save. From then on both devices silently stay in sync: whichever has the newest change wins, checked every time the app opens. The Push/Pull buttons in the &#8943; menu still work if you ever want to force a sync manually.</p>
@@ -1207,6 +1226,13 @@ function switchTab(next){
 }
 
 function renderTabs(){
+  if(section==="films"){
+    var fd=[["uphw","△","Upcoming HW"],["relhw","★","Released HW"],["mlott","▶","Malayalam OTT"]];
+    document.getElementById("tabs").innerHTML = fd.map(function(d){
+      return '<button class="tab '+(filmTab===d[0]?"on":"")+'" data-ftab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
+    }).join("");
+    return;
+  }
   var defs=[["rentals","✕","Rentals"],["playing","▶","Playing"],["queue","◇","Queue"],["upcoming","△","Upcoming"],["suggest","○","For You"],["played","□","Played"]];
   document.getElementById("tabs").innerHTML = defs.map(function(d){
     return '<button class="tab '+(tab===d[0]?"on":"")+'" data-tab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
@@ -2062,6 +2088,15 @@ function renderPlayed(){
 }
 
 function render(){
+  var statsEl=document.getElementById("stats");
+  if(section==="films"){
+    statsEl.style.display="none";
+    var hero=document.getElementById("hero"); if(hero){ hero.className=""; hero.innerHTML=""; }
+    renderTabs();
+    document.getElementById("content").innerHTML=renderFilms();
+    return;
+  }
+  statsEl.style.display="";
   renderStats();
   renderTabs();
   var c=document.getElementById("content");
@@ -2074,6 +2109,209 @@ function render(){
   applyBackground();
 }
 
+/* ================= FILMS SECTION (TMDB + OMDb) =================
+   Live movie data, cached in localStorage only (public data — kept out of the
+   synced game vault). Three tabs: upcoming Hollywood, released Hollywood
+   (filtered to exact IMDb >= 7.0 via OMDb), and weekly Malayalam OTT. */
+var TMDB_KEY_STORE="ps5-tmdb-key", OMDB_KEY_STORE="ps5-omdb-key";
+var SECTION_KEY="ps5-section", FILMTAB_KEY="ps5-filmtab", FILM_CACHE_KEY="ps5-films-cache";
+var section="games", filmTab="uphw";
+try{ section=localStorage.getItem(SECTION_KEY)||"games"; }catch(e){}
+try{ filmTab=localStorage.getItem(FILMTAB_KEY)||"uphw"; }catch(e){}
+function tmdbKey(){ try{ return localStorage.getItem(TMDB_KEY_STORE)||""; }catch(e){ return ""; } }
+function omdbKey(){ try{ return localStorage.getItem(OMDB_KEY_STORE)||""; }catch(e){ return ""; } }
+var FILM_ORDER=["uphw","relhw","mlott"];
+var FILM_TTL={uphw:24*3600*1000, relhw:24*3600*1000, mlott:12*3600*1000};
+var filmCache={}, filmBusy={}, filmErr={};
+try{ filmCache=JSON.parse(localStorage.getItem(FILM_CACHE_KEY)||"{}")||{}; }catch(e){ filmCache={}; }
+function saveFilmCache(){ try{ localStorage.setItem(FILM_CACHE_KEY, JSON.stringify(filmCache)); }catch(e){} }
+function daysAgoISO(n){ var d=new Date(); d.setDate(d.getDate()-n); return localISO(d); }
+function yearsAgoISO(n){ var d=new Date(); d.setFullYear(d.getFullYear()-n); return localISO(d); }
+
+function tmdbGet(path, params){
+  var k=tmdbKey(); if(!k) return Promise.reject(new Error("no-tmdb-key"));
+  var qs=Object.keys(params||{}).map(function(p){ return encodeURIComponent(p)+"="+encodeURIComponent(params[p]); }).join("&");
+  return fetch("https://api.themoviedb.org/3"+path+"?api_key="+encodeURIComponent(k)+(qs?"&"+qs:""))
+    .then(function(r){ if(!r.ok) throw new Error("TMDB "+r.status); return r.json(); });
+}
+function mapMovie(m){
+  return { id:m.id, title:m.title||m.name||"Untitled",
+    date:m.release_date||"", year:(m.release_date||"").slice(0,4),
+    overview:m.overview||"", tmdb:Math.round((m.vote_average||0)*10)/10,
+    poster:m.poster_path?("https://image.tmdb.org/t/p/w185"+m.poster_path):"" };
+}
+/* OMDb exact IMDb rating by title + year */
+function omdbRating(title, year){
+  var k=omdbKey(); if(!k) return Promise.resolve(null);
+  return fetch("https://www.omdbapi.com/?apikey="+encodeURIComponent(k)+"&t="+encodeURIComponent(title)+(year?"&y="+year:""))
+    .then(function(r){ return r.json(); })
+    .then(function(j){ return (j&&j.imdbRating&&j.imdbRating!=="N/A") ? parseFloat(j.imdbRating) : null; })
+    .catch(function(){ return null; });
+}
+/* run an async step over a list one at a time, with a small gap (rate-limit safe) */
+function serialEach(list, gap, fn){
+  var i=0;
+  return (function step(){
+    if(i>=list.length) return Promise.resolve(list);
+    return Promise.resolve(fn(list[i++])).then(function(){
+      return new Promise(function(res){ setTimeout(res, gap); });
+    }).then(step);
+  })();
+}
+function fetchUpHw(){
+  return tmdbGet("/discover/movie", {
+    with_original_language:"en", region:"US",
+    "primary_release_date.gte":localISO(), sort_by:"popularity.desc",
+    with_release_type:"2|3", "vote_count.gte":0, page:1
+  }).then(function(j){
+    return (j.results||[]).filter(function(m){ return m.release_date && m.popularity>18; })
+      .slice(0,25).map(mapMovie);
+  });
+}
+function fetchRelHw(){
+  return tmdbGet("/discover/movie", {
+    with_original_language:"en", region:"US",
+    "primary_release_date.lte":localISO(), "primary_release_date.gte":yearsAgoISO(2),
+    sort_by:"primary_release_date.desc", with_release_type:"3",
+    "vote_count.gte":250, "vote_average.gte":6.0, page:1
+  }).then(function(j){
+    var cands=(j.results||[]).filter(function(m){ return m.release_date; }).slice(0,32).map(mapMovie);
+    return serialEach(cands, 200, function(m){
+      return omdbRating(m.title, m.year).then(function(r){ m.imdb = r; });
+    }).then(function(){
+      return cands.filter(function(m){ return typeof m.imdb==="number" && m.imdb>=7.0; })
+        .sort(function(a,b){ return b.imdb-a.imdb; }).slice(0,25);
+    });
+  });
+}
+function fetchMlOtt(){
+  return tmdbGet("/discover/movie", {
+    with_original_language:"ml", watch_region:"IN",
+    with_watch_monetization_types:"flatrate",
+    sort_by:"primary_release_date.desc",
+    "primary_release_date.lte":localISO(), "primary_release_date.gte":daysAgoISO(60), page:1
+  }).then(function(j){
+    var cands=(j.results||[]).filter(function(m){ return m.release_date; }).slice(0,22).map(mapMovie);
+    return serialEach(cands, 160, function(m){
+      return tmdbGet("/movie/"+m.id+"/watch/providers", {}).then(function(pj){
+        var IN=pj.results&&pj.results.IN;
+        m.providers=((IN&&IN.flatrate)||[]).map(function(p){ return p.provider_name; });
+      }).catch(function(){ m.providers=[]; });
+    }).then(function(){
+      return cands.filter(function(m){ return m.providers && m.providers.length; });
+    });
+  });
+}
+var FILM_FETCH={uphw:fetchUpHw, relhw:fetchRelHw, mlott:fetchMlOtt};
+function ensureFilms(key, force){
+  if(filmBusy[key]) return;
+  if(!tmdbKey()) return;
+  var c=filmCache[key];
+  if(!force && c && (Date.now()-c.t)<FILM_TTL[key]) return;
+  filmErr[key]=0; filmBusy[key]=1; filmsMaybeRender();
+  FILM_FETCH[key]().then(function(items){
+    filmCache[key]={t:Date.now(), items:items};
+    saveFilmCache(); delete filmBusy[key]; filmsMaybeRender();
+  }).catch(function(){ delete filmBusy[key]; filmErr[key]=1; filmsMaybeRender(); });
+}
+function filmsMaybeRender(){
+  if(section!=="films") return;
+  var ae=document.activeElement;
+  if(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+  document.getElementById("content").innerHTML=renderFilms();
+}
+function movieLinks(title,year){
+  var q=title+" "+(year||"");
+  return '<a class="btn" href="https://www.google.com/search?q='+encodeURIComponent(q+" movie")+'" target="_blank" rel="noopener">⌕ Google</a>'+
+         '<a class="btn" href="https://www.youtube.com/results?search_query='+encodeURIComponent(q+" trailer")+'" target="_blank" rel="noopener">▶ Trailer</a>';
+}
+function moviePoster(m){
+  return m.poster ? '<img class="cover" src="'+esc(m.poster)+'" alt="" loading="lazy">' : '<div class="cover ph">🎬</div>';
+}
+function movieCard(m, key){
+  var t0=today();
+  var meta="";
+  if(key==="uphw"){
+    var d=m.date?parseD(m.date):null, dl=d?daysBetween(t0,d):null;
+    meta='<b style="color:var(--text)">'+(m.date?fmt(m.date):"Date TBC")+'</b>'+
+      (dl!==null&&dl>=0?' <span style="color:#2D7FF9;font-weight:700">· in '+dl+' day'+(dl===1?"":"s")+'</span>':'');
+  } else if(key==="relhw"){
+    meta='<span class="prov imdb">IMDb '+(typeof m.imdb==="number"?m.imdb.toFixed(1):"—")+'</span> '+
+      (m.year||"")+(m.tmdb?' · TMDB '+m.tmdb:'');
+  } else {
+    meta='<b style="color:var(--text)">'+(m.date?fmt(m.date):"")+'</b><br>'+
+      (m.providers||[]).map(function(p){ return '<span class="prov">'+esc(p)+'</span>'; }).join("");
+  }
+  return '<div class="card"><div class="row">'+
+    moviePoster(m)+
+    '<div class="grow"><div class="gname">'+esc(m.title)+'</div>'+
+      '<div class="meta">'+meta+(m.overview?'<br><span style="color:var(--muted)">'+esc(m.overview.slice(0,160))+(m.overview.length>160?"…":"")+'</span>':'')+'</div>'+
+    '</div></div>'+
+    '<div class="actions">'+movieLinks(m.title,m.year)+
+      '<a class="btn" href="https://www.themoviedb.org/movie/'+m.id+'" target="_blank" rel="noopener">TMDB ↗</a>'+
+    '</div></div>';
+}
+function renderFilms(){
+  var key=filmTab;
+  var titles={uphw:"Upcoming Hollywood", relhw:"Released Hollywood", mlott:"Malayalam OTT Releases"};
+  var blurbs={
+    uphw:"Major upcoming Hollywood releases with official theatrical dates — refreshes automatically as new films are announced.",
+    relhw:"Recently released Hollywood films, critically acclaimed only — exact IMDb rating 7.0 and above.",
+    mlott:"New Malayalam movies on OTT (Prime Video, Hotstar/JioHotstar, Netflix, SonyLIV, ZEE5 and more), newest first."
+  };
+  var last=filmCache[key];
+  var html=
+    '<div class="toolbar" style="margin-top:14px">'+
+    '<button class="btn blue" data-act="film-refresh"'+(filmBusy[key]?' disabled':'')+'>'+(filmBusy[key]?"Updating…":"↻ Refresh from internet")+'</button>'+
+    '<span class="syncnote" style="align-self:center">'+(last?("Updated "+new Date(last.t).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})):"")+'</span>'+
+    '</div>'+
+    '<div class="meta" style="margin-bottom:10px">'+blurbs[key]+'</div>';
+
+  if(!tmdbKey()){
+    return html+'<div class="empty">Add your free <b>TMDB API key</b> in Settings (&#8943; menu → Settings) to load films.</div>';
+  }
+  if(key==="relhw" && !omdbKey()){
+    return html+'<div class="empty">Add your free <b>OMDb API key</b> in Settings for exact IMDb ratings on this tab.</div>';
+  }
+  if(filmBusy[key] && !last){
+    return html+'<div class="empty">Loading '+titles[key]+' from the internet'+(key==="relhw"?" (checking IMDb ratings, takes a few seconds)":key==="mlott"?" (checking streaming platforms)":"")+'…</div>';
+  }
+  if(filmErr[key] && !last){
+    return html+'<div class="empty">Couldn’t load — check your internet and API key, then <button class="btn" data-act="film-refresh">↻ Try again</button></div>';
+  }
+  var items=(last&&last.items)||[];
+  if(!items.length){
+    setTimeout(function(){ ensureFilms(key); },60);
+    return html+'<div class="empty">'+(filmBusy[key]?"Loading…":"Nothing to show yet — tap ↻ Refresh.")+'</div>';
+  }
+  setTimeout(function(){ ensureFilms(key); },60); // refresh silently if stale
+  html+='<div class="cards">';
+  items.forEach(function(m){ html+=movieCard(m,key); });
+  html+='</div>';
+  if(filmBusy[key]) html+='<div class="meta" style="margin-top:8px">Refreshing…</div>';
+  return html;
+}
+function switchFilmTab(next){
+  tabScroll["film:"+filmTab]=window.scrollY;
+  filmTab=next; try{ localStorage.setItem(FILMTAB_KEY,next); }catch(e){}
+  render();
+  window.scrollTo(0, tabScroll["film:"+next]||0);
+  ensureFilms(next);
+}
+function switchSection(s){
+  if(section===s) return;
+  if(section==="films") tabScroll["film:"+filmTab]=window.scrollY; else tabScroll[tab]=window.scrollY;
+  section=s; try{ localStorage.setItem(SECTION_KEY,s); }catch(e){}
+  expandedId=null;
+  [].forEach.call(document.querySelectorAll("#sectionSw button"),function(b){ b.classList.toggle("on", b.getAttribute("data-section")===s); });
+  render();
+  window.scrollTo(0, section==="films" ? (tabScroll["film:"+filmTab]||0) : (tabScroll[tab]||0));
+  if(section==="films") ensureFilms(filmTab);
+}
+document.getElementById("sectionSw").addEventListener("click",function(e){
+  var b=e.target.closest("[data-section]"); if(b) switchSection(b.getAttribute("data-section"));
+});
+
 /* ---------- actions ---------- */
 function byId(arr,id){ for(var i=0;i<arr.length;i++) if(arr[i].id===id) return arr[i]; return null; }
 function toggleSettings(force){
@@ -2082,6 +2320,8 @@ function toggleSettings(force){
   box.style.display=show?"block":"none";
   if(show){
     document.getElementById("apiKeyInput").value=getKey();
+    document.getElementById("tmdbKeyInput").value=tmdbKey();
+    document.getElementById("omdbKeyInput").value=omdbKey();
     document.getElementById("gdClientInput").value=gdClientId();
     gdSetStatus();
     var jb=getJB();
@@ -2094,6 +2334,8 @@ document.getElementById("menuBtn").addEventListener("click",function(){
   document.getElementById("menuPanel").classList.toggle("open");
 });
 document.getElementById("tabs").addEventListener("click",function(e){
+  var fb=e.target.closest("[data-ftab]");
+  if(fb){ switchFilmTab(fb.getAttribute("data-ftab")); return; }
   var b=e.target.closest("[data-tab]"); if(!b) return;
   switchTab(b.getAttribute("data-tab"));
 });
@@ -2130,6 +2372,16 @@ document.getElementById("gdSaveBtn").addEventListener("click",function(){
 });
 document.getElementById("gdSignInBtn").addEventListener("click",gdSignIn);
 document.getElementById("gdSignOutBtn").addEventListener("click",gdSignOut);
+document.getElementById("saveFilmKeysBtn").addEventListener("click",function(){
+  try{
+    localStorage.setItem(TMDB_KEY_STORE,document.getElementById("tmdbKeyInput").value.trim());
+    localStorage.setItem(OMDB_KEY_STORE,document.getElementById("omdbKeyInput").value.trim());
+  }catch(e){}
+  filmCache={}; saveFilmCache(); // force a fresh pull with the new keys
+  toggleSettings(false);
+  flash(tmdbKey()?"Film keys saved — open the Films section":"Film keys cleared");
+  if(section==="films"){ render(); ensureFilms(filmTab); }
+});
 
 document.getElementById("content").addEventListener("click",function(e){
   var vc=e.target.closest("[data-vendor]");
@@ -2141,6 +2393,7 @@ document.getElementById("content").addEventListener("click",function(e){
   var b=e.target.closest("[data-act]"); if(!b) return;
   var act=b.getAttribute("data-act"), id=b.getAttribute("data-id"), nm=b.getAttribute("data-name");
 
+  if(act==="film-refresh"){ ensureFilms(filmTab,true); return; }
   if(act==="toggle-form"){ formOpen[tab]=!formOpen[tab]; render(); }
   else if(act==="clear-search"){ searchQ[tab]=""; render(); }
   else if(act==="goto"){ switchTab(b.getAttribute("data-dest")||"rentals"); }
@@ -2663,6 +2916,7 @@ document.getElementById("themeBtn").addEventListener("click",function(){
 
 /* ---------- global refresh ---------- */
 function globalRefresh(){
+  if(section==="films"){ flash("Refreshing films from the internet…"); ensureFilms(filmTab,true); return; }
   plotPending={}; plotErr={};   // unstick any hung Wikipedia loads
   triedCovers={};               // let cover backfill retry everything
   flash("Refreshing — cloud sync, covers and artwork…");
@@ -2689,10 +2943,12 @@ document.addEventListener("touchend",function(e){
   swX=null;
   if(Date.now()-swT>600) return;                                 // slow drag, not a swipe
   if(Math.abs(dx)<70 || Math.abs(dx)<Math.abs(dy)*1.8) return;   // mostly vertical → scrolling
-  var i=TAB_ORDER.indexOf(tab); if(i<0) return;
+  var order = section==="films" ? FILM_ORDER : TAB_ORDER;
+  var cur = section==="films" ? filmTab : tab;
+  var i=order.indexOf(cur); if(i<0) return;
   var ni=i+(dx<0?1:-1);
-  if(ni<0 || ni>=TAB_ORDER.length) return;
-  switchTab(TAB_ORDER[ni]);
+  if(ni<0 || ni>=order.length) return;
+  if(section==="films") switchFilmTab(order[ni]); else switchTab(order[ni]);
 },{passive:true});
 
 /* ---------- back to top ---------- */
@@ -2720,7 +2976,9 @@ window.addEventListener("pageshow",function(e){
   if(e.persisted){ plotPending={}; render(); }
 });
 
+[].forEach.call(document.querySelectorAll("#sectionSw button"),function(b){ b.classList.toggle("on", b.getAttribute("data-section")===section); });
 render();
+if(section==="films") ensureFilms(filmTab);
 silentPullOnLoad();
 setTimeout(backfillImages,1500);
 </script>
