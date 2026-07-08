@@ -454,6 +454,7 @@ function migrate(d){
   if(!d.fandom) d.fandom = {}; // per-game saved Fandom reading spot (URL, keyed by norm name)
   if(!d.hubkeys) d.hubkeys = {}; // The Game Hub SKU cache (norm name → {sku,url,title})
   if(!d.upcomingRemoved) d.upcomingRemoved = []; // games removed from Upcoming — never re-added by refresh
+  if(!d.keys) d.keys = {}; // synced API keys (rawg, tmdb, omdb) — travel to every device via the cloud backup
   // v5: a game appears at most once per library — merge accidental duplicates
   d.played = dedupeList(d.played);
   d.playing = dedupeList(d.playing);
@@ -493,6 +494,39 @@ function save(){ persist(); render(); }
    another device and roll them back via cloud sync */
 function persistSilent(){
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
+}
+
+/* ---------- synced API keys (RAWG / TMDB / OMDb) ----------
+   Keys live in data.keys and ride the cloud backup to every device, so after a
+   Google sign-in (or a cache wipe + re-sign-in) they restore automatically.
+   The device-local getKey()/tmdbKey()/omdbKey() still read localStorage; these
+   helpers keep localStorage and data.keys in step. JSONBin's Master Key is
+   deliberately NOT synced (it's the one sensitive credential). */
+var SYNCED_KEYS={rawg:KEY_STORE, tmdb:"ps5-tmdb-key", omdb:"ps5-omdb-key"};
+function setSyncedKey(which, val){
+  var s=SYNCED_KEYS[which]; if(!s) return;
+  try{ localStorage.setItem(s, val); }catch(e){}
+  if(!data.keys) data.keys={};
+  data.keys[which]=val;
+  persist(); // a real change → pushes to the cloud with the rest of the vault
+}
+/* cloud → local: write synced keys into localStorage (after a pull / on load) */
+function applyKeysFromData(){
+  var k=data.keys; if(!k) return;
+  for(var w in SYNCED_KEYS){
+    if(typeof k[w]==="string" && k[w]){ try{ localStorage.setItem(SYNCED_KEYS[w], k[w]); }catch(e){} }
+  }
+}
+/* local → cloud: fold any pre-existing local keys into data.keys (no timestamp
+   bump) so they ride along on the next normal sync push */
+function backfillKeysToData(){
+  if(!data.keys) data.keys={};
+  var changed=false;
+  for(var w in SYNCED_KEYS){
+    var local=""; try{ local=localStorage.getItem(SYNCED_KEYS[w])||""; }catch(e){}
+    if(local && !data.keys[w]){ data.keys[w]=local; changed=true; }
+  }
+  if(changed) persistSilent();
 }
 
 var toastTimer = null, undoFn = null;
@@ -561,7 +595,7 @@ function jbPullCloud(){
   .then(function(json){
     var d=json.record;
     if(d&&d.rentals&&d.upcoming&&d.played){
-      data=migrate(d); busy=false; lastSyncedAt=data.updatedAt; render(); persist(); flash("Pulled from cloud — this device is up to date");
+      data=migrate(d); applyKeysFromData(); busy=false; lastSyncedAt=data.updatedAt; render(); persist(); flash("Pulled from cloud — this device is up to date");
     } else { busy=false; flash("Cloud data doesn't look like a Game Vault backup"); }
   })
   .catch(function(err){ busy=false; flash("Pull failed — check internet, Master Key and Bin ID"); });
@@ -612,7 +646,7 @@ function jbSilentPullOnLoad(){
     if(!d||!d.rentals||!d.upcoming||!d.played){ setSyncStatus(""); return; }
     var cloudTime=d.updatedAt||0, localTime=data.updatedAt||0;
     if(cloudTime>localTime || (vaultSize(data)===0 && vaultSize(d)>0)){
-      data=migrate(d);
+      data=migrate(d); applyKeysFromData();
       try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
       lastSyncedAt=data.updatedAt;
       render();
@@ -640,7 +674,12 @@ var GD_CLIENT_STORE="ps5-gd-client", GD_TOKEN_STORE="ps5-gd-token", GD_FILE_STOR
 var GD_FILENAME="game-vault-backup.json";
 var GD_SCOPE="https://www.googleapis.com/auth/drive.file";
 var gdTokenClient=null, gdRefreshing=false;
-function gdClientId(){ try{ return localStorage.getItem(GD_CLIENT_STORE)||""; }catch(e){ return ""; } }
+/* Baked-in Google OAuth Client ID (public by design — its security is the
+   Authorized JavaScript origins list, not secrecy). Lets a fresh/wiped device
+   connect Drive and pull everything back with no manual entry. A value saved
+   in Settings still overrides it. */
+var GD_CLIENT_DEFAULT="";
+function gdClientId(){ try{ return localStorage.getItem(GD_CLIENT_STORE)||GD_CLIENT_DEFAULT; }catch(e){ return GD_CLIENT_DEFAULT; } }
 function gdTok(){ try{ return JSON.parse(localStorage.getItem(GD_TOKEN_STORE)||"null"); }catch(e){ return null; } }
 function gdSaveTok(t){ try{ if(t) localStorage.setItem(GD_TOKEN_STORE,JSON.stringify(t)); else localStorage.removeItem(GD_TOKEN_STORE); }catch(e){} }
 function gdConnected(){ return !!(gdClientId() && gdTok()); }
@@ -797,7 +836,7 @@ function silentPullOnLoad(){
       // games must adopt a cloud copy that has them — never the reverse
       var mustAdopt = vaultSize(data)===0 && vaultSize(d)>0;
       if(cloudTime>localTime || mustAdopt){
-        data=migrate(d);
+        data=migrate(d); applyKeysFromData();
         try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
         lastSyncedAt=data.updatedAt;
         render();
@@ -835,7 +874,7 @@ function pullCloud(){
     if(!confirm("Replace the data on THIS device with the Google Drive copy?")) return;
     gdDownload().then(function(d){
       if(d && d.rentals && d.upcoming && d.played){
-        data=migrate(d); lastSyncedAt=data.updatedAt; render(); persist();
+        data=migrate(d); applyKeysFromData(); lastSyncedAt=data.updatedAt; render(); persist();
         flash("Pulled from Google Drive — this device is up to date");
       } else flash(d ? "Drive data doesn't look like a Game Vault backup" : "No backup in Drive yet — push first");
     }).catch(function(e){ flash("Drive pull failed — "+e.message); });
@@ -2413,9 +2452,9 @@ document.getElementById("stats").addEventListener("click",function(e){
 document.getElementById("settingsBtn").addEventListener("click",function(){ toggleSettings(); });
 document.getElementById("saveKeyBtn").addEventListener("click",function(){
   var v=document.getElementById("apiKeyInput").value.trim();
-  try{ localStorage.setItem(KEY_STORE,v); }catch(e){}
+  setSyncedKey("rawg", v);
   toggleSettings(false);
-  flash(v?"API key saved — covers, scores and refresh are live now":"API key cleared");
+  flash(v?"API key saved & synced — covers, scores and refresh are live now":"API key cleared");
   render();
   if(v) setTimeout(backfillImages,600);
 });
@@ -2439,13 +2478,11 @@ document.getElementById("gdSaveBtn").addEventListener("click",function(){
 document.getElementById("gdSignInBtn").addEventListener("click",gdSignIn);
 document.getElementById("gdSignOutBtn").addEventListener("click",gdSignOut);
 document.getElementById("saveFilmKeysBtn").addEventListener("click",function(){
-  try{
-    localStorage.setItem(TMDB_KEY_STORE,document.getElementById("tmdbKeyInput").value.trim());
-    localStorage.setItem(OMDB_KEY_STORE,document.getElementById("omdbKeyInput").value.trim());
-  }catch(e){}
+  setSyncedKey("tmdb", document.getElementById("tmdbKeyInput").value.trim());
+  setSyncedKey("omdb", document.getElementById("omdbKeyInput").value.trim());
   filmCache={}; saveFilmCache(); // force a fresh pull with the new keys
   toggleSettings(false);
-  flash(tmdbKey()?"Film keys saved — open the Films section":"Film keys cleared");
+  flash(tmdbKey()?"Film keys saved & synced — open the Films section":"Film keys cleared");
   if(section==="films"){ render(); ensureFilms(filmTab); }
 });
 
@@ -2955,7 +2992,7 @@ document.getElementById("importFile").addEventListener("change",function(e){
     try{
       var d=JSON.parse(reader.result);
       if(d&&d.rentals&&d.upcoming&&d.played){
-        data=migrate(d); save(); flash("Backup restored");
+        data=migrate(d); applyKeysFromData(); save(); flash("Backup restored");
       }
       else flash("That file isn't a Game Vault backup");
     }catch(err){ flash("Couldn't read that file"); }
@@ -3042,6 +3079,8 @@ window.addEventListener("pageshow",function(e){
   if(e.persisted){ plotPending={}; render(); }
 });
 
+applyKeysFromData();     // synced keys (from the cached vault) → localStorage
+backfillKeysToData();    // any pre-existing local keys → data.keys for future sync
 [].forEach.call(document.querySelectorAll("#sectionSw button"),function(b){ b.classList.toggle("on", b.getAttribute("data-section")===section); });
 render();
 if(section==="films") ensureFilms(filmTab);
