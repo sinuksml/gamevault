@@ -457,6 +457,7 @@ function migrate(d){
   if(!d.hubkeys) d.hubkeys = {}; // The Game Hub SKU cache (norm name → {sku,url,title})
   if(!d.upcomingRemoved) d.upcomingRemoved = []; // games removed from Upcoming — never re-added by refresh
   if(!d.keys) d.keys = {}; // synced API keys (rawg, tmdb, omdb) — travel to every device via the cloud backup
+  if(!d.watchedMovies) d.watchedMovies = []; // films marked Watched — hidden from lists forever, synced
   // v5: a game appears at most once per library — merge accidental duplicates
   d.played = dedupeList(d.played);
   d.playing = dedupeList(d.playing);
@@ -1295,7 +1296,7 @@ function switchTab(next){
 
 function renderTabs(){
   if(section==="films"){
-    var fd=[["uphw","△","Upcoming HW"],["relhw","★","Released HW"],["mlott","▶","Malayalam OTT"],["mlup","◇","Upcoming ML"]];
+    var fd=[["uphw","△","Upcoming HW"],["relhw","★","Released HW"],["mlott","▶","Malayalam OTT"],["mlup","◇","Upcoming ML"],["watched","✓","Watched"]];
     document.getElementById("tabs").innerHTML = fd.map(function(d){
       return '<button class="tab '+(filmTab===d[0]?"on":"")+'" data-ftab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
     }).join("");
@@ -2188,7 +2189,7 @@ try{ section=localStorage.getItem(SECTION_KEY)||"games"; }catch(e){}
 try{ filmTab=localStorage.getItem(FILMTAB_KEY)||"uphw"; }catch(e){}
 function tmdbKey(){ try{ return localStorage.getItem(TMDB_KEY_STORE)||""; }catch(e){ return ""; } }
 function omdbKey(){ try{ return localStorage.getItem(OMDB_KEY_STORE)||""; }catch(e){ return ""; } }
-var FILM_ORDER=["uphw","relhw","mlott","mlup"];
+var FILM_ORDER=["uphw","relhw","mlott","mlup","watched"];
 var FILM_TTL={uphw:24*3600*1000, relhw:24*3600*1000, mlott:6*3600*1000, mlup:6*3600*1000};
 var filmCache={}, filmBusy={}, filmErr={};
 try{ filmCache=JSON.parse(localStorage.getItem(FILM_CACHE_KEY)||"{}")||{}; }catch(e){ filmCache={}; }
@@ -2339,6 +2340,7 @@ function fetchMlUp(){
 }
 var FILM_FETCH={uphw:fetchUpHw, relhw:fetchRelHw, mlott:fetchMlOtt, mlup:fetchMlUp};
 function ensureFilms(key, force){
+  if(!FILM_FETCH[key]) return; // e.g. the Watched tab renders from the vault, no fetch
   if(filmBusy[key]) return;
   if(!tmdbKey()) return;
   var c=filmCache[key];
@@ -2369,6 +2371,30 @@ function mlReviewLinks(title){
 function moviePoster(m){
   return m.poster ? '<img class="cover" src="'+esc(m.poster)+'" alt="" loading="lazy">' : '<div class="cover ph">🎬</div>';
 }
+/* ---- movie Watched status (synced, never re-shown) ---- */
+function movieWatchKey(m){ return "tmdb:"+(m.id!=null?m.id:norm(m.title)); }
+function watchedMovieKeys(){ var s={}; (data.watchedMovies||[]).forEach(function(w){ s[w.key]=1; }); return s; }
+function isMovieWatched(m, set){ return !!(set||watchedMovieKeys())[movieWatchKey(m)]; }
+function markMovieWatched(m){
+  if(!m) return;
+  var key=movieWatchKey(m);
+  if(!data.watchedMovies) data.watchedMovies=[];
+  if(data.watchedMovies.some(function(w){return w.key===key;})) return;
+  data.watchedMovies.unshift({key:key, id:m.id, title:m.title, year:m.year||"", poster:m.poster||"",
+    imdb:(typeof m.imdb==="number"?m.imdb:null), imdbId:m.imdbId||null,
+    providers:m.providers||[], ottDate:m.ottDate||"", date:m.date||"", overview:m.overview||"", t:Date.now()});
+  save(); flash("Moved to Watched — it won’t show up again");
+}
+function unwatchMovie(key){
+  data.watchedMovies=(data.watchedMovies||[]).filter(function(w){return w.key!==key;});
+  save(); flash("Removed from Watched");
+}
+function findCachedMovie(id){
+  for(var k in filmCache){ var c=filmCache[k]; if(c&&c.items){ for(var i=0;i<c.items.length;i++){ if(String(c.items[i].id)===String(id)) return c.items[i]; } } }
+  return null;
+}
+var provChips=function(list){ return (list||[]).map(function(p){ return '<span class="prov">'+esc(p)+'</span>'; }).join(""); };
+
 function movieCard(m, key){
   var t0=today();
   var meta="";
@@ -2383,30 +2409,48 @@ function movieCard(m, key){
     var ud=m.ottDate?parseD(m.ottDate):null, udl=ud?daysBetween(t0,ud):null;
     meta=imdbBadge(m)+'<b style="color:#2D7FF9">OTT from '+(m.ottDate?fmt(m.ottDate):"date TBA")+'</b>'+
       (udl!==null&&udl>=0?' <span style="color:#2D7FF9;font-weight:700">· in '+udl+' day'+(udl===1?"":"s")+'</span>':'')+'<br>'+
-      ((m.providers&&m.providers.length)?m.providers.map(function(p){ return '<span class="prov">'+esc(p)+'</span>'; }).join(""):'<span class="prov">Platform to be announced</span>');
+      ((m.providers&&m.providers.length)?provChips(m.providers):'<span class="prov">Platform to be announced</span>');
+  } else if(key==="watched"){
+    meta=imdbBadge(m)+'<span style="color:#9AA6BC">✓ Watched'+((m.ottDate||m.date)?' · '+fmt(m.ottDate||m.date):'')+'</span>'+
+      ((m.providers&&m.providers.length)?'<br>'+provChips(m.providers):'');
   } else {
     meta=imdbBadge(m)+'<b style="color:#3ECF8E">Streaming since '+(m.ottDate?fmt(m.ottDate):(m.date?fmt(m.date):""))+'</b><br>'+
-      ((m.providers&&m.providers.length)?m.providers.map(function(p){ return '<span class="prov">'+esc(p)+'</span>'; }).join(""):'<span class="prov">On OTT</span>');
+      ((m.providers&&m.providers.length)?provChips(m.providers):'<span class="prov">On OTT</span>');
   }
+  var canWatch = (key==="relhw"||key==="mlott"||key==="mlup");
+  var actions='<div class="actions">';
+  if(key==="watched") actions+='<button class="btn blue" data-act="mv-unwatch" data-key="'+esc(m.key)+'">↩ Unwatch</button>';
+  else if(canWatch) actions+='<select class="selectmini mv-status" data-id="'+esc(String(m.id))+'"><option value="">Mark as…</option><option value="watched">✓ Watched</option></select>';
+  var showReviews = (key==="mlott"||key==="mlup"||(key==="watched"&&m.providers&&m.providers.length));
+  actions+=movieLinks(m.title,m.year)+imdbLink(m)+(showReviews?mlReviewLinks(m.title):"")+
+    '<a class="btn" href="https://www.themoviedb.org/movie/'+m.id+'" target="_blank" rel="noopener">TMDB ↗</a></div>';
   return '<div class="card"><div class="row">'+
     moviePoster(m)+
     '<div class="grow"><div class="gname">'+esc(m.title)+'</div>'+
       '<div class="meta">'+meta+(m.overview?'<br><span style="color:var(--muted)">'+esc(m.overview.slice(0,160))+(m.overview.length>160?"…":"")+'</span>':'')+'</div>'+
-    '</div></div>'+
-    '<div class="actions">'+movieLinks(m.title,m.year)+imdbLink(m)+
-      ((key==="mlott"||key==="mlup") ? mlReviewLinks(m.title) : "")+
-      '<a class="btn" href="https://www.themoviedb.org/movie/'+m.id+'" target="_blank" rel="noopener">TMDB ↗</a>'+
-    '</div></div>';
+    '</div></div>'+actions+'</div>';
 }
 function renderFilms(){
   var key=filmTab;
-  var titles={uphw:"Upcoming Hollywood", relhw:"Released Hollywood", mlott:"Malayalam OTT Releases", mlup:"Upcoming Malayalam OTT"};
+  var titles={uphw:"Upcoming Hollywood", relhw:"Released Hollywood", mlott:"Malayalam OTT Releases", mlup:"Upcoming Malayalam OTT", watched:"Watched Films"};
   var blurbs={
     uphw:"Major upcoming Hollywood releases with official theatrical dates — refreshes automatically as new films are announced.",
     relhw:"Recently released Hollywood films, critically acclaimed only — exact IMDb rating 7.0 and above.",
     mlott:"Latest Malayalam films now streaming on OTT in India (Prime Video, JioHotstar, Netflix, SonyLIV, ZEE5 and more), by OTT release date — newest first. No rating filter.",
-    mlup:"Confirmed upcoming Malayalam OTT premieres with their announced streaming date and platform, soonest first."
+    mlup:"Confirmed upcoming Malayalam OTT premieres with their announced streaming date and platform, soonest first.",
+    watched:"Films you’ve marked as watched. They’re hidden from every other tab and never come back on refresh — synced across your devices."
   };
+
+  // Watched tab: rendered straight from the synced vault, no internet needed
+  if(key==="watched"){
+    var wm=data.watchedMovies||[];
+    var wh='<div class="meta" style="margin:14px 0 10px">'+blurbs.watched+'</div>';
+    if(!wm.length) return wh+'<div class="empty">No watched films yet. On any film, pick <b>✓ Watched</b> from its dropdown to file it here.</div>';
+    wh+='<div class="cards">';
+    wm.forEach(function(m){ wh+=movieCard(m,"watched"); });
+    return wh+'</div>';
+  }
+
   var last=filmCache[key];
   var html=
     '<div class="toolbar" style="margin-top:14px">'+
@@ -2427,10 +2471,11 @@ function renderFilms(){
   if(filmErr[key] && !last){
     return html+'<div class="empty">Couldn’t load — check your internet and API key, then <button class="btn" data-act="film-refresh">↻ Try again</button></div>';
   }
-  var items=(last&&last.items)||[];
+  var wset=watchedMovieKeys();
+  var items=((last&&last.items)||[]).filter(function(m){ return !wset[movieWatchKey(m)]; }); // watched never re-appears
   if(!items.length){
     setTimeout(function(){ ensureFilms(key); },60);
-    return html+'<div class="empty">'+(filmBusy[key]?"Loading…":"Nothing to show yet — tap ↻ Refresh.")+'</div>';
+    return html+'<div class="empty">'+(filmBusy[key]?"Loading…":(last?"Nothing left here — everything shown is marked Watched.":"Nothing to show yet — tap ↻ Refresh."))+'</div>';
   }
   setTimeout(function(){ ensureFilms(key); },60); // refresh silently if stale
   html+='<div class="cards">';
@@ -2540,6 +2585,7 @@ document.getElementById("content").addEventListener("click",function(e){
   var act=b.getAttribute("data-act"), id=b.getAttribute("data-id"), nm=b.getAttribute("data-name");
 
   if(act==="film-refresh"){ ensureFilms(filmTab,true); return; }
+  if(act==="mv-unwatch"){ unwatchMovie(b.getAttribute("data-key")); return; }
   if(act==="toggle-form"){ formOpen[tab]=!formOpen[tab]; render(); }
   else if(act==="clear-search"){ searchQ[tab]=""; render(); }
   else if(act==="goto"){ switchTab(b.getAttribute("data-dest")||"rentals"); }
@@ -2817,6 +2863,11 @@ function handleVendorNew(sel){
 }
 
 document.getElementById("content").addEventListener("change",function(e){
+  var mv=e.target.closest(".mv-status");
+  if(mv){
+    if(mv.value==="watched"){ markMovieWatched(findCachedMovie(mv.getAttribute("data-id"))); }
+    return;
+  }
   var rn=e.target.closest(".r-note");
   if(rn){
     var rr1=byId(data.rentals,rn.getAttribute("data-id"));
