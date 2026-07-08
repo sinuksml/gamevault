@@ -2149,6 +2149,15 @@ function omdbRating(title, year){
     .then(function(j){ return (j&&j.imdbRating&&j.imdbRating!=="N/A") ? parseFloat(j.imdbRating) : null; })
     .catch(function(){ return null; });
 }
+/* OMDb rating by IMDb id (exact match — used for regional films where title lookup is unreliable) */
+function omdbRatingById(imdbId){
+  var k=omdbKey(); if(!k||!imdbId) return Promise.resolve(null);
+  return fetch("https://www.omdbapi.com/?apikey="+encodeURIComponent(k)+"&i="+encodeURIComponent(imdbId))
+    .then(function(r){ return r.json(); })
+    .then(function(j){ return (j&&j.imdbRating&&j.imdbRating!=="N/A") ? parseFloat(j.imdbRating) : null; })
+    .catch(function(){ return null; });
+}
+function imdbBadge(m){ return (typeof m.imdb==="number") ? '<span class="prov imdb">IMDb '+m.imdb.toFixed(1)+'</span> ' : ''; }
 /* run an async step over a list one at a time, with a small gap (rate-limit safe) */
 function serialEach(list, gap, fn){
   var i=0;
@@ -2208,7 +2217,13 @@ function enrichMlMovie(m, future){
       m.ottDate=pickOttDate(d, future);
       var wp=d["watch/providers"] && d["watch/providers"].results && d["watch/providers"].results.IN;
       m.providers=(((wp&&wp.flatrate)||[]).concat((wp&&wp.free)||[])).map(function(p){ return p.provider_name; });
-    }).catch(function(){ m.providers=m.providers||[]; });
+      m.imdbId=d.imdb_id||null;
+    })
+    .then(function(){
+      // add the IMDb rating when an OMDb key is set — display only, never filters ML
+      return omdbRatingById(m.imdbId).then(function(rt){ if(typeof rt==="number") m.imdb=rt; });
+    })
+    .catch(function(){ m.providers=m.providers||[]; });
 }
 /* Released: Malayalam films with a recent India OTT/digital release, newest OTT date first */
 function fetchMlOtt(){
@@ -2284,11 +2299,11 @@ function movieCard(m, key){
       (m.year||"")+(m.tmdb?' · TMDB '+m.tmdb:'');
   } else if(key==="mlup"){
     var ud=m.ottDate?parseD(m.ottDate):null, udl=ud?daysBetween(t0,ud):null;
-    meta='<b style="color:#2D7FF9">OTT from '+(m.ottDate?fmt(m.ottDate):"date TBA")+'</b>'+
+    meta=imdbBadge(m)+'<b style="color:#2D7FF9">OTT from '+(m.ottDate?fmt(m.ottDate):"date TBA")+'</b>'+
       (udl!==null&&udl>=0?' <span style="color:#2D7FF9;font-weight:700">· in '+udl+' day'+(udl===1?"":"s")+'</span>':'')+'<br>'+
       ((m.providers&&m.providers.length)?m.providers.map(function(p){ return '<span class="prov">'+esc(p)+'</span>'; }).join(""):'<span class="prov">Platform to be announced</span>');
   } else {
-    meta='<b style="color:#3ECF8E">Streaming since '+(m.ottDate?fmt(m.ottDate):(m.date?fmt(m.date):""))+'</b><br>'+
+    meta=imdbBadge(m)+'<b style="color:#3ECF8E">Streaming since '+(m.ottDate?fmt(m.ottDate):(m.date?fmt(m.date):""))+'</b><br>'+
       ((m.providers&&m.providers.length)?m.providers.map(function(p){ return '<span class="prov">'+esc(p)+'</span>'; }).join(""):'<span class="prov">On OTT</span>');
   }
   return '<div class="card"><div class="row">'+
