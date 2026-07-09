@@ -428,7 +428,10 @@ function load(){
 function vaultSize(d){
   return ((d&&d.played)||[]).length + ((d&&d.rentals)||[]).length +
          ((d&&d.rentalHistory)||[]).length + ((d&&d.queue)||[]).length +
-         ((d&&d.playing)||[]).length;
+         ((d&&d.playing)||[]).length + ((d&&d.movieWatchlist)||[]).length +
+         ((d&&d.watchedMovies)||[]).length + ((d&&d.hiddenMovies)||[]).length +
+         ((d&&d.seriesWatchlist)||[]).length + ((d&&d.watchedSeries)||[]).length +
+         ((d&&d.hiddenSeries)||[]).length;
 }
 /* Schema migrations: bump SCHEMA_VERSION when structure changes and add an
    upgrade step below. Old data is always upgraded in place, never recreated. */
@@ -460,9 +463,12 @@ function migrate(d){
   if(!d.keys) d.keys = {}; // synced API keys (rawg, tmdb, omdb) — travel to every device via the cloud backup
   if(!d.watchedMovies) d.watchedMovies = []; // films marked Watched — hidden from lists forever, synced
   if(!d.movieWatchlist) d.movieWatchlist = []; // personal movie watchlist, synced
+  if(!d.hiddenMovies) d.hiddenMovies = []; // films marked Not Interested, synced
   if(!d.watchedSeries) d.watchedSeries = []; // TV series marked Watched, synced
   if(!d.seriesWatchlist) d.seriesWatchlist = []; // personal TV series watchlist, synced
   if(!d.seriesRatings) d.seriesRatings = {}; // per-series preference ratings, synced
+  if(!d.hiddenSeries) d.hiddenSeries = []; // TV series marked Not Interested, synced
+  if(!d.aiChats) d.aiChats = {}; // saved AI assistant conversation links by title/service, synced
   // v5: a game appears at most once per library — merge accidental duplicates
   d.played = dedupeList(d.played);
   d.playing = dedupeList(d.playing);
@@ -1198,7 +1204,31 @@ try{ plotCache=JSON.parse(localStorage.getItem(PLOTS_KEY)||"{}")||{}; }catch(e){
 var plotPending={};
 var plotErr={};
 function savePlots(){ try{ localStorage.setItem(PLOTS_KEY, JSON.stringify(plotCache)); }catch(e){} }
-function plotKey(name, kind){ return (kind==="film"?"f:":kind==="TV series"?"tv:":"")+norm(name); }
+function pickWikiHit(results, name, kind){
+  results=results||[];
+  if(kind!=="film" && kind!=="TV series") return results[0]||null;
+  var yr=(String(name).match(/\b(19|20)\d{2}\b/)||[])[0]||"";
+  var clean=norm(String(name).replace(/\b(19|20)\d{2}\b/g,""));
+  var filtered=results.filter(function(h){
+    var t=h.title||"", nt=norm(t);
+    if(clean && nt.indexOf(clean)<0) return false;
+    var ty=t.match(/\b(19|20)\d{2}\b/g)||[];
+    if(yr && ty.length && ty.indexOf(yr)<0) return false;
+    return true;
+  });
+  if(!filtered.length) return null;
+  filtered.sort(function(a,b){
+    function score(h){
+      var t=h.title||"", lt=t.toLowerCase(), s=0;
+      if(yr && t.indexOf(yr)>-1) s+=8;
+      if(kind==="film" && lt.indexOf("film")>-1) s+=4;
+      if(t.indexOf("(")>-1) s+=1;
+      return -s;
+    }
+    return score(a)-score(b);
+  });
+  return filtered[0]||null;
+}
 function ensurePlot(name, kind){
   kind=kind||"video game";
   var k=plotKey(name,kind);
@@ -1207,9 +1237,9 @@ function ensurePlot(name, kind){
   var api="https://en.wikipedia.org/w/api.php";
   var articleTitle="";
   var timer=new Promise(function(_,rej){ setTimeout(function(){ rej(new Error("timeout")); },15000); });
-  var chain=rawgFetch(api+"?action=query&list=search&format=json&origin=*&srlimit=1&srsearch="+encodeURIComponent(name+" "+kind))
+  var chain=rawgFetch(api+"?action=query&list=search&format=json&origin=*&srlimit=6&srsearch="+encodeURIComponent(name+" "+kind))
   .then(function(j){
-    var hit=j.query&&j.query.search&&j.query.search[0];
+    var hit=pickWikiHit(j.query&&j.query.search,name,kind);
     if(!hit) throw new Error("no article");
     articleTitle=hit.title;
     return rawgFetch(api+"?action=query&prop=extracts&explaintext=1&redirects=1&format=json&origin=*&titles="+encodeURIComponent(hit.title));
@@ -1249,6 +1279,8 @@ function plotLinks(name, entry, kind){
   }
   if(kind==="film"){
     out+='<a href="https://www.google.com/search?q='+encodeURIComponent(name+" film plot")+'" target="_blank" rel="noopener">Google ↗</a></div>';
+  } else if(kind==="TV series"){
+    out+='<a href="https://www.google.com/search?q='+encodeURIComponent(name+" TV series plot")+'" target="_blank" rel="noopener">Google</a></div>';
   } else {
     out+='<a href="https://www.fandom.com/?s='+encodeURIComponent(name)+'" target="_blank" rel="noopener">Fandom ↗</a> · '+
          '<a href="https://gamefaqs.gamespot.com/search?game='+encodeURIComponent(name)+'" target="_blank" rel="noopener">GameFAQs ↗</a></div>';
@@ -1264,6 +1296,62 @@ function plotBlock(name, kind){
   if(typeof entry==="string") entry={p:entry,t:"",a:""};
   if(!entry.p) return '<div class="plot">No '+(kind==="film"?"plot":"story")+' section found on Wikipedia for this '+(kind==="film"?"film":"game")+' — try the sources below.'+plotLinks(name,entry,kind)+'</div>';
   return '<div class="plot">'+esc(entry.p)+plotLinks(name,entry,kind)+'</div>';
+}
+
+/* ---------- AI assistant launchers ---------- */
+var aiOpen=null;
+var AI_SERVICES=[
+  {id:"chatgpt", name:"ChatGPT", url:function(p){ return "https://chatgpt.com/?q="+encodeURIComponent(p); }},
+  {id:"claude", name:"Claude", url:function(p){ return "https://claude.ai/new?q="+encodeURIComponent(p); }},
+  {id:"grok", name:"Grok", url:function(p){ return "https://grok.com/?q="+encodeURIComponent(p); }},
+  {id:"deepseek", name:"DeepSeek", url:function(p){ return "https://chat.deepseek.com/?q="+encodeURIComponent(p); }}
+];
+function aiTitle(x){ return (x&&((x.title||x.name)+" "+(x.year?("("+x.year+")"):""))).trim(); }
+function aiKey(type,x){ return type+":"+(x&&x.id!=null?x.id:norm(aiTitle(x))); }
+function aiPrompt(type,x){
+  var t=aiTitle(x);
+  if(type==="game"){
+    return "I am planning to play "+t+". No spoilers for this game. What should I know before playing it? Should I play any previous games first? Is there important lore, story context, or a recap of previous games I should know? If this is a sequel, explain the prequel story so far, but do not spoil "+t+".";
+  }
+  var label=type==="series"?"TV series":"film";
+  return "I am planning to watch the "+label+" "+t+". No spoilers for this "+label+". What should I know before watching it? Are there any previous movies, series, seasons, or lore I should know first? Is it based on a true story or real events? If this is a sequel or a new season, explain the prequel story so far, but do not spoil "+t+".";
+}
+function aiSaved(key, service){ return data.aiChats && data.aiChats[key] && data.aiChats[key][service]; }
+function aiPanel(type,x){
+  var key=aiKey(type,x);
+  if(aiOpen!==key) return "";
+  var h='<div class="plot" style="white-space:normal"><b style="color:var(--text)">AI Assistant</b><div class="actions" style="margin-top:10px">';
+  AI_SERVICES.forEach(function(s){
+    var saved=aiSaved(key,s.id);
+    h+='<button class="btn '+(saved?'blue':'')+'" data-act="ai-launch" data-ai-type="'+type+'" data-id="'+esc(String(x.id))+'" data-service="'+s.id+'">'+(saved?'Continue ':'')+s.name+'</button>'+
+       '<button class="btn ghost" data-act="ai-save" data-ai-type="'+type+'" data-id="'+esc(String(x.id))+'" data-service="'+s.id+'">Save '+s.name+' link</button>';
+  });
+  h+='</div><div class="meta" style="margin-top:8px">First launch opens a prepared prompt. Save the chat link once to continue the same conversation later.</div></div>';
+  return h;
+}
+function aiFindItem(type,id){
+  if(type==="film") return findWatchlistMovie(id);
+  if(type==="series") return findWatchlistSeries(id);
+  if(type==="game") return byId(data.queue,id);
+  return null;
+}
+function aiLaunch(type,id,service){
+  var x=aiFindItem(type,id); if(!x) return;
+  var key=aiKey(type,x), saved=aiSaved(key,service);
+  var svc=AI_SERVICES.filter(function(s){ return s.id===service; })[0];
+  if(!svc) return;
+  window.open(saved||svc.url(aiPrompt(type,x)),"_blank","noopener");
+}
+function aiSaveLink(type,id,service){
+  var x=aiFindItem(type,id); if(!x) return;
+  var key=aiKey(type,x), cur=aiSaved(key,service)||"";
+  var url=prompt("Paste the "+service+" conversation link for "+aiTitle(x)+":", cur);
+  if(url===null) return;
+  url=url.trim();
+  if(!data.aiChats) data.aiChats={};
+  if(!data.aiChats[key]) data.aiChats[key]={};
+  if(url) data.aiChats[key][service]=url; else delete data.aiChats[key][service];
+  save(); flash(url?"AI conversation link saved":"AI conversation link cleared");
 }
 
 /* ---------- shared render helpers ---------- */
@@ -1308,14 +1396,14 @@ function switchTab(next){
 
 function renderTabs(){
   if(section==="series"){
-    var sd=[["enseries","*","English"],["mlseries","◇","Malayalam"],["taseries","○","Tamil"],["hiseries","△","Hindi"],["serieswatchlist","♡","Watchlist"],["serieswatched","✓","Watched"]];
+    var sd=[["serieswatchlist","♡","Watchlist"],["enseries","*","English"],["mlseries","◇","Malayalam"],["taseries","○","Tamil"],["hiseries","△","Hindi"],["serieswatched","✓","Watched"]];
     document.getElementById("tabs").innerHTML = sd.map(function(d){
       return '<button class="tab '+(seriesTab===d[0]?"on":"")+'" data-stab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
     }).join("");
     return;
   }
   if(section==="films"){
-    var fd=[["uphw","△","Upcoming HW"],["relhw","★","Released HW"],["mlott","▶","Malayalam OTT"],["mlup","◇","Upcoming ML"],["watchlist","♥","Watchlist"],["watched","✓","Watched"]];
+    var fd=[["watchlist","♥","Watchlist"],["uphw","△","Upcoming HW"],["relhw","★","Released HW"],["mlott","▶","Malayalam OTT"],["mlup","◇","Upcoming ML"],["watched","✓","Watched"]];
     document.getElementById("tabs").innerHTML = fd.map(function(d){
       return '<button class="tab '+(filmTab===d[0]?"on":"")+'" data-ftab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
     }).join("");
@@ -1809,9 +1897,11 @@ function renderQueue(){
       (i<last?'<button class="btn" data-act="q-bottom" data-id="'+q1.id+'" title="Move to bottom">⤓ Bottom</button>':'')+
       '<button class="btn blue" data-act="q-rent" data-id="'+q1.id+'">Start rental →</button>'+
       '<button class="btn" data-act="q-avail-check" data-id="'+q1.id+'">⟳ Availability</button>'+
+      '<button class="btn" data-act="ai-open" data-ai-type="game" data-id="'+q1.id+'">AI Assistant</button>'+
       linkBtns(q1.name)+
       '<button class="btn ghost danger" data-act="q-del" data-id="'+q1.id+'">Remove</button>'+
     '</div>'+
+    aiPanel("game",q1)+
     availHtml(q1)+
     '<div class="inline-edit"><span class="syncnote" style="align-self:center">Available from:</span>'+
     '<input class="note-inp q-avail" data-id="'+q1.id+'" type="date" value="'+esc(q1.avail||"")+'" style="flex:0 1 150px">'+
@@ -2203,12 +2293,12 @@ function render(){
    (filtered to exact IMDb >= 7.0 via OMDb), and weekly Malayalam OTT. */
 var TMDB_KEY_STORE="ps5-tmdb-key", OMDB_KEY_STORE="ps5-omdb-key";
 var SECTION_KEY="ps5-section", FILMTAB_KEY="ps5-filmtab", FILM_CACHE_KEY="ps5-films-cache";
-var section="games", filmTab="uphw";
+var section="games", filmTab="watchlist";
 try{ section=localStorage.getItem(SECTION_KEY)||"games"; }catch(e){}
-try{ filmTab=localStorage.getItem(FILMTAB_KEY)||"uphw"; }catch(e){}
+try{ filmTab=localStorage.getItem(FILMTAB_KEY)||"watchlist"; }catch(e){}
 function tmdbKey(){ try{ return localStorage.getItem(TMDB_KEY_STORE)||""; }catch(e){ return ""; } }
 function omdbKey(){ try{ return localStorage.getItem(OMDB_KEY_STORE)||""; }catch(e){ return ""; } }
-var FILM_ORDER=["uphw","relhw","mlott","mlup","watchlist","watched"];
+var FILM_ORDER=["watchlist","uphw","relhw","mlott","mlup","watched"];
 var FILM_TTL={uphw:24*3600*1000, relhw:24*3600*1000, mlott:6*3600*1000, mlup:6*3600*1000};
 var filmCache={}, filmBusy={}, filmErr={};
 try{ filmCache=JSON.parse(localStorage.getItem(FILM_CACHE_KEY)||"{}")||{}; }catch(e){ filmCache={}; }
@@ -2394,6 +2484,8 @@ function moviePoster(m){
 function movieWatchKey(m){ return "tmdb:"+(m.id!=null?m.id:norm(m.title)); }
 function watchedMovieKeys(){ var s={}; (data.watchedMovies||[]).forEach(function(w){ s[w.key]=1; }); return s; }
 function isMovieWatched(m, set){ return !!(set||watchedMovieKeys())[movieWatchKey(m)]; }
+function hiddenMovieKeys(){ var s={}; (data.hiddenMovies||[]).forEach(function(w){ s[w.key]=1; }); return s; }
+function moviePlotName(m){ return m.title+(m.year?(" "+m.year):""); }
 function markMovieWatched(m){
   if(!m) return;
   var key=movieWatchKey(m);
@@ -2408,9 +2500,28 @@ function unwatchMovie(key){
   data.watchedMovies=(data.watchedMovies||[]).filter(function(w){return w.key!==key;});
   save(); flash("Removed from Watched");
 }
+function hideMovie(m){
+  if(!m) return;
+  var key=movieWatchKey(m);
+  if(!data.hiddenMovies) data.hiddenMovies=[];
+  data.movieWatchlist=(data.movieWatchlist||[]).filter(function(x){ return movieWatchKey(x)!==key; });
+  if(!data.hiddenMovies.some(function(x){ return x.key===key; })){
+    data.hiddenMovies.unshift({key:key, id:m.id, title:m.title, year:m.year||"", poster:m.poster||"",
+      imdb:(typeof m.imdb==="number"?m.imdb:null), imdbId:m.imdbId||null, tmdb:m.tmdb||null,
+      providers:m.providers||[], ottDate:m.ottDate||"", date:m.date||"", overview:m.overview||"", t:Date.now()});
+  }
+  save(); flash("Moved to Not Interested");
+}
+function unhideMovie(key){
+  data.hiddenMovies=(data.hiddenMovies||[]).filter(function(x){ return x.key!==key; });
+  save(); flash("Restored");
+}
 function findCachedMovie(id){
   for(var k in filmCache){ var c=filmCache[k]; if(c&&c.items){ for(var i=0;i<c.items.length;i++){ if(String(c.items[i].id)===String(id)) return c.items[i]; } } }
   return null;
+}
+function findMovieAny(id){
+  return findSearchMovie(id)||findWatchlistMovie(id)||findCachedMovie(id)||(data.hiddenMovies||[]).filter(function(x){ return String(x.id)===String(id); })[0]||null;
 }
 var provChips=function(list){ return (list||[]).map(function(p){ return '<span class="prov">'+esc(p)+'</span>'; }).join(""); };
 
@@ -2439,6 +2550,7 @@ function inWatchlist(m){ return (data.movieWatchlist||[]).some(function(x){ retu
 function addToWatchlist(m){
   if(!m) return;
   if(!data.movieWatchlist) data.movieWatchlist=[];
+  data.hiddenMovies=(data.hiddenMovies||[]).filter(function(x){ return movieWatchKey(x)!==movieWatchKey(m); });
   if(inWatchlist(m)){ flash("Already in your watchlist"); return; }
   data.movieWatchlist.unshift({id:m.id, title:m.title, year:m.year||"", poster:m.poster||"",
     imdb:(typeof m.imdb==="number"?m.imdb:null), imdbId:m.imdbId||null, tmdb:m.tmdb||null, overview:m.overview||"", added:Date.now()});
@@ -2448,13 +2560,16 @@ function removeFromWatchlist(id){
   data.movieWatchlist=(data.movieWatchlist||[]).filter(function(x){ return String(x.id)!==String(id); });
   save(); flash("Removed from watchlist");
 }
+function movieMoreMenu(m){
+  return '<select class="selectmini mv-more" data-id="'+esc(String(m.id))+'"><option value="">More...</option><option value="watchlist">Add to Watchlist</option><option value="hide">Not Interested</option></select>';
+}
 function watchlistSearchCard(m){
   var already=inWatchlist(m);
   return '<div class="card"><div class="row">'+moviePoster(m)+
     '<div class="grow"><div class="gname">'+esc(m.title)+'</div>'+
       '<div class="meta">'+(m.year||"")+(m.tmdb?' · TMDB '+m.tmdb:'')+(m.overview?'<br><span style="color:var(--muted)">'+esc(m.overview.slice(0,120))+(m.overview.length>120?"…":"")+'</span>':'')+'</div></div>'+
       (already?'<span class="chip fin">✓ In list</span>':'<button class="btn blue" data-act="mw-add" data-id="'+esc(String(m.id))+'">+ Add</button>')+
-    '</div></div>';
+    '</div><div class="actions">'+movieMoreMenu(m)+'</div></div>';
 }
 function watchlistCard(m){
   var open=String(filmExpanded)===String(m.id);
@@ -2466,9 +2581,12 @@ function watchlistCard(m){
     '</div>';
   if(open){
     if(m.poster) h+='<img class="cover lg" src="'+esc(m.poster)+'" alt="" loading="lazy">';
-    h+=plotBlock(m.title,"film");
+    h+=plotBlock(moviePlotName(m),"film");
+    h+=aiPanel("film",m);
   }
   h+='<div class="actions">'+movieLinks(m.title,m.year)+imdbLink(m)+
+    '<button class="btn" data-act="ai-open" data-ai-type="film" data-id="'+esc(String(m.id))+'">AI Assistant</button>'+
+    movieMoreMenu(m)+
     '<button class="btn" data-act="mw-watched" data-id="'+esc(String(m.id))+'">✓ Watched</button>'+
     '<button class="btn ghost danger" data-act="mw-remove" data-id="'+esc(String(m.id))+'">Remove</button>'+
   '</div></div>';
@@ -2501,6 +2619,7 @@ function movieCard(m, key){
   var actions='<div class="actions">';
   if(key==="watched") actions+='<button class="btn blue" data-act="mv-unwatch" data-key="'+esc(m.key)+'">↩ Unwatch</button>';
   else if(canWatch) actions+='<select class="selectmini mv-status" data-id="'+esc(String(m.id))+'"><option value="">Mark as…</option><option value="watched">✓ Watched</option></select>';
+  if(key!=="watched") actions+=movieMoreMenu(m);
   var showReviews = (key==="mlott"||key==="mlup"||(key==="watched"&&m.providers&&m.providers.length));
   actions+=movieLinks(m.title,m.year)+imdbLink(m)+(showReviews?mlReviewLinks(m.title):"")+
     '<a class="btn" href="https://www.themoviedb.org/movie/'+m.id+'" target="_blank" rel="noopener">TMDB ↗</a></div>';
@@ -2525,6 +2644,8 @@ function renderFilms(){
   // Watchlist tab: internet search + personal list, from the synced vault
   if(key==="watchlist"){
     var wl=data.movieWatchlist||[];
+    var hidden=data.hiddenMovies||[];
+    var hset=hiddenMovieKeys();
     var wh='<div class="toolbar" style="margin-top:14px"><div class="searchwrap"><span class="sic">⌕</span>'+
       '<input class="tab-search" id="mwSearch" placeholder="Search any movie to add…" value="'+esc(movieSearchQ)+'" autocomplete="off">'+
       (movieSearchQ?'<button class="sclear" data-act="mw-clear" title="Clear">✕</button>':'')+'</div></div>'+
@@ -2534,11 +2655,18 @@ function renderFilms(){
       wh+='<div class="sechead">Search results</div>';
       if(movieSearchBusy && !movieSearchItems.length) wh+='<div class="empty">Searching the internet…</div>';
       else if(!movieSearchItems.length) wh+='<div class="empty">No movies match “'+esc(movieSearchQ)+'”.</div>';
-      else{ wh+='<div class="cards">'; movieSearchItems.forEach(function(m){ wh+=watchlistSearchCard(m); }); wh+='</div>'; }
+      else{ wh+='<div class="cards">'; movieSearchItems.filter(function(m){ return !hset[movieWatchKey(m)]; }).forEach(function(m){ wh+=watchlistSearchCard(m); }); wh+='</div>'; }
     }
     wh+='<div class="sechead">My Watchlist · '+wl.length+'</div>';
     if(!wl.length) wh+='<div class="empty">Your movie watchlist is empty. Search above and tap <b>+ Add</b>. Tap a saved film to read its plot.</div>';
     else{ wh+='<div class="cards">'; wl.forEach(function(m){ wh+=watchlistCard(m); }); wh+='</div>'; }
+    if(hidden.length){
+      wh+='<div class="sechead">Not Interested · '+hidden.length+'</div><div class="cards">';
+      hidden.forEach(function(m){
+        wh+='<div class="card hist"><div class="row">'+moviePoster(m)+'<div class="grow"><div class="gname">'+esc(m.title)+'</div><div class="meta">'+(m.year||"")+'</div></div><button class="btn blue" data-act="mv-unhide" data-key="'+esc(m.key)+'">Restore</button></div></div>';
+      });
+      wh+='</div>';
+    }
     return wh;
   }
 
@@ -2573,7 +2701,8 @@ function renderFilms(){
     return html+'<div class="empty">Couldn’t load — check your internet and API key, then <button class="btn" data-act="film-refresh">↻ Try again</button></div>';
   }
   var wset=watchedMovieKeys();
-  var items=((last&&last.items)||[]).filter(function(m){ return !wset[movieWatchKey(m)]; }); // watched never re-appears
+  var hset2=hiddenMovieKeys();
+  var items=((last&&last.items)||[]).filter(function(m){ return !wset[movieWatchKey(m)] && !hset2[movieWatchKey(m)]; }); // watched/hidden never re-appear
   if(!items.length){
     setTimeout(function(){ ensureFilms(key); },60);
     return html+'<div class="empty">'+(filmBusy[key]?"Loading…":(last?"Nothing left here — everything shown is marked Watched.":"Nothing to show yet — tap ↻ Refresh."))+'</div>';
@@ -2589,9 +2718,9 @@ function renderFilms(){
    Public lists cache locally; personal watchlist, watched state and ratings
    live in the synced vault beside the game and film data. */
 var SERIESTAB_KEY="ps5-seriestab", SERIES_CACHE_KEY="ps5-series-cache";
-var seriesTab="enseries";
-try{ seriesTab=localStorage.getItem(SERIESTAB_KEY)||"enseries"; }catch(e){}
-var SERIES_ORDER=["enseries","mlseries","taseries","hiseries","serieswatchlist","serieswatched"];
+var seriesTab="serieswatchlist";
+try{ seriesTab=localStorage.getItem(SERIESTAB_KEY)||"serieswatchlist"; }catch(e){}
+var SERIES_ORDER=["serieswatchlist","enseries","mlseries","taseries","hiseries","serieswatched"];
 var SERIES_TTL={enseries:24*3600*1000, mlseries:24*3600*1000, taseries:24*3600*1000, hiseries:24*3600*1000};
 var seriesCache={}, seriesBusy={}, seriesErr={};
 try{ seriesCache=JSON.parse(localStorage.getItem(SERIES_CACHE_KEY)||"{}")||{}; }catch(e){ seriesCache={}; }
@@ -2600,7 +2729,7 @@ function mapSeries(s){
   return { id:s.id, title:s.name||s.original_name||"Untitled",
     date:s.first_air_date||"", year:(s.first_air_date||"").slice(0,4),
     overview:s.overview||"", tmdb:Math.round((s.vote_average||0)*10)/10,
-    votes:s.vote_count||0, genres:s.genre_ids||[],
+    votes:s.vote_count||0, popularity:s.popularity||0, genres:s.genre_ids||[],
     poster:s.poster_path?("https://image.tmdb.org/t/p/w185"+s.poster_path):"" };
 }
 function enrichSeriesIds(s){
@@ -2611,20 +2740,36 @@ function enrichSeriesIds(s){
     return omdbRatingById(s.imdbId).then(function(rt){ if(typeof rt==="number") s.imdb=rt; });
   }).catch(function(){});
 }
-function fetchSeriesLang(lang, minVotes, minRating, sortBy){
-  return tmdbGet("/discover/tv", {
-    with_original_language:lang, "first_air_date.lte":localISO(),
-    sort_by:sortBy||"popularity.desc", "vote_count.gte":minVotes,
-    "vote_average.gte":minRating, page:1
-  }).then(function(j){
-    var cands=(j.results||[]).filter(function(s){ return s.name && s.first_air_date; }).slice(0,28).map(mapSeries);
-    return serialEach(cands.slice(0,16), 120, enrichSeriesIds).then(function(){ return cands; });
+function fetchSeriesLang(lang, minVotes, minRating, sortBy, pages){
+  pages=pages||1;
+  var calls=[];
+  for(var pg=1; pg<=pages; pg++){
+    calls.push(tmdbGet("/discover/tv", {
+      with_original_language:lang, "first_air_date.lte":localISO(),
+      sort_by:sortBy||"popularity.desc", "vote_count.gte":minVotes,
+      "vote_average.gte":minRating, page:pg
+    }).catch(function(){ return {results:[]}; }));
+  }
+  return Promise.all(calls).then(function(all){
+    var seen={}, cands=[];
+    all.forEach(function(j){
+      (j.results||[]).forEach(function(s){
+        if(!s.name || !s.first_air_date || seen[s.id]) return;
+        seen[s.id]=1; cands.push(mapSeries(s));
+      });
+    });
+    cands.sort(function(a,b){
+      function sc(x){ return (x.tmdb||0)*8 + Math.log((x.votes||0)+1)*3 + Math.min(35, (x.popularity||0)); }
+      return sc(b)-sc(a);
+    });
+    cands=cands.slice(0,45);
+    return serialEach(cands.slice(0,24), 120, enrichSeriesIds).then(function(){ return cands; });
   });
 }
-function fetchEnSeries(){ return fetchSeriesLang("en", 350, 7.2, "vote_average.desc").then(rankEnglishSeries); }
-function fetchMlSeries(){ return fetchSeriesLang("ml", 5, 6.5, "popularity.desc"); }
-function fetchTaSeries(){ return fetchSeriesLang("ta", 20, 7.0, "popularity.desc"); }
-function fetchHiSeries(){ return fetchSeriesLang("hi", 40, 7.0, "popularity.desc"); }
+function fetchEnSeries(){ return fetchSeriesLang("en", 350, 7.2, "vote_average.desc", 2).then(rankEnglishSeries); }
+function fetchMlSeries(){ return fetchSeriesLang("ml", 1, 5.5, "popularity.desc", 5); }
+function fetchTaSeries(){ return fetchSeriesLang("ta", 5, 6.0, "popularity.desc", 5); }
+function fetchHiSeries(){ return fetchSeriesLang("hi", 20, 6.5, "popularity.desc", 4); }
 var SERIES_FETCH={enseries:fetchEnSeries, mlseries:fetchMlSeries, taseries:fetchTaSeries, hiseries:fetchHiSeries};
 function ensureSeries(key, force){
   if(!SERIES_FETCH[key]) return;
@@ -2649,9 +2794,14 @@ function seriesPoster(s){
 }
 function seriesKey(s){ return "tmdbtv:"+(s.id!=null?s.id:norm(s.title)); }
 function watchedSeriesKeys(){ var out={}; (data.watchedSeries||[]).forEach(function(s){ out[s.key]=1; }); return out; }
+function hiddenSeriesKeys(){ var out={}; (data.hiddenSeries||[]).forEach(function(s){ out[s.key]=1; }); return out; }
+function seriesPlotName(s){ return s.title+(s.year?(" "+s.year):""); }
 function findCachedSeries(id){
   for(var k in seriesCache){ var c=seriesCache[k]; if(c&&c.items){ for(var i=0;i<c.items.length;i++){ if(String(c.items[i].id)===String(id)) return c.items[i]; } } }
   return null;
+}
+function findSeriesAny(id){
+  return findSearchSeries(id)||findWatchlistSeries(id)||findCachedSeries(id)||(data.hiddenSeries||[]).filter(function(x){ return String(x.id)===String(id); })[0]||null;
 }
 function seriesRating(s){ return (data.seriesRatings||{})[seriesKey(s)]||0; }
 function setSeriesRating(s,n){
@@ -2704,6 +2854,25 @@ function unwatchSeries(key){
   data.watchedSeries=(data.watchedSeries||[]).filter(function(s){ return s.key!==key; });
   save(); flash("Removed from Watched");
 }
+function hideSeries(s){
+  if(!s) return;
+  var key=seriesKey(s);
+  if(!data.hiddenSeries) data.hiddenSeries=[];
+  data.seriesWatchlist=(data.seriesWatchlist||[]).filter(function(x){ return seriesKey(x)!==key; });
+  if(!data.hiddenSeries.some(function(x){ return x.key===key; })){
+    data.hiddenSeries.unshift({key:key, id:s.id, title:s.title, year:s.year||"", poster:s.poster||"",
+      imdb:(typeof s.imdb==="number"?s.imdb:null), imdbId:s.imdbId||null, tmdb:s.tmdb||null,
+      date:s.date||"", overview:s.overview||"", genres:s.genres||[], seasons:s.seasons||"", t:Date.now()});
+  }
+  save(); flash("Moved to Not Interested");
+}
+function unhideSeries(key){
+  data.hiddenSeries=(data.hiddenSeries||[]).filter(function(s){ return s.key!==key; });
+  save(); flash("Restored");
+}
+function seriesMoreMenu(s){
+  return '<select class="selectmini sr-more" data-id="'+esc(String(s.id))+'"><option value="">More...</option><option value="watchlist">Add to Watchlist</option><option value="hide">Not Interested</option></select>';
+}
 function seriesLinks(title,year){
   var q=title+" "+(year||"");
   return '<a class="btn" href="https://www.google.com/search?q='+encodeURIComponent(q+" TV series")+'" target="_blank" rel="noopener">⌕ Google</a>'+
@@ -2736,12 +2905,14 @@ function seriesCard(s, key){
     '</div>';
   if(open){
     if(s.poster) h+='<img class="cover lg" src="'+esc(s.poster)+'" alt="" loading="lazy">';
-    h+=plotBlock(s.title,"TV series");
+    h+=plotBlock(seriesPlotName(s),"TV series");
+    if(key==="serieswatchlist") h+=aiPanel("series",s);
   }
   h+='<div class="actions">';
   if(key==="serieswatched") h+='<button class="btn blue" data-act="sr-unwatch" data-key="'+esc(s.key)+'">↩ Unwatch</button>';
   else if(canWatch) h+='<select class="selectmini sr-status" data-id="'+esc(String(s.id))+'"><option value="">Mark as...</option><option value="watched">✓ Watched</option></select>';
-  h+=seriesLinks(s.title,s.year)+seriesImdbLink(s)+'<a class="btn" href="https://www.themoviedb.org/tv/'+s.id+'" target="_blank" rel="noopener">TMDB ↗</a>';
+  if(key!=="serieswatched") h+=seriesMoreMenu(s);
+  h+=seriesLinks(s.title,s.year)+seriesImdbLink(s)+(key==="serieswatchlist"?'<button class="btn" data-act="ai-open" data-ai-type="series" data-id="'+esc(String(s.id))+'">AI Assistant</button>':'')+'<a class="btn" href="https://www.themoviedb.org/tv/'+s.id+'" target="_blank" rel="noopener">TMDB ↗</a>';
   if(key==="serieswatchlist") h+='<button class="btn ghost danger" data-act="sw-remove" data-id="'+esc(String(s.id))+'">Remove</button>';
   h+='</div></div>';
   return h;
@@ -2771,6 +2942,7 @@ function inSeriesWatchlist(s){ return (data.seriesWatchlist||[]).some(function(x
 function addSeriesWatchlist(s){
   if(!s) return;
   if(!data.seriesWatchlist) data.seriesWatchlist=[];
+  data.hiddenSeries=(data.hiddenSeries||[]).filter(function(x){ return seriesKey(x)!==seriesKey(s); });
   if(inSeriesWatchlist(s)){ flash("Already in your series watchlist"); return; }
   data.seriesWatchlist.unshift({id:s.id, title:s.title, year:s.year||"", poster:s.poster||"",
     imdb:(typeof s.imdb==="number"?s.imdb:null), imdbId:s.imdbId||null, tmdb:s.tmdb||null,
@@ -2787,7 +2959,7 @@ function seriesSearchCard(s){
     '<div class="grow"><div class="gname">'+esc(s.title)+'</div>'+
       '<div class="meta">'+(s.year||"")+(s.tmdb?' - TMDB '+s.tmdb:'')+(s.overview?'<br><span style="color:var(--muted)">'+esc(s.overview.slice(0,120))+(s.overview.length>120?"...":"")+'</span>':'')+'</div></div>'+
       (already?'<span class="chip fin">✓ In list</span>':'<button class="btn blue" data-act="sw-add" data-id="'+esc(String(s.id))+'">+ Add</button>')+
-    '</div></div>';
+    '</div><div class="actions">'+seriesMoreMenu(s)+'</div></div>';
 }
 function renderSeries(){
   var key=seriesTab;
@@ -2801,6 +2973,8 @@ function renderSeries(){
   };
   if(key==="serieswatchlist"){
     var wl=data.seriesWatchlist||[];
+    var hidden=data.hiddenSeries||[];
+    var hset=hiddenSeriesKeys();
     var wh='<div class="toolbar" style="margin-top:14px"><div class="searchwrap"><span class="sic">⌕</span>'+
       '<input class="tab-search" id="swSearch" placeholder="Search any TV series to add..." value="'+esc(seriesSearchQ)+'" autocomplete="off">'+
       (seriesSearchQ?'<button class="sclear" data-act="sw-clear" title="Clear">×</button>':'')+'</div></div>'+
@@ -2810,11 +2984,18 @@ function renderSeries(){
       wh+='<div class="sechead">Search results</div>';
       if(seriesSearchBusy && !seriesSearchItems.length) wh+='<div class="empty">Searching the internet...</div>';
       else if(!seriesSearchItems.length) wh+='<div class="empty">No series match "'+esc(seriesSearchQ)+'".</div>';
-      else{ wh+='<div class="cards">'; seriesSearchItems.forEach(function(s){ wh+=seriesSearchCard(s); }); wh+='</div>'; }
+      else{ wh+='<div class="cards">'; seriesSearchItems.filter(function(s){ return !hset[seriesKey(s)]; }).forEach(function(s){ wh+=seriesSearchCard(s); }); wh+='</div>'; }
     }
     wh+='<div class="sechead">My Series Watchlist - '+wl.length+'</div>';
     if(!wl.length) wh+='<div class="empty">Your series watchlist is empty. Search above and tap <b>+ Add</b>.</div>';
     else{ wh+='<div class="cards">'; wl.forEach(function(s){ wh+=seriesCard(s,"serieswatchlist"); }); wh+='</div>'; }
+    if(hidden.length){
+      wh+='<div class="sechead">Not Interested · '+hidden.length+'</div><div class="cards">';
+      hidden.forEach(function(s){
+        wh+='<div class="card hist"><div class="row">'+seriesPoster(s)+'<div class="grow"><div class="gname">'+esc(s.title)+'</div><div class="meta">'+(s.year||"")+'</div></div><button class="btn blue" data-act="sr-unhide" data-key="'+esc(s.key)+'">Restore</button></div></div>';
+      });
+      wh+='</div>';
+    }
     return wh;
   }
   if(key==="serieswatched"){
@@ -2832,7 +3013,8 @@ function renderSeries(){
   if(seriesBusy[key] && !last) return html+'<div class="empty">Loading series from the internet...</div>';
   if(seriesErr[key] && !last) return html+'<div class="empty">Could not load - check your internet and API key, then <button class="btn" data-act="series-refresh">↻ Try again</button></div>';
   var wset=watchedSeriesKeys();
-  var items=((last&&last.items)||[]).filter(function(s){ return !wset[seriesKey(s)]; });
+  var hset2=hiddenSeriesKeys();
+  var items=((last&&last.items)||[]).filter(function(s){ return !wset[seriesKey(s)] && !hset2[seriesKey(s)]; });
   if(key==="enseries") items=rankEnglishSeries(items);
   if(!items.length){
     setTimeout(function(){ ensureSeries(key); },60);
@@ -2965,7 +3147,7 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="mw-toggle"){
     filmExpanded = String(filmExpanded)===String(id) ? null : id;
     var wm=findWatchlistMovie(id);
-    if(filmExpanded && wm) ensurePlot(wm.title,"film");
+    if(filmExpanded && wm) ensurePlot(moviePlotName(wm),"film");
     render(); return;
   }
   if(act==="mw-watched"){
@@ -2973,11 +3155,21 @@ document.getElementById("content").addEventListener("click",function(e){
     if(wmv){ removeFromWatchlist(id); markMovieWatched(wmv); }  // → Watched tab, out of the watchlist
     return;
   }
+  if(act==="mv-unhide"){ unhideMovie(b.getAttribute("data-key")); return; }
   if(act==="series-refresh"){ ensureSeries(seriesTab,true); return; }
   if(act==="sw-add"){ addSeriesWatchlist(findSearchSeries(id)); return; }
   if(act==="sw-remove"){ removeSeriesWatchlist(id); return; }
   if(act==="sw-clear"){ seriesSearchQ=""; seriesSearchItems=[]; seriesSearchSeq++; render(); return; }
   if(act==="sr-unwatch"){ unwatchSeries(b.getAttribute("data-key")); return; }
+  if(act==="sr-unhide"){ unhideSeries(b.getAttribute("data-key")); return; }
+  if(act==="ai-open"){
+    var at=b.getAttribute("data-ai-type");
+    var ax=aiFindItem(at,id);
+    if(ax){ var ak=aiKey(at,ax); aiOpen=aiOpen===ak?null:ak; render(); }
+    return;
+  }
+  if(act==="ai-launch"){ aiLaunch(b.getAttribute("data-ai-type"),id,b.getAttribute("data-service")); return; }
+  if(act==="ai-save"){ aiSaveLink(b.getAttribute("data-ai-type"),id,b.getAttribute("data-service")); return; }
   if(act==="sr-rate"){
     var rs=findCachedSeries(id)||findWatchlistSeries(id);
     setSeriesRating(rs, Number(b.getAttribute("data-n"))||0);
@@ -2986,7 +3178,7 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="sr-toggle"){
     seriesExpanded = String(seriesExpanded)===String(id) ? null : id;
     var ss=findCachedSeries(id)||findWatchlistSeries(id)||(data.watchedSeries||[]).filter(function(x){ return String(x.id)===String(id); })[0];
-    if(seriesExpanded && ss) ensurePlot(ss.title,"TV series");
+    if(seriesExpanded && ss) ensurePlot(seriesPlotName(ss),"TV series");
     render(); return;
   }
   if(act==="toggle-form"){ formOpen[tab]=!formOpen[tab]; render(); }
@@ -3266,6 +3458,20 @@ function handleVendorNew(sel){
 }
 
 document.getElementById("content").addEventListener("change",function(e){
+  var mm=e.target.closest(".mv-more");
+  if(mm){
+    var mv=findMovieAny(mm.getAttribute("data-id"));
+    if(mm.value==="watchlist") addToWatchlist(mv);
+    else if(mm.value==="hide") hideMovie(mv);
+    return;
+  }
+  var smore=e.target.closest(".sr-more");
+  if(smore){
+    var sx=findSeriesAny(smore.getAttribute("data-id"));
+    if(smore.value==="watchlist") addSeriesWatchlist(sx);
+    else if(smore.value==="hide") hideSeries(sx);
+    return;
+  }
   var sv=e.target.closest(".sr-status");
   if(sv){
     if(sv.value==="watched"){
