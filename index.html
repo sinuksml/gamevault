@@ -2490,6 +2490,8 @@ function markMovieWatched(m){
   if(!m) return;
   var key=movieWatchKey(m);
   if(!data.watchedMovies) data.watchedMovies=[];
+  data.movieWatchlist=(data.movieWatchlist||[]).filter(function(x){ return movieWatchKey(x)!==key; });
+  data.hiddenMovies=(data.hiddenMovies||[]).filter(function(x){ return movieWatchKey(x)!==key; });
   if(data.watchedMovies.some(function(w){return w.key===key;})) return;
   data.watchedMovies.unshift({key:key, id:m.id, title:m.title, year:m.year||"", poster:m.poster||"",
     imdb:(typeof m.imdb==="number"?m.imdb:null), imdbId:m.imdbId||null,
@@ -2561,15 +2563,15 @@ function removeFromWatchlist(id){
   save(); flash("Removed from watchlist");
 }
 function movieMoreMenu(m){
-  return '<select class="selectmini mv-more" data-id="'+esc(String(m.id))+'"><option value="">More...</option><option value="watchlist">Add to Watchlist</option><option value="hide">Not Interested</option></select>';
+  return '<select class="selectmini mv-more" data-id="'+esc(String(m.id))+'"><option value="">Move to...</option><option value="watched">Watched</option><option value="watchlist">Add to Watchlist</option><option value="hide">Not Interested</option></select>';
 }
 function watchlistSearchCard(m){
   var already=inWatchlist(m);
   return '<div class="card"><div class="row">'+moviePoster(m)+
     '<div class="grow"><div class="gname">'+esc(m.title)+'</div>'+
-      '<div class="meta">'+(m.year||"")+(m.tmdb?' · TMDB '+m.tmdb:'')+(m.overview?'<br><span style="color:var(--muted)">'+esc(m.overview.slice(0,120))+(m.overview.length>120?"…":"")+'</span>':'')+'</div></div>'+
-      (already?'<span class="chip fin">✓ In list</span>':'<button class="btn blue" data-act="mw-add" data-id="'+esc(String(m.id))+'">+ Add</button>')+
-    '</div><div class="actions">'+movieMoreMenu(m)+'</div></div>';
+      '<div class="meta">'+(m.year||"")+(m.tmdb?' - TMDB '+m.tmdb:'')+(m.overview?'<br><span style="color:var(--muted)">'+esc(m.overview.slice(0,120))+(m.overview.length>120?"...":"")+'</span>':'')+'</div></div>'+
+      (already?'<span class="chip fin">In Watchlist</span>':movieMoreMenu(m))+
+    '</div></div>';
 }
 function watchlistCard(m){
   var open=String(filmExpanded)===String(m.id);
@@ -2587,7 +2589,6 @@ function watchlistCard(m){
   h+='<div class="actions">'+movieLinks(m.title,m.year)+imdbLink(m)+
     '<button class="btn" data-act="ai-open" data-ai-type="film" data-id="'+esc(String(m.id))+'">AI Assistant</button>'+
     movieMoreMenu(m)+
-    '<button class="btn" data-act="mw-watched" data-id="'+esc(String(m.id))+'">✓ Watched</button>'+
     '<button class="btn ghost danger" data-act="mw-remove" data-id="'+esc(String(m.id))+'">Remove</button>'+
   '</div></div>';
   return h;
@@ -2618,8 +2619,7 @@ function movieCard(m, key){
   var canWatch = (key==="relhw"||key==="mlott"||key==="mlup");
   var actions='<div class="actions">';
   if(key==="watched") actions+='<button class="btn blue" data-act="mv-unwatch" data-key="'+esc(m.key)+'">↩ Unwatch</button>';
-  else if(canWatch) actions+='<select class="selectmini mv-status" data-id="'+esc(String(m.id))+'"><option value="">Mark as…</option><option value="watched">✓ Watched</option></select>';
-  if(key!=="watched") actions+=movieMoreMenu(m);
+  else actions+=movieMoreMenu(m);
   var showReviews = (key==="mlott"||key==="mlup"||(key==="watched"&&m.providers&&m.providers.length));
   actions+=movieLinks(m.title,m.year)+imdbLink(m)+(showReviews?mlReviewLinks(m.title):"")+
     '<a class="btn" href="https://www.themoviedb.org/movie/'+m.id+'" target="_blank" rel="noopener">TMDB ↗</a></div>';
@@ -2871,7 +2871,7 @@ function unhideSeries(key){
   save(); flash("Restored");
 }
 function seriesMoreMenu(s){
-  return '<select class="selectmini sr-more" data-id="'+esc(String(s.id))+'"><option value="">More...</option><option value="watchlist">Add to Watchlist</option><option value="hide">Not Interested</option></select>';
+  return '<select class="selectmini sr-more" data-id="'+esc(String(s.id))+'"><option value="">Move to...</option><option value="watched">Watched</option><option value="watchlist">Add to Watchlist</option><option value="hide">Not Interested</option></select>';
 }
 function seriesLinks(title,year){
   var q=title+" "+(year||"");
@@ -2910,8 +2910,7 @@ function seriesCard(s, key){
   }
   h+='<div class="actions">';
   if(key==="serieswatched") h+='<button class="btn blue" data-act="sr-unwatch" data-key="'+esc(s.key)+'">↩ Unwatch</button>';
-  else if(canWatch) h+='<select class="selectmini sr-status" data-id="'+esc(String(s.id))+'"><option value="">Mark as...</option><option value="watched">✓ Watched</option></select>';
-  if(key!=="serieswatched") h+=seriesMoreMenu(s);
+  else h+=seriesMoreMenu(s);
   h+=seriesLinks(s.title,s.year)+seriesImdbLink(s)+(key==="serieswatchlist"?'<button class="btn" data-act="ai-open" data-ai-type="series" data-id="'+esc(String(s.id))+'">AI Assistant</button>':'')+'<a class="btn" href="https://www.themoviedb.org/tv/'+s.id+'" target="_blank" rel="noopener">TMDB ↗</a>';
   if(key==="serieswatchlist") h+='<button class="btn ghost danger" data-act="sw-remove" data-id="'+esc(String(s.id))+'">Remove</button>';
   h+='</div></div>';
@@ -2958,8 +2957,8 @@ function seriesSearchCard(s){
   return '<div class="card"><div class="row">'+seriesPoster(s)+
     '<div class="grow"><div class="gname">'+esc(s.title)+'</div>'+
       '<div class="meta">'+(s.year||"")+(s.tmdb?' - TMDB '+s.tmdb:'')+(s.overview?'<br><span style="color:var(--muted)">'+esc(s.overview.slice(0,120))+(s.overview.length>120?"...":"")+'</span>':'')+'</div></div>'+
-      (already?'<span class="chip fin">✓ In list</span>':'<button class="btn blue" data-act="sw-add" data-id="'+esc(String(s.id))+'">+ Add</button>')+
-    '</div><div class="actions">'+seriesMoreMenu(s)+'</div></div>';
+      (already?'<span class="chip fin">In Watchlist</span>':seriesMoreMenu(s))+
+    '</div></div>';
 }
 function renderSeries(){
   var key=seriesTab;
@@ -3165,7 +3164,13 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="ai-open"){
     var at=b.getAttribute("data-ai-type");
     var ax=aiFindItem(at,id);
-    if(ax){ var ak=aiKey(at,ax); aiOpen=aiOpen===ak?null:ak; render(); }
+    if(ax){
+      var ak=aiKey(at,ax);
+      aiOpen=aiOpen===ak?null:ak;
+      if(aiOpen && at==="film") filmExpanded=id;
+      if(aiOpen && at==="series") seriesExpanded=id;
+      render();
+    }
     return;
   }
   if(act==="ai-launch"){ aiLaunch(b.getAttribute("data-ai-type"),id,b.getAttribute("data-service")); return; }
@@ -3461,14 +3466,16 @@ document.getElementById("content").addEventListener("change",function(e){
   var mm=e.target.closest(".mv-more");
   if(mm){
     var mv=findMovieAny(mm.getAttribute("data-id"));
-    if(mm.value==="watchlist") addToWatchlist(mv);
+    if(mm.value==="watched") markMovieWatched(mv);
+    else if(mm.value==="watchlist") addToWatchlist(mv);
     else if(mm.value==="hide") hideMovie(mv);
     return;
   }
   var smore=e.target.closest(".sr-more");
   if(smore){
     var sx=findSeriesAny(smore.getAttribute("data-id"));
-    if(smore.value==="watchlist") addSeriesWatchlist(sx);
+    if(smore.value==="watched") markSeriesWatched(sx);
+    else if(smore.value==="watchlist") addSeriesWatchlist(sx);
     else if(smore.value==="hide") hideSeries(sx);
     return;
   }
