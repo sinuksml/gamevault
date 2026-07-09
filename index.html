@@ -1204,6 +1204,7 @@ try{ plotCache=JSON.parse(localStorage.getItem(PLOTS_KEY)||"{}")||{}; }catch(e){
 var plotPending={};
 var plotErr={};
 function savePlots(){ try{ localStorage.setItem(PLOTS_KEY, JSON.stringify(plotCache)); }catch(e){} }
+function plotKey(name, kind){ return (kind==="film"?"f:":kind==="TV series"?"tv:":"")+norm(name); }
 function pickWikiHit(results, name, kind){
   results=results||[];
   if(kind!=="film" && kind!=="TV series") return results[0]||null;
@@ -1222,6 +1223,7 @@ function pickWikiHit(results, name, kind){
       var t=h.title||"", lt=t.toLowerCase(), s=0;
       if(yr && t.indexOf(yr)>-1) s+=8;
       if(kind==="film" && lt.indexOf("film")>-1) s+=4;
+      if(kind==="TV series" && (lt.indexOf("tv series")>-1||lt.indexOf("television series")>-1)) s+=4;
       if(t.indexOf("(")>-1) s+=1;
       return -s;
     }
@@ -2385,7 +2387,7 @@ function fetchRelHw(){
       return omdbLookup(m.title, m.year).then(function(o){ if(o){ m.imdb=o.rating; m.imdbId=o.imdbId; } });
     }).then(function(){
       return cands.filter(function(m){ return typeof m.imdb==="number" && m.imdb>=7.0; })
-        .sort(function(a,b){ return b.imdb-a.imdb; }).slice(0,25);
+        .sort(function(a,b){ return (b.date||"")>(a.date||"") ? 1 : (b.date||"")<(a.date||"") ? -1 : b.imdb-a.imdb; }).slice(0,25);
     });
   });
 }
@@ -2480,6 +2482,8 @@ function mlReviewLinks(title){
 function moviePoster(m){
   return m.poster ? '<img class="cover" src="'+esc(m.poster)+'" alt="" loading="lazy">' : '<div class="cover ph">🎬</div>';
 }
+function mediaDate(x){ return (x&&(x.ottDate||x.date||(x.year?x.year+"-12-31":"")))||""; }
+function newerFirst(a,b){ var aa=mediaDate(a), bb=mediaDate(b); return aa<bb?1:aa>bb?-1:0; }
 /* ---- movie Watched status (synced, never re-shown) ---- */
 function movieWatchKey(m){ return "tmdb:"+(m.id!=null?m.id:norm(m.title)); }
 function watchedMovieKeys(){ var s={}; (data.watchedMovies||[]).forEach(function(w){ s[w.key]=1; }); return s; }
@@ -2643,7 +2647,7 @@ function renderFilms(){
 
   // Watchlist tab: internet search + personal list, from the synced vault
   if(key==="watchlist"){
-    var wl=data.movieWatchlist||[];
+    var wl=(data.movieWatchlist||[]).slice().sort(newerFirst);
     var hidden=data.hiddenMovies||[];
     var hset=hiddenMovieKeys();
     var wh='<div class="toolbar" style="margin-top:14px"><div class="searchwrap"><span class="sic">⌕</span>'+
@@ -2672,7 +2676,7 @@ function renderFilms(){
 
   // Watched tab: rendered straight from the synced vault, no internet needed
   if(key==="watched"){
-    var wm=data.watchedMovies||[];
+    var wm=(data.watchedMovies||[]).slice().sort(newerFirst);
     var wh='<div class="meta" style="margin:14px 0 10px">'+blurbs.watched+'</div>';
     if(!wm.length) return wh+'<div class="empty">No watched films yet. On any film, pick <b>✓ Watched</b> from its dropdown to file it here.</div>';
     wh+='<div class="cards">';
@@ -2703,6 +2707,7 @@ function renderFilms(){
   var wset=watchedMovieKeys();
   var hset2=hiddenMovieKeys();
   var items=((last&&last.items)||[]).filter(function(m){ return !wset[movieWatchKey(m)] && !hset2[movieWatchKey(m)]; }); // watched/hidden never re-appear
+  if(key==="relhw"||key==="mlott") items.sort(newerFirst);
   if(!items.length){
     setTimeout(function(){ ensureFilms(key); },60);
     return html+'<div class="empty">'+(filmBusy[key]?"Loading…":(last?"Nothing left here — everything shown is marked Watched.":"Nothing to show yet — tap ↻ Refresh."))+'</div>';
@@ -2971,7 +2976,7 @@ function renderSeries(){
     serieswatched:"Series you've marked as watched. They stay hidden from the other lists after refresh and sync."
   };
   if(key==="serieswatchlist"){
-    var wl=data.seriesWatchlist||[];
+    var wl=(data.seriesWatchlist||[]).slice().sort(newerFirst);
     var hidden=data.hiddenSeries||[];
     var hset=hiddenSeriesKeys();
     var wh='<div class="toolbar" style="margin-top:14px"><div class="searchwrap"><span class="sic">⌕</span>'+
@@ -2998,7 +3003,7 @@ function renderSeries(){
     return wh;
   }
   if(key==="serieswatched"){
-    var ws=data.watchedSeries||[];
+    var ws=(data.watchedSeries||[]).slice().sort(newerFirst);
     var out='<div class="meta" style="margin:14px 0 10px">'+blurbs.serieswatched+'</div>';
     if(!ws.length) return out+'<div class="empty">No watched series yet. Pick <b>✓ Watched</b> from any series dropdown to file it here.</div>';
     out+='<div class="cards">'; ws.forEach(function(s){ out+=seriesCard(s,"serieswatched"); }); return out+'</div>';
@@ -3014,7 +3019,7 @@ function renderSeries(){
   var wset=watchedSeriesKeys();
   var hset2=hiddenSeriesKeys();
   var items=((last&&last.items)||[]).filter(function(s){ return !wset[seriesKey(s)] && !hset2[seriesKey(s)]; });
-  if(key==="enseries") items=rankEnglishSeries(items);
+  items.sort(newerFirst);
   if(!items.length){
     setTimeout(function(){ ensureSeries(key); },60);
     return html+'<div class="empty">'+(seriesBusy[key]?"Loading...":(last?"Nothing left here - everything shown is marked Watched.":"Nothing to show yet - tap Refresh."))+'</div>';
