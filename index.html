@@ -162,6 +162,10 @@
   .game-tile-info { padding:10px 11px 12px; }
   .game-tile-title { font-weight:850; font-size:14px; line-height:1.25; min-height:35px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
   .game-tile-meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .game-tile-detail { margin-top:8px; color:var(--text2); font-size:12px; line-height:1.45; }
+  .game-tile-detail b { color:var(--text); }
+  .viewbar { display:flex; justify-content:flex-end; align-items:center; gap:6px; margin:-4px 0 14px; }
+  .viewbar .viewlbl { color:var(--muted); font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
   .game-pill { display:inline-flex; align-items:center; min-height:22px; border-radius:99px; padding:3px 8px; font-size:10.5px; font-weight:800; color:var(--text2); background:var(--inset); border:1px solid var(--inborder); }
   .game-page { background:var(--card); border:1px solid var(--border); border-radius:18px; padding:16px; box-shadow:var(--shadowlg); }
   .game-page-head { display:grid; grid-template-columns:minmax(180px,300px) 1fr; gap:18px; align-items:start; }
@@ -1352,17 +1356,18 @@ function gameCoverHero(x){
   return u?'<img src="'+esc(thumb(u))+'" onerror="this.onerror=null;this.src=\''+esc(u)+'\'" alt="" loading="lazy">':'<div class="game-cover-ph">□</div>';
 }
 function gameViewToggle(){
-  return '<div class="chipbar" style="justify-content:flex-end;margin-top:-4px">'+
+  return '<div class="viewbar"><span class="viewlbl">View</span>'+
     '<button class="gchip '+(gameView==="grid"?"on":"")+'" data-act="game-view" data-view="grid">Grid View</button>'+
     '<button class="gchip '+(gameView==="list"?"on":"")+'" data-act="game-view" data-view="list">List View</button>'+
   '</div>';
 }
-function gameTile(x,id,sub){
+function gameTile(x,id,sub,detailHtml){
   var score=x&&x.score?("Critic "+x.score):(x&&x.rrating?x.rrating+"★":(x&&x.rating?Math.round(x.rating*10)/10+"★":"Game"));
   return '<div class="card game-tile"><div class="game-tile-main" data-act="game-open" data-id="'+esc(String(id))+'">'+
     '<div class="game-cover-wrap">'+gameCoverHero(x)+'</div>'+
     '<div class="game-tile-info"><div class="game-tile-title">'+esc(x.name)+'</div>'+
-    '<div class="game-tile-meta"><span class="game-pill">'+esc(score)+'</span><span class="game-pill">'+esc(x.genre||tierFor(x.name)||"PS5")+'</span>'+(sub?'<span class="game-pill">'+sub+'</span>':'')+'</div></div>'+
+    '<div class="game-tile-meta"><span class="game-pill">'+esc(score)+'</span><span class="game-pill">'+esc(x.genre||tierFor(x.name)||"PS5")+'</span>'+(sub?'<span class="game-pill">'+sub+'</span>':'')+'</div>'+
+    (detailHtml?'<div class="game-tile-detail">'+detailHtml+'</div>':'')+'</div>'+
   '</div></div>';
 }
 function gameFindById(id){
@@ -1410,6 +1415,22 @@ function renderGameDetail(){
   var x=gameFindById(expandedId);
   if(!x) { expandedId=null; return ""; }
   var extra="";
+  if(tab==="rentals"){
+    var ar=byId(data.rentals,String(expandedId||""));
+    var hr=byId(data.rentalHistory,String(expandedId||""));
+    if(ar){
+      var due=parseD(ar.start); due.setDate(due.getDate()+ar.days);
+      extra='<div class="plot"><b>Return date:</b> '+fmt(localISO(due))+'<br><b>Rental date:</b> '+fmt(ar.start)+'<br><b>Rental duration:</b> '+ar.days+' days'+
+        (ar.vendor?'<br><b>Vendor:</b> '+esc(ar.vendor):'')+
+        (Number(ar.cost)?'<br><b>Rental cost:</b> '+fmtMoney(ar.cost):'')+
+        (ar.note?'<br><b>Remarks:</b> '+esc(ar.note):'')+'</div>';
+    } else if(hr){
+      extra='<div class="plot"><b>Return date:</b> '+fmt(hr.end)+'<br><b>Rental date:</b> '+fmt(hr.start)+'<br><b>Rental duration:</b> '+(Number(hr.days)||daysBetween(parseD(hr.start),parseD(hr.end))||0)+' days'+
+        (hr.vendor?'<br><b>Vendor:</b> '+esc(hr.vendor):'')+
+        (Number(hr.cost)?'<br><b>Rental cost:</b> '+fmtMoney(hr.cost):'')+
+        (hr.note?'<br><b>Remarks:</b> '+esc(hr.note):'')+'</div>';
+    }
+  }
   if(tab==="queue"){ extra=aiPanel("game",x)+availHtml(x); }
   if(tab==="playing"){ extra=fandomEditor(x.name); }
   if(tab==="played"){ extra='<input class="note-inp" data-id="'+esc(String(x.id))+'" placeholder="Add a note" value="'+esc(x.note||"")+'">'; }
@@ -1764,7 +1785,7 @@ function toolbar(addLabel, searchPh){
     '<div class="searchwrap"><span class="sic">⌕</span>'+
     '<input class="tab-search" id="tabSearch" placeholder="'+esc(searchPh)+'" value="'+esc(q())+'" autocomplete="off">'+
     (q()?'<button class="sclear" data-act="clear-search" title="Clear">✕</button>':'')+
-    '</div></div>';
+    '</div></div>'+gameViewToggle();
 }
 function noMatch(){ return '<div class="empty">No games match “'+esc(q())+'” in this tab.</div>'; }
 /* find a game by name (norm-equal) in any list — the duplicate gate */
@@ -1881,12 +1902,25 @@ function renderRentals(){
 
   if(gameView==="grid"){
     html+='<div class="game-grid">';
-    list.forEach(function(r){ html+=gameTile(r,r.id,(r.left>0?r.left+" left":"Expired")); });
+    list.forEach(function(r){
+      var due=parseD(r.start); due.setDate(due.getDate()+r.days);
+      var rentalDetail='<b>Return:</b> '+fmt(localISO(due))+'<br><b>Rented:</b> '+fmt(r.start)+' · '+r.days+' days'+
+        (r.vendor?'<br><b>Vendor:</b> '+esc(r.vendor):'')+
+        (Number(r.cost)?'<br><b>Cost:</b> '+fmtMoney(r.cost):'')+
+        (r.note?'<br><b>Remarks:</b> '+esc(r.note):'');
+      html+=gameTile(r,r.id,(r.left>0?r.left+" left":"Expired"),rentalDetail);
+    });
     html+='</div>';
     if(data.rentalHistory.length){
       var histGrid=data.rentalHistory.filter(function(h){ return matchQ(h.name) && vendorMatch(h); });
       html+='<div class="sechead">Rental history · '+data.rentalHistory.length+'</div><div class="game-grid">';
-      histGrid.forEach(function(h){ html+=gameTile(h,h.id,"History"); });
+      histGrid.forEach(function(h){
+        var histDetail='<b>Returned:</b> '+fmt(h.end)+'<br><b>Rented:</b> '+fmt(h.start)+' · '+(Number(h.days)||daysBetween(parseD(h.start),parseD(h.end))||0)+' days'+
+          (h.vendor?'<br><b>Vendor:</b> '+esc(h.vendor):'')+
+          (Number(h.cost)?'<br><b>Cost:</b> '+fmtMoney(h.cost):'')+
+          (h.note?'<br><b>Remarks:</b> '+esc(h.note):'');
+        html+=gameTile(h,h.id,"History",histDetail);
+      });
       html+='</div>';
     }
     return html;
