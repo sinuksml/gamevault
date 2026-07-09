@@ -220,6 +220,8 @@
   .settings p { color:var(--muted); font-size:12px; line-height:1.5; margin-bottom:8px; }
   .settings a { color:var(--accent); }
   .tv-only { display:none; }
+  .tvzoom { display:none; gap:6px; align-items:center; }
+  .tvzoom .iconbtn { min-width:42px; padding:7px 10px; }
   .tv-login { margin-top:10px; padding:14px; background:var(--inset); border:1px solid var(--inborder); border-radius:12px; }
   .tv-login img { width:220px; height:220px; max-width:100%; background:#fff; border-radius:12px; padding:10px; display:block; margin:10px 0; }
   .tv-code { display:inline-block; font-size:24px; letter-spacing:.12em; font-weight:800; color:var(--text); background:var(--btnbg); border:1px solid var(--border2); border-radius:10px; padding:8px 12px; margin:8px 0; }
@@ -299,6 +301,7 @@
   html.tv .card:focus-within { border-color:#6EE7F9; box-shadow:0 0 0 3px rgba(110,231,249,.18), var(--shadowlg); }
   html.tv .tv-focus { outline:4px solid #6EE7F9; outline-offset:4px; box-shadow:0 0 0 8px rgba(110,231,249,.22), var(--shadowlg); }
   html.tv .tv-only { display:block; }
+  html.tv .tvzoom { display:flex; }
   html.tv .tv-login img { width:240px; height:240px; }
   html.tv .tv-code { font-size:28px; }
   html.tv .wrap { zoom:var(--tv-zoom, 1); }
@@ -310,6 +313,11 @@
 <div class="wrap">
   <div class="topbar">
     <div class="brand"><h1>SINU GAME VAULT</h1><span class="sym">&#9651;&#9675;&#10005;&#9633;</span></div>
+    <div class="tvzoom" aria-label="TV zoom controls">
+      <button class="iconbtn" id="tvZoomOutBtn" title="Zoom out">-</button>
+      <button class="iconbtn" id="tvZoomResetBtn" title="Reset zoom">90%</button>
+      <button class="iconbtn" id="tvZoomInBtn" title="Zoom in">+</button>
+    </div>
     <button class="iconbtn" id="refreshBtn" title="Refresh all data">&#8635;</button>
     <button class="iconbtn" id="themeBtn" title="Switch light / dark mode">&#9788;</button>
     <button class="iconbtn" id="menuBtn" title="Cloud, backup &amp; settings">&#8943;</button>
@@ -327,9 +335,6 @@
     <button class="btn" id="exportBtn">Export backup</button>
     <button class="btn" id="importBtn">Restore backup</button>
     <button class="btn" id="settingsBtn">Settings</button>
-    <button class="btn tv-only" id="tvZoomOutBtn">Zoom -</button>
-    <button class="btn tv-only" id="tvZoomInBtn">Zoom +</button>
-    <button class="btn tv-only" id="tvZoomResetBtn">Reset zoom</button>
     <input type="file" id="importFile" accept=".json" style="display:none">
   </div>
   <div class="settings" id="settingsBox" style="display:none">
@@ -396,7 +401,10 @@ function tvZoomValue(){
 }
 function applyTvZoom(){
   if(!TV_MODE) return;
-  document.documentElement.style.setProperty("--tv-zoom", String(tvZoomValue()));
+  var z=tvZoomValue();
+  document.documentElement.style.setProperty("--tv-zoom", String(z));
+  var btn=document.getElementById("tvZoomResetBtn");
+  if(btn) btn.textContent=Math.round(z*100)+"%";
 }
 function setTvZoom(v){
   v=Math.min(1.15, Math.max(0.70, Math.round(v*100)/100));
