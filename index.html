@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="Sinu Game Vault">
 <meta name="theme-color" content="#0A0D13">
 <link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.webmanifest">
 <title>Sinu Game Vault — PS5 Tracker</title>
 <style>
   :root {
@@ -3883,6 +3884,9 @@ window.addEventListener("pageshow",function(e){
 
 applyKeysFromData();     // synced keys (from the cached vault) → localStorage
 backfillKeysToData();    // any pre-existing local keys → data.keys for future sync
+if("serviceWorker" in navigator && location.protocol.indexOf("http")===0){
+  navigator.serviceWorker.register("sw.js").catch(function(){});
+}
 [].forEach.call(document.querySelectorAll("#sectionSw button"),function(b){ b.classList.toggle("on", b.getAttribute("data-section")===section); });
 render();
 if(section==="films") ensureFilms(filmTab);

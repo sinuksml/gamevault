@@ -1,0 +1,16 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "in.sinu.gamevault.tv"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "in.sinu.gamevault.tv"
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName "1.0"
+    }
+}
