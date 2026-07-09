@@ -1903,23 +1903,14 @@ function renderRentals(){
   if(gameView==="grid"){
     html+='<div class="game-grid">';
     list.forEach(function(r){
-      var due=parseD(r.start); due.setDate(due.getDate()+r.days);
-      var rentalDetail='<b>Return:</b> '+fmt(localISO(due))+'<br><b>Rented:</b> '+fmt(r.start)+' · '+r.days+' days'+
-        (r.vendor?'<br><b>Vendor:</b> '+esc(r.vendor):'')+
-        (Number(r.cost)?'<br><b>Cost:</b> '+fmtMoney(r.cost):'')+
-        (r.note?'<br><b>Remarks:</b> '+esc(r.note):'');
-      html+=gameTile(r,r.id,(r.left>0?r.left+" left":"Expired"),rentalDetail);
+      html+=gameTile(r,r.id,(r.left>0?r.left+" left":"Expired"));
     });
     html+='</div>';
     if(data.rentalHistory.length){
       var histGrid=data.rentalHistory.filter(function(h){ return matchQ(h.name) && vendorMatch(h); });
       html+='<div class="sechead">Rental history · '+data.rentalHistory.length+'</div><div class="game-grid">';
       histGrid.forEach(function(h){
-        var histDetail='<b>Returned:</b> '+fmt(h.end)+'<br><b>Rented:</b> '+fmt(h.start)+' · '+(Number(h.days)||daysBetween(parseD(h.start),parseD(h.end))||0)+' days'+
-          (h.vendor?'<br><b>Vendor:</b> '+esc(h.vendor):'')+
-          (Number(h.cost)?'<br><b>Cost:</b> '+fmtMoney(h.cost):'')+
-          (h.note?'<br><b>Remarks:</b> '+esc(h.note):'');
-        html+=gameTile(h,h.id,"History",histDetail);
+        html+=gameTile(h,h.id,"History");
       });
       html+='</div>';
     }
