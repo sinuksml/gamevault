@@ -1,12 +1,12 @@
 # GameVault Android TV Launcher
 
-This is a tiny Android TV launcher app for NVIDIA Shield TV Pro.
+This is a tiny Android TV WebView app for NVIDIA Shield TV Pro.
 
-It does not embed GameVault in a WebView, because Google Drive sign-in can fail inside embedded WebViews. Instead, the tile opens:
+The tile opens GameVault directly inside the APK:
 
 `https://sinuksml.github.io/gamevault/?tv=1`
 
-in the default Android TV browser, such as TV Bro. The `?tv=1` flag enables the remote-friendly TV layout without changing the normal PC/mobile website. This keeps Google OAuth and Drive sync working through the browser.
+The `?tv=1` flag enables the remote-friendly TV layout without changing the normal PC/mobile website. The APK intercepts YouTube links and opens them in the YouTube app. For Google Drive on TV, use the QR login flow in Settings instead of the normal browser popup login.
 
 ## Build
 
