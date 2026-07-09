@@ -95,9 +95,9 @@ public class MainActivity extends Activity {
             return;
         }
         webView.evaluateJavascript(
-            "(function(){var e=document.activeElement;if(e&&/^(INPUT|TEXTAREA|SELECT)$/.test(e.tagName)){e.blur();document.body.focus();return 'blurred';}return 'clear';})()",
+            "(function(){if(window.gameVaultTvBack){return window.gameVaultTvBack();}var e=document.activeElement;if(e&&/^(INPUT|TEXTAREA|SELECT)$/.test(e.tagName)){e.blur();document.body.focus();return 'handled';}return 'clear';})()",
             value -> {
-                if ("\"blurred\"".equals(value)) {
+                if ("\"handled\"".equals(value)) {
                     hideKeyboard();
                 } else if (webView.canGoBack()) {
                     webView.goBack();
