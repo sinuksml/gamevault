@@ -301,6 +301,7 @@
   html.tv .tv-only { display:block; }
   html.tv .tv-login img { width:240px; height:240px; }
   html.tv .tv-code { font-size:28px; }
+  html.tv .wrap { zoom:var(--tv-zoom, 1); }
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -326,6 +327,9 @@
     <button class="btn" id="exportBtn">Export backup</button>
     <button class="btn" id="importBtn">Restore backup</button>
     <button class="btn" id="settingsBtn">Settings</button>
+    <button class="btn tv-only" id="tvZoomOutBtn">Zoom -</button>
+    <button class="btn tv-only" id="tvZoomInBtn">Zoom +</button>
+    <button class="btn tv-only" id="tvZoomResetBtn">Reset zoom</button>
     <input type="file" id="importFile" accept=".json" style="display:none">
   </div>
   <div class="settings" id="settingsBox" style="display:none">
@@ -386,6 +390,21 @@
 "use strict";
 var TV_MODE = new URLSearchParams(location.search).get("tv")==="1";
 if(TV_MODE) document.documentElement.classList.add("tv");
+var TV_ZOOM_KEY="gamevault-tv-zoom";
+function tvZoomValue(){
+  try{ return Math.min(1.15, Math.max(0.70, Number(localStorage.getItem(TV_ZOOM_KEY))||0.90)); }catch(e){ return 0.90; }
+}
+function applyTvZoom(){
+  if(!TV_MODE) return;
+  document.documentElement.style.setProperty("--tv-zoom", String(tvZoomValue()));
+}
+function setTvZoom(v){
+  v=Math.min(1.15, Math.max(0.70, Math.round(v*100)/100));
+  try{ localStorage.setItem(TV_ZOOM_KEY,String(v)); }catch(e){}
+  applyTvZoom();
+  if(typeof flash==="function") flash("TV zoom "+Math.round(v*100)+"%");
+}
+applyTvZoom();
 var STORE_KEY = "ps5-tracker-v1";
 var KEY_STORE = "ps5-rawg-key";
 var PLOTS_KEY = "ps5-plots-v2";
@@ -3363,6 +3382,12 @@ document.getElementById("stats").addEventListener("click",function(e){
 });
 
 document.getElementById("settingsBtn").addEventListener("click",function(){ toggleSettings(); });
+var tvZoomOutBtn=document.getElementById("tvZoomOutBtn");
+if(tvZoomOutBtn) tvZoomOutBtn.addEventListener("click",function(){ setTvZoom(tvZoomValue()-0.05); });
+var tvZoomInBtn=document.getElementById("tvZoomInBtn");
+if(tvZoomInBtn) tvZoomInBtn.addEventListener("click",function(){ setTvZoom(tvZoomValue()+0.05); });
+var tvZoomResetBtn=document.getElementById("tvZoomResetBtn");
+if(tvZoomResetBtn) tvZoomResetBtn.addEventListener("click",function(){ setTvZoom(0.90); });
 document.getElementById("saveKeyBtn").addEventListener("click",function(){
   var v=document.getElementById("apiKeyInput").value.trim();
   setSyncedKey("rawg", v);
