@@ -4232,8 +4232,10 @@ function gameVaultTvBack(){
 window.gameVaultTvBack=gameVaultTvBack;
 document.addEventListener("click",function(e){
   if(!TV_MODE) return;
-  var a=e.target.closest&&e.target.closest('a[href*="youtube.com"],a[href*="youtu.be"]');
+  var a=e.target.closest&&e.target.closest("a[href]");
   if(!a) return;
+  var href=a.getAttribute("href")||"";
+  if(!/^https?:\/\//i.test(href)) return;
   e.preventDefault();
   window.location.href=a.href;
 },true);
