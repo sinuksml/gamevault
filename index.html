@@ -767,28 +767,66 @@ function gdSaveTok(t){ try{ if(t) localStorage.setItem(GD_TOKEN_STORE,JSON.strin
 function gdConnected(){ return !!(gdClientId() && gdTok()); }
 function cloudMode(){ return gdConnected() ? "drive" : (getJB().key ? "jsonbin" : ""); }
 
+var gdLibPromise=null;
+function gdOauthReady(){
+  return !!(window.google && google.accounts && google.accounts.oauth2);
+}
+function gdLoadGoogleIdentity(){
+  if(gdOauthReady()) return Promise.resolve();
+  if(gdLibPromise) return gdLibPromise;
+  gdLibPromise=new Promise(function(resolve,reject){
+    var done=false;
+    function finish(err){
+      if(done) return;
+      if(err){ done=true; gdLibPromise=null; reject(err); return; }
+      if(gdOauthReady()){ done=true; resolve(); }
+    }
+    var existing=document.querySelector('script[src*="accounts.google.com/gsi/client"]');
+    var s=existing||document.createElement("script");
+    if(!existing){
+      s.src="https://accounts.google.com/gsi/client";
+      s.async=true;
+      s.defer=true;
+      document.head.appendChild(s);
+    }
+    var timer=setInterval(function(){ finish(); },250);
+    var timeout=setTimeout(function(){
+      clearInterval(timer);
+      finish(new Error("Google sign-in library could not load. Check the TV browser internet/privacy settings, then retry."));
+    },15000);
+    s.addEventListener("load",function(){ clearTimeout(timeout); clearInterval(timer); finish(); },{once:true});
+    s.addEventListener("error",function(){
+      clearTimeout(timeout); clearInterval(timer);
+      finish(new Error("Google sign-in library was blocked by the browser."));
+    },{once:true});
+  });
+  return gdLibPromise;
+}
 function gdEnsureClient(){
   if(gdTokenClient) return gdTokenClient;
   var cid=gdClientId();
-  if(!cid || !(window.google && google.accounts && google.accounts.oauth2)) return null;
+  if(!cid || !gdOauthReady()) return null;
   gdTokenClient=google.accounts.oauth2.initTokenClient({client_id:cid, scope:GD_SCOPE, callback:function(){}});
   return gdTokenClient;
 }
 function gdToken(){
   var t=gdTok();
   if(t && t.access_token && Date.now()<(t.exp||0)-60000) return Promise.resolve(t.access_token);
-  var tc=gdEnsureClient();
-  if(!tc) return Promise.reject(new Error(gdClientId()?"Google sign-in library still loading — try again":"No Client ID saved"));
-  return new Promise(function(resolve,reject){
-    tc.callback=function(resp){
-      if(resp && resp.access_token){
-        gdSaveTok({access_token:resp.access_token, exp:Date.now()+(Number(resp.expires_in)||3600)*1000});
-        gdSetStatus();
-        resolve(resp.access_token);
-      } else reject(new Error((resp&&resp.error)||"Sign-in failed"));
-    };
-    tc.error_callback=function(err){ reject(new Error((err&&err.type)||"Sign-in failed")); };
-    try{ tc.requestAccessToken({prompt:""}); }catch(e){ reject(e); }
+  if(!gdClientId()) return Promise.reject(new Error("No Client ID saved"));
+  return gdLoadGoogleIdentity().then(function(){
+    var readyClient=gdEnsureClient();
+    if(!readyClient) throw new Error("Google sign-in library still loading - try again");
+    return new Promise(function(resolve,reject){
+      readyClient.callback=function(resp){
+        if(resp && resp.access_token){
+          gdSaveTok({access_token:resp.access_token, exp:Date.now()+(Number(resp.expires_in)||3600)*1000});
+          gdSetStatus();
+          resolve(resp.access_token);
+        } else reject(new Error((resp&&resp.error)||"Sign-in failed"));
+      };
+      readyClient.error_callback=function(err){ reject(new Error((err&&err.type)||"Sign-in failed")); };
+      try{ readyClient.requestAccessToken({prompt:""}); }catch(e){ reject(e); }
+    });
   });
 }
 function gdApi(url,opts,tok){
@@ -861,6 +899,8 @@ function gdSetStatus(){
 }
 function gdSignIn(){
   if(!gdClientId()){ flash("Paste your Google OAuth Client ID first"); return; }
+  var el=document.getElementById("gdStatus");
+  if(el) el.textContent="Loading Google sign-in...";
   gdToken().then(function(){
     flash("Google Drive connected — it is now your primary sync");
     gdSetStatus(); silentPullOnLoad();
@@ -4014,6 +4054,9 @@ backfillKeysToData();    // any pre-existing local keys → data.keys for future
 if("serviceWorker" in navigator && location.protocol.indexOf("http")===0){
   navigator.serviceWorker.register("sw.js").catch(function(){});
 }
+setTimeout(function(){
+  if(gdClientId()) gdLoadGoogleIdentity().catch(function(){});
+},1000);
 [].forEach.call(document.querySelectorAll("#sectionSw button"),function(b){ b.classList.toggle("on", b.getAttribute("data-section")===section); });
 render();
 if(section==="films") ensureFilms(filmTab);
