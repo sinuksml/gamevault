@@ -219,6 +219,10 @@
   .settings { background:var(--card2); border:1px solid var(--border2); border-radius:12px; padding:14px; margin-bottom:16px; }
   .settings p { color:var(--muted); font-size:12px; line-height:1.5; margin-bottom:8px; }
   .settings a { color:var(--accent); }
+  .tv-only { display:none; }
+  .tv-login { margin-top:10px; padding:14px; background:var(--inset); border:1px solid var(--inborder); border-radius:12px; }
+  .tv-login img { width:220px; height:220px; max-width:100%; background:#fff; border-radius:12px; padding:10px; display:block; margin:10px 0; }
+  .tv-code { display:inline-block; font-size:24px; letter-spacing:.12em; font-weight:800; color:var(--text); background:var(--btnbg); border:1px solid var(--border2); border-radius:10px; padding:8px 12px; margin:8px 0; }
   #toTop { position:fixed; right:16px; bottom:66px; z-index:15; display:none; background:var(--accentbg); color:var(--accenttext); border:1px solid var(--accent); border-radius:99px; width:42px; height:42px; font-size:17px; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.35); }
   #toTop.show { display:block; }
   .stat { box-shadow:var(--shadow); }
@@ -294,6 +298,9 @@
   html.tv :focus { outline:4px solid #6EE7F9; outline-offset:4px; box-shadow:0 0 0 8px rgba(110,231,249,.22), var(--shadowlg); }
   html.tv .card:focus-within { border-color:#6EE7F9; box-shadow:0 0 0 3px rgba(110,231,249,.18), var(--shadowlg); }
   html.tv .tv-focus { outline:4px solid #6EE7F9; outline-offset:4px; box-shadow:0 0 0 8px rgba(110,231,249,.22), var(--shadowlg); }
+  html.tv .tv-only { display:block; }
+  html.tv .tv-login img { width:280px; height:280px; }
+  html.tv .tv-code { font-size:34px; }
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -331,6 +338,21 @@
       <button class="btn blue" id="gdSignInBtn">Sign in with Google</button>
       <button class="btn ghost danger" id="gdSignOutBtn" style="display:none">Disconnect Drive</button>
       <span class="syncnote" id="gdStatus" style="align-self:center"></span>
+    </div>
+    <div class="tv-only" id="gdTvSection">
+      <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
+      <p><b style="color:var(--text)">Android TV phone login.</b> If normal Google sign-in does not open on the TV browser, create a Google OAuth client with application type <b>TVs and Limited Input devices</b>, paste it below, then use the QR login. Scan the QR on your phone, approve access, and the TV will connect to the same Drive backup.</p>
+      <div class="fields">
+        <input class="f-name" id="gdTvClientInput" placeholder="TV OAuth Client ID" autocomplete="off">
+        <input class="f-name" id="gdTvSecretInput" placeholder="TV OAuth Client Secret, if Google shows one" autocomplete="off">
+        <button class="btn blue" id="gdTvSaveBtn">Save TV login</button>
+      </div>
+      <div class="fields" style="margin-top:8px">
+        <button class="btn blue" id="gdTvLoginBtn">Login with phone QR</button>
+        <button class="btn ghost danger" id="gdTvCancelBtn" style="display:none">Cancel QR login</button>
+        <span class="syncnote" id="gdTvStatus" style="align-self:center"></span>
+      </div>
+      <div class="tv-login" id="gdTvBox" style="display:none"></div>
     </div>
     <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
     <p><b style="color:var(--text)">Live internet updates (optional).</b> Get a free API key from <a href="https://rawg.io/apidocs" target="_blank" rel="noopener">rawg.io/apidocs</a> (sign up &rarr; Get API Key), paste it below, and the app can fetch cover art, scores, autocomplete and live lists for the Upcoming and For You tabs from the RAWG games database. Without a key, the built-in curated lists still work fully offline.</p>
@@ -753,15 +775,18 @@ function jbSilentPullOnLoad(){
    can always find its own file again after a sign-in, so clearing the cache
    loses nothing. */
 var GD_CLIENT_STORE="ps5-gd-client", GD_TOKEN_STORE="ps5-gd-token", GD_FILE_STORE="ps5-gd-file";
+var GD_TV_CLIENT_STORE="ps5-gd-tv-client", GD_TV_SECRET_STORE="ps5-gd-tv-secret";
 var GD_FILENAME="game-vault-backup.json";
 var GD_SCOPE="https://www.googleapis.com/auth/drive.file";
-var gdTokenClient=null, gdRefreshing=false;
+var gdTokenClient=null, gdRefreshing=false, gdTvPollTimer=null;
 /* Baked-in Google OAuth Client ID (public by design — its security is the
    Authorized JavaScript origins list, not secrecy). Lets a fresh/wiped device
    connect Drive and pull everything back with no manual entry. A value saved
    in Settings still overrides it. */
 var GD_CLIENT_DEFAULT="898110284062-76km1uptkth506kgaecoafohu15js0rh.apps.googleusercontent.com";
 function gdClientId(){ try{ return localStorage.getItem(GD_CLIENT_STORE)||GD_CLIENT_DEFAULT; }catch(e){ return GD_CLIENT_DEFAULT; } }
+function gdTvClientId(){ try{ return localStorage.getItem(GD_TV_CLIENT_STORE)||""; }catch(e){ return ""; } }
+function gdTvSecret(){ try{ return localStorage.getItem(GD_TV_SECRET_STORE)||""; }catch(e){ return ""; } }
 function gdTok(){ try{ return JSON.parse(localStorage.getItem(GD_TOKEN_STORE)||"null"); }catch(e){ return null; } }
 function gdSaveTok(t){ try{ if(t) localStorage.setItem(GD_TOKEN_STORE,JSON.stringify(t)); else localStorage.removeItem(GD_TOKEN_STORE); }catch(e){} }
 function gdConnected(){ return !!(gdClientId() && gdTok()); }
@@ -802,6 +827,24 @@ function gdLoadGoogleIdentity(){
   });
   return gdLibPromise;
 }
+function gdRefreshFromDeviceToken(t){
+  if(!t || !t.refresh_token || !gdTvClientId()) return Promise.reject(new Error("No TV refresh token"));
+  var body=new URLSearchParams();
+  body.set("client_id",gdTvClientId());
+  if(gdTvSecret()) body.set("client_secret",gdTvSecret());
+  body.set("refresh_token",t.refresh_token);
+  body.set("grant_type","refresh_token");
+  return fetch("https://oauth2.googleapis.com/token",{
+    method:"POST",
+    headers:{"Content-Type":"application/x-www-form-urlencoded"},
+    body:body.toString()
+  }).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error_description||j.error||("Drive token refresh failed "+r.status)); return j; }); })
+  .then(function(j){
+    var nt={access_token:j.access_token, exp:Date.now()+(Number(j.expires_in)||3600)*1000, refresh_token:t.refresh_token, tv:true};
+    gdSaveTok(nt); gdSetStatus();
+    return nt.access_token;
+  });
+}
 function gdEnsureClient(){
   if(gdTokenClient) return gdTokenClient;
   var cid=gdClientId();
@@ -812,6 +855,7 @@ function gdEnsureClient(){
 function gdToken(){
   var t=gdTok();
   if(t && t.access_token && Date.now()<(t.exp||0)-60000) return Promise.resolve(t.access_token);
+  if(t && t.refresh_token && gdTvClientId()) return gdRefreshFromDeviceToken(t);
   if(!gdClientId()) return Promise.reject(new Error("No Client ID saved"));
   return gdLoadGoogleIdentity().then(function(){
     var readyClient=gdEnsureClient();
@@ -913,6 +957,90 @@ function gdSignOut(){
   try{ localStorage.removeItem(GD_FILE_STORE); }catch(e){}
   gdSetStatus(); setSyncStatus("");
   flash("Google Drive disconnected"+(getJB().key?" — JSONBin fallback is active":""));
+}
+function gdTvSetStatus(msg){
+  var el=document.getElementById("gdTvStatus");
+  if(el) el.textContent=msg||"";
+}
+function gdTvStop(){
+  if(gdTvPollTimer){ clearTimeout(gdTvPollTimer); gdTvPollTimer=null; }
+  var cancel=document.getElementById("gdTvCancelBtn");
+  if(cancel) cancel.style.display="none";
+}
+function gdTvQrUrl(url){
+  return "https://quickchart.io/qr?size=280&text="+encodeURIComponent(url);
+}
+function gdTvRenderCode(info){
+  var box=document.getElementById("gdTvBox");
+  if(!box) return;
+  var url=info.verification_url_complete||info.verification_uri_complete||info.verification_url||info.verification_uri;
+  var base=info.verification_url||info.verification_uri||"https://www.google.com/device";
+  box.style.display="block";
+  box.innerHTML=
+    '<b style="color:var(--text)">Scan with your phone</b>'+
+    '<img src="'+gdTvQrUrl(url)+'" alt="Google TV login QR">'+
+    '<div class="meta">If the QR does not open, go to <a href="'+esc(base)+'" target="_blank" rel="noopener">'+esc(base)+'</a> and enter:</div>'+
+    '<div class="tv-code">'+esc(info.user_code||"")+'</div>'+
+    '<div class="meta">Waiting for approval on your phone...</div>';
+}
+function gdTvPoll(deviceCode, interval, expiresAt){
+  if(Date.now()>expiresAt){ gdTvStop(); gdTvSetStatus("QR login expired - start again."); return; }
+  var body=new URLSearchParams();
+  body.set("client_id",gdTvClientId());
+  if(gdTvSecret()) body.set("client_secret",gdTvSecret());
+  body.set("device_code",deviceCode);
+  body.set("grant_type","urn:ietf:params:oauth:grant-type:device_code");
+  fetch("https://oauth2.googleapis.com/token",{
+    method:"POST",
+    headers:{"Content-Type":"application/x-www-form-urlencoded"},
+    body:body.toString()
+  }).then(function(r){ return r.json().then(function(j){ j._ok=r.ok; return j; }); })
+  .then(function(j){
+    if(j._ok && j.access_token){
+      gdTvStop();
+      gdSaveTok({access_token:j.access_token, exp:Date.now()+(Number(j.expires_in)||3600)*1000, refresh_token:j.refresh_token||"", tv:true});
+      gdSetStatus(); gdTvSetStatus("Connected - pulling Drive backup...");
+      var box=document.getElementById("gdTvBox"); if(box) box.style.display="none";
+      flash("Google Drive connected on TV");
+      silentPullOnLoad();
+      return;
+    }
+    if(j.error==="authorization_pending"){
+      gdTvPollTimer=setTimeout(function(){ gdTvPoll(deviceCode, interval, expiresAt); }, interval*1000);
+      return;
+    }
+    if(j.error==="slow_down"){
+      gdTvPollTimer=setTimeout(function(){ gdTvPoll(deviceCode, interval+5, expiresAt); }, (interval+5)*1000);
+      return;
+    }
+    gdTvStop();
+    gdTvSetStatus(j.error_description||j.error||"QR login failed");
+  }).catch(function(e){
+    gdTvStop();
+    gdTvSetStatus("QR login failed: "+e.message);
+  });
+}
+function gdTvStart(){
+  gdTvStop();
+  var cid=gdTvClientId();
+  if(!cid){ gdTvSetStatus("Save the TV OAuth Client ID first."); return; }
+  gdTvSetStatus("Creating QR login...");
+  var body=new URLSearchParams();
+  body.set("client_id",cid);
+  body.set("scope",GD_SCOPE);
+  fetch("https://oauth2.googleapis.com/device/code",{
+    method:"POST",
+    headers:{"Content-Type":"application/x-www-form-urlencoded"},
+    body:body.toString()
+  }).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error_description||j.error||("Device login failed "+r.status)); return j; }); })
+  .then(function(info){
+    gdTvRenderCode(info);
+    gdTvSetStatus("Scan the QR with your phone.");
+    var cancel=document.getElementById("gdTvCancelBtn"); if(cancel) cancel.style.display="";
+    gdTvPoll(info.device_code, Math.max(5,Number(info.interval)||5), Date.now()+(Number(info.expires_in)||1800)*1000);
+  }).catch(function(e){
+    gdTvSetStatus(e.message);
+  });
 }
 /* while the tab is open and idle, look for changes from the other device */
 setInterval(function(){
@@ -3208,6 +3336,9 @@ function toggleSettings(force){
     document.getElementById("tmdbKeyInput").value=tmdbKey();
     document.getElementById("omdbKeyInput").value=omdbKey();
     document.getElementById("gdClientInput").value=gdClientId();
+    var tvClient=document.getElementById("gdTvClientInput"), tvSecret=document.getElementById("gdTvSecretInput");
+    if(tvClient) tvClient.value=gdTvClientId();
+    if(tvSecret) tvSecret.value=gdTvSecret();
     gdSetStatus();
     var jb=getJB();
     document.getElementById("jbKeyInput").value=jb.key;
@@ -3259,6 +3390,23 @@ document.getElementById("gdSaveBtn").addEventListener("click",function(){
 });
 document.getElementById("gdSignInBtn").addEventListener("click",gdSignIn);
 document.getElementById("gdSignOutBtn").addEventListener("click",gdSignOut);
+var gdTvSaveBtn=document.getElementById("gdTvSaveBtn");
+if(gdTvSaveBtn) gdTvSaveBtn.addEventListener("click",function(){
+  try{
+    localStorage.setItem(GD_TV_CLIENT_STORE,document.getElementById("gdTvClientInput").value.trim());
+    localStorage.setItem(GD_TV_SECRET_STORE,document.getElementById("gdTvSecretInput").value.trim());
+  }catch(e){}
+  gdTvSetStatus("TV login saved. Press Login with phone QR.");
+  flash("TV Google login saved");
+});
+var gdTvLoginBtn=document.getElementById("gdTvLoginBtn");
+if(gdTvLoginBtn) gdTvLoginBtn.addEventListener("click",gdTvStart);
+var gdTvCancelBtn=document.getElementById("gdTvCancelBtn");
+if(gdTvCancelBtn) gdTvCancelBtn.addEventListener("click",function(){
+  gdTvStop();
+  gdTvSetStatus("QR login cancelled");
+  var box=document.getElementById("gdTvBox"); if(box) box.style.display="none";
+});
 document.getElementById("saveFilmKeysBtn").addEventListener("click",function(){
   setSyncedKey("tmdb", document.getElementById("tmdbKeyInput").value.trim());
   setSyncedKey("omdb", document.getElementById("omdbKeyInput").value.trim());
