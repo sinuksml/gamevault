@@ -18,7 +18,7 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
-    private static final String GAMEVAULT_URL = "https://sinuksml.github.io/gamevault/?tv=1&appv=nav3";
+    private static final String GAMEVAULT_URL = "https://sinuksml.github.io/gamevault/?tv=1&appv=nav4";
     private WebView webView;
 
     @Override
@@ -143,11 +143,17 @@ public class MainActivity extends Activity {
 
     private void openYouTube(Uri uri) {
         Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-        intent.setPackage("com.google.android.youtube");
+        intent.setPackage("com.google.android.youtube.tv");
         try {
             startActivity(intent);
         } catch (ActivityNotFoundException e) {
-            openExternal(uri);
+            Intent phoneIntent = new Intent(Intent.ACTION_VIEW, uri);
+            phoneIntent.setPackage("com.google.android.youtube");
+            try {
+                startActivity(phoneIntent);
+            } catch (ActivityNotFoundException ex) {
+                openExternal(uri);
+            }
         }
     }
 

@@ -3983,8 +3983,43 @@ document.getElementById("content").addEventListener("input",function(e){
 
 /* ---------- Android TV remote navigation (?tv=1 only) ---------- */
 var tvReturnFocus=null;
+var tvEditingInput=null;
 function tvIsEditable(el){
   return !!(el && /^(INPUT|TEXTAREA|SELECT)$/i.test(el.tagName));
+}
+function tvIsTextInput(el){
+  return !!(el && /^(INPUT|TEXTAREA)$/i.test(el.tagName));
+}
+function tvPrepareInputs(){
+  if(!TV_MODE) return;
+  [].forEach.call(document.querySelectorAll("input,textarea"),function(el){
+    if(el===tvEditingInput) return;
+    if(!el.hasAttribute("data-tv-readonly")){
+      el.setAttribute("data-tv-readonly","1");
+      el.readOnly=true;
+    }
+  });
+}
+function tvStartInputEdit(el){
+  if(!TV_MODE || !tvIsTextInput(el)) return false;
+  tvEditingInput=el;
+  el.readOnly=false;
+  el.removeAttribute("data-tv-readonly");
+  try{ el.focus(); }catch(e){}
+  try{
+    var n=(el.value||"").length;
+    el.setSelectionRange(n,n);
+  }catch(e){}
+  el.click();
+  return true;
+}
+function tvStopInputEdit(el){
+  if(!TV_MODE || !tvIsTextInput(el)) return false;
+  el.readOnly=true;
+  el.setAttribute("data-tv-readonly","1");
+  if(tvEditingInput===el) tvEditingInput=null;
+  el.blur();
+  return true;
 }
 function tvRememberFocus(el){
   if(!TV_MODE || !el || tvIsEditable(el)) return;
@@ -4010,6 +4045,7 @@ function tvFocusable(){
 }
 function tvMakeFocusable(){
   if(!TV_MODE) return;
+  tvPrepareInputs();
   [].forEach.call(document.querySelectorAll('.clickrow,[data-act]'),function(el){
     if(!/^(BUTTON|A|INPUT|SELECT|TEXTAREA)$/i.test(el.tagName)){
       el.tabIndex=0;
@@ -4088,7 +4124,8 @@ function gameVaultTvBack(){
   if(!TV_MODE) return "clear";
   var el=document.activeElement;
   if(tvIsEditable(el)){
-    el.blur();
+    if(tvIsTextInput(el)) tvStopInputEdit(el);
+    else el.blur();
     var list=tvFocusable();
     if(tvReturnFocus && list.indexOf(tvReturnFocus)>-1) tvFocus(tvReturnFocus);
     else tvEnsureFocus();
@@ -4109,6 +4146,13 @@ function gameVaultTvBack(){
   return "clear";
 }
 window.gameVaultTvBack=gameVaultTvBack;
+document.addEventListener("click",function(e){
+  if(!TV_MODE) return;
+  var a=e.target.closest&&e.target.closest('a[href*="youtube.com"],a[href*="youtu.be"]');
+  if(!a) return;
+  e.preventDefault();
+  window.location.href=a.href;
+},true);
 document.addEventListener("focusin",function(e){
   if(!TV_MODE) return;
   if(tvIsEditable(e.target)) return;
@@ -4116,6 +4160,7 @@ document.addEventListener("focusin",function(e){
 },true);
 document.addEventListener("focusout",function(e){
   if(!TV_MODE || !e.target || !e.target.classList) return;
+  if(tvIsTextInput(e.target) && e.target!==tvEditingInput) tvStopInputEdit(e.target);
   e.target.classList.remove("tv-focus");
 },true);
 document.addEventListener("keydown",function(e){
@@ -4125,6 +4170,13 @@ document.addEventListener("keydown",function(e){
   if(e.key==="ArrowLeft"||e.key==="ArrowRight"||e.key==="ArrowUp"||e.key==="ArrowDown"){
     e.preventDefault();
     tvMove(e.key.replace("Arrow","").toLowerCase());
+    return;
+  }
+  if((e.key==="Enter"||e.key===" ") && document.activeElement && tvIsTextInput(document.activeElement)){
+    if(document.activeElement!==tvEditingInput || document.activeElement.readOnly){
+      e.preventDefault();
+      tvStartInputEdit(document.activeElement);
+    }
     return;
   }
   if((e.key==="Enter"||e.key===" ") && document.activeElement && !editing){
