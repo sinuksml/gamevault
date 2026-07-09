@@ -134,7 +134,7 @@ public class MainActivity extends Activity {
                 return true;
             }
             if (!host.endsWith("sinuksml.github.io") && !host.contains("google.com") && !host.contains("googleapis.com") && !host.contains("quickchart.io")) {
-                openExternal(uri);
+                openTemporarySearch(uri);
                 return true;
             }
             return false;
@@ -152,16 +152,14 @@ public class MainActivity extends Activity {
             try {
                 startActivity(phoneIntent);
             } catch (ActivityNotFoundException ex) {
-                openExternal(uri);
+                openTemporarySearch(uri);
             }
         }
     }
 
-    private void openExternal(Uri uri) {
-        try {
-            startActivity(new Intent(Intent.ACTION_VIEW, uri));
-        } catch (ActivityNotFoundException e) {
-            Toast.makeText(this, "No app can open this link.", Toast.LENGTH_SHORT).show();
-        }
+    private void openTemporarySearch(Uri uri) {
+        String searchUrl = "https://www.google.com/search?q=" + Uri.encode(uri.toString());
+        Toast.makeText(this, "Opening a temporary search page. Press Back to return.", Toast.LENGTH_SHORT).show();
+        webView.loadUrl(searchUrl);
     }
 }

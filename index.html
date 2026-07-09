@@ -202,6 +202,9 @@
   .inline-edit .note-inp { margin-top:0; width:auto; }
   .inline-edit .r-note { flex:3 1 180px; }
   .inline-edit .r-cost { flex:1 1 90px; }
+  .dateedit { display:inline-flex; align-items:center; gap:7px; color:var(--muted); font-size:11px; font-weight:700; }
+  .dateedit input { width:145px; padding:7px 10px; font-size:12px; }
+  [data-act="extend"] { display:none !important; }
   .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--accentbg); border:1px solid var(--accent); color:var(--accenttext); padding:9px 16px; border-radius:99px; font-size:13px; font-weight:600; z-index:20; display:none; max-width:90vw; text-align:center; animation:toastin .2s ease; }
   @keyframes toastin { from { transform:translate(-50%,12px); opacity:0; } to { transform:translate(-50%,0); opacity:1; } }
   .selectmini { padding:5px 8px; font-size:11px; border-radius:6px; }
@@ -300,6 +303,26 @@
   html.tv :focus { outline:4px solid #6EE7F9; outline-offset:4px; box-shadow:0 0 0 8px rgba(110,231,249,.22), var(--shadowlg); }
   html.tv .card:focus-within { border-color:#6EE7F9; box-shadow:0 0 0 3px rgba(110,231,249,.18), var(--shadowlg); }
   html.tv .tv-focus { outline:4px solid #6EE7F9; outline-offset:4px; box-shadow:0 0 0 8px rgba(110,231,249,.22), var(--shadowlg); }
+  html.tv .tv-select-menu { position:fixed; inset:0; z-index:80; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.58); padding:28px; }
+  html.tv .tv-select-panel { width:min(560px,92vw); max-height:78vh; overflow:auto; background:var(--card); border:1px solid var(--accent); border-radius:18px; box-shadow:0 24px 80px rgba(0,0,0,.5); padding:12px; }
+  html.tv .tv-select-panel button { width:100%; display:block; text-align:left; margin:6px 0; padding:14px 16px; border-radius:12px; }
+  html.tv .tv-select-panel button.on { background:var(--accentbg); border-color:var(--accent); color:var(--accenttext); }
+  html.tv [data-act="return-played"],
+  html.tv [data-act="return-only"],
+  html.tv [data-act="remove-rental"],
+  html.tv [data-act="hist-again"],
+  html.tv [data-act="hist-del"],
+  html.tv .r-note,
+  html.tv .r-cost,
+  html.tv .r-vendor,
+  html.tv .r-end,
+  html.tv .h-note,
+  html.tv .h-cost,
+  html.tv .h-vendor,
+  html.tv .h-start,
+  html.tv .h-end,
+  html.tv .h-days,
+  html.tv .dateedit { display:none !important; }
   html.tv .tv-only { display:block; }
   html.tv .tvzoom { display:flex; }
   html.tv .tv-login img { width:240px; height:240px; }
@@ -1703,6 +1726,7 @@ function vendorStats(){
   return m;
 }
 function renderRentals(){
+  if(TV_MODE) formOpen[tab]=false;
   var t0=today();
   var list=data.rentals.map(function(r){
     var used=daysBetween(parseD(r.start),t0);
@@ -1711,6 +1735,10 @@ function renderRentals(){
     .sort(function(a,b){ return a.start<b.start?1:a.start>b.start?-1:0; }); // latest rented first
 
   var html = toolbar("Add rental","Search rentals & history…");
+  if(TV_MODE){
+    html=html.replace(/<button class="btn[^>]*data-act="toggle-form"[\s\S]*?<\/button>/,"");
+    html+='<div class="syncnote" style="margin:-6px 0 12px">Rental details are view-only on Android TV. Edit rentals on PC or mobile.</div>';
+  }
 
   if(formOpen[tab]){
     html+=
@@ -1772,6 +1800,7 @@ function renderRentals(){
       '<div class="inline-edit">'+
         '<input class="note-inp r-note" data-id="'+r.id+'" placeholder="Remark — deposit, return reminder, disc condition…" value="'+esc(r.note||"")+'">'+
         '<input class="note-inp r-cost" data-id="'+r.id+'" type="number" min="0" placeholder="Cost ₹" value="'+(Number(r.cost)?Number(r.cost):"")+'">'+
+        '<label class="dateedit">Return date <input class="r-end" data-id="'+r.id+'" type="date" value="'+localISO(due)+'"></label>'+
         '<select class="note-inp r-vendor" data-id="'+r.id+'">'+vendorOptions(r.vendor||"")+'</select>'+
       '</div>'+
     '</div>';
@@ -3460,6 +3489,10 @@ document.getElementById("content").addEventListener("click",function(e){
   if(gc){ sugGenre=gc.getAttribute("data-genre"); render(); return; }
   var b=e.target.closest("[data-act]"); if(!b) return;
   var act=b.getAttribute("data-act"), id=b.getAttribute("data-id"), nm=b.getAttribute("data-name");
+  if(TV_MODE && tab==="rentals" && /^(toggle-form|add-rental|return-played|return-only|remove-rental|hist-again|hist-del|extend)$/.test(act)){
+    flash("Rental tab is view-only on TV");
+    return;
+  }
 
   if(act==="film-refresh"){ ensureFilms(filmTab,true); return; }
   if(act==="mv-unwatch"){ unwatchMovie(b.getAttribute("data-key")); return; }
@@ -3850,6 +3883,16 @@ document.getElementById("content").addEventListener("change",function(e){
     if(rr3){ rr3.vendor=val; persist(); flash(val?("Vendor set: "+val):"Vendor cleared"); }
     return;
   }
+  var rend=e.target.closest(".r-end");
+  if(rend){
+    var rr4=byId(data.rentals,rend.getAttribute("data-id"));
+    var rs=parseD(rr4&&rr4.start), re=parseD(rend.value);
+    if(rr4 && rs && re){
+      rr4.days=Math.max(1,daysBetween(rs,re));
+      save(); flash("Return date updated");
+    }
+    return;
+  }
   if(e.target.id==="rVendor"){
     if(e.target.value==="__new__") handleVendorNew(e.target);
     return;
@@ -4021,6 +4064,42 @@ function tvStopInputEdit(el){
   el.blur();
   return true;
 }
+function tvCloseSelect(){
+  var old=document.getElementById("tvSelectMenu");
+  if(old) old.remove();
+}
+function tvOpenSelect(sel){
+  if(!TV_MODE || !sel || sel.tagName!=="SELECT") return false;
+  tvCloseSelect();
+  var overlay=document.createElement("div");
+  overlay.id="tvSelectMenu";
+  overlay.className="tv-select-menu";
+  var panel=document.createElement("div");
+  panel.className="tv-select-panel";
+  [].forEach.call(sel.options,function(opt){
+    var btn=document.createElement("button");
+    btn.type="button";
+    btn.className="btn"+(opt.selected?" on":"");
+    btn.textContent=opt.textContent || opt.value || "Option";
+    btn.addEventListener("click",function(){
+      sel.value=opt.value;
+      tvCloseSelect();
+      sel.dispatchEvent(new Event("change",{bubbles:true}));
+      setTimeout(function(){ tvFocus(sel); },0);
+    });
+    panel.appendChild(btn);
+  });
+  overlay.appendChild(panel);
+  overlay.addEventListener("click",function(e){
+    if(e.target===overlay){ tvCloseSelect(); tvFocus(sel); }
+  });
+  document.body.appendChild(overlay);
+  setTimeout(function(){
+    var on=panel.querySelector(".on") || panel.querySelector("button");
+    if(on) tvFocus(on);
+  },0);
+  return true;
+}
 function tvRememberFocus(el){
   if(!TV_MODE || !el || tvIsEditable(el)) return;
   tvReturnFocus=el;
@@ -4122,6 +4201,11 @@ function tvMove(dir){
 }
 function gameVaultTvBack(){
   if(!TV_MODE) return "clear";
+  if(document.getElementById("tvSelectMenu")){
+    tvCloseSelect();
+    tvEnsureFocus();
+    return "handled";
+  }
   var el=document.activeElement;
   if(tvIsEditable(el)){
     if(tvIsTextInput(el)) tvStopInputEdit(el);
@@ -4177,6 +4261,11 @@ document.addEventListener("keydown",function(e){
       e.preventDefault();
       tvStartInputEdit(document.activeElement);
     }
+    return;
+  }
+  if((e.key==="Enter"||e.key===" ") && document.activeElement && document.activeElement.tagName==="SELECT"){
+    e.preventDefault();
+    tvOpenSelect(document.activeElement);
     return;
   }
   if((e.key==="Enter"||e.key===" ") && document.activeElement && !editing){
