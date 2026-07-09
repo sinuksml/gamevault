@@ -18,7 +18,7 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
-    private static final String GAMEVAULT_URL = "https://sinuksml.github.io/gamevault/?tv=1&appv=nav5";
+    private static final String GAMEVAULT_URL = "https://sinuksml.github.io/gamevault/?tv=1&appv=nav6";
     private WebView webView;
 
     @Override
@@ -55,7 +55,7 @@ public class MainActivity extends Activity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+        if (event.getAction() == KeyEvent.ACTION_DOWN && isGameVaultPage()) {
             String key = jsKey(event.getKeyCode());
             if (key != null) {
                 sendKeyToPage(key);
@@ -86,6 +86,15 @@ public class MainActivity extends Activity {
     private void sendKeyToPage(String key) {
         String js = "document.dispatchEvent(new KeyboardEvent('keydown',{key:'" + key + "',bubbles:true,cancelable:true}));";
         webView.evaluateJavascript(js, null);
+    }
+
+    private boolean isGameVaultPage() {
+        if (webView == null || webView.getUrl() == null) {
+            return false;
+        }
+        Uri uri = Uri.parse(webView.getUrl());
+        String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase();
+        return host.endsWith("sinuksml.github.io");
     }
 
     @Override
@@ -132,6 +141,9 @@ public class MainActivity extends Activity {
             if (host.contains("youtube.com") || host.contains("youtu.be")) {
                 openYouTube(uri);
                 return true;
+            }
+            if (host.contains("imdb.com")) {
+                return false;
             }
             if (!host.endsWith("sinuksml.github.io") && !host.contains("google.com") && !host.contains("googleapis.com") && !host.contains("quickchart.io")) {
                 openTemporarySearch(uri);
