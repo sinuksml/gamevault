@@ -18,7 +18,7 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
-    private static final String GAMEVAULT_URL = "https://sinuksml.github.io/gamevault/?tv=1&appv=nav6";
+    private static final String GAMEVAULT_URL = "https://sinuksml.github.io/gamevault/?tv=1&appv=nav7";
     private WebView webView;
 
     @Override
@@ -146,7 +146,7 @@ public class MainActivity extends Activity {
                 return false;
             }
             if (!host.endsWith("sinuksml.github.io") && !host.contains("google.com") && !host.contains("googleapis.com") && !host.contains("quickchart.io")) {
-                openTemporarySearch(uri);
+                openTemporaryPage(uri);
                 return true;
             }
             return false;
@@ -164,14 +164,13 @@ public class MainActivity extends Activity {
             try {
                 startActivity(phoneIntent);
             } catch (ActivityNotFoundException ex) {
-                openTemporarySearch(uri);
+                openTemporaryPage(uri);
             }
         }
     }
 
-    private void openTemporarySearch(Uri uri) {
-        String searchUrl = "https://www.google.com/search?q=" + Uri.encode(uri.toString());
-        Toast.makeText(this, "Opening a temporary search page. Press Back to return.", Toast.LENGTH_SHORT).show();
-        webView.loadUrl(searchUrl);
+    private void openTemporaryPage(Uri uri) {
+        Toast.makeText(this, "Opening page. Press Back to return.", Toast.LENGTH_SHORT).show();
+        webView.loadUrl(uri.toString());
     }
 }
