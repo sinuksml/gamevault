@@ -2808,6 +2808,7 @@ function newerFirst(a,b){ var aa=mediaDate(a), bb=mediaDate(b); return aa<bb?1:a
 /* ---- movie Watched status (synced, never re-shown) ---- */
 function movieWatchKey(m){ return "tmdb:"+(m.id!=null?m.id:norm(m.title)); }
 function watchedMovieKeys(){ var s={}; (data.watchedMovies||[]).forEach(function(w){ s[w.key]=1; }); return s; }
+function watchlistMovieKeys(){ var s={}; (data.movieWatchlist||[]).forEach(function(w){ s[w.key||movieWatchKey(w)]=1; }); return s; }
 function isMovieWatched(m, set){ return !!(set||watchedMovieKeys())[movieWatchKey(m)]; }
 function hiddenMovieKeys(){ var s={}; (data.hiddenMovies||[]).forEach(function(w){ s[w.key]=1; }); return s; }
 function moviePlotName(m){ return m.title+(m.year?(" "+m.year):""); }
@@ -2880,7 +2881,7 @@ function addToWatchlist(m){
   if(!data.movieWatchlist) data.movieWatchlist=[];
   data.hiddenMovies=(data.hiddenMovies||[]).filter(function(x){ return movieWatchKey(x)!==movieWatchKey(m); });
   if(inWatchlist(m)){ flash("Already in your watchlist"); return; }
-  data.movieWatchlist.unshift({id:m.id, title:m.title, year:m.year||"", poster:m.poster||"",
+  data.movieWatchlist.unshift({key:movieWatchKey(m), id:m.id, title:m.title, year:m.year||"", poster:m.poster||"",
     imdb:(typeof m.imdb==="number"?m.imdb:null), imdbId:m.imdbId||null, tmdb:m.tmdb||null, overview:m.overview||"", added:Date.now()});
   save(); flash("Added to your watchlist");
 }
@@ -3028,8 +3029,13 @@ function renderFilms(){
     return html+'<div class="empty">Couldn’t load — check your internet and API key, then <button class="btn" data-act="film-refresh">↻ Try again</button></div>';
   }
   var wset=watchedMovieKeys();
+  var wlset=watchlistMovieKeys();
   var hset2=hiddenMovieKeys();
-  var items=((last&&last.items)||[]).filter(function(m){ return !wset[movieWatchKey(m)] && !hset2[movieWatchKey(m)]; }); // watched/hidden never re-appear
+  var hidePersonal=(key!=="uphw" && key!=="mlup");
+  var items=((last&&last.items)||[]).filter(function(m){
+    var mk=movieWatchKey(m);
+    return !hset2[mk] && (!hidePersonal || (!wset[mk] && !wlset[mk]));
+  }); // watched/watchlist/hidden stay out of suggestion lists, except Upcoming
   if(key==="relhw"||key==="mlott") items.sort(newerFirst);
   if(!items.length){
     setTimeout(function(){ ensureFilms(key); },60);
@@ -3122,6 +3128,7 @@ function seriesPoster(s){
 }
 function seriesKey(s){ return "tmdbtv:"+(s.id!=null?s.id:norm(s.title)); }
 function watchedSeriesKeys(){ var out={}; (data.watchedSeries||[]).forEach(function(s){ out[s.key]=1; }); return out; }
+function watchlistSeriesKeys(){ var out={}; (data.seriesWatchlist||[]).forEach(function(s){ out[s.key||seriesKey(s)]=1; }); return out; }
 function hiddenSeriesKeys(){ var out={}; (data.hiddenSeries||[]).forEach(function(s){ out[s.key]=1; }); return out; }
 function seriesPlotName(s){ return s.title+(s.year?(" "+s.year):""); }
 function findCachedSeries(id){
@@ -3272,7 +3279,7 @@ function addSeriesWatchlist(s){
   if(!data.seriesWatchlist) data.seriesWatchlist=[];
   data.hiddenSeries=(data.hiddenSeries||[]).filter(function(x){ return seriesKey(x)!==seriesKey(s); });
   if(inSeriesWatchlist(s)){ flash("Already in your series watchlist"); return; }
-  data.seriesWatchlist.unshift({id:s.id, title:s.title, year:s.year||"", poster:s.poster||"",
+  data.seriesWatchlist.unshift({key:seriesKey(s), id:s.id, title:s.title, year:s.year||"", poster:s.poster||"",
     imdb:(typeof s.imdb==="number"?s.imdb:null), imdbId:s.imdbId||null, tmdb:s.tmdb||null,
     overview:s.overview||"", genres:s.genres||[], date:s.date||"", added:Date.now()});
   save(); flash("Added to your series watchlist");
@@ -3342,8 +3349,12 @@ function renderSeries(){
   if(seriesBusy[key] && !last) return html+'<div class="empty">Loading series from the internet...</div>';
   if(seriesErr[key] && !last) return html+'<div class="empty">Could not load - check your internet and API key, then <button class="btn" data-act="series-refresh">↻ Try again</button></div>';
   var wset=watchedSeriesKeys();
+  var wlset=watchlistSeriesKeys();
   var hset2=hiddenSeriesKeys();
-  var items=((last&&last.items)||[]).filter(function(s){ return !wset[seriesKey(s)] && !hset2[seriesKey(s)]; });
+  var items=((last&&last.items)||[]).filter(function(s){
+    var sk=seriesKey(s);
+    return !wset[sk] && !wlset[sk] && !hset2[sk];
+  });
   items.sort(newerFirst);
   if(!items.length){
     setTimeout(function(){ ensureSeries(key); },60);
