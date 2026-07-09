@@ -1306,8 +1306,20 @@ var AI_SERVICES=[
   {id:"chatgpt", name:"ChatGPT", url:function(p){ return "https://chatgpt.com/?q="+encodeURIComponent(p); }},
   {id:"claude", name:"Claude", url:function(p){ return "https://claude.ai/new?q="+encodeURIComponent(p); }},
   {id:"grok", name:"Grok", url:function(p){ return "https://grok.com/?q="+encodeURIComponent(p); }},
-  {id:"deepseek", name:"DeepSeek", url:function(p){ return "https://chat.deepseek.com/?q="+encodeURIComponent(p); }}
+  {id:"deepseek", name:"DeepSeek", url:function(p){ return deepSeekLaunchUrl(p); }}
 ];
+function deepSeekWebUrl(p){ return "https://chat.deepseek.com/?q="+encodeURIComponent(p); }
+function deepSeekLaunchUrl(p){
+  var web=deepSeekWebUrl(p);
+  var ua=navigator.userAgent||"";
+  if(/Android/i.test(ua)){
+    return "intent://chat.deepseek.com/?q="+encodeURIComponent(p)+"#Intent;scheme=https;package=com.deepseek.chat;S.browser_fallback_url="+encodeURIComponent(web)+";end";
+  }
+  if(/iPhone|iPad|iPod/i.test(ua)){
+    return "deepseek://chat?q="+encodeURIComponent(p);
+  }
+  return web;
+}
 function aiTitle(x){ return (x&&((x.title||x.name)+" "+(x.year?("("+x.year+")"):""))).trim(); }
 function aiKey(type,x){ return type+":"+(x&&x.id!=null?x.id:norm(aiTitle(x))); }
 function aiPrompt(type,x){
@@ -1342,7 +1354,16 @@ function aiLaunch(type,id,service){
   var key=aiKey(type,x), saved=aiSaved(key,service);
   var svc=AI_SERVICES.filter(function(s){ return s.id===service; })[0];
   if(!svc) return;
-  window.open(saved||svc.url(aiPrompt(type,x)),"_blank","noopener");
+  var promptText=aiPrompt(type,x);
+  var target=saved||svc.url(promptText);
+  if(service==="deepseek" && !saved && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent||"")){
+    window.location.href=target;
+    if(/iPhone|iPad|iPod/i.test(navigator.userAgent||"")){
+      setTimeout(function(){ window.open(deepSeekWebUrl(promptText),"_blank","noopener"); },900);
+    }
+    return;
+  }
+  window.open(target,"_blank","noopener");
 }
 function aiSaveLink(type,id,service){
   var x=aiFindItem(type,id); if(!x) return;
@@ -2305,6 +2326,29 @@ var FILM_TTL={uphw:24*3600*1000, relhw:24*3600*1000, mlott:6*3600*1000, mlup:6*3
 var filmCache={}, filmBusy={}, filmErr={};
 try{ filmCache=JSON.parse(localStorage.getItem(FILM_CACHE_KEY)||"{}")||{}; }catch(e){ filmCache={}; }
 function saveFilmCache(){ try{ localStorage.setItem(FILM_CACHE_KEY, JSON.stringify(filmCache)); }catch(e){} }
+var FILM_GENRE_KEY="ps5-film-genre", SERIES_GENRE_KEY="ps5-series-genre";
+var filmGenre="", seriesGenre="";
+try{ filmGenre=localStorage.getItem(FILM_GENRE_KEY)||""; }catch(e){}
+try{ seriesGenre=localStorage.getItem(SERIES_GENRE_KEY)||""; }catch(e){}
+var MOVIE_GENRES=[
+  ["28","Action"],["12","Adventure"],["16","Animation"],["35","Comedy"],["80","Crime"],
+  ["18","Drama"],["10751","Family"],["14","Fantasy"],["27","Horror"],["9648","Mystery"],
+  ["10749","Romance"],["878","Science Fiction"],["53","Thriller"],["10752","War"]
+];
+var SERIES_GENRES=[
+  ["10759","Action & Adventure"],["16","Animation"],["35","Comedy"],["80","Crime"],
+  ["99","Documentary"],["18","Drama"],["10751","Family"],["9648","Mystery"],
+  ["10765","Sci-Fi & Fantasy"],["10768","War & Politics"],["37","Western"]
+];
+function addGenreParam(params, genre){
+  if(genre) params.with_genres=genre;
+  return params;
+}
+function genreOptions(list, selected){
+  return '<option value="">All genres</option>'+list.map(function(g){
+    return '<option value="'+g[0]+'"'+(String(selected)===String(g[0])?' selected':'')+'>'+esc(g[1])+'</option>';
+  }).join("");
+}
 function daysAgoISO(n){ var d=new Date(); d.setDate(d.getDate()-n); return localISO(d); }
 function daysAheadISO(n){ var d=new Date(); d.setDate(d.getDate()+n); return localISO(d); }
 function yearsAgoISO(n){ var d=new Date(); d.setFullYear(d.getFullYear()-n); return localISO(d); }
@@ -2363,11 +2407,11 @@ function serialEach(list, gap, fn){
   })();
 }
 function fetchUpHw(){
-  return tmdbGet("/discover/movie", {
+  return tmdbGet("/discover/movie", addGenreParam({
     with_original_language:"en", region:"US",
     "primary_release_date.gte":localISO(), sort_by:"popularity.desc",
     with_release_type:"2|3", "vote_count.gte":0, page:1
-  }).then(function(j){
+  }, filmGenre)).then(function(j){
     // pick the major (popular) upcoming films, then show them earliest release first
     var list=(j.results||[]).filter(function(m){ return m.release_date && m.popularity>18; })
       .slice(0,25).map(mapMovie);
@@ -2376,12 +2420,12 @@ function fetchUpHw(){
   });
 }
 function fetchRelHw(){
-  return tmdbGet("/discover/movie", {
+  return tmdbGet("/discover/movie", addGenreParam({
     with_original_language:"en", region:"US",
     "primary_release_date.lte":localISO(), "primary_release_date.gte":yearsAgoISO(2),
     sort_by:"primary_release_date.desc", with_release_type:"3",
     "vote_count.gte":250, "vote_average.gte":6.0, page:1
-  }).then(function(j){
+  }, filmGenre)).then(function(j){
     var cands=(j.results||[]).filter(function(m){ return m.release_date; }).slice(0,32).map(mapMovie);
     return serialEach(cands, 200, function(m){
       return omdbLookup(m.title, m.year).then(function(o){ if(o){ m.imdb=o.rating; m.imdbId=o.imdbId; } });
@@ -2421,11 +2465,11 @@ function enrichMlMovie(m, future){
 }
 /* Released: Malayalam films with a recent India OTT/digital release, newest OTT date first */
 function fetchMlOtt(){
-  return tmdbGet("/discover/movie", {
+  return tmdbGet("/discover/movie", addGenreParam({
     with_original_language:"ml", region:"IN", with_release_type:"4|6",
     "release_date.gte":daysAgoISO(150), "release_date.lte":localISO(),
     sort_by:"primary_release_date.desc", page:1
-  }).then(function(j){
+  }, filmGenre)).then(function(j){
     var cands=(j.results||[]).map(mapMovie).slice(0,30);
     return serialEach(cands, 130, function(m){ return enrichMlMovie(m, false); }).then(function(){
       var out=cands.filter(function(m){ return (m.providers&&m.providers.length) || m.ottDate; });
@@ -2436,11 +2480,11 @@ function fetchMlOtt(){
 }
 /* Upcoming: Malayalam films with an announced future India OTT/digital date */
 function fetchMlUp(){
-  return tmdbGet("/discover/movie", {
+  return tmdbGet("/discover/movie", addGenreParam({
     with_original_language:"ml", region:"IN", with_release_type:"4|6",
     "release_date.gte":daysAheadISO(1), "release_date.lte":daysAheadISO(150),
     sort_by:"primary_release_date.asc", page:1
-  }).then(function(j){
+  }, filmGenre)).then(function(j){
     var cands=(j.results||[]).map(mapMovie).slice(0,25);
     return serialEach(cands, 130, function(m){ return enrichMlMovie(m, true); }).then(function(){
       var out=cands.filter(function(m){ return m.ottDate; }); // must have a confirmed upcoming OTT date
@@ -2687,6 +2731,7 @@ function renderFilms(){
   var last=filmCache[key];
   var html=
     '<div class="toolbar" style="margin-top:14px">'+
+    '<select class="selectmini film-genre" title="Filter by genre">'+genreOptions(MOVIE_GENRES, filmGenre)+'</select>'+
     '<button class="btn blue" data-act="film-refresh"'+(filmBusy[key]?' disabled':'')+'>'+(filmBusy[key]?"Updating…":"↻ Refresh from internet")+'</button>'+
     '<span class="syncnote" style="align-self:center">'+(last?("Updated "+new Date(last.t).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})):"")+'</span>'+
     '</div>'+
@@ -2749,11 +2794,11 @@ function fetchSeriesLang(lang, minVotes, minRating, sortBy, pages){
   pages=pages||1;
   var calls=[];
   for(var pg=1; pg<=pages; pg++){
-    calls.push(tmdbGet("/discover/tv", {
+    calls.push(tmdbGet("/discover/tv", addGenreParam({
       with_original_language:lang, "first_air_date.lte":localISO(),
       sort_by:sortBy||"popularity.desc", "vote_count.gte":minVotes,
       "vote_average.gte":minRating, page:pg
-    }).catch(function(){ return {results:[]}; }));
+    }, seriesGenre)).catch(function(){ return {results:[]}; }));
   }
   return Promise.all(calls).then(function(all){
     var seen={}, cands=[];
@@ -3010,6 +3055,7 @@ function renderSeries(){
   }
   var last=seriesCache[key];
   var html='<div class="toolbar" style="margin-top:14px">'+
+    '<select class="selectmini series-genre" title="Filter by genre">'+genreOptions(SERIES_GENRES, seriesGenre)+'</select>'+
     '<button class="btn blue" data-act="series-refresh"'+(seriesBusy[key]?' disabled':'')+'>'+(seriesBusy[key]?"Updating...":"↻ Refresh from internet")+'</button>'+
     '<span class="syncnote" style="align-self:center">'+(last?("Updated "+new Date(last.t).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})):"")+'</span>'+
     '</div><div class="meta" style="margin-bottom:10px">'+blurbs[key]+'</div>';
@@ -3468,6 +3514,22 @@ function handleVendorNew(sel){
 }
 
 document.getElementById("content").addEventListener("change",function(e){
+  var fg=e.target.closest(".film-genre");
+  if(fg){
+    filmGenre=fg.value;
+    try{ localStorage.setItem(FILM_GENRE_KEY,filmGenre); }catch(err){}
+    filmCache={}; filmBusy={}; filmErr={}; saveFilmCache();
+    render(); ensureFilms(filmTab,true);
+    return;
+  }
+  var sg=e.target.closest(".series-genre");
+  if(sg){
+    seriesGenre=sg.value;
+    try{ localStorage.setItem(SERIES_GENRE_KEY,seriesGenre); }catch(err){}
+    seriesCache={}; seriesBusy={}; seriesErr={}; saveSeriesCache();
+    render(); ensureSeries(seriesTab,true);
+    return;
+  }
   var mm=e.target.closest(".mv-more");
   if(mm){
     var mv=findMovieAny(mm.getAttribute("data-id"));
