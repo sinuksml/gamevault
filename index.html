@@ -164,6 +164,7 @@
   .game-tile-meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
   .game-tile-detail { margin-top:8px; color:var(--text2); font-size:12px; line-height:1.45; }
   .game-tile-detail b { color:var(--text); }
+  .rent-days { display:inline-flex; align-items:center; font-size:18px; line-height:1; font-weight:950; letter-spacing:.04em; text-transform:uppercase; }
   .viewbar { display:flex; justify-content:flex-end; align-items:center; gap:6px; margin:-4px 0 14px; }
   .viewbar .viewlbl { color:var(--muted); font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
   .game-pill { display:inline-flex; align-items:center; min-height:22px; border-radius:99px; padding:3px 8px; font-size:10.5px; font-weight:800; color:var(--text2); background:var(--inset); border:1px solid var(--inborder); }
@@ -1370,6 +1371,10 @@ function gameTile(x,id,sub,detailHtml){
     (detailHtml?'<div class="game-tile-detail">'+detailHtml+'</div>':'')+'</div>'+
   '</div></div>';
 }
+function rentalDaysChip(left){
+  var label=left<=0?"Expired":left+" day"+(left===1?"":"s")+" left";
+  return '<span class="rent-days" style="color:'+urgency(left)+'">'+esc(label)+'</span>';
+}
 function gameFindById(id){
   var lists=[data.rentals,data.rentalHistory,data.playing,data.queue,data.upcoming,data.played,fullCatalog(),webResults.items||[]];
   for(var li=0; li<lists.length; li++){
@@ -1903,7 +1908,7 @@ function renderRentals(){
   if(gameView==="grid"){
     html+='<div class="game-grid">';
     list.forEach(function(r){
-      html+=gameTile(r,r.id,(r.left>0?r.left+" left":"Expired"));
+      html+=gameTile(r,r.id,rentalDaysChip(r.left));
     });
     html+='</div>';
     if(data.rentalHistory.length){
