@@ -2792,6 +2792,10 @@ function movieLinks(title,year){
 }
 /* Malayalam reviewer channels — YouTube search pinned to the channel + film,
    so the reviewer's video is the top result (opens the app on iPhone) */
+function reeloadReviewLink(title,year,kind){
+  var q=title+" "+(year||"")+" "+(kind||"review")+" @REELOADMEDIA review";
+  return '<a class="btn" href="https://www.youtube.com/results?search_query='+encodeURIComponent(q)+'" target="_blank" rel="noopener">★ REELOADMEDIA</a>';
+}
 function mlReviewLinks(title){
   return '<a class="btn" href="https://www.youtube.com/results?search_query='+encodeURIComponent(title+" Malayalam review Monsoon Media")+'" target="_blank" rel="noopener">★ Monsoon Media</a>'+
          '<a class="btn" href="https://www.youtube.com/results?search_query='+encodeURIComponent(title+" Malayalam review Aswanth Kok")+'" target="_blank" rel="noopener">★ Aswanth Kok</a>';
@@ -2908,7 +2912,7 @@ function watchlistCard(m){
     h+=plotBlock(moviePlotName(m),"film");
     h+=aiPanel("film",m);
   }
-  h+='<div class="actions">'+movieLinks(m.title,m.year)+imdbLink(m)+
+  h+='<div class="actions">'+movieLinks(m.title,m.year)+reeloadReviewLink(m.title,m.year,"movie")+imdbLink(m)+
     '<button class="btn" data-act="ai-open" data-ai-type="film" data-id="'+esc(String(m.id))+'">AI Assistant</button>'+
     movieMoreMenu(m)+
     '<button class="btn ghost danger" data-act="mw-remove" data-id="'+esc(String(m.id))+'">Remove</button>'+
@@ -2943,7 +2947,7 @@ function movieCard(m, key){
   if(key==="watched") actions+='<button class="btn blue" data-act="mv-unwatch" data-key="'+esc(m.key)+'">↩ Unwatch</button>';
   else actions+=movieMoreMenu(m);
   var showReviews = (key==="mlott"||key==="mlup"||(key==="watched"&&m.providers&&m.providers.length));
-  actions+=movieLinks(m.title,m.year)+imdbLink(m)+(showReviews?mlReviewLinks(m.title):"")+
+  actions+=movieLinks(m.title,m.year)+imdbLink(m)+((key==="uphw"||key==="relhw"||key==="watched")?reeloadReviewLink(m.title,m.year,"movie"):"")+(showReviews?mlReviewLinks(m.title):"")+
     '<a class="btn" href="https://www.themoviedb.org/movie/'+m.id+'" target="_blank" rel="noopener">TMDB ↗</a></div>';
   return '<div class="card"><div class="row">'+
     moviePoster(m)+
@@ -3235,7 +3239,7 @@ function seriesCard(s, key){
   h+='<div class="actions">';
   if(key==="serieswatched") h+='<button class="btn blue" data-act="sr-unwatch" data-key="'+esc(s.key)+'">↩ Unwatch</button>';
   else h+=seriesMoreMenu(s);
-  h+=seriesLinks(s.title,s.year)+seriesImdbLink(s)+(key==="serieswatchlist"?'<button class="btn" data-act="ai-open" data-ai-type="series" data-id="'+esc(String(s.id))+'">AI Assistant</button>':'')+'<a class="btn" href="https://www.themoviedb.org/tv/'+s.id+'" target="_blank" rel="noopener">TMDB ↗</a>';
+  h+=seriesLinks(s.title,s.year)+((key==="enseries"||key==="serieswatchlist"||key==="serieswatched")?reeloadReviewLink(s.title,s.year,"series"):"")+seriesImdbLink(s)+(key==="serieswatchlist"?'<button class="btn" data-act="ai-open" data-ai-type="series" data-id="'+esc(String(s.id))+'">AI Assistant</button>':'')+'<a class="btn" href="https://www.themoviedb.org/tv/'+s.id+'" target="_blank" rel="noopener">TMDB ↗</a>';
   if(key==="serieswatchlist") h+='<button class="btn ghost danger" data-act="sw-remove" data-id="'+esc(String(s.id))+'">Remove</button>';
   h+='</div></div>';
   return h;
