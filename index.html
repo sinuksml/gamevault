@@ -141,6 +141,8 @@
   .media-pill { display:inline-flex; align-items:center; min-height:22px; border-radius:99px; padding:3px 8px; font-size:10.5px; font-weight:800; color:var(--text2); background:var(--inset); border:1px solid var(--inborder); }
   .media-pill.imdb { color:#0A0D13; background:#F5C518; border-color:#F5C518; }
   .media-detail { grid-column:1/-1; margin-top:0; padding:12px; background:var(--card2); border-top:1px solid var(--border); }
+  .media-closebar { display:flex; justify-content:flex-end; margin-bottom:10px; }
+  .media-closebar .btn { font-weight:800; }
   .media-detail .plot { margin-top:0; }
   .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:13px 14px 12px; margin-bottom:10px; transition:border-color .15s ease, box-shadow .15s ease; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); box-shadow:var(--shadow); }
   .card:hover { border-color:var(--accent); box-shadow:var(--shadowlg); }
@@ -2653,6 +2655,9 @@ function mediaSummary(title, rating, genre){
   return '<div class="media-info"><div class="media-title">'+esc(title)+'</div><div class="media-meta">'+
     '<span class="media-pill imdb">'+esc(rating)+'</span><span class="media-pill">'+esc(genre)+'</span></div></div>';
 }
+function mediaClose(kind){
+  return '<div class="media-closebar"><button class="btn blue" data-act="media-close" data-kind="'+kind+'">Close</button></div>';
+}
 function daysAgoISO(n){ var d=new Date(); d.setDate(d.getDate()-n); return localISO(d); }
 function daysAheadISO(n){ var d=new Date(); d.setDate(d.getDate()+n); return localISO(d); }
 function yearsAgoISO(n){ var d=new Date(); d.setFullYear(d.getFullYear()-n); return localISO(d); }
@@ -2995,7 +3000,7 @@ function watchlistSearchCard(m){
   var already=inWatchlist(m), open=String(filmExpanded)===String(m.id);
   var h='<div class="card media-card"><div class="media-main clickrow" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+movieMain(m)+'</div>';
   if(open){
-    h+='<div class="media-detail">'+plotBlock(moviePlotName(m),"film")+
+    h+='<div class="media-detail">'+mediaClose("film")+plotBlock(moviePlotName(m),"film")+
       '<div class="actions">'+(already?'<span class="chip fin">In Watchlist</span>':movieMoreMenu(m))+movieLinks(m.title,m.year)+reeloadReviewLink(m.title,m.year,"movie")+imdbLink(m)+
       '<button class="btn" data-act="ai-open" data-ai-type="film" data-id="'+esc(String(m.id))+'">AI Assistant</button></div>'+aiPanel("film",m)+'</div>';
   }
@@ -3005,7 +3010,7 @@ function watchlistCard(m){
   var open=String(filmExpanded)===String(m.id);
   var h='<div class="card media-card"><div class="media-main clickrow" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+movieMain(m)+'</div>';
   if(open){
-    h+='<div class="media-detail">'+plotBlock(moviePlotName(m),"film")+aiPanel("film",m)+
+    h+='<div class="media-detail">'+mediaClose("film")+plotBlock(moviePlotName(m),"film")+aiPanel("film",m)+
       '<div class="actions">'+movieLinks(m.title,m.year)+reeloadReviewLink(m.title,m.year,"movie")+imdbLink(m)+
       '<button class="btn" data-act="ai-open" data-ai-type="film" data-id="'+esc(String(m.id))+'">AI Assistant</button>'+
       movieMoreMenu(m)+
@@ -3024,7 +3029,7 @@ function movieCard(m, key){
     actions+=movieLinks(m.title,m.year)+imdbLink(m)+((key==="uphw"||key==="relhw"||key==="watched")?reeloadReviewLink(m.title,m.year,"movie"):"")+(showReviews?mlReviewLinks(m.title):"")+
       '<a class="btn" href="https://www.themoviedb.org/movie/'+m.id+'" target="_blank" rel="noopener">TMDB</a>'+
       '<button class="btn" data-act="ai-open" data-ai-type="film" data-id="'+esc(String(m.id))+'">AI Assistant</button></div>';
-    h+='<div class="media-detail">'+plotBlock(moviePlotName(m),"film")+aiPanel("film",m)+actions+'</div>';
+    h+='<div class="media-detail">'+mediaClose("film")+plotBlock(moviePlotName(m),"film")+aiPanel("film",m)+actions+'</div>';
   }
   return h+'</div>';
 }
@@ -3375,7 +3380,7 @@ function seriesSearchCard(s){
   var already=inSeriesWatchlist(s), open=String(seriesExpanded)===String(s.id);
   var h='<div class="card media-card"><div class="media-main clickrow" data-act="sr-toggle" data-id="'+esc(String(s.id))+'">'+seriesMain(s)+'</div>';
   if(open){
-    h+='<div class="media-detail">'+plotBlock(seriesPlotName(s),"TV series")+
+    h+='<div class="media-detail">'+mediaClose("series")+plotBlock(seriesPlotName(s),"TV series")+
       '<div class="actions">'+(already?'<span class="chip fin">In Watchlist</span>':seriesMoreMenu(s))+seriesLinks(s.title,s.year)+reeloadReviewLink(s.title,s.year,"series")+seriesImdbLink(s)+
       '<button class="btn" data-act="ai-open" data-ai-type="series" data-id="'+esc(String(s.id))+'">AI Assistant</button></div>'+aiPanel("series",s)+'</div>';
   }
@@ -3394,7 +3399,7 @@ function seriesCard(s, key){
       '<a class="btn" href="https://www.themoviedb.org/tv/'+s.id+'" target="_blank" rel="noopener">TMDB</a>';
     if(key==="serieswatchlist") actions+='<button class="btn ghost danger" data-act="sw-remove" data-id="'+esc(String(s.id))+'">Remove</button>';
     actions+='</div>';
-    h+='<div class="media-detail">'+plotBlock(seriesPlotName(s),"TV series")+aiPanel("series",s)+actions+'</div>';
+    h+='<div class="media-detail">'+mediaClose("series")+plotBlock(seriesPlotName(s),"TV series")+aiPanel("series",s)+actions+'</div>';
   }
   return h+'</div>';
 }
@@ -3612,6 +3617,14 @@ document.getElementById("content").addEventListener("click",function(e){
   }
 
   if(act==="film-refresh"){ ensureFilms(filmTab,true); return; }
+  if(act==="media-close"){
+    var mk=b.getAttribute("data-kind");
+    if(mk==="film") filmExpanded=null;
+    if(mk==="series") seriesExpanded=null;
+    aiOpen=null;
+    render();
+    return;
+  }
   if(act==="mv-unwatch"){ unwatchMovie(b.getAttribute("data-key")); return; }
   if(act==="mw-add"){ addToWatchlist(findSearchMovie(id)); return; }
   if(act==="mw-remove"){ removeFromWatchlist(id); return; }
