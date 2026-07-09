@@ -8,7 +8,7 @@ import android.os.Bundle;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
-    private static final String GAMEVAULT_URL = "https://sinuksml.github.io/gamevault/";
+    private static final String GAMEVAULT_URL = "https://sinuksml.github.io/gamevault/?tv=1";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

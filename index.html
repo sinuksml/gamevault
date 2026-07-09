@@ -251,6 +251,49 @@
     .stat { min-width:72px; padding:5px 8px 4px; }
     .cover { width:50px; height:50px; }
   }
+  /* Android TV mode: enabled only when the TV launcher opens ?tv=1 */
+  html.tv .wrap { max-width:1180px; padding:24px 44px 130px; }
+  html.tv .brand h1 { font-size:30px; }
+  html.tv .sub { font-size:16px; margin-bottom:14px; }
+  html.tv .sectionsw { gap:12px; margin:8px 0 18px; }
+  html.tv .sectionsw button,
+  html.tv .tab,
+  html.tv .btn,
+  html.tv .iconbtn,
+  html.tv input,
+  html.tv select,
+  html.tv textarea { font-size:18px; }
+  html.tv .sectionsw button { padding:13px 32px; }
+  html.tv .tab { min-width:136px; padding:16px 22px; }
+  html.tv .tabs { gap:8px; padding:7px; }
+  html.tv .toolbar { gap:14px; margin:20px 0 18px; }
+  html.tv .btn,
+  html.tv .iconbtn { padding:13px 19px; border-radius:13px; }
+  html.tv input,
+  html.tv select,
+  html.tv textarea { padding:14px 16px; border-radius:12px; }
+  html.tv .searchwrap input { padding:15px 46px 15px 46px; }
+  html.tv .searchwrap .sic { left:18px; font-size:20px; }
+  html.tv .card { border-radius:18px; padding:20px 22px; margin-bottom:18px; }
+  html.tv .row { gap:18px; }
+  html.tv .cover { width:92px; height:92px; border-radius:14px; }
+  html.tv .cover.lg { height:260px; }
+  html.tv .gname { font-size:24px; line-height:1.25; }
+  html.tv .meta,
+  html.tv .syncnote,
+  html.tv .plot { font-size:17px; }
+  html.tv .chip,
+  html.tv .prov { font-size:14px; padding:5px 11px; }
+  html.tv .stat { min-width:150px; padding:14px 18px; border-radius:15px; }
+  html.tv .stat .v { font-size:28px; }
+  html.tv .stat .k { font-size:13px; }
+  html.tv .sechead { font-size:16px; margin:32px 0 16px; }
+  html.tv .empty { font-size:19px; padding:54px 24px; }
+  html.tv .plot { max-height:420px; padding:18px 20px; }
+  html.tv .clickrow { border-radius:14px; }
+  html.tv :focus { outline:4px solid #6EE7F9; outline-offset:4px; box-shadow:0 0 0 8px rgba(110,231,249,.22), var(--shadowlg); }
+  html.tv .card:focus-within { border-color:#6EE7F9; box-shadow:0 0 0 3px rgba(110,231,249,.18), var(--shadowlg); }
+  html.tv .tv-focus { outline:4px solid #6EE7F9; outline-offset:4px; box-shadow:0 0 0 8px rgba(110,231,249,.22), var(--shadowlg); }
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -319,6 +362,8 @@
 
 <script>
 "use strict";
+var TV_MODE = new URLSearchParams(location.search).get("tv")==="1";
+if(TV_MODE) document.documentElement.classList.add("tv");
 var STORE_KEY = "ps5-tracker-v1";
 var KEY_STORE = "ps5-rawg-key";
 var PLOTS_KEY = "ps5-plots-v2";
@@ -2216,6 +2261,7 @@ function renderKeepSearch(){
     var n=document.getElementById("tabSearch");
     if(n){ n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} }
   }
+  tvAfterRender();
 }
 
 /* ---------- Played card (shared by Played tab + Playing subsections) ---------- */
@@ -2296,6 +2342,7 @@ function render(){
     var hero=document.getElementById("hero"); if(hero){ hero.className=""; hero.innerHTML=""; }
     renderTabs();
     document.getElementById("content").innerHTML=section==="films" ? renderFilms() : renderSeries();
+    tvAfterRender();
     return;
   }
   statsEl.style.display="";
@@ -2309,6 +2356,7 @@ function render(){
     tab==="upcoming"? renderUpcoming() :
     tab==="suggest" ? renderSuggest() : renderPlayed();
   applyBackground();
+  tvAfterRender();
 }
 
 /* ================= FILMS SECTION (TMDB + OMDb) =================
@@ -2594,6 +2642,7 @@ function renderFilmsKeepSearch(){
   var had=el && document.activeElement===el, pos=had?el.selectionStart:0;
   document.getElementById("content").innerHTML=renderFilms();
   if(had){ var n=document.getElementById("mwSearch"); if(n){ n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} } }
+  tvAfterRender();
 }
 function findSearchMovie(id){ for(var i=0;i<movieSearchItems.length;i++){ if(String(movieSearchItems[i].id)===String(id)) return movieSearchItems[i]; } return null; }
 function findWatchlistMovie(id){ return (data.movieWatchlist||[]).filter(function(x){ return String(x.id)===String(id); })[0]||null; }
@@ -2985,6 +3034,7 @@ function renderSeriesKeepSearch(){
   var had=el && document.activeElement===el, pos=had?el.selectionStart:0;
   document.getElementById("content").innerHTML=renderSeries();
   if(had){ var n=document.getElementById("swSearch"); if(n){ n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} } }
+  tvAfterRender();
 }
 function findSearchSeries(id){ for(var i=0;i<seriesSearchItems.length;i++){ if(String(seriesSearchItems[i].id)===String(id)) return seriesSearchItems[i]; } return null; }
 function findWatchlistSeries(id){ return (data.seriesWatchlist||[]).filter(function(x){ return String(x.id)===String(id); })[0]||null; }
@@ -3709,6 +3759,83 @@ document.getElementById("content").addEventListener("input",function(e){
   var inp=e.target.closest(".ac-input");
   if(inp) handleAc(inp);
 });
+
+/* ---------- Android TV remote navigation (?tv=1 only) ---------- */
+function tvFocusable(){
+  if(!TV_MODE) return [];
+  var sel='button,a[href],input,select,textarea,[data-act],.clickrow,[tabindex="0"]';
+  return [].filter.call(document.querySelectorAll(sel),function(el){
+    if(el.disabled || el.getAttribute("aria-hidden")==="true") return false;
+    var st=getComputedStyle(el), r=el.getBoundingClientRect();
+    return st.display!=="none" && st.visibility!=="hidden" && r.width>0 && r.height>0;
+  });
+}
+function tvMakeFocusable(){
+  if(!TV_MODE) return;
+  [].forEach.call(document.querySelectorAll('.clickrow,[data-act]'),function(el){
+    if(!/^(BUTTON|A|INPUT|SELECT|TEXTAREA)$/i.test(el.tagName)){
+      el.tabIndex=0;
+      el.setAttribute("role","button");
+    }
+  });
+}
+function tvEnsureFocus(){
+  if(!TV_MODE) return;
+  tvMakeFocusable();
+  var list=tvFocusable();
+  if(!list.length) return;
+  if(document.activeElement && list.indexOf(document.activeElement)>-1) return;
+  var preferred=document.querySelector(".tab.on") || document.querySelector("#sectionSw button.on") || list[0];
+  setTimeout(function(){ try{ preferred.focus({preventScroll:true}); }catch(e){ preferred.focus(); } },0);
+}
+function tvAfterRender(){ tvEnsureFocus(); }
+function tvMove(dir){
+  var list=tvFocusable();
+  if(!list.length) return;
+  var cur=document.activeElement;
+  if(list.indexOf(cur)<0){ list[0].focus(); return; }
+  var cr=cur.getBoundingClientRect(), cx=cr.left+cr.width/2, cy=cr.top+cr.height/2;
+  var best=null, bestScore=Infinity;
+  list.forEach(function(el){
+    if(el===cur) return;
+    var r=el.getBoundingClientRect(), x=r.left+r.width/2, y=r.top+r.height/2;
+    var dx=x-cx, dy=y-cy;
+    if(dir==="left" && dx>=-8) return;
+    if(dir==="right" && dx<=8) return;
+    if(dir==="up" && dy>=-8) return;
+    if(dir==="down" && dy<=8) return;
+    var primary=(dir==="left"||dir==="right")?Math.abs(dx):Math.abs(dy);
+    var secondary=(dir==="left"||dir==="right")?Math.abs(dy):Math.abs(dx);
+    var score=primary + secondary*2.2;
+    if(score<bestScore){ bestScore=score; best=el; }
+  });
+  if(best){
+    best.focus();
+    best.scrollIntoView({block:"nearest", inline:"nearest", behavior:"smooth"});
+  } else if(dir==="down") {
+    window.scrollBy({top:Math.round(window.innerHeight*.55), behavior:"smooth"});
+  } else if(dir==="up") {
+    window.scrollBy({top:-Math.round(window.innerHeight*.55), behavior:"smooth"});
+  }
+}
+document.addEventListener("keydown",function(e){
+  if(!TV_MODE) return;
+  var tag=(document.activeElement&&document.activeElement.tagName)||"";
+  var editing=/^(INPUT|TEXTAREA|SELECT)$/i.test(tag);
+  if(editing && e.key.indexOf("Arrow")===0) return;
+  if(e.key==="ArrowLeft"||e.key==="ArrowRight"||e.key==="ArrowUp"||e.key==="ArrowDown"){
+    e.preventDefault();
+    tvMove(e.key.replace("Arrow","").toLowerCase());
+    return;
+  }
+  if((e.key==="Enter"||e.key===" ") && document.activeElement && !editing){
+    var el=document.activeElement;
+    if(el.matches && el.matches('[data-act],.clickrow,button,a[href]')){
+      e.preventDefault();
+      el.click();
+    }
+  }
+},true);
 
 /* ---------- autocomplete ---------- */
 var AC_LIMIT=7, acTimer=null, acSeq=0;
