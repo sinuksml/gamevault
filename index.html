@@ -4027,20 +4027,6 @@ function tvEnsureFocus(){
   setTimeout(function(){ tvFocus(preferred,{preventScroll:true}); },0);
 }
 function tvAfterRender(){ tvEnsureFocus(); }
-function tvMoveTextCursor(el, dir){
-  if(!el || (dir!=="left" && dir!=="right")) return false;
-  if(typeof el.selectionStart!=="number") return false;
-  var pos=el.selectionStart;
-  var end=el.selectionEnd;
-  if(pos!==end){
-    var np=dir==="left"?Math.min(pos,end):Math.max(pos,end);
-    el.setSelectionRange(np,np);
-    return true;
-  }
-  var next=dir==="left"?Math.max(0,pos-1):Math.min((el.value||"").length,pos+1);
-  el.setSelectionRange(next,next);
-  return true;
-}
 function tvNearestInViewport(list){
   var mid=window.scrollY+window.innerHeight*.42, best=list[0], score=Infinity;
   list.forEach(function(el){
@@ -4050,25 +4036,41 @@ function tvNearestInViewport(list){
   });
   return best;
 }
+function tvRectGap(a1,a2,b1,b2){
+  if(a2>=b1 && b2>=a1) return 0;
+  return a2<b1 ? b1-a2 : a1-b2;
+}
+function tvDirectionalScore(curRect, nextRect, dir){
+  var primary, secondary;
+  if(dir==="left"){
+    if(nextRect.right>curRect.left-4) return Infinity;
+    primary=curRect.left-nextRect.right;
+    secondary=tvRectGap(curRect.top,curRect.bottom,nextRect.top,nextRect.bottom);
+  } else if(dir==="right"){
+    if(nextRect.left<curRect.right+4) return Infinity;
+    primary=nextRect.left-curRect.right;
+    secondary=tvRectGap(curRect.top,curRect.bottom,nextRect.top,nextRect.bottom);
+  } else if(dir==="up"){
+    if(nextRect.bottom>curRect.top-4) return Infinity;
+    primary=curRect.top-nextRect.bottom;
+    secondary=tvRectGap(curRect.left,curRect.right,nextRect.left,nextRect.right);
+  } else {
+    if(nextRect.top<curRect.bottom+4) return Infinity;
+    primary=nextRect.top-curRect.bottom;
+    secondary=tvRectGap(curRect.left,curRect.right,nextRect.left,nextRect.right);
+  }
+  return primary*10 + secondary;
+}
 function tvMove(dir){
   var list=tvFocusable();
   if(!list.length) return;
   var cur=document.activeElement;
-  if(tvIsEditable(cur) && tvMoveTextCursor(cur,dir)) return;
   if(list.indexOf(cur)<0){ tvFocus(tvNearestInViewport(list)); return; }
-  var cr=cur.getBoundingClientRect(), cx=cr.left+cr.width/2, cy=cr.top+cr.height/2;
+  var cr=cur.getBoundingClientRect();
   var best=null, bestScore=Infinity;
   list.forEach(function(el){
     if(el===cur) return;
-    var r=el.getBoundingClientRect(), x=r.left+r.width/2, y=r.top+r.height/2;
-    var dx=x-cx, dy=y-cy;
-    if(dir==="left" && dx>=-8) return;
-    if(dir==="right" && dx<=8) return;
-    if(dir==="up" && dy>=-8) return;
-    if(dir==="down" && dy<=8) return;
-    var primary=(dir==="left"||dir==="right")?Math.abs(dx):Math.abs(dy);
-    var secondary=(dir==="left"||dir==="right")?Math.abs(dy):Math.abs(dx);
-    var score=primary + secondary*2.2;
+    var score=tvDirectionalScore(cr,el.getBoundingClientRect(),dir);
     if(score<bestScore){ bestScore=score; best=el; }
   });
   if(best){

@@ -18,7 +18,7 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
-    private static final String GAMEVAULT_URL = "https://sinuksml.github.io/gamevault/?tv=1";
+    private static final String GAMEVAULT_URL = "https://sinuksml.github.io/gamevault/?tv=1&appv=nav3";
     private WebView webView;
 
     @Override
