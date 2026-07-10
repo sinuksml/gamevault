@@ -464,9 +464,10 @@
       <button class="btn blue" id="saveFilmKeysBtn">Save film keys</button>
     </div>
     <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
-    <p><b style="color:var(--text)">BiglyBT Web UI.</b> Paste your HTTPS GameVault BiglyBT gateway URL. The gateway keeps the public IP and saved BiglyBT login out of this public website. The raw <b>http://</b> address cannot be embedded by PC or iPhone browsers.</p>
+    <p><b style="color:var(--text)">BiglyBT gateway.</b> Paste your HTTPS gateway URL. The gateway keeps the public IP and BiglyBT login out of this public website; the raw <b>http://</b> address can't be reached from an HTTPS page. <b>Native dashboard</b> mode talks to a Cloudflare Worker gateway and shows torrents as cards (recommended, best on iPhone). <b>Embed Web UI</b> mode iframes an HTTPS-served BiglyBT Web UI instead.</p>
     <div class="fields">
       <input class="f-name" id="biglyProxyInput" placeholder="HTTPS gateway URL, e.g. https://gamevault-biglybt.yourname.workers.dev" autocomplete="off">
+      <select class="f-sm" id="biglyModeInput"><option value="api">Native dashboard (Worker API)</option><option value="iframe">Embed Web UI (iframe)</option></select>
       <button class="btn blue" id="saveBiglyProxyBtn">Save BiglyBT gateway</button>
     </div>
     <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
@@ -2837,6 +2838,9 @@ function biglyProxyUrl(){
 function setBiglyProxyUrl(v){
   try{ localStorage.setItem(BIGLY_PROXY_KEY,(v||"").trim().replace(/\/+$/,"")); }catch(e){}
 }
+var BIGLY_MODE_KEY="gamevault-biglybt-mode";
+function biglyMode(){ try{ return localStorage.getItem(BIGLY_MODE_KEY)||"api"; }catch(e){ return "api"; } }
+function setBiglyMode(v){ try{ localStorage.setItem(BIGLY_MODE_KEY, v==="iframe"?"iframe":"api"); }catch(e){} }
 function biglyHeaders(){
   var h={"Content-Type":"application/json"};
   if(biglyToken) h.Authorization="Bearer "+biglyToken;
@@ -2943,7 +2947,7 @@ function renderBiglyBT(){
   if(location.protocol==="https:" && /^http:\/\//i.test(proxy)){
     return html+'<div class="card torrent-login"><h3>HTTPS proxy required</h3><p class="meta">The saved BiglyBT URL starts with <b>http://</b>. Because GameVault is loaded from HTTPS GitHub Pages, the browser blocks that request before login. Add an HTTPS proxy URL in Settings. The proxy should privately connect to your BiglyBT Web UI.</p><div class="actions"><button class="btn blue" data-act="bigly-settings">Open Settings</button><a class="btn" href="'+esc(proxy)+'" target="_blank" rel="noopener">Open BiglyBT directly</a></div></div>';
   }
-  if(/^https:\/\//i.test(proxy)){
+  if(biglyMode()==="iframe" && /^https:\/\//i.test(proxy)){
     return html+'<div class="card" style="padding:0;overflow:hidden"><div class="toolbar" style="margin:0;padding:10px;border-bottom:1px solid var(--border)"><button class="btn blue" data-act="bigly-close">Close</button><button class="btn" data-act="bigly-reload">Reload</button><span class="syncnote" style="align-self:center">BiglyBT Web UI</span></div><iframe id="biglyFrame" title="BiglyBT Web UI" src="'+esc(proxy)+'" style="display:block;width:100%;height:72vh;border:0;background:#0a0d13" allow="clipboard-read; clipboard-write"></iframe></div>';
   }
   if(!biglyToken){
@@ -4148,6 +4152,8 @@ function toggleSettings(force){
     if(tvSecret) tvSecret.value=gdTvSecret();
     var biglyProxy=document.getElementById("biglyProxyInput");
     if(biglyProxy) biglyProxy.value=biglyProxyUrl();
+    var biglyModeSel=document.getElementById("biglyModeInput");
+    if(biglyModeSel) biglyModeSel.value=biglyMode();
     gdSetStatus();
     var jb=getJB();
     document.getElementById("jbKeyInput").value=jb.key;
@@ -4235,6 +4241,7 @@ document.getElementById("saveFilmKeysBtn").addEventListener("click",function(){
 var saveBiglyProxyBtn=document.getElementById("saveBiglyProxyBtn");
 if(saveBiglyProxyBtn) saveBiglyProxyBtn.addEventListener("click",function(){
   setBiglyProxyUrl(document.getElementById("biglyProxyInput").value);
+  var mSel=document.getElementById("biglyModeInput"); if(mSel) setBiglyMode(mSel.value);
   biglyLogout();
   toggleSettings(false);
   flash(biglyProxyUrl()?"BiglyBT proxy saved":"BiglyBT proxy cleared");
