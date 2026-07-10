@@ -7,6 +7,24 @@ function b64(bytes) {
 function unb64(value) {
   return Uint8Array.from(atob(value), c => c.charCodeAt(0));
 }
+function basicAuth(username, password) {
+  return "Basic " + b64(enc.encode(username + ":" + password));
+}
+async function fetchAuthenticated(target, options, username, password) {
+  const makeOptions = () => {
+    const headers = new Headers(options.headers || {});
+    headers.set("Authorization", basicAuth(username, password));
+    headers.set("Cache-Control", "no-store");
+    return { ...options, headers, cache: "no-store", redirect: "manual" };
+  };
+  let response = await fetch(target, makeOptions());
+  if (response.status === 401 && /^(GET|HEAD)$/i.test(options.method || "GET")) {
+    // Some embedded Web UIs only accept credentials after issuing a challenge.
+    await fetch(target, { method: "GET", cache: "no-store", redirect: "manual" });
+    response = await fetch(target, makeOptions());
+  }
+  return response;
+}
 async function cookieKey(secret) {
   const hash = await crypto.subtle.digest("SHA-256", enc.encode(secret));
   return crypto.subtle.importKey("raw", hash, "AES-GCM", false, ["encrypt", "decrypt"]);
@@ -39,9 +57,9 @@ export default {
     if (incoming.pathname === "/__logout") return new Response(null, { status: 302, headers: { Location: "/", "Set-Cookie": "gvbt=; Max-Age=0; Path=/; Secure; HttpOnly; SameSite=None; Partitioned" } });
     if (incoming.pathname === "/__login" && request.method === "POST") {
       const form = await request.formData();
-      const username = String(form.get("username") || "");
+      const username = String(form.get("username") || "").trim();
       const password = String(form.get("password") || "");
-      const test = await fetch(env.UPSTREAM_URL, { headers: { Authorization: "Basic " + btoa(username + ":" + password) }, redirect: "manual" });
+      const test = await fetchAuthenticated(env.UPSTREAM_URL, { method: "GET" }, username, password);
       if (test.status === 401 || test.status === 403) return loginPage("Incorrect username or password.");
       const token = await seal(JSON.stringify({ username, password }), env.COOKIE_SECRET);
       return new Response(null, { status: 302, headers: { Location: "/", "Set-Cookie": `gvbt=${encodeURIComponent(token)}; Max-Age=31536000; Path=/; Secure; HttpOnly; SameSite=None; Partitioned` } });
@@ -52,9 +70,9 @@ export default {
     const upstreamBase = new URL(env.UPSTREAM_URL);
     const target = new URL(incoming.pathname + incoming.search, upstreamBase);
     const headers = new Headers(request.headers);
-    headers.set("Authorization", "Basic " + btoa(credentials.username + ":" + credentials.password));
+    headers.set("Authorization", basicAuth(credentials.username, credentials.password));
     headers.delete("Cookie");
-    const response = await fetch(target, { method: request.method, headers, body: /^(GET|HEAD)$/i.test(request.method) ? undefined : request.body, redirect: "manual" });
+    const response = await fetchAuthenticated(target, { method: request.method, headers, body: /^(GET|HEAD)$/i.test(request.method) ? undefined : request.body }, credentials.username, credentials.password);
     const out = new Headers(response.headers);
     out.delete("X-Frame-Options");
     out.delete("Content-Security-Policy");
