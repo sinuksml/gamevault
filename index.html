@@ -464,10 +464,10 @@
       <button class="btn blue" id="saveFilmKeysBtn">Save film keys</button>
     </div>
     <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
-    <p><b style="color:var(--text)">BiglyBT remote dashboard.</b> For security, GameVault does not store your BiglyBT public IP or password in this public frontend. Point this to your own HTTPS BiglyBT proxy. The proxy should keep the BiglyBT server address in its backend environment/config and expose <b>/login</b>, <b>/torrents</b>, and <b>/torrents/:id/action</b>. Username and password are used only for the current browser session.</p>
+    <p><b style="color:var(--text)">BiglyBT Web UI.</b> Paste your HTTPS GameVault BiglyBT gateway URL. The gateway keeps the public IP and saved BiglyBT login out of this public website. The raw <b>http://</b> address cannot be embedded by PC or iPhone browsers.</p>
     <div class="fields">
-      <input class="f-name" id="biglyProxyInput" placeholder="HTTPS BiglyBT proxy URL, e.g. https://your-worker.example.com" autocomplete="off">
-      <button class="btn blue" id="saveBiglyProxyBtn">Save BiglyBT proxy</button>
+      <input class="f-name" id="biglyProxyInput" placeholder="HTTPS gateway URL, e.g. https://gamevault-biglybt.yourname.workers.dev" autocomplete="off">
+      <button class="btn blue" id="saveBiglyProxyBtn">Save BiglyBT gateway</button>
     </div>
     <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
     <p><b style="color:var(--text)">JSONBin sync (optional fallback).</b> Used only when Google Drive is not connected. Get a free account at <a href="https://jsonbin.io" target="_blank" rel="noopener">jsonbin.io</a> &rarr; open <b>API Keys</b> &rarr; copy your <b>Master Key</b> and paste it below on <b>this device</b>, then Save. Every change you make here now saves to the cloud automatically a couple of seconds after you type &mdash; no button to press. On your <b>other device</b> (phone or PC), open the app, paste the <b>same Master Key</b>, then copy the <b>Bin ID</b> shown here into that device's Settings too, and Save. From then on both devices silently stay in sync: whichever has the newest change wins, checked every time the app opens. The Push/Pull buttons in the &#8943; menu still work if you ever want to force a sync manually.</p>
@@ -2943,6 +2943,9 @@ function renderBiglyBT(){
   if(location.protocol==="https:" && /^http:\/\//i.test(proxy)){
     return html+'<div class="card torrent-login"><h3>HTTPS proxy required</h3><p class="meta">The saved BiglyBT URL starts with <b>http://</b>. Because GameVault is loaded from HTTPS GitHub Pages, the browser blocks that request before login. Add an HTTPS proxy URL in Settings. The proxy should privately connect to your BiglyBT Web UI.</p><div class="actions"><button class="btn blue" data-act="bigly-settings">Open Settings</button><a class="btn" href="'+esc(proxy)+'" target="_blank" rel="noopener">Open BiglyBT directly</a></div></div>';
   }
+  if(/^https:\/\//i.test(proxy)){
+    return html+'<div class="card" style="padding:0;overflow:hidden"><div class="toolbar" style="margin:0;padding:10px;border-bottom:1px solid var(--border)"><button class="btn blue" data-act="bigly-close">Close</button><button class="btn" data-act="bigly-reload">Reload</button><span class="syncnote" style="align-self:center">BiglyBT Web UI</span></div><iframe id="biglyFrame" title="BiglyBT Web UI" src="'+esc(proxy)+'" style="display:block;width:100%;height:72vh;border:0;background:#0a0d13" allow="clipboard-read; clipboard-write"></iframe></div>';
+  }
   if(!biglyToken){
     return html+'<div class="card torrent-login"><h3>Sign in to BiglyBT</h3><p class="meta">Credentials are not saved. They are sent only to your configured proxy for this browser session.</p><div class="fields"><input class="f-name" id="biglyUser" placeholder="BiglyBT username" autocomplete="username"><input class="f-name" id="biglyPass" placeholder="BiglyBT password" type="password" autocomplete="current-password"><button class="btn blue" data-act="bigly-login">Login</button></div>'+(biglyErr?'<div class="empty">'+esc(biglyErr)+'</div>':'')+'</div>';
   }
@@ -4247,6 +4250,8 @@ document.getElementById("content").addEventListener("click",function(e){
   var b=e.target.closest("[data-act]"); if(!b) return;
   var act=b.getAttribute("data-act"), id=b.getAttribute("data-id"), nm=b.getAttribute("data-name");
   if(act==="bigly-settings"){ toggleSettings(true); return; }
+  if(act==="bigly-close"){ switchSection("games"); return; }
+  if(act==="bigly-reload"){ var bf=document.getElementById("biglyFrame"); if(bf) bf.src=bf.src; return; }
   if(act==="bigly-login"){
     var user=(document.getElementById("biglyUser")||{}).value||"";
     var pass=(document.getElementById("biglyPass")||{}).value||"";
