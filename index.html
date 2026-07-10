@@ -2845,6 +2845,9 @@ function biglyHeaders(){
 function biglyApi(path, opts){
   var base=biglyProxyUrl();
   if(!base) return Promise.reject(new Error("Add your HTTPS BiglyBT proxy URL in Settings first."));
+  if(location.protocol==="https:" && /^http:\/\//i.test(base)){
+    return Promise.reject(new Error("Your saved BiglyBT URL starts with http://. GameVault runs on HTTPS, so the browser blocks it before login. Use an HTTPS proxy URL in Settings; the direct BiglyBT Web UI URL cannot be called from GitHub Pages."));
+  }
   opts=opts||{};
   opts.headers=Object.assign(biglyHeaders(), opts.headers||{});
   return fetch(base+path, opts).then(function(r){
@@ -2853,6 +2856,9 @@ function biglyApi(path, opts){
       if(!r.ok) throw new Error(j.message||j.error||("BiglyBT proxy returned "+r.status));
       return j;
     });
+  }).catch(function(e){
+    if(e && e.message && e.message!=="Failed to fetch") throw e;
+    throw new Error("Cannot reach the BiglyBT proxy. Check that Settings contains an HTTPS proxy, not the direct BiglyBT Web UI URL; also confirm the proxy is online and allows requests from https://sinuksml.github.io.");
   });
 }
 function biglyLogin(user, pass){
@@ -2933,6 +2939,9 @@ function renderBiglyBT(){
   var html='<div class="sechead">BiglyBT</div>';
   if(!proxy){
     return html+'<div class="card torrent-login"><h3>Proxy required</h3><p class="meta">For security, GameVault cannot connect directly to your public BiglyBT IP from this public GitHub Pages frontend. Add an HTTPS proxy URL in Settings. The proxy keeps the real BiglyBT server address in its backend environment/config.</p><button class="btn blue" data-act="bigly-settings">Open Settings</button></div>';
+  }
+  if(location.protocol==="https:" && /^http:\/\//i.test(proxy)){
+    return html+'<div class="card torrent-login"><h3>HTTPS proxy required</h3><p class="meta">The saved BiglyBT URL starts with <b>http://</b>. Because GameVault is loaded from HTTPS GitHub Pages, the browser blocks that request before login. Add an HTTPS proxy URL in Settings. The proxy should privately connect to your BiglyBT Web UI.</p><div class="actions"><button class="btn blue" data-act="bigly-settings">Open Settings</button><a class="btn" href="'+esc(proxy)+'" target="_blank" rel="noopener">Open BiglyBT directly</a></div></div>';
   }
   if(!biglyToken){
     return html+'<div class="card torrent-login"><h3>Sign in to BiglyBT</h3><p class="meta">Credentials are not saved. They are sent only to your configured proxy for this browser session.</p><div class="fields"><input class="f-name" id="biglyUser" placeholder="BiglyBT username" autocomplete="username"><input class="f-name" id="biglyPass" placeholder="BiglyBT password" type="password" autocomplete="current-password"><button class="btn blue" data-act="bigly-login">Login</button></div>'+(biglyErr?'<div class="empty">'+esc(biglyErr)+'</div>':'')+'</div>';
