@@ -285,6 +285,20 @@
   .torrent-meter { height:8px; border-radius:999px; background:var(--inset); border:1px solid var(--inborder); overflow:hidden; }
   .torrent-fill { height:100%; background:linear-gradient(90deg,var(--accent),#65d6ff); border-radius:999px; }
   .torrent-login { max-width:720px; margin:16px auto 0; }
+  body.bigly-active .wrap { max-width:1500px; }
+  body.bigly-active #hero { display:none !important; }
+  .bigly-browser { padding:0; overflow:hidden; min-height:70vh; }
+  .bigly-browser-bar { display:flex; align-items:center; gap:8px; margin:0; padding:9px 10px; border-bottom:1px solid var(--border); background:var(--card2); }
+  .bigly-browser-bar .syncnote { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bigly-browser-frame { display:block; width:100%; height:calc(100vh - 215px); min-height:560px; border:0; background:#0a0d13; }
+  .bigly-browser:fullscreen { background:var(--bg); border:0; border-radius:0; }
+  .bigly-browser:fullscreen .bigly-browser-frame { height:calc(100vh - 55px); }
+  @media (max-width:620px){
+    body.bigly-active .wrap { padding-left:8px; padding-right:8px; }
+    .bigly-browser-bar { flex-wrap:wrap; }
+    .bigly-browser-bar .syncnote { flex-basis:100%; order:2; }
+    .bigly-browser-frame { height:calc(100vh - 185px); min-height:520px; }
+  }
   .tv-only { display:none; }
   .tvzoom { display:none; gap:6px; align-items:center; }
   .tvzoom .iconbtn { min-width:42px; padding:7px 10px; }
@@ -464,10 +478,10 @@
       <button class="btn blue" id="saveFilmKeysBtn">Save film keys</button>
     </div>
     <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
-    <p><b style="color:var(--text)">BiglyBT gateway.</b> Paste your HTTPS gateway URL. The gateway keeps the public IP and BiglyBT login out of this public website; the raw <b>http://</b> address can't be reached from an HTTPS page. <b>Native dashboard</b> mode talks to a Cloudflare Worker gateway and shows torrents as cards (recommended, best on iPhone). <b>Embed Web UI</b> mode iframes an HTTPS-served BiglyBT Web UI instead.</p>
+    <p><b style="color:var(--text)">BiglyBT internal browser.</b> Paste your HTTPS Cloudflare Worker URL. When you select BiglyBT, its Web UI opens inside GameVault. The raw <b>http://</b> public-IP address cannot be embedded because GameVault uses HTTPS. Native dashboard remains available only for a compatible Vuze Web Remote API gateway.</p>
     <div class="fields">
       <input class="f-name" id="biglyProxyInput" placeholder="HTTPS gateway URL, e.g. https://gamevault-biglybt.yourname.workers.dev" autocomplete="off">
-      <select class="f-sm" id="biglyModeInput"><option value="api">Native dashboard (Worker API)</option><option value="iframe">Embed Web UI (iframe)</option></select>
+      <select class="f-sm" id="biglyModeInput"><option value="iframe">Internal browser (recommended)</option><option value="api">Native dashboard (Vuze Web Remote API)</option></select>
       <button class="btn blue" id="saveBiglyProxyBtn">Save BiglyBT gateway</button>
     </div>
     <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
@@ -2839,8 +2853,16 @@ function setBiglyProxyUrl(v){
   try{ localStorage.setItem(BIGLY_PROXY_KEY,(v||"").trim().replace(/\/+$/,"")); }catch(e){}
 }
 var BIGLY_MODE_KEY="gamevault-biglybt-mode";
-function biglyMode(){ try{ return localStorage.getItem(BIGLY_MODE_KEY)||"api"; }catch(e){ return "api"; } }
+function biglyMode(){ try{ return localStorage.getItem(BIGLY_MODE_KEY)||"iframe"; }catch(e){ return "iframe"; } }
 function setBiglyMode(v){ try{ localStorage.setItem(BIGLY_MODE_KEY, v==="iframe"?"iframe":"api"); }catch(e){} }
+/* Existing installs used the API dashboard by default. Move them once to the
+   internal browser; users can still explicitly select API mode afterwards. */
+try{
+  if(!localStorage.getItem("gamevault-biglybt-browser-v1")){
+    setBiglyMode("iframe");
+    localStorage.setItem("gamevault-biglybt-browser-v1","1");
+  }
+}catch(e){}
 function biglyHeaders(){
   var h={"Content-Type":"application/json"};
   if(biglyToken) h.Authorization="Bearer "+biglyToken;
@@ -2948,7 +2970,7 @@ function renderBiglyBT(){
     return html+'<div class="card torrent-login"><h3>HTTPS proxy required</h3><p class="meta">The saved BiglyBT URL starts with <b>http://</b>. Because GameVault is loaded from HTTPS GitHub Pages, the browser blocks that request before login. Add an HTTPS proxy URL in Settings. The proxy should privately connect to your BiglyBT Web UI.</p><div class="actions"><button class="btn blue" data-act="bigly-settings">Open Settings</button><a class="btn" href="'+esc(proxy)+'" target="_blank" rel="noopener">Open BiglyBT directly</a></div></div>';
   }
   if(biglyMode()==="iframe" && /^https:\/\//i.test(proxy)){
-    return html+'<div class="card" style="padding:0;overflow:hidden"><div class="toolbar" style="margin:0;padding:10px;border-bottom:1px solid var(--border)"><button class="btn blue" data-act="bigly-close">Close</button><button class="btn" data-act="bigly-reload">Reload</button><span class="syncnote" style="align-self:center">BiglyBT Web UI</span></div><iframe id="biglyFrame" title="BiglyBT Web UI" src="'+esc(proxy)+'" style="display:block;width:100%;height:72vh;border:0;background:#0a0d13" allow="clipboard-read; clipboard-write"></iframe></div>';
+    return html+'<div class="card bigly-browser" id="biglyBrowser"><div class="bigly-browser-bar"><button class="btn blue" data-act="bigly-close" title="Return to Games">Close</button><button class="btn" data-act="bigly-home" title="Open the BiglyBT home page">Home</button><button class="btn" data-act="bigly-reload" title="Reload BiglyBT">Reload</button><button class="btn" data-act="bigly-fullscreen" title="Use the full screen">Full screen</button><button class="btn" data-act="bigly-settings" title="BiglyBT settings">Settings</button><span class="syncnote" style="align-self:center">BiglyBT is open securely inside GameVault</span></div><iframe id="biglyFrame" class="bigly-browser-frame" title="BiglyBT Web UI" src="'+esc(proxy)+'" allow="clipboard-read; clipboard-write; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe></div>';
   }
   if(!biglyToken){
     return html+'<div class="card torrent-login"><h3>Sign in to BiglyBT</h3><p class="meta">Credentials are not saved. They are sent only to your configured proxy for this browser session.</p><div class="fields"><input class="f-name" id="biglyUser" placeholder="BiglyBT username" autocomplete="username"><input class="f-name" id="biglyPass" placeholder="BiglyBT password" type="password" autocomplete="current-password"><button class="btn blue" data-act="bigly-login">Login</button></div>'+(biglyErr?'<div class="empty">'+esc(biglyErr)+'</div>':'')+'</div>';
@@ -2962,6 +2984,7 @@ function renderBiglyBT(){
 
 function render(){
   var statsEl=document.getElementById("stats");
+  document.body.classList.toggle("bigly-active",section==="biglybt");
   if(section==="biglybt"){
     statsEl.style.display="none";
     renderTabs();
@@ -4258,7 +4281,13 @@ document.getElementById("content").addEventListener("click",function(e){
   var act=b.getAttribute("data-act"), id=b.getAttribute("data-id"), nm=b.getAttribute("data-name");
   if(act==="bigly-settings"){ toggleSettings(true); return; }
   if(act==="bigly-close"){ switchSection("games"); return; }
+  if(act==="bigly-home"){ var bh=document.getElementById("biglyFrame"); if(bh) bh.src=biglyProxyUrl(); return; }
   if(act==="bigly-reload"){ var bf=document.getElementById("biglyFrame"); if(bf) bf.src=bf.src; return; }
+  if(act==="bigly-fullscreen"){
+    var browser=document.getElementById("biglyBrowser");
+    if(browser && browser.requestFullscreen) browser.requestFullscreen().catch(function(){ flash("Full screen is not supported by this browser"); });
+    return;
+  }
   if(act==="bigly-login"){
     var user=(document.getElementById("biglyUser")||{}).value||"";
     var pass=(document.getElementById("biglyPass")||{}).value||"";
