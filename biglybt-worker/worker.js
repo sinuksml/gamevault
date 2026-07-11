@@ -3,7 +3,7 @@ import { connect } from "cloudflare:sockets";
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const SESSION_COOKIE = "gvbt_session";
-const WORKER_VERSION = "github-v4";
+const WORKER_VERSION = "github-v5";
 const MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
 
 function frameHeaders(extra) {
