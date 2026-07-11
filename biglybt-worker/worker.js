@@ -4,7 +4,9 @@ function loginRequired(message) {
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
       "WWW-Authenticate": 'Basic realm="GameVault BiglyBT", charset="UTF-8"',
-      "Cache-Control": "no-store"
+      "Cache-Control": "no-store",
+      "Content-Security-Policy": "frame-ancestors https://sinuksml.github.io",
+      "X-GameVault-Worker-Version": "github-v1"
     }
   });
 }
@@ -45,6 +47,7 @@ export default {
     out.delete("Content-Security-Policy");
     out.set("Content-Security-Policy", "frame-ancestors https://sinuksml.github.io");
     out.set("Cache-Control", "no-store");
+    out.set("X-GameVault-Worker-Version", "github-v1");
     const location = out.get("Location");
     if (location) out.set("Location", location.replace(upstreamBase.origin, incoming.origin));
     return new Response(response.body, { status: response.status, headers: out });
