@@ -285,7 +285,6 @@ async function upstreamFetch(request, env, credentials, pathOverride) {
     try {
       await writer.write(head);
       if (body.byteLength) await writer.write(body);
-      await writer.close();
     } finally {
       writer.releaseLock();
     }
