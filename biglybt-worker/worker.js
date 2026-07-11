@@ -3,7 +3,7 @@ import { connect } from "cloudflare:sockets";
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const SESSION_COOKIE = "gvbt_session";
-const WORKER_VERSION = "github-v10";
+const WORKER_VERSION = "github-v11";
 const MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
 
 function frameHeaders(extra) {
@@ -81,10 +81,6 @@ function cookieValue(request, name) {
 
 function sessionCookie(value, maxAge) {
   return `${SESSION_COOKIE}=${value}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=None; Partitioned`;
-}
-
-function topLevelSessionCookie(value, maxAge) {
-  return `${SESSION_COOKIE}=${value}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
 }
 
 function basicAuth(username, password) {
@@ -331,7 +327,7 @@ grid.onclick=async function(e){var b=e.target.closest('button[data-method]');if(
 grid.onchange=async function(e){var s=e.target.closest('select[data-priority]');if(!s||s.value==='')return;try{await rpc('torrent-set',{ids:[Number(s.dataset.priority)],bandwidthPriority:Number(s.value)});await load()}catch(err){setMessage(err.message,true)}};
 document.getElementById('loginForm').onsubmit=async function(e){e.preventDefault();var error=document.getElementById('loginError');error.classList.add('hidden');try{var r=await fetch('/__native/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('user').value.trim(),password:document.getElementById('pass').value})}),j=await r.json().catch(function(){return {}});if(!r.ok||!j.token)throw new Error(j.message||'Login failed');saveToken(j.token);document.getElementById('pass').value='';showDashboard();activate()}catch(err){showLogin(err.message||'Login failed')}};
 document.getElementById('forget').onclick=function(){stopPolling();saveToken('');showLogin('Saved login removed from this device.')};document.getElementById('auto').onclick=function(){auto=!auto;try{localStorage.setItem(AUTO_KEY,auto?'1':'0')}catch(e){}this.textContent='Auto: '+(auto?'On':'Off');if(auto)activate();else stopPolling()};
-document.getElementById('webUi').onclick=function(){if(!token)return showLogin('Sign in first.');var form=document.createElement('form');form.method='post';form.action='/__native/open-web';form.target='_blank';var input=document.createElement('input');input.type='hidden';input.name='token';input.value=token;form.appendChild(input);document.body.appendChild(form);form.submit();form.remove()};
+document.getElementById('webUi').onclick=function(){if(!token)return showLogin('Sign in first.');location.href='/__native/web/'+encodeURIComponent(token)+'/' };
 window.addEventListener('message',function(e){if(e.data&&e.data.type==='gvbt-native-token-response'&&!token&&typeof e.data.token==='string'&&e.data.token){saveToken(e.data.token);showDashboard();activate()}});try{parent.postMessage({type:'gvbt-native-token-request'},'*')}catch(e){}if(token){showDashboard();activate()}else setTimeout(function(){if(!token)showLogin('')},500);document.addEventListener('visibilitychange',function(){if(document.hidden)stopPolling();else activate()});
 })();
 </script></body></html>`;
@@ -354,6 +350,43 @@ async function nativeRpc(request, env, credentials) {
   }
   const headers = new Headers({ "Content-Type": response.headers.get("Content-Type") || "application/json", "Cache-Control": "no-store" });
   return new Response(response.body, { status: response.status, headers });
+}
+
+async function nativeWebProxy(request, env, credentials, token, upstreamPath) {
+  const incoming = new URL(request.url);
+  const path = (upstreamPath || "/") + incoming.search;
+  const init = { method: request.method, headers: request.headers };
+  if (requestBodyAllowed(request.method)) init.body = await request.arrayBuffer();
+  const proxyRequest = new Request(new URL(path, incoming.origin), init);
+  const response = await upstreamFetch(proxyRequest, env, credentials, null);
+  const headers = new Headers(response.headers);
+  const routeBase = `/__native/web/${encodeURIComponent(token)}`;
+  const location = headers.get("Location");
+  if (location) {
+    const upstreamBase = new URL(env.UPSTREAM_URL);
+    const resolved = new URL(location, upstreamBase);
+    if (resolved.origin === upstreamBase.origin) {
+      headers.set("Location", `${routeBase}${resolved.pathname}${resolved.search}${resolved.hash}`);
+    }
+  }
+  headers.delete("X-Frame-Options");
+  headers.delete("Content-Security-Policy");
+  headers.set("Content-Security-Policy", "frame-ancestors https://sinuksml.github.io");
+  headers.set("Referrer-Policy", "no-referrer");
+  headers.set("Cache-Control", "no-store");
+  headers.set("X-GameVault-Worker-Version", WORKER_VERSION);
+
+  const contentType = (headers.get("Content-Type") || "").toLowerCase();
+  const rewritable = contentType.includes("text/html") || contentType.includes("text/css") || contentType.includes("javascript");
+  if (!rewritable || response.body == null || [204, 205, 304].includes(response.status)) {
+    return new Response(response.body, { status: response.status, headers });
+  }
+  let text = await response.text();
+  text = text
+    .replace(/(["'])\/(?!\/)/g, `$1${routeBase}/`)
+    .replace(/url\(\s*\/(?!\/)/gi, `url(${routeBase}/`);
+  headers.delete("Content-Length");
+  return new Response(text, { status: response.status, headers });
 }
 
 function loginResponse(message, isError, status, returnTo) {
@@ -415,18 +448,17 @@ export default {
         headers: frameHeaders({ "Content-Type": "text/html; charset=utf-8" })
       });
     }
-    if (incoming.pathname === "/__native/open-web") {
-      if (request.method !== "POST") return Response.json({ message: "Method not allowed" }, { status: 405 });
-      const origin = request.headers.get("Origin");
-      if (origin && origin !== incoming.origin) return Response.json({ message: "Origin not allowed" }, { status: 403 });
-      const form = await request.formData();
-      const token = String(form.get("token") || "");
-      const credentials = token ? await openSession(token, env.COOKIE_SECRET) : null;
-      if (!credentials) return loginResponse("Your saved native login has expired. Return to GameVault and sign in again.", true, 401);
-      return new Response(null, {
-        status: 303,
-        headers: frameHeaders({ "Location": "/", "Set-Cookie": topLevelSessionCookie(token, 2592000) })
-      });
+    const nativeWebMatch = incoming.pathname.match(/^\/__native\/web\/([^/]+)(\/.*)?$/);
+    if (nativeWebMatch) {
+      let token;
+      try { token = decodeURIComponent(nativeWebMatch[1]); } catch (_) { return new Response("Invalid session", { status: 400 }); }
+      const credentials = await openSession(token, env.COOKIE_SECRET);
+      if (!credentials) return loginResponse("Your saved native login has expired. Return to the native dashboard and sign in again.", true, 401);
+      try {
+        return await nativeWebProxy(request, env, credentials, token, nativeWebMatch[2] || "/");
+      } catch (_) {
+        return loginResponse("BiglyBT Web UI is offline or unreachable.", true, 502);
+      }
     }
     if (incoming.pathname === "/__native/login") {
       if (request.method !== "POST") return Response.json({ message: "Method not allowed" }, { status: 405 });
