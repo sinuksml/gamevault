@@ -478,10 +478,10 @@
       <button class="btn blue" id="saveFilmKeysBtn">Save film keys</button>
     </div>
     <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
-    <p><b style="color:var(--text)">BiglyBT internal browser.</b> Paste your HTTPS Cloudflare Worker URL. When you select BiglyBT, its Web UI opens inside GameVault. The raw <b>http://</b> public-IP address cannot be embedded because GameVault uses HTTPS. Native dashboard remains available only for a compatible Vuze Web Remote API gateway.</p>
+    <p><b style="color:var(--text)">BiglyBT internal browser.</b> Paste your HTTPS Cloudflare Worker URL. When you select BiglyBT, its Web UI opens inside GameVault. The raw <b>http://</b> public-IP address cannot be embedded because GameVault uses HTTPS. The optional native dashboard uses the same secure gateway and can be switched off at any time.</p>
     <div class="fields">
       <input class="f-name" id="biglyProxyInput" placeholder="HTTPS gateway URL, e.g. https://gamevault-biglybt.yourname.workers.dev" autocomplete="off">
-      <select class="f-sm" id="biglyModeInput"><option value="iframe">Internal browser (recommended)</option><option value="api">Native dashboard (Vuze Web Remote API)</option></select>
+      <select class="f-sm" id="biglyModeInput"><option value="iframe">Internal browser (recommended)</option><option value="api">Native dashboard (optional)</option></select>
       <button class="btn blue" id="saveBiglyProxyBtn">Save BiglyBT gateway</button>
     </div>
     <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
@@ -2855,6 +2855,7 @@ function setBiglyProxyUrl(v){
 var BIGLY_MODE_KEY="gamevault-biglybt-mode";
 function biglyMode(){ try{ return localStorage.getItem(BIGLY_MODE_KEY)||"iframe"; }catch(e){ return "iframe"; } }
 function setBiglyMode(v){ try{ localStorage.setItem(BIGLY_MODE_KEY, v==="iframe"?"iframe":"api"); }catch(e){} }
+function biglyFrameUrl(){ return biglyProxyUrl()+(biglyMode()==="api"?"/__native":""); }
 /* Existing installs used the API dashboard by default. Move them once to the
    internal browser; users can still explicitly select API mode afterwards. */
 try{
@@ -2969,8 +2970,9 @@ function renderBiglyBT(){
   if(location.protocol==="https:" && /^http:\/\//i.test(proxy)){
     return html+'<div class="card torrent-login"><h3>HTTPS proxy required</h3><p class="meta">The saved BiglyBT URL starts with <b>http://</b>. Because GameVault is loaded from HTTPS GitHub Pages, the browser blocks that request before login. Add an HTTPS proxy URL in Settings. The proxy should privately connect to your BiglyBT Web UI.</p><div class="actions"><button class="btn blue" data-act="bigly-settings">Open Settings</button><a class="btn" href="'+esc(proxy)+'" target="_blank" rel="noopener">Open BiglyBT directly</a></div></div>';
   }
-  if(biglyMode()==="iframe" && /^https:\/\//i.test(proxy)){
-    return html+'<div class="card bigly-browser" id="biglyBrowser"><div class="bigly-browser-bar"><button class="btn blue" data-act="bigly-close" title="Return to Games">Close</button><button class="btn" data-act="bigly-home" title="Open the BiglyBT home page">Home</button><button class="btn" data-act="bigly-reload" title="Reload BiglyBT">Reload</button><button class="btn" data-act="bigly-fullscreen" title="Use the full screen">Full screen</button><button class="btn" data-act="bigly-settings" title="BiglyBT settings">Settings</button><span class="syncnote" style="align-self:center">BiglyBT is open securely inside GameVault</span></div><iframe id="biglyFrame" class="bigly-browser-frame" title="BiglyBT Web UI" src="'+esc(proxy)+'" allow="clipboard-read; clipboard-write; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe></div>';
+  if(/^https:\/\//i.test(proxy)){
+    var nativeMode=biglyMode()==="api";
+    return html+'<div class="card bigly-browser" id="biglyBrowser"><div class="bigly-browser-bar"><button class="btn blue" data-act="bigly-close" title="Return to Games">Close</button><button class="btn" data-act="bigly-home" title="Open the BiglyBT home page">Home</button><button class="btn" data-act="bigly-reload" title="Reload BiglyBT">Reload</button><button class="btn" data-act="bigly-fullscreen" title="Use the full screen">Full screen</button><button class="btn" data-act="bigly-settings" title="BiglyBT settings">Settings</button><span class="syncnote" style="align-self:center">'+(nativeMode?'Optional native dashboard':'BiglyBT Web UI')+' is open securely inside GameVault</span></div><iframe id="biglyFrame" class="bigly-browser-frame" title="'+(nativeMode?'Native BiglyBT Dashboard':'BiglyBT Web UI')+'" src="'+esc(biglyFrameUrl())+'" allow="clipboard-read; clipboard-write; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe></div>';
   }
   if(!biglyToken){
     return html+'<div class="card torrent-login"><h3>Sign in to BiglyBT</h3><p class="meta">Credentials are not saved. They are sent only to your configured proxy for this browser session.</p><div class="fields"><input class="f-name" id="biglyUser" placeholder="BiglyBT username" autocomplete="username"><input class="f-name" id="biglyPass" placeholder="BiglyBT password" type="password" autocomplete="current-password"><button class="btn blue" data-act="bigly-login">Login</button></div>'+(biglyErr?'<div class="empty">'+esc(biglyErr)+'</div>':'')+'</div>';
@@ -4281,7 +4283,7 @@ document.getElementById("content").addEventListener("click",function(e){
   var act=b.getAttribute("data-act"), id=b.getAttribute("data-id"), nm=b.getAttribute("data-name");
   if(act==="bigly-settings"){ toggleSettings(true); return; }
   if(act==="bigly-close"){ switchSection("games"); return; }
-  if(act==="bigly-home"){ var bh=document.getElementById("biglyFrame"); if(bh) bh.src=biglyProxyUrl(); return; }
+  if(act==="bigly-home"){ var bh=document.getElementById("biglyFrame"); if(bh) bh.src=biglyFrameUrl(); return; }
   if(act==="bigly-reload"){ var bf=document.getElementById("biglyFrame"); if(bf) bf.src=bf.src; return; }
   if(act==="bigly-fullscreen"){
     var browser=document.getElementById("biglyBrowser");
