@@ -3,6 +3,7 @@
 Deploy `worker.js` as a Cloudflare Worker. Configure this as an encrypted Worker secret:
 
 - `UPSTREAM_URL`: the HTTP BiglyBT address using a Cloudflare-supported external port, for example `http://your-ddns-name:8080/`.
+- `COOKIE_SECRET`: at least 32 random characters used to encrypt the browser login session.
 
 Configure the router with external TCP port `8080` forwarding to the Shield's port `9093`. Do not put the public IP, username, password, or cookie secret in this repository.
 
@@ -17,4 +18,4 @@ Connect the `sinuksml/gamevault` repository to the existing `gamevault-biglybt` 
 - Build command: blank
 - Deploy command: `npx wrangler deploy`
 
-The `UPSTREAM_URL` runtime secret remains configured in Cloudflare and is not stored in GitHub.
+The `UPSTREAM_URL` and `COOKIE_SECRET` runtime secrets remain configured in Cloudflare and are not stored in GitHub.
