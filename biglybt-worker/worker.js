@@ -1,7 +1,10 @@
+import { connect } from "cloudflare:sockets";
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const SESSION_COOKIE = "gvbt_session";
-const WORKER_VERSION = "github-v3";
+const WORKER_VERSION = "github-v4";
+const MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
 
 function frameHeaders(extra) {
   return Object.assign({
@@ -86,38 +89,215 @@ function basicAuth(username, password) {
   return `Basic ${btoa(binary)}`;
 }
 
+function safeHeaderValue(value) {
+  return String(value || "").replace(/[\r\n]+/g, " ").trim();
+}
+
+function requestBodyAllowed(method) {
+  return !/^(GET|HEAD)$/i.test(method);
+}
+
+function forwardedRequestHeaders(request) {
+  const names = [
+    ["Accept", "accept"],
+    ["Accept-Language", "accept-language"],
+    ["Content-Type", "content-type"],
+    ["If-Modified-Since", "if-modified-since"],
+    ["If-None-Match", "if-none-match"],
+    ["Range", "range"],
+    ["User-Agent", "user-agent"],
+    ["X-Requested-With", "x-requested-with"],
+    ["X-Transmission-Session-Id", "x-transmission-session-id"]
+  ];
+  const result = [];
+  for (const [outgoingName, incomingName] of names) {
+    const value = request.headers.get(incomingName);
+    if (value) result.push([outgoingName, safeHeaderValue(value)]);
+  }
+
+  const cookies = (request.headers.get("Cookie") || "")
+    .split(/;\s*/)
+    .filter((cookie) => cookie && !cookie.startsWith(`${SESSION_COOKIE}=`));
+  if (cookies.length) result.push(["Cookie", safeHeaderValue(cookies.join("; "))]);
+  return result;
+}
+
+function findSequence(bytes, sequence, start) {
+  const from = start || 0;
+  outer: for (let i = from; i <= bytes.length - sequence.length; i += 1) {
+    for (let j = 0; j < sequence.length; j += 1) {
+      if (bytes[i + j] !== sequence[j]) continue outer;
+    }
+    return i;
+  }
+  return -1;
+}
+
+function joinBytes(chunks, total) {
+  const joined = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    joined.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return joined;
+}
+
+async function readSocketBytes(readable) {
+  const reader = readable.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value || !value.byteLength) continue;
+      total += value.byteLength;
+      if (total > MAX_RESPONSE_BYTES) {
+        throw new Error("BiglyBT response exceeded the 32 MB proxy limit.");
+      }
+      chunks.push(value instanceof Uint8Array ? value : new Uint8Array(value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return joinBytes(chunks, total);
+}
+
+function decodeChunkedBody(body) {
+  const chunks = [];
+  let total = 0;
+  let position = 0;
+  while (position < body.length) {
+    const lineEnd = findSequence(body, [13, 10], position);
+    if (lineEnd < 0) throw new Error("Invalid chunked response from BiglyBT.");
+    const sizeText = decoder.decode(body.subarray(position, lineEnd)).split(";", 1)[0].trim();
+    const size = Number.parseInt(sizeText, 16);
+    if (!Number.isFinite(size) || size < 0) throw new Error("Invalid chunk size from BiglyBT.");
+    position = lineEnd + 2;
+    if (size === 0) return joinBytes(chunks, total);
+    if (position + size + 2 > body.length) throw new Error("Incomplete chunked response from BiglyBT.");
+    const chunk = body.slice(position, position + size);
+    chunks.push(chunk);
+    total += chunk.byteLength;
+    position += size;
+    if (body[position] !== 13 || body[position + 1] !== 10) {
+      throw new Error("Invalid chunk boundary from BiglyBT.");
+    }
+    position += 2;
+  }
+  throw new Error("Incomplete chunked response from BiglyBT.");
+}
+
+function parseRawResponse(raw, requestMethod) {
+  const headerEnd = findSequence(raw, [13, 10, 13, 10], 0);
+  if (headerEnd < 0) throw new Error("BiglyBT returned an invalid HTTP response.");
+
+  const headerText = decoder.decode(raw.subarray(0, headerEnd));
+  const lines = headerText.split("\r\n");
+  const statusMatch = lines.shift().match(/^HTTP\/\d(?:\.\d)?\s+(\d{3})(?:\s+.*)?$/i);
+  if (!statusMatch) throw new Error("BiglyBT returned an invalid HTTP status line.");
+  const status = Number(statusMatch[1]);
+  const headers = new Headers();
+  let transferEncoding = "";
+  let contentLength = null;
+
+  for (const line of lines) {
+    const separator = line.indexOf(":");
+    if (separator <= 0) continue;
+    const name = line.slice(0, separator).trim();
+    const value = line.slice(separator + 1).trim();
+    const lower = name.toLowerCase();
+    if (lower === "transfer-encoding") {
+      transferEncoding = value.toLowerCase();
+      continue;
+    }
+    if (lower === "content-length") {
+      const parsed = Number.parseInt(value, 10);
+      contentLength = Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+      continue;
+    }
+    if (["connection", "keep-alive", "proxy-authenticate", "proxy-connection", "trailer", "upgrade"].includes(lower)) {
+      continue;
+    }
+    try {
+      headers.append(name, value);
+    } catch (_) {
+      // Ignore malformed upstream headers instead of breaking the dashboard.
+    }
+  }
+
+  const hasNoResponseBody = /^HEAD$/i.test(requestMethod) || [204, 205, 304].includes(status);
+  let body = raw.slice(headerEnd + 4);
+  if (hasNoResponseBody) {
+    headers.delete("Content-Length");
+    return new Response(null, { status, headers });
+  }
+  if (transferEncoding.includes("chunked")) {
+    body = decodeChunkedBody(body);
+  } else if (contentLength != null) {
+    if (body.byteLength < contentLength) throw new Error("BiglyBT closed an incomplete response.");
+    body = body.slice(0, contentLength);
+  }
+  headers.set("Content-Length", String(body.byteLength));
+  return new Response(body, { status, headers });
+}
+
 async function upstreamFetch(request, env, credentials, pathOverride) {
   const incoming = new URL(request.url);
   const upstreamBase = new URL(env.UPSTREAM_URL);
   const path = pathOverride == null ? incoming.pathname + incoming.search : pathOverride;
   const target = new URL(path, upstreamBase);
-  const headers = pathOverride == null ? new Headers(request.headers) : new Headers({
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-  });
-  headers.set("Authorization", basicAuth(credentials.username, credentials.password));
-  headers.set("Cache-Control", "no-store");
-  headers.delete("Cookie");
-  headers.delete("Host");
-  headers.delete("Content-Length");
-  headers.delete("Content-Type");
-  headers.delete("Origin");
-  headers.delete("Referer");
+  if (!/^https?:$/.test(target.protocol)) throw new Error("UPSTREAM_URL must use HTTP or HTTPS.");
 
-  const options = {
-    method: pathOverride == null ? request.method : "GET",
-    headers,
-    body: pathOverride == null && !/^(GET|HEAD)$/i.test(request.method) ? request.body : undefined,
-    cache: "no-store",
-    redirect: "manual"
-  };
-  let response = await fetch(target, options);
-
-  // BiglyBT Web Remote can require a challenge before it accepts Basic auth.
-  if (response.status === 401 && /^(GET|HEAD)$/i.test(options.method)) {
-    await fetch(target, { method: "GET", cache: "no-store", redirect: "manual" });
-    response = await fetch(target, options);
+  const method = pathOverride == null ? request.method.toUpperCase() : "GET";
+  const body = pathOverride == null && requestBodyAllowed(method)
+    ? new Uint8Array(await request.arrayBuffer())
+    : new Uint8Array();
+  const defaultPort = target.protocol === "https:" ? 443 : 80;
+  const port = target.port ? Number(target.port) : defaultPort;
+  const requestPath = `${target.pathname || "/"}${target.search}`;
+  const headerLines = [
+    `${method} ${requestPath} HTTP/1.1`,
+    `Host: ${safeHeaderValue(target.host)}`,
+    `Authorization: ${basicAuth(credentials.username, credentials.password)}`,
+    "Cache-Control: no-store",
+    "Accept-Encoding: identity",
+    "Connection: close"
+  ];
+  if (pathOverride == null) {
+    for (const [name, value] of forwardedRequestHeaders(request)) {
+      headerLines.push(`${name}: ${value}`);
+    }
+  } else {
+    headerLines.push("Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
   }
-  return response;
+  if (requestBodyAllowed(method)) headerLines.push(`Content-Length: ${body.byteLength}`);
+  const head = encoder.encode(`${headerLines.join("\r\n")}\r\n\r\n`);
+
+  const socket = connect(
+    { hostname: target.hostname, port },
+    { secureTransport: target.protocol === "https:" ? "on" : "off", allowHalfOpen: false }
+  );
+  try {
+    await socket.opened;
+    const writer = socket.writable.getWriter();
+    try {
+      await writer.write(head);
+      if (body.byteLength) await writer.write(body);
+      await writer.close();
+    } finally {
+      writer.releaseLock();
+    }
+    const raw = await readSocketBytes(socket.readable);
+    return parseRawResponse(raw, method);
+  } finally {
+    try {
+      await socket.close();
+    } catch (_) {
+      // The peer normally closes first because requests use Connection: close.
+    }
+  }
 }
 
 function loginResponse(message, isError, status) {
