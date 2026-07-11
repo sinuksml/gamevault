@@ -290,7 +290,7 @@
   .bigly-browser { padding:0; overflow:hidden; min-height:70vh; }
   .bigly-browser-bar { display:flex; align-items:center; gap:8px; margin:0; padding:9px 10px; border-bottom:1px solid var(--border); background:var(--card2); }
   .bigly-browser-bar .syncnote { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .bigly-browser-frame { display:block; width:100%; height:calc(100vh - 215px); min-height:560px; border:0; background:#0a0d13; }
+  .bigly-browser-frame { display:block; width:100%; height:calc(100vh - 215px); min-height:560px; border:0; background:transparent; }
   .bigly-browser:fullscreen { background:var(--bg); border:0; border-radius:0; }
   .bigly-browser:fullscreen .bigly-browser-frame { height:calc(100vh - 55px); }
   @media (max-width:620px){
@@ -1649,6 +1649,26 @@ function featuredSeries(){
   });
   return pool[0]||null;
 }
+var BIGLY_BG_KEY="gamevault-biglybt-bluray-bg", biglyBluRay=null, biglyBluRayBusy=false, biglyBluRayCheckedAt=0;
+try{
+  var savedBiglyBg=JSON.parse(localStorage.getItem(BIGLY_BG_KEY)||"null");
+  if(savedBiglyBg){ biglyBluRayCheckedAt=savedBiglyBg.at||0; if(savedBiglyBg.item&&(Date.now()-savedBiglyBg.at)<24*60*60*1000) biglyBluRay=savedBiglyBg.item; }
+}catch(e){}
+function ensureBiglyBluRayBackground(){
+  if(biglyBluRay||biglyBluRayBusy||!tmdbKey()||(Date.now()-biglyBluRayCheckedAt)<6*60*60*1000) return;
+  biglyBluRayCheckedAt=Date.now();
+  biglyBluRayBusy=true;
+  tmdbGet("/discover/movie",{
+    region:"US",with_release_type:"5",with_original_language:"en",
+    "release_date.gte":daysAgoISO(120),"release_date.lte":localISO(today()),
+    "vote_count.gte":"80",sort_by:"release_date.desc",page:"1",include_adult:"false"
+  }).then(function(j){
+    var items=(j.results||[]).map(mapMovie).filter(function(m){return !!mediaBgUrl(m);});
+    biglyBluRay=items[0]||null;
+    try{localStorage.setItem(BIGLY_BG_KEY,JSON.stringify({at:biglyBluRayCheckedAt,item:biglyBluRay}));}catch(e){}
+    if(section==="biglybt") applyBackground();
+  }).catch(function(){}).then(function(){biglyBluRayBusy=false;});
+}
 var bgShown="";
 function applyBackground(){
   var el=document.getElementById("bg"); if(!el) return;
@@ -1665,7 +1685,12 @@ function applyBackground(){
     detail=g?(g.year?("Started "+g.year):"TV Series"):"";
     if(g&&(g.imdb||g.tmdb)) extra='<span class="chip">'+(g.imdb?"IMDb "+g.imdb.toFixed(1):"TMDB "+g.tmdb.toFixed(1))+'</span>';
   } else if(section==="biglybt"){
-    g=null; u="";
+    ensureBiglyBluRayBackground();
+    g=biglyBluRay||((filmCache.relhw&&filmCache.relhw.items||[]).filter(function(m){return !!mediaBgUrl(m);})[0]||null);
+    u=mediaBgUrl(g); title=(g&&g.title)||"";
+    label=biglyBluRay?"Latest Hollywood Blu-ray release":"Featured Hollywood release";
+    detail=g?(g.date?fmt(g.date):(g.year||"Release date TBA")):"";
+    if(g&&(g.imdb||g.tmdb)) extra='<span class="chip">'+(g.imdb?"IMDb "+g.imdb.toFixed(1):"TMDB "+g.tmdb.toFixed(1))+'</span>';
   } else {
     g=nextBigGame(); u=g?coverUrl(g):""; title=(g&&g.name)||"";
     if(g){
@@ -1679,6 +1704,10 @@ function applyBackground(){
     el.style.backgroundImage=u?('url("'+u+'")'):"none";
   }
   if(!hero) return;
+  if(section==="biglybt"){
+    var biglyHead=document.querySelector("#content .sechead");
+    if(biglyHead) biglyHead.innerHTML='BiglyBT'+(title?' <span style="color:var(--muted);font-weight:600">· Blu-ray backdrop: '+esc(title)+'</span>':'');
+  }
   if(g&&u){
     hero.className="show";
     hero.innerHTML=
@@ -1795,6 +1824,84 @@ function plotBlock(name, kind){
   if(typeof entry==="string") entry={p:entry,t:"",a:""};
   if(!entry.p) return '<div class="plot">No '+(kind==="film"?"plot":"story")+' section found on Wikipedia for this '+(kind==="film"?"film":"game")+' — try the sources below.'+plotLinks(name,entry,kind)+'</div>';
   return '<div class="plot">'+esc(entry.p)+plotLinks(name,entry,kind)+'</div>';
+}
+
+function episodePlotKey(s,seasonNo,epNo){ return "tvep:"+String(s&&s.id||norm(s&&s.title||""))+":s"+seasonNo+":e"+epNo; }
+function cleanWikiEpisodeText(text){
+  return String(text||"").replace(/\[\s*\d+\s*\]/g,"").replace(/\s*\[edit\]\s*/gi," ").replace(/\s+/g," ").trim();
+}
+function episodeSynopsisFromWiki(html,ep){
+  var doc=new DOMParser().parseFromString(html||"","text/html"), wanted=norm(ep.title||"");
+  var rows=Array.prototype.slice.call(doc.querySelectorAll("tr")), best="";
+  rows.some(function(row){
+    var titleEl=row.querySelector(".summary"), rowTitle=norm(titleEl&&titleEl.textContent||"");
+    if(!rowTitle || (wanted && rowTitle!==wanted && rowTitle.indexOf(wanted)<0 && wanted.indexOf(rowTitle)<0)) return false;
+    var desc=row.querySelector(".description");
+    if(!desc && row.nextElementSibling) desc=row.nextElementSibling.querySelector(".description");
+    var text=cleanWikiEpisodeText(desc&&desc.textContent||"");
+    if(text.length>35){ best=text; return true; }
+    return false;
+  });
+  if(best) return best;
+  Array.prototype.slice.call(doc.querySelectorAll("h2,h3,h4,h5")).some(function(h){
+    var heading=norm(h.textContent||"");
+    if(!wanted || (heading!==wanted && heading.indexOf(wanted)<0)) return false;
+    var parts=[], node=h.parentElement&&h.parentElement.nextElementSibling;
+    while(node && !/^H[1-5]$/.test(node.tagName||"")){
+      if(node.matches&&node.matches("p")) parts.push(node.textContent||"");
+      node=node.nextElementSibling;
+    }
+    best=cleanWikiEpisodeText(parts.join(" "));
+    return best.length>35;
+  });
+  return best;
+}
+function ensureEpisodePlot(s,seasonNo,ep){
+  if(!s||!ep) return;
+  var k=episodePlotKey(s,seasonNo,ep.n);
+  if((k in plotCache)||plotPending[k]||plotErr[k]) return;
+  plotPending[k]=1;
+  var api="https://en.wikipedia.org/w/api.php", articleTitle="";
+  var searches=[s.title+" season "+seasonNo+" episodes", "List of "+s.title+" episodes"];
+  var timer=new Promise(function(_,rej){ setTimeout(function(){ rej(new Error("timeout")); },18000); });
+  var chain=Promise.all(searches.map(function(q){
+    return rawgFetch(api+"?action=query&list=search&format=json&origin=*&srlimit=8&srsearch="+encodeURIComponent(q)).catch(function(){ return {query:{search:[]}}; });
+  })).then(function(all){
+    var seen={}, hits=[];
+    all.forEach(function(j){ (j.query&&j.query.search||[]).forEach(function(h){ if(!seen[h.title]){seen[h.title]=1;hits.push(h);} }); });
+    var show=norm(s.title), seasonText="season "+seasonNo;
+    hits=hits.filter(function(h){ return norm(h.title).indexOf(show)>-1; }).sort(function(a,b){
+      function score(h){var t=norm(h.title),n=0;if(t.indexOf(seasonText)>-1)n+=12;if(t.indexOf("episodes")>-1)n+=7;if(t.indexOf("list of")>-1)n+=4;return n;}
+      return score(b)-score(a);
+    }).slice(0,6);
+    function tryHit(i){
+      if(i>=hits.length) throw new Error("no episode synopsis");
+      var title=hits[i].title;
+      return rawgFetch(api+"?action=parse&format=json&origin=*&prop=text&page="+encodeURIComponent(title)).then(function(j){
+        var synopsis=episodeSynopsisFromWiki(j.parse&&j.parse.text&&j.parse.text["*"]||"",ep);
+        if(!synopsis) return tryHit(i+1);
+        articleTitle=title;
+        return synopsis;
+      }).catch(function(err){ if(err&&err.message==="no episode synopsis") throw err; return tryHit(i+1); });
+    }
+    return tryHit(0);
+  }).then(function(synopsis){ plotCache[k]={p:synopsis,t:articleTitle,a:""}; savePlots(); });
+  Promise.race([chain,timer]).then(function(){ delete plotPending[k]; maybeRender(); }).catch(function(err){
+    delete plotPending[k];
+    if(err&&err.message==="no episode synopsis"){ plotCache[k]={p:"",t:articleTitle,a:""}; savePlots(); }
+    else plotErr[k]=1;
+    maybeRender();
+  });
+}
+function episodePlotBlock(s,seasonNo,ep){
+  var k=episodePlotKey(s,seasonNo,ep.n), entry=plotCache[k];
+  if(plotErr[k]) return '<div class="plot">Couldn’t reach Wikipedia for this episode.<div class="actions" style="margin-top:8px"><button class="btn" data-act="episode-plot-retry" data-id="'+esc(String(s.id))+'" data-season="'+esc(String(seasonNo))+'" data-episode="'+esc(String(ep.n))+'">↻ Try again</button></div></div>';
+  if(plotPending[k]||!(k in plotCache)){ ensureEpisodePlot(s,seasonNo,ep); return '<div class="plot">Fetching the selected episode story from Wikipedia…</div>'; }
+  if(typeof entry==="string") entry={p:entry,t:"",a:""};
+  var wiki=entry.t?'<a href="https://en.wikipedia.org/wiki/'+encodeURIComponent(entry.t.replace(/ /g,"_"))+'" target="_blank" rel="noopener">Wikipedia episode page ↗</a> · ':'';
+  var more='<div class="src">Read more: '+wiki+'<a href="https://www.google.com/search?q='+encodeURIComponent(s.title+" season "+seasonNo+" episode "+ep.n+" "+ep.title+" plot")+'" target="_blank" rel="noopener">Google ↗</a></div>';
+  if(!entry.p) return '<div class="plot">Wikipedia does not currently provide a separate synopsis for this episode. The TMDB episode overview is shown above.'+more+'</div>';
+  return '<div class="plot"><b>Wikipedia episode story</b><br>'+esc(entry.p)+more+'</div>';
 }
 
 /* ---------- AI assistant launchers ---------- */
@@ -3004,6 +3111,11 @@ function render(){
   if(section==="biglybt"){
     statsEl.style.display="none";
     renderTabs();
+    if(document.getElementById("biglyBrowser")){
+      applyBackground();
+      tvAfterRender();
+      return;
+    }
     document.getElementById("content").innerHTML=renderBiglyBT();
     applyBackground();
     tvAfterRender();
@@ -3932,7 +4044,7 @@ function seriesEpisodeBlock(s){
   if(ep){
     h+='<div style="margin-top:10px"><b>S'+selected+' E'+ep.n+': '+esc(ep.title)+'</b>'+(ep.air?' <span style="color:var(--muted)">· '+fmt(ep.air)+'</span>':'')+'<br>'+
       (ep.overview?esc(ep.overview):'No episode overview available from TMDB.')+'</div></div>'+
-      plotBlock(s.title+" season "+selected+" episode "+ep.n+" "+ep.title,"TV series");
+      episodePlotBlock(s,selected,ep);
     return h;
   }
   return h+'</div>';
@@ -4281,6 +4393,7 @@ var saveBiglyProxyBtn=document.getElementById("saveBiglyProxyBtn");
 if(saveBiglyProxyBtn) saveBiglyProxyBtn.addEventListener("click",function(){
   setBiglyProxyUrl(document.getElementById("biglyProxyInput").value);
   var mSel=document.getElementById("biglyModeInput"); if(mSel) setBiglyMode(mSel.value);
+  var existingBigly=document.getElementById("biglyBrowser"); if(existingBigly) existingBigly.remove();
   biglyLogout();
   toggleSettings(false);
   flash(biglyProxyUrl()?"BiglyBT proxy saved":"BiglyBT proxy cleared");
@@ -4570,6 +4683,13 @@ document.getElementById("content").addEventListener("click",function(e){
     save(); flash("Added to Playing");
     enrichScore("playing",plId);
     ensurePlot(pln);
+  }
+  else if(act==="episode-plot-retry"){
+    var es=findSeriesAny(id), esn=b.getAttribute("data-season"), een=b.getAttribute("data-episode");
+    if(es){
+      var epl=(seriesEpisodeCache[es.id+":"+esn]||[]).filter(function(x){return String(x.n)===String(een);})[0];
+      if(epl){ var epk=episodePlotKey(es,esn,een); delete plotErr[epk]; delete plotPending[epk]; delete plotCache[epk]; ensureEpisodePlot(es,esn,epl); render(); }
+    }
   }
   else if(act==="plot-retry"){
     var pn2=b.getAttribute("data-name"), pk2=b.getAttribute("data-kind")||"video game";
@@ -5288,7 +5408,11 @@ document.getElementById("themeBtn").addEventListener("click",function(){
 
 /* ---------- global refresh ---------- */
 function globalRefresh(){
-  if(section==="biglybt"){ flash("Refreshing BiglyBT..."); biglyRefresh(); return; }
+  if(section==="biglybt"){
+    var biglyFrame=document.getElementById("biglyFrame");
+    if(biglyFrame){ flash("Reloading the current BiglyBT view…"); biglyFrame.src=biglyFrame.src; }
+    return;
+  }
   if(section==="series"){ flash("Refreshing TV series from the internet..."); ensureSeries(seriesTab,true); return; }
   if(section==="films"){ flash("Refreshing films from the internet…"); ensureFilms(filmTab,true); return; }
   plotPending={}; plotErr={};   // unstick any hung Wikipedia loads
