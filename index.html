@@ -1877,7 +1877,7 @@ function ensureEpisodePlot(s,seasonNo,ep){
     function tryHit(i){
       if(i>=hits.length) throw new Error("no episode synopsis");
       var title=hits[i].title;
-      return rawgFetch(api+"?action=parse&format=json&origin=*&prop=text&page="+encodeURIComponent(title)).then(function(j){
+      return rawgFetch(api+"?action=parse&format=json&origin=*&prop=text&redirects=1&page="+encodeURIComponent(title)).then(function(j){
         var synopsis=episodeSynopsisFromWiki(j.parse&&j.parse.text&&j.parse.text["*"]||"",ep);
         if(!synopsis) return tryHit(i+1);
         articleTitle=title;
