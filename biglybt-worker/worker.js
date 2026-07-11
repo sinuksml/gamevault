@@ -1,7 +1,7 @@
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const SESSION_COOKIE = "gvbt_session";
-const WORKER_VERSION = "github-v2";
+const WORKER_VERSION = "github-v3";
 
 function frameHeaders(extra) {
   return Object.assign({
@@ -91,19 +91,33 @@ async function upstreamFetch(request, env, credentials, pathOverride) {
   const upstreamBase = new URL(env.UPSTREAM_URL);
   const path = pathOverride == null ? incoming.pathname + incoming.search : pathOverride;
   const target = new URL(path, upstreamBase);
-  const headers = new Headers(request.headers);
+  const headers = pathOverride == null ? new Headers(request.headers) : new Headers({
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+  });
   headers.set("Authorization", basicAuth(credentials.username, credentials.password));
   headers.set("Cache-Control", "no-store");
   headers.delete("Cookie");
   headers.delete("Host");
+  headers.delete("Content-Length");
+  headers.delete("Content-Type");
+  headers.delete("Origin");
+  headers.delete("Referer");
 
-  return fetch(target, {
+  const options = {
     method: pathOverride == null ? request.method : "GET",
     headers,
     body: pathOverride == null && !/^(GET|HEAD)$/i.test(request.method) ? request.body : undefined,
     cache: "no-store",
     redirect: "manual"
-  });
+  };
+  let response = await fetch(target, options);
+
+  // BiglyBT Web Remote can require a challenge before it accepts Basic auth.
+  if (response.status === 401 && /^(GET|HEAD)$/i.test(options.method)) {
+    await fetch(target, { method: "GET", cache: "no-store", redirect: "manual" });
+    response = await fetch(target, options);
+  }
+  return response;
 }
 
 function loginResponse(message, isError, status) {
