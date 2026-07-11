@@ -2853,9 +2853,23 @@ function setBiglyProxyUrl(v){
   try{ localStorage.setItem(BIGLY_PROXY_KEY,(v||"").trim().replace(/\/+$/,"")); }catch(e){}
 }
 var BIGLY_MODE_KEY="gamevault-biglybt-mode";
+var BIGLY_NATIVE_TOKEN_KEY="gamevault-biglybt-native-token";
 function biglyMode(){ try{ return localStorage.getItem(BIGLY_MODE_KEY)||"iframe"; }catch(e){ return "iframe"; } }
 function setBiglyMode(v){ try{ localStorage.setItem(BIGLY_MODE_KEY, v==="iframe"?"iframe":"api"); }catch(e){} }
 function biglyFrameUrl(){ return biglyProxyUrl()+(biglyMode()==="api"?"/__native":""); }
+window.addEventListener("message",function(e){
+  var frame=document.getElementById("biglyFrame"), proxy=biglyProxyUrl(), origin="";
+  try{ origin=new URL(proxy).origin; }catch(err){ return; }
+  if(!frame || e.source!==frame.contentWindow || e.origin!==origin || !e.data) return;
+  if(e.data.type==="gvbt-native-token-request"){
+    var saved=""; try{ saved=localStorage.getItem(BIGLY_NATIVE_TOKEN_KEY)||""; }catch(err){}
+    e.source.postMessage({type:"gvbt-native-token-response",token:saved},origin);
+  }else if(e.data.type==="gvbt-native-token-save" && typeof e.data.token==="string" && e.data.token.length<16384){
+    try{ localStorage.setItem(BIGLY_NATIVE_TOKEN_KEY,e.data.token); }catch(err){}
+  }else if(e.data.type==="gvbt-native-token-remove"){
+    try{ localStorage.removeItem(BIGLY_NATIVE_TOKEN_KEY); }catch(err){}
+  }
+});
 /* Existing installs used the API dashboard by default. Move them once to the
    internal browser; users can still explicitly select API mode afterwards. */
 try{
