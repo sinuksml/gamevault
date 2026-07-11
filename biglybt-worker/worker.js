@@ -3,7 +3,7 @@ import { connect } from "cloudflare:sockets";
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const SESSION_COOKIE = "gvbt_session";
-const WORKER_VERSION = "github-v9";
+const WORKER_VERSION = "github-v10";
 const MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
 
 function frameHeaders(extra) {
@@ -81,6 +81,10 @@ function cookieValue(request, name) {
 
 function sessionCookie(value, maxAge) {
   return `${SESSION_COOKIE}=${value}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=None; Partitioned`;
+}
+
+function topLevelSessionCookie(value, maxAge) {
+  return `${SESSION_COOKIE}=${value}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
 }
 
 function basicAuth(username, password) {
@@ -305,7 +309,7 @@ function nativeDashboardPage() {
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>BiglyBT Dashboard</title><style>
 :root{color-scheme:dark;--bg:#090d14;--panel:#111927;--line:#2a3c58;--text:#eef4ff;--muted:#94a3ba;--blue:#2182ee;--danger:#e25261}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}.shell{max-width:1500px;margin:auto;padding:18px}.top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}.top h1{font-size:22px;margin:0 auto 0 0}.btn,input,select{border:1px solid var(--line);border-radius:8px;background:#0b121e;color:var(--text);font:inherit}.btn{padding:9px 12px;cursor:pointer;font-weight:700}.btn:hover{border-color:#5da8ff}.btn.blue{background:#176dce;border-color:#499fff}.btn.danger{color:#ffb5bc;border-color:#74343c}.btn:disabled{opacity:.45;cursor:not-allowed}.add{display:flex;gap:8px;margin-bottom:12px}.add input{flex:1;min-width:0;padding:10px 12px}.summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px}.stat,.card,.notice,.login{border:1px solid var(--line);border-radius:9px;background:var(--panel)}.stat{padding:10px}.stat b{display:block;font-size:17px}.stat span{font-size:11px;color:var(--muted)}.grid{display:flex;flex-direction:column;gap:8px}.card{padding:11px;display:grid;grid-template-columns:minmax(220px,1.5fr) minmax(180px,1fr) auto;gap:10px;align-items:center}.head{display:flex;gap:8px;align-items:flex-start}.name{font-weight:800;line-height:1.3;overflow-wrap:anywhere;flex:1}.status{font-size:10px;font-weight:800;padding:3px 7px;border:1px solid #3778bf;border-radius:999px;color:#bdddff;white-space:nowrap}.meter{height:8px;background:#080d15;border:1px solid #263951;border-radius:999px;overflow:hidden;margin-top:8px}.fill{height:100%;background:linear-gradient(90deg,#2182ee,#58d4ff)}.meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;color:var(--muted);font-size:11px}.meta b{color:var(--text)}.actions{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}.actions .btn,.actions select{font-size:11px;padding:7px 8px}.notice{padding:16px;text-align:center;color:var(--muted)}.error{border-color:#8a3942;color:#ffb5bc;background:#31171c}.login{width:min(460px,100%);margin:12vh auto;padding:22px}.login h2{margin:0 0 7px}.login p{color:var(--muted);line-height:1.45}.login label{display:block;font-size:12px;font-weight:700;margin:11px 0 5px}.login input{width:100%;padding:11px}.login .btn{width:100%;margin-top:14px}.hidden{display:none!important}@media(max-width:850px){.card{grid-template-columns:1fr}.actions{justify-content:flex-start}}@media(max-width:650px){.shell{padding:9px}.summary{grid-template-columns:repeat(2,1fr)}.add{flex-wrap:wrap}.add input{flex-basis:100%}.top h1{flex-basis:100%}.card{padding:10px}}
-</style></head><body><main class="shell"><section class="login hidden" id="login"><h2>Sign in to BiglyBT</h2><p>Sign in once on this device. Only an encrypted session token is saved; your password is never stored.</p><div id="loginError" class="notice error hidden"></div><form id="loginForm"><label>Username</label><input id="user" autocomplete="username" required><label>Password</label><input id="pass" type="password" autocomplete="current-password" required><button class="btn blue">Sign in and remember</button></form></section><section id="dashboard" class="hidden"><div class="top"><h1>Native BiglyBT Dashboard <small style="font-size:11px;color:var(--muted)">List view</small></h1><button class="btn blue" id="refresh">Refresh</button><button class="btn" id="auto">Auto: On</button><a class="btn" href="/">Web UI</a><button class="btn danger" id="forget">Forget saved login</button></div><form class="add" id="addForm"><input id="magnet" placeholder="Paste a magnet link" autocomplete="off"><button class="btn blue">Add torrent</button></form><section class="summary" id="summary"></section><div id="message" class="notice">Loading torrents...</div><section class="grid" id="grid"></section></section></main><script>
+</style></head><body><main class="shell"><section class="login hidden" id="login"><h2>Sign in to BiglyBT</h2><p>Sign in once on this device. Only an encrypted session token is saved; your password is never stored.</p><div id="loginError" class="notice error hidden"></div><form id="loginForm"><label>Username</label><input id="user" autocomplete="username" required><label>Password</label><input id="pass" type="password" autocomplete="current-password" required><button class="btn blue">Sign in and remember</button></form></section><section id="dashboard" class="hidden"><div class="top"><h1>Native BiglyBT Dashboard <small style="font-size:11px;color:var(--muted)">List view</small></h1><button class="btn blue" id="refresh">Refresh</button><button class="btn" id="auto">Auto: On</button><button class="btn" id="webUi">Open Web UI</button><button class="btn danger" id="forget">Forget saved login</button></div><form class="add" id="addForm"><input id="magnet" placeholder="Paste a magnet link" autocomplete="off"><button class="btn blue">Add torrent</button></form><section class="summary" id="summary"></section><div id="message" class="notice">Loading torrents...</div><section class="grid" id="grid"></section></section></main><script>
 (function(){
 var TOKEN_KEY='gvbt_native_token',AUTO_KEY='gvbt_native_auto',token='',auto=true,busy=false,timer=null,grid=document.getElementById('grid'),message=document.getElementById('message'),summary=document.getElementById('summary');try{token=localStorage.getItem(TOKEN_KEY)||'';auto=localStorage.getItem(AUTO_KEY)!=='0'}catch(e){}function saveToken(value){token=value||'';try{if(token)localStorage.setItem(TOKEN_KEY,token);else localStorage.removeItem(TOKEN_KEY)}catch(e){}try{parent.postMessage({type:token?'gvbt-native-token-save':'gvbt-native-token-remove',token:token},'*')}catch(e){}}
 function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
@@ -327,6 +331,7 @@ grid.onclick=async function(e){var b=e.target.closest('button[data-method]');if(
 grid.onchange=async function(e){var s=e.target.closest('select[data-priority]');if(!s||s.value==='')return;try{await rpc('torrent-set',{ids:[Number(s.dataset.priority)],bandwidthPriority:Number(s.value)});await load()}catch(err){setMessage(err.message,true)}};
 document.getElementById('loginForm').onsubmit=async function(e){e.preventDefault();var error=document.getElementById('loginError');error.classList.add('hidden');try{var r=await fetch('/__native/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('user').value.trim(),password:document.getElementById('pass').value})}),j=await r.json().catch(function(){return {}});if(!r.ok||!j.token)throw new Error(j.message||'Login failed');saveToken(j.token);document.getElementById('pass').value='';showDashboard();activate()}catch(err){showLogin(err.message||'Login failed')}};
 document.getElementById('forget').onclick=function(){stopPolling();saveToken('');showLogin('Saved login removed from this device.')};document.getElementById('auto').onclick=function(){auto=!auto;try{localStorage.setItem(AUTO_KEY,auto?'1':'0')}catch(e){}this.textContent='Auto: '+(auto?'On':'Off');if(auto)activate();else stopPolling()};
+document.getElementById('webUi').onclick=function(){if(!token)return showLogin('Sign in first.');var form=document.createElement('form');form.method='post';form.action='/__native/open-web';form.target='_blank';var input=document.createElement('input');input.type='hidden';input.name='token';input.value=token;form.appendChild(input);document.body.appendChild(form);form.submit();form.remove()};
 window.addEventListener('message',function(e){if(e.data&&e.data.type==='gvbt-native-token-response'&&!token&&typeof e.data.token==='string'&&e.data.token){saveToken(e.data.token);showDashboard();activate()}});try{parent.postMessage({type:'gvbt-native-token-request'},'*')}catch(e){}if(token){showDashboard();activate()}else setTimeout(function(){if(!token)showLogin('')},500);document.addEventListener('visibilitychange',function(){if(document.hidden)stopPolling();else activate()});
 })();
 </script></body></html>`;
@@ -408,6 +413,19 @@ export default {
     if (incoming.pathname === "/__native") {
       return new Response(nativeDashboardPage(), {
         headers: frameHeaders({ "Content-Type": "text/html; charset=utf-8" })
+      });
+    }
+    if (incoming.pathname === "/__native/open-web") {
+      if (request.method !== "POST") return Response.json({ message: "Method not allowed" }, { status: 405 });
+      const origin = request.headers.get("Origin");
+      if (origin && origin !== incoming.origin) return Response.json({ message: "Origin not allowed" }, { status: 403 });
+      const form = await request.formData();
+      const token = String(form.get("token") || "");
+      const credentials = token ? await openSession(token, env.COOKIE_SECRET) : null;
+      if (!credentials) return loginResponse("Your saved native login has expired. Return to GameVault and sign in again.", true, 401);
+      return new Response(null, {
+        status: 303,
+        headers: frameHeaders({ "Location": "/", "Set-Cookie": topLevelSessionCookie(token, 2592000) })
       });
     }
     if (incoming.pathname === "/__native/login") {
