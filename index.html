@@ -146,6 +146,11 @@
   .media-meta { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
   .media-pill { display:inline-flex; align-items:center; min-height:22px; border-radius:99px; padding:3px 8px; font-size:10.5px; font-weight:800; color:var(--text2); background:var(--inset); border:1px solid var(--inborder); }
   .media-pill.imdb { color:#0A0D13; background:#F5C518; border-color:#F5C518; }
+  .media-release { margin-top:9px; font-size:11px; line-height:1.35; font-weight:800; color:var(--text2); }
+  .release-countdown { display:inline-flex; align-items:center; margin-top:4px; padding:4px 8px; border-radius:7px; border:1px solid currentColor; font-size:13px; font-weight:950; letter-spacing:.02em; }
+  .release-countdown.urgent { color:#ff5c68; background:rgba(255,60,75,.12); }
+  .release-countdown.soon { color:#ffad33; background:rgba(255,166,35,.12); }
+  .release-countdown.later { color:#48c78e; background:rgba(49,196,132,.12); }
   .media-detail { grid-column:1/-1; margin-top:0; padding:12px; background:var(--card2); border-top:1px solid var(--border); }
   .media-closebar { display:flex; justify-content:flex-end; margin-bottom:10px; }
   .media-closebar .btn { font-weight:800; }
@@ -2035,6 +2040,8 @@ function renderTabs(){
   }
   if(section==="films"){
     var fd=[["watchlist","♥","Watchlist"],["uphw","△","Upcoming HW"],["relhw","★","Released HW"],["mlott","▶","Malayalam OTT"],["mlup","◇","Upcoming ML"],["watched","✓","Watched"]];
+    fd.splice(1,0,["bluray","◉","Blu-ray Releases"]);
+    fd[2][2]="Upcoming Releases";
     document.getElementById("tabs").innerHTML = fd.map(function(d){
       return '<button class="tab '+(filmTab===d[0]?"on":"")+'" data-ftab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
     }).join("");
@@ -3160,8 +3167,8 @@ try{ section=localStorage.getItem(SECTION_KEY)||"games"; }catch(e){}
 try{ filmTab=localStorage.getItem(FILMTAB_KEY)||"watchlist"; }catch(e){}
 function tmdbKey(){ try{ return localStorage.getItem(TMDB_KEY_STORE)||""; }catch(e){ return ""; } }
 function omdbKey(){ try{ return localStorage.getItem(OMDB_KEY_STORE)||""; }catch(e){ return ""; } }
-var FILM_ORDER=["watchlist","uphw","relhw","mlott","mlup","watched"];
-var FILM_TTL={uphw:24*3600*1000, relhw:24*3600*1000, mlott:6*3600*1000, mlup:6*3600*1000};
+var FILM_ORDER=["watchlist","bluray","uphw","relhw","mlott","mlup","watched"];
+var FILM_TTL={bluray:24*3600*1000, uphw:24*3600*1000, relhw:24*3600*1000, mlott:6*3600*1000, mlup:6*3600*1000};
 var filmCache={}, filmBusy={}, filmErr={};
 try{ filmCache=JSON.parse(localStorage.getItem(FILM_CACHE_KEY)||"{}")||{}; }catch(e){ filmCache={}; }
 function saveFilmCache(){ try{ localStorage.setItem(FILM_CACHE_KEY, JSON.stringify(filmCache)); }catch(e){} }
@@ -3251,9 +3258,9 @@ function mediaRatingLabel(x){
 function mediaPoster(src, label){
   return '<div class="poster-wrap">'+(src?'<img class="poster-img" src="'+esc(src)+'" alt="" loading="lazy">':'<div class="poster-ph">'+esc(label||"")+'</div>')+'</div>';
 }
-function mediaSummary(title, rating, genre){
+function mediaSummary(title, rating, genre, extra){
   return '<div class="media-info"><div class="media-title">'+esc(title)+'</div><div class="media-meta">'+
-    '<span class="media-pill imdb">'+esc(rating)+'</span><span class="media-pill">'+esc(genre)+'</span></div></div>';
+    '<span class="media-pill imdb">'+esc(rating)+'</span><span class="media-pill">'+esc(genre)+'</span></div>'+(extra||'')+'</div>';
 }
 function mediaClose(kind){
   return '<div class="media-closebar"><button class="btn blue" data-act="media-close" data-kind="'+kind+'">Close</button></div>';
@@ -3340,16 +3347,40 @@ function fetchUpHw(){
   var to=filmYear ? yearEnd(filmYear) : "";
   if(filmYear && to<localISO()) return Promise.resolve([]);
   if(filmYear && String(filmYear)===String(new Date().getFullYear())) from=localISO();
-  return tmdbGet("/discover/movie", addGenreParam({
-    with_original_language:"en", region:"US",
-    "primary_release_date.gte":from, sort_by:"popularity.desc",
-    with_release_type:"2|3", "vote_count.gte":0, page:1
-  }, filmGenre)).then(function(j){
-    // pick the major (popular) upcoming films, then show them earliest release first
-    var list=(j.results||[]).filter(function(m){ return m.release_date && m.popularity>18; })
-      .slice(0,25).map(mapMovie);
+  var calls=[1,2].map(function(page){
+    return tmdbGet("/discover/movie", addGenreParam({
+      with_original_language:"en", region:"US",
+      "release_date.gte":from, sort_by:"popularity.desc",
+      with_release_type:"2|3", "vote_count.gte":0, page:page
+    }, filmGenre));
+  });
+  return Promise.all(calls).then(function(pages){
+    var seen={}, raw=[];
+    pages.forEach(function(j){ (j.results||[]).forEach(function(m){ if(!seen[m.id]){ seen[m.id]=1; raw.push(m); } }); });
+    // Keep major releases, then present them strictly by theatrical date.
+    var list=raw.filter(function(m){ return m.release_date && m.popularity>15; }).map(mapMovie);
     list.sort(function(a,b){ return (a.date||"9999-99-99")<(b.date||"9999-99-99") ? -1 : 1; });
-    return list;
+    return list.slice(0,45);
+  });
+}
+/* Recent major Hollywood physical releases. TMDB release type 5 is Physical/Blu-ray. */
+function fetchBluRayHw(){
+  var from=filmYear ? yearStart(filmYear) : daysAgoISO(365);
+  var to=filmYear ? yearEnd(filmYear) : localISO();
+  if(to>localISO()) to=localISO();
+  var calls=[1,2].map(function(page){
+    return tmdbGet("/discover/movie", addGenreParam({
+      with_original_language:"en", region:"US", with_release_type:"5",
+      "release_date.gte":from, "release_date.lte":to,
+      sort_by:"release_date.desc", "vote_count.gte":100, page:page
+    }, filmGenre));
+  });
+  return Promise.all(calls).then(function(pages){
+    var seen={}, list=[];
+    pages.forEach(function(j){ (j.results||[]).forEach(function(m){
+      if(!seen[m.id] && m.release_date && m.popularity>8){ seen[m.id]=1; list.push(mapMovie(m)); }
+    }); });
+    return list.sort(newerFirst).slice(0,45);
   });
 }
 function fetchRelHw(){
@@ -3452,7 +3483,7 @@ function mergeManualMlOtt(list){
   list.sort(function(a,b){ return (b.ottDate||b.date||"")<(a.ottDate||a.date||"") ? -1 : 1; });
   return list;
 }
-var FILM_FETCH={uphw:fetchUpHw, relhw:fetchRelHw, mlott:fetchMlOtt, mlup:fetchMlUp};
+var FILM_FETCH={bluray:fetchBluRayHw, uphw:fetchUpHw, relhw:fetchRelHw, mlott:fetchMlOtt, mlup:fetchMlUp};
 function ensureFilms(key, force){
   if(!FILM_FETCH[key]) return; // e.g. the Watched tab renders from the vault, no fetch
   if(filmBusy[key]) return;
@@ -3543,6 +3574,8 @@ var provChips=function(list){ return (list||[]).map(function(p){ return '<span c
 /* ---- Movies Watchlist: internet search + add + Wikipedia plot ---- */
 var movieSearchQ="", movieSearchItems=[], movieSearchBusy=false, movieSearchSeq=0, movieSearchTimer=null;
 var filmExpanded=null; // expanded watchlist movie id (for the plot)
+var filmDetailReturnY=0, seriesDetailReturnY=0, gameDetailReturnY=0;
+function restoreDetailScroll(y){ requestAnimationFrame(function(){ window.scrollTo(0,Math.max(0,y||0)); tvAfterRender(); }); }
 function searchMovies(qs){
   if(!tmdbKey()) return;
   var seq=++movieSearchSeq; movieSearchBusy=true;
@@ -3644,8 +3677,23 @@ function movieCard(m, key){
       '<div class="meta">'+meta+(m.overview?'<br><span style="color:var(--muted)">'+esc(m.overview.slice(0,160))+(m.overview.length>160?"…":"")+'</span>':'')+'</div>'+
     '</div></div>'+actions+'</div>';
 }
-function movieMain(m){
-  return mediaPoster(m.poster,"FILM")+mediaSummary(m.title,mediaRatingLabel(m),genreLabel(m.genres,MOVIE_GENRES));
+function releaseCountdown(date){
+  if(!date) return "";
+  var left=daysBetween(today(),parseD(date));
+  if(left<0) return "";
+  var cls=left<=7?"urgent":left<=30?"soon":"later";
+  var label=left===0?"RELEASES TODAY":left+" DAY"+(left===1?"":"S")+" LEFT";
+  return '<div class="release-countdown '+cls+'">'+label+'</div>';
+}
+function filmReleaseMeta(m,key){
+  if(key==="uphw") return '<div class="media-release">Theatrical release: '+esc(m.date?fmt(m.date):"Date TBC")+'<br>'+releaseCountdown(m.date)+'</div>';
+  if(key==="bluray") return '<div class="media-release">Blu-ray release: '+esc(m.date?fmt(m.date):"Date TBC")+'</div>';
+  if(key==="mlott") return '<div class="media-release">OTT release: '+esc(m.ottDate?fmt(m.ottDate):"Date TBC")+'</div>';
+  if(key==="mlup") return '<div class="media-release">OTT release: '+esc(m.ottDate?fmt(m.ottDate):"Date TBC")+'<br>'+releaseCountdown(m.ottDate)+'</div>';
+  return "";
+}
+function movieMain(m,key){
+  return mediaPoster(m.poster,"FILM")+mediaSummary(m.title,mediaRatingLabel(m),genreLabel(m.genres,MOVIE_GENRES),filmReleaseMeta(m,key));
 }
 function watchlistSearchCard(m){
   var already=inWatchlist(m), open=String(filmExpanded)===String(m.id);
@@ -3702,16 +3750,16 @@ function filmDetailPage(m,key){
   else actions+=movieMoreMenu(m);
   if(inWatchlist(m)) actions+='<button class="btn ghost danger" data-act="mw-remove" data-id="'+esc(String(m.id))+'">Remove from Watchlist</button>';
   var showReviews=(key==="mlott"||key==="mlup"||(key==="watched"&&m.providers&&m.providers.length));
-  actions+=movieLinks(m.title,m.year)+imdbLink(m)+((key==="uphw"||key==="relhw"||key==="watched"||key==="watchlist")?reeloadReviewLink(m.title,m.year,"movie"):"")+(showReviews?mlReviewLinks(m.title):"")+
+  actions+=movieLinks(m.title,m.year)+imdbLink(m)+((key==="bluray"||key==="uphw"||key==="relhw"||key==="watched"||key==="watchlist")?reeloadReviewLink(m.title,m.year,"movie"):"")+(showReviews?mlReviewLinks(m.title):"")+
     tmdbMovieLink(m)+
     '<button class="btn" data-act="ai-open" data-ai-type="film" data-id="'+esc(String(m.id))+'">AI Assistant</button></div>';
-  return '<div class="media-page">'+mediaPageHero("film",m,MOVIE_GENRES)+mediaProvidersBlock(m)+plotBlock(moviePlotName(m),"film")+aiPanel("film",m)+actions+'</div>';
+  return '<div class="media-page">'+mediaPageHero("film",m,MOVIE_GENRES)+filmReleaseMeta(m,key)+mediaProvidersBlock(m)+plotBlock(moviePlotName(m),"film")+aiPanel("film",m)+actions+'</div>';
 }
 function watchlistSearchCard(m){
-  return '<div class="card media-card"><div class="media-main clickrow" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+movieMain(m)+'</div>'+(filmView==="list"?movieQuickActions(m,"search"):"")+'</div>';
+  return '<div class="card media-card"><div class="media-main clickrow" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+movieMain(m,"search")+'</div>'+(filmView==="list"?movieQuickActions(m,"search"):"")+'</div>';
 }
 function watchlistCard(m){
-  return '<div class="card media-card"><div class="media-main clickrow" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+movieMain(m)+'</div>'+(filmView==="list"?movieQuickActions(m,"watchlist"):"")+'</div>';
+  return '<div class="card media-card"><div class="media-main clickrow" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+movieMain(m,"watchlist")+'</div>'+(filmView==="list"?movieQuickActions(m,"watchlist"):"")+'</div>';
 }
 function movieQuickActions(m,key){
   var showReviews=(key==="mlott"||key==="mlup"||(key==="watched"&&m.providers&&m.providers.length));
@@ -3719,7 +3767,7 @@ function movieQuickActions(m,key){
   if(key==="watched") h+='<button class="btn blue" data-act="mv-unwatch" data-key="'+esc(m.key||movieWatchKey(m))+'">Unwatch</button>';
   else h+=movieMoreMenu(m);
   h+=movieLinks(m.title,m.year)+imdbLink(m)+
-    ((key==="uphw"||key==="relhw"||key==="watched"||key==="watchlist"||key==="search")?reeloadReviewLink(m.title,m.year,"movie"):"")+
+    ((key==="bluray"||key==="uphw"||key==="relhw"||key==="watched"||key==="watchlist"||key==="search")?reeloadReviewLink(m.title,m.year,"movie"):"")+
     (showReviews?mlReviewLinks(m.title):"")+
     tmdbMovieLink(m)+
     '<button class="btn" data-act="ai-open" data-ai-type="film" data-id="'+esc(String(m.id))+'">AI Assistant</button>';
@@ -3727,13 +3775,14 @@ function movieQuickActions(m,key){
   return h+'</div>';
 }
 function movieCard(m, key){
-  return '<div class="card media-card"><div class="media-main clickrow" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+movieMain(m)+'</div>'+(filmView==="list"?movieQuickActions(m,key):"")+'</div>';
+  return '<div class="card media-card"><div class="media-main clickrow" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+movieMain(m,key)+'</div>'+(filmView==="list"?movieQuickActions(m,key):"")+'</div>';
 }
 function renderFilms(){
   var key=filmTab;
-  var titles={uphw:"Upcoming Hollywood", relhw:"Released Hollywood", mlott:"Malayalam OTT Releases", mlup:"Upcoming Malayalam OTT", watched:"Watched Films"};
+  var titles={bluray:"Hollywood Blu-ray Releases", uphw:"Upcoming Hollywood Releases", relhw:"Released Hollywood", mlott:"Malayalam OTT Releases", mlup:"Upcoming Malayalam OTT", watched:"Watched Films"};
   var blurbs={
-    uphw:"Major upcoming Hollywood releases with official theatrical dates — refreshes automatically as new films are announced.",
+    bluray:"Major Hollywood films released on Blu-ray, newest physical release first.",
+    uphw:"Major upcoming Hollywood releases with official theatrical dates, earliest release first. The list refreshes automatically as films are announced.",
     relhw:"Recently released Hollywood films, critically acclaimed only — exact IMDb rating 7.0 and above.",
     mlott:"Latest Malayalam films now streaming on OTT in India (Prime Video, JioHotstar, Netflix, SonyLIV, ZEE5 and more), by OTT release date — newest first. No rating filter.",
     mlup:"Confirmed upcoming Malayalam OTT premieres with their announced streaming date and platform, soonest first.",
@@ -3817,7 +3866,7 @@ function renderFilms(){
     var mk=movieWatchKey(m);
     return matchMediaYear(m, filmYear) && !hset2[mk] && (!hidePersonal || (!wset[mk] && !wlset[mk]));
   }); // watched/watchlist/hidden stay out of suggestion lists, except Upcoming
-  if(key==="relhw"||key==="mlott") items.sort(newerFirst);
+  if(key==="bluray"||key==="relhw"||key==="mlott") items.sort(newerFirst);
   if(!items.length){
     setTimeout(function(){ ensureFilms(key); },60);
     return html+'<div class="empty">'+(filmBusy[key]?"Loading…":(last?"Nothing left here — everything shown is marked Watched.":"Nothing to show yet — tap ↻ Refresh."))+'</div>';
@@ -3832,7 +3881,7 @@ function renderFilms(){
 /* ================= TV SERIES SECTION (TMDB + OMDb) =================
    Public lists cache locally; personal watchlist, watched state and ratings
    live in the synced vault beside the game and film data. */
-var SERIESTAB_KEY="ps5-seriestab", SERIES_CACHE_KEY="ps5-series-cache";
+var SERIESTAB_KEY="ps5-seriestab", SERIES_CACHE_KEY="ps5-series-cache-v2";
 var seriesTab="serieswatchlist";
 try{ seriesTab=localStorage.getItem(SERIESTAB_KEY)||"serieswatchlist"; }catch(e){}
 var SERIES_ORDER=["serieswatchlist","enseries","mlseries","taseries","hiseries","serieswatched"];
@@ -3853,6 +3902,9 @@ function enrichSeriesIds(s){
   return tmdbGet("/tv/"+s.id, {append_to_response:"external_ids,watch/providers"}).then(function(d){
     if(d&&d.external_ids&&d.external_ids.imdb_id) s.imdbId=d.external_ids.imdb_id;
     if(d&&d.number_of_seasons) s.seasons=d.number_of_seasons;
+    s.seriesType=d.type||"";
+    s.episodeCount=d.number_of_episodes||0;
+    s.networks=(d.networks||[]).map(function(n){ return n.name||""; }).filter(Boolean);
     s.seasonList=(d.seasons||[]).filter(function(se){ return se.season_number>0; }).map(function(se){ return {n:se.season_number,name:se.name||("Season "+se.season_number),episodes:se.episode_count||0}; });
     var wp=d["watch/providers"] && d["watch/providers"].results && d["watch/providers"].results.US;
     s.providers=(((wp&&wp.flatrate)||[]).concat((wp&&wp.free)||[])).map(function(p){ return p.provider_name; });
@@ -3860,7 +3912,16 @@ function enrichSeriesIds(s){
     return omdbRatingById(s.imdbId).then(function(rt){ if(typeof rt==="number"){ s.imdb=rt; s.imdbAt=Date.now(); } });
   }).catch(function(){});
 }
-function fetchSeriesLang(lang, minVotes, minRating, sortBy, pages){
+function regionalTvSeriesOnly(s){
+  var text=(s.title+" "+(s.overview||"")).toLowerCase();
+  var networks=(s.networks||[]).join(" ").toLowerCase();
+  if(networks.indexOf("youtube")>-1 || /\byou\s*tube\b/.test(text)) return false;
+  if(/\b(daily soap|soap opera|television serial|tv serial|mega serial|daily serial)\b/.test(text)) return false;
+  if(s.seriesType && s.seriesType!=="Scripted" && s.seriesType!=="Miniseries") return false;
+  if((s.episodeCount||0)>120) return false;
+  return true;
+}
+function fetchSeriesLang(lang, minVotes, minRating, sortBy, pages, regionalOnly){
   pages=pages||1;
   var calls=[];
   for(var pg=1; pg<=pages; pg++){
@@ -3885,17 +3946,21 @@ function fetchSeriesLang(lang, minVotes, minRating, sortBy, pages){
         seen[s.id]=1; cands.push(mapSeries(s));
       });
     });
-    cands.sort(function(a,b){
+    if(regionalOnly) cands.sort(newerFirst);
+    else cands.sort(function(a,b){
       function sc(x){ return (x.tmdb||0)*8 + Math.log((x.votes||0)+1)*3 + Math.min(35, (x.popularity||0)); }
       return sc(b)-sc(a);
     });
     cands=cands.slice(0,45);
-    return serialEach(cands.slice(0,24), 120, enrichSeriesIds).then(function(){ return cands; });
+    var enrichList=regionalOnly?cands:cands.slice(0,24);
+    return serialEach(enrichList, 120, enrichSeriesIds).then(function(){
+      return regionalOnly ? cands.filter(regionalTvSeriesOnly).sort(newerFirst) : cands;
+    });
   });
 }
 function fetchEnSeries(){ return fetchSeriesLang("en", 350, 7.2, "vote_average.desc", 2).then(rankEnglishSeries); }
-function fetchMlSeries(){ return fetchSeriesLang("ml", 1, 5.5, "popularity.desc", 5); }
-function fetchTaSeries(){ return fetchSeriesLang("ta", 1, 0, "first_air_date.desc", 8).then(function(list){ return list.sort(newerFirst); }); }
+function fetchMlSeries(){ return fetchSeriesLang("ml", 1, 0, "first_air_date.desc", 6, true); }
+function fetchTaSeries(){ return fetchSeriesLang("ta", 1, 0, "first_air_date.desc", 8, true); }
 function fetchHiSeries(){ return fetchSeriesLang("hi", 20, 6.5, "popularity.desc", 4); }
 var SERIES_FETCH={enseries:fetchEnSeries, mlseries:fetchMlSeries, taseries:fetchTaSeries, hiseries:fetchHiSeries};
 function ensureSeries(key, force){
@@ -4180,8 +4245,8 @@ function renderSeries(){
   var key=seriesTab;
   var blurbs={
     enseries:"Highly rated and critically acclaimed English TV series. Your ratings push better matches to the top.",
-    mlseries:"Popular, highly rated Malayalam series and originals.",
-    taseries:"Popular, highly rated Tamil series and originals.",
+    mlseries:"Malayalam TV series only, newest first. Television serials and YouTube series are excluded.",
+    taseries:"Tamil TV series only, newest first. Television serials and YouTube series are excluded.",
     hiseries:"Popular, highly rated Hindi series and originals.",
     serieswatchlist:"Search any TV series on the internet and add it to your personal watchlist. Tap a saved show to read the Wikipedia plot.",
     serieswatched:"Series you've marked as watched. They stay hidden from the other lists after refresh and sync."
@@ -4243,7 +4308,7 @@ function renderSeries(){
     var sk=seriesKey(s);
     return matchMediaYear(s, seriesYear) && !wset[sk] && !wlset[sk] && !hset2[sk];
   });
-  if(key==="taseries") items.sort(newerFirst);
+  if(key==="mlseries"||key==="taseries") items.sort(newerFirst);
   else items.sort(function(a,b){ return (b.imdb||b.tmdb||0)-(a.imdb||a.tmdb||0); });
   if(!items.length){
     setTimeout(function(){ ensureSeries(key); },60);
@@ -4434,11 +4499,13 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="film-refresh"){ ensureFilms(filmTab,true); return; }
   if(act==="media-close"){
     var mk=b.getAttribute("data-kind");
+    var returnY=mk==="film"?filmDetailReturnY:mk==="series"?seriesDetailReturnY:gameDetailReturnY;
     if(mk==="film") filmExpanded=null;
     if(mk==="series") seriesExpanded=null;
     if(mk==="game") expandedId=null;
     aiOpen=null;
     render();
+    restoreDetailScroll(returnY);
     return;
   }
   if(act==="game-view"){
@@ -4456,6 +4523,7 @@ document.getElementById("content").addEventListener("click",function(e){
     return;
   }
   if(act==="game-open"){
+    if(!expandedId) gameDetailReturnY=window.scrollY;
     expandedId=b.getAttribute("data-id");
     var gx=gameFindById(expandedId);
     if(gx) ensurePlot(gx.name);
@@ -4467,6 +4535,7 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="mw-remove"){ removeFromWatchlist(id); return; }
   if(act==="mw-clear"){ movieSearchQ=""; movieSearchItems=[]; movieSearchSeq++; render(); return; }
   if(act==="mw-toggle"){
+    if(String(filmExpanded)!==String(id)) filmDetailReturnY=window.scrollY;
     filmExpanded = String(filmExpanded)===String(id) ? null : id;
     var wm=findMovieAny(id);
     if(filmExpanded && wm) ensurePlot(moviePlotName(wm),"film");
@@ -4504,6 +4573,7 @@ document.getElementById("content").addEventListener("click",function(e){
     return;
   }
   if(act==="sr-toggle"){
+    if(String(seriesExpanded)!==String(id)) seriesDetailReturnY=window.scrollY;
     seriesExpanded = String(seriesExpanded)===String(id) ? null : id;
     var ss=findSeriesAny(id)||(data.watchedSeries||[]).filter(function(x){ return String(x.id)===String(id); })[0];
     if(seriesExpanded && ss && (!ss.seasonList || !ss.seasonList.length || !ss.providers)){
@@ -5243,6 +5313,18 @@ function gameVaultTvBack(){
   if(settings && settings.style.display!=="none"){
     toggleSettings(false);
     tvEnsureFocus();
+    return "handled";
+  }
+  if(section==="films" && filmExpanded){
+    filmExpanded=null; aiOpen=null; render(); restoreDetailScroll(filmDetailReturnY);
+    return "handled";
+  }
+  if(section==="series" && seriesExpanded){
+    seriesExpanded=null; aiOpen=null; render(); restoreDetailScroll(seriesDetailReturnY);
+    return "handled";
+  }
+  if(section==="games" && expandedId){
+    expandedId=null; aiOpen=null; render(); restoreDetailScroll(gameDetailReturnY);
     return "handled";
   }
   return "clear";
