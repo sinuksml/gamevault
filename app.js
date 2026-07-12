@@ -1,5 +1,7 @@
 ﻿"use strict";
-var APP_VERSION = "2026.07.12-r4";
+var APP_VERSION = "1.1.0";
+var APP_BUILD_DATE = "2026-07-13";
+var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
   "Clearer Games, Movies, TV Shows, Plex Library and BiglyBT navigation",
   "TV Watching, New Episodes, Upcoming and unified Discover tabs",
@@ -7,6 +9,12 @@ var APP_RELEASE_NOTES = [
   "Combined current and upcoming Malayalam OTT releases",
   "BiglyBT Active, Queued, Completed, Seeding and All filters"
 ];
+function applyAppVersion(){
+  var badge=document.getElementById("appVersionBadge");
+  if(badge){ badge.textContent="v"+APP_VERSION; badge.title=APP_RELEASE_CHANNEL+" build "+APP_BUILD_DATE; }
+  document.documentElement.setAttribute("data-app-version",APP_VERSION);
+}
+applyAppVersion();
 var TV_MODE = new URLSearchParams(location.search).get("tv")==="1";
 if(TV_MODE) document.documentElement.classList.add("tv");
 var TV_ZOOM_KEY="gamevault-tv-zoom";
@@ -5429,7 +5437,7 @@ function refreshRecoveryUi(){
   if(!sel) return;
   var snaps=readRecoverySnapshots();
   sel.innerHTML=snaps.length?snaps.map(function(s,i){ return '<option value="'+i+'">'+esc(new Date(s.createdAt).toLocaleString()+" - "+s.reason+" ("+s.size+" items)")+'</option>'; }).join(""):'<option value="">No recovery points yet</option>';
-  if(summary) summary.textContent="Version "+APP_VERSION+" · schema "+SCHEMA_VERSION+" · "+vaultSize(data)+" saved items · "+snaps.length+" recovery points · "+(cloudMode()==="drive"?"Google Drive primary":cloudMode()==="jsonbin"?"JSONBin fallback":"local only");
+  if(summary) summary.textContent="Version "+APP_VERSION+" · "+APP_RELEASE_CHANNEL+" · build "+APP_BUILD_DATE+" · data schema "+SCHEMA_VERSION+" · "+vaultSize(data)+" saved items · "+snaps.length+" recovery points · "+(cloudMode()==="drive"?"Google Drive primary":cloudMode()==="jsonbin"?"JSONBin fallback":"local only");
   if(grid){
     var services=[
       ["Google Drive",!!gdTok(),cloudMode()==="drive"?"Primary sync":"Not connected"],
@@ -5446,7 +5454,7 @@ function refreshRecoveryUi(){
   }
 }
 function exportDiagnostics(){
-  var report={app:"Sinu Game Vault",version:APP_VERSION,schema:SCHEMA_VERSION,generatedAt:new Date().toISOString(),device:deviceId(),userAgent:navigator.userAgent,online:navigator.onLine,storageItems:vaultSize(data),revision:data.revision||0,updatedAt:data.updatedAt||0,cloudMode:cloudMode()||"none",connections:{drive:!!gdTok(),jsonBin:!!getJB().bin,rawg:!!getKey(),tmdb:!!tmdbKey(),omdb:!!omdbKey(),plex:!!(plexServerUrl()&&plexToken()),biglybt:!!biglyProxyUrl()},collections:{},runtimeErrors:runtimeErrors.slice(),recentAudit:(data.audit||[]).slice(0,50)};
+  var report={app:"Sinu Game Vault",version:APP_VERSION,buildDate:APP_BUILD_DATE,releaseChannel:APP_RELEASE_CHANNEL,schema:SCHEMA_VERSION,generatedAt:new Date().toISOString(),device:deviceId(),userAgent:navigator.userAgent,online:navigator.onLine,storageItems:vaultSize(data),revision:data.revision||0,updatedAt:data.updatedAt||0,cloudMode:cloudMode()||"none",connections:{drive:!!gdTok(),jsonBin:!!getJB().bin,rawg:!!getKey(),tmdb:!!tmdbKey(),omdb:!!omdbKey(),plex:!!(plexServerUrl()&&plexToken()),biglybt:!!biglyProxyUrl()},collections:{},runtimeErrors:runtimeErrors.slice(),recentAudit:(data.audit||[]).slice(0,50)};
   VAULT_ARRAY_FIELDS.forEach(function(k){ report.collections[k]=(data[k]||[]).length; });
   downloadBlob(new Blob([JSON.stringify(report,null,2)],{type:"application/json"}),"game-vault-diagnostics-"+localISO()+".json");
 }

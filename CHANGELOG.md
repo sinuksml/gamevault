@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.1.0 - 2026-07-13
+
+- Introduced semantic application versioning with separate version, build date, release channel, and data-schema details.
+- Added a compact version badge to the application header and version policy information in Settings.
+- Added version metadata to exported diagnostics.
+
 ## 2026.07.12-r4
 
 - Renamed the primary navigation to Games, Movies, TV Shows, Plex Library, and BiglyBT.
