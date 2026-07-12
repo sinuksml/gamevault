@@ -1,8 +1,11 @@
 ﻿"use strict";
-var APP_VERSION = "1.1.0";
+var APP_VERSION = "1.2.0";
 var APP_BUILD_DATE = "2026-07-13";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Coming Soon now includes major U.S. theatrical releases in every language",
+  "Exact U.S. theatrical dates replace global or festival dates",
+  "Original language is shown for non-English upcoming movies",
   "Clearer Games, Movies, TV Shows, Plex Library and BiglyBT navigation",
   "TV Watching, New Episodes, Upcoming and unified Discover tabs",
   "Plex Home, Continue Watching and Recently Added views",
@@ -2942,7 +2945,7 @@ function renderPageContext(){
   var el=document.getElementById("pageContext"); if(!el) return;
   var parent="Games",key=tab,title="",desc="",count="";
   var labels={rentals:"Rentals",playing:"Now Playing",queue:"Rental Queue",upcoming:"Upcoming Releases",suggest:"Discover",played:"Completed",watchlist:"My Watchlist",bluray:"New on Blu-ray",uphw:"Coming Soon",relhw:"Discover",mlott:"Malayalam OTT",watched:"Watched",serieswatchlist:"My Watchlist",serieswatching:"Watching",seriesnew:"New Episodes",seriesupcoming:"Upcoming",seriesdiscover:"Discover",serieswatched:"Watched",home:"Home",continue:"Continue Watching",movies:"Movies",shows:"TV Shows",recent:"Recently Added"};
-  var descriptions={rentals:"Active rentals, return dates and complete history",playing:"Games in progress, saved for later, or on hold",queue:"Your prioritized rental queue and vendor availability",upcoming:"Upcoming game releases and release countdowns",suggest:"Recommendations shaped by your ratings and library",played:"Finished games, ratings and personal history",watchlist:"Movies saved for later",bluray:"Major new Hollywood physical-media releases",uphw:"Major confirmed Hollywood theatrical releases",relhw:"Critically acclaimed Hollywood movies to discover",mlott:"Latest and upcoming Malayalam streaming releases",watched:"Your completed movie library",serieswatchlist:"TV shows saved for later",serieswatching:"TV shows you are currently watching",seriesnew:"Latest episodes from shows you are watching",seriesupcoming:"New and returning TV shows coming soon",seriesdiscover:"Acclaimed TV shows filtered by language, genre and provider",serieswatched:"Your completed TV shows",home:"A summary of your Plex library",continue:"Partially watched movies and TV shows",movies:"Movies available on your Plex server",shows:"TV shows available on your Plex server",recent:"The latest media added to your Plex server"};
+  var descriptions={rentals:"Active rentals, return dates and complete history",playing:"Games in progress, saved for later, or on hold",queue:"Your prioritized rental queue and vendor availability",upcoming:"Upcoming game releases and release countdowns",suggest:"Recommendations shaped by your ratings and library",played:"Finished games, ratings and personal history",watchlist:"Movies saved for later",bluray:"Major new Hollywood physical-media releases",uphw:"Major movies in every language with a confirmed U.S. theatrical release",relhw:"Critically acclaimed Hollywood movies to discover",mlott:"Latest and upcoming Malayalam streaming releases",watched:"Your completed movie library",serieswatchlist:"TV shows saved for later",serieswatching:"TV shows you are currently watching",seriesnew:"Latest episodes from shows you are watching",seriesupcoming:"New and returning TV shows coming soon",seriesdiscover:"Acclaimed TV shows filtered by language, genre and provider",serieswatched:"Your completed TV shows",home:"A summary of your Plex library",continue:"Partially watched movies and TV shows",movies:"Movies available on your Plex server",shows:"TV shows available on your Plex server",recent:"The latest media added to your Plex server"};
   if(section==="films"){ parent="Movies"; key=filmTab; }
   else if(section==="series"){ parent="TV Shows"; key=seriesTab; }
   else if(section==="plex"){ parent="Plex Library"; key=plexTab; }
@@ -3062,8 +3065,8 @@ var FILM_TTL={bluray:24*3600*1000, uphw:24*3600*1000, relhw:24*3600*1000, mlott:
 var filmCache={}, filmBusy={}, filmErr={};
 try{ filmCache=JSON.parse(localStorage.getItem(FILM_CACHE_KEY)||"{}")||{}; }catch(e){ filmCache={}; }
 try{
-  if(localStorage.getItem(MEDIA_CACHE_VERSION_KEY)!=="3"){
-    filmCache={}; localStorage.removeItem("ps5-series-cache"); localStorage.setItem(MEDIA_CACHE_VERSION_KEY,"3");
+  if(localStorage.getItem(MEDIA_CACHE_VERSION_KEY)!=="4"){
+    filmCache={}; localStorage.setItem(MEDIA_CACHE_VERSION_KEY,"4");
   }
 }catch(e){}
 function saveFilmCache(){ try{ localStorage.setItem(FILM_CACHE_KEY, JSON.stringify(filmCache)); }catch(e){} }
@@ -3196,6 +3199,7 @@ function tmdbGet(path, params){
 function mapMovie(m){
   return { id:m.id, title:m.title||m.name||"Untitled",
     date:m.release_date||"", originalDate:m.release_date||"", year:(m.release_date||"").slice(0,4),
+    originalLanguage:m.original_language||"",
     overview:m.overview||"", tmdb:Math.round((m.vote_average||0)*10)/10,
     genres:m.genre_ids||[],
     votes:m.vote_count||0, popularity:m.popularity||0,
@@ -3265,20 +3269,31 @@ function fetchUpHw(){
   var to=filmYear ? yearEnd(filmYear) : "";
   if(filmYear && to<localISO()) return Promise.resolve([]);
   if(filmYear && String(filmYear)===String(new Date().getFullYear())) from=localISO();
-  var calls=[1,2].map(function(page){
+  var calls=[1,2,3,4].map(function(page){
     return tmdbGet("/discover/movie", addGenreParam({
-      with_original_language:"en",
-      "primary_release_date.gte":from, "primary_release_date.lte":to||daysAheadISO(730),
-      sort_by:"popularity.desc", "vote_count.gte":0, page:page
+      region:"US",with_release_type:"2|3",
+      "release_date.gte":from,"release_date.lte":to||daysAheadISO(730),
+      sort_by:"popularity.desc","vote_count.gte":0,include_adult:"false",page:page
     }, filmGenre));
   });
   return Promise.all(calls).then(function(pages){
     var seen={}, raw=[];
     pages.forEach(function(j){ (j.results||[]).forEach(function(m){ if(!seen[m.id]){ seen[m.id]=1; raw.push(m); } }); });
-    // Keep major releases, then present them strictly by theatrical date.
-    var list=raw.filter(function(m){ return m.release_date && m.release_date>=from && (!to||m.release_date<=to) && m.popularity>15; }).map(mapMovie);
-    list.sort(function(a,b){ return (a.date||"").localeCompare(b.date||"") || (b.popularity||0)-(a.popularity||0); });
-    return list.slice(0,45);
+    var cands=raw.slice(0,70).map(mapMovie);
+    return serialEach(cands,80,function(m){
+      return tmdbGet("/movie/"+m.id,{append_to_response:"release_dates"}).then(function(d){
+        m.date=pickReleaseEvent(d,"US",[2,3],true)||"";
+        m.originalDate=d.release_date||m.originalDate||"";
+        m.originalLanguage=d.original_language||m.originalLanguage||"";
+        m.year=(m.date||m.originalDate||"").slice(0,4);
+      }).catch(function(){m.date="";});
+    }).then(function(){
+      return cands.filter(function(m){
+        if(!m.date||m.date<from||(to&&m.date>to)||(m.popularity||0)<5) return false;
+        var usYear=Number(m.date.slice(0,4)),originalYear=Number((m.originalDate||"").slice(0,4));
+        return !originalYear||originalYear>=usYear-3;
+      }).sort(function(a,b){return a.date.localeCompare(b.date)||(b.popularity||0)-(a.popularity||0);}).slice(0,55);
+    });
   });
 }
 function pickReleaseEvent(detail,country,types,future){
@@ -3558,7 +3573,9 @@ function filmReleaseMeta(m,key){
   return "";
 }
 function movieMain(m,key){
-  return mediaPoster(m.poster,m.title)+mediaSummary(m.title,mediaRatingLabel(m),genreLabel(m.genres,MOVIE_GENRES),filmReleaseMeta(m,key));
+  var details=genreLabel(m.genres,MOVIE_GENRES);
+  if(m.originalLanguage&&m.originalLanguage!=="en") details+=(details?" · ":"")+m.originalLanguage.toUpperCase();
+  return mediaPoster(m.poster,m.title)+mediaSummary(m.title,mediaRatingLabel(m),details,filmReleaseMeta(m,key));
 }
 function mediaPageHero(kind,x,genreList){
   return mediaClose(kind)+detailNeighbors(kind,x)+'<div class="media-page-head">'+
@@ -3609,7 +3626,7 @@ function renderFilms(){
   var key=filmTab;
   var blurbs={
     bluray:"Major Hollywood movies newly available on Blu-ray, ordered by physical release date.",
-    uphw:"Major upcoming Hollywood movies with confirmed theatrical dates, earliest release first.",
+    uphw:"Major movies in every language with a confirmed U.S. theatrical release, earliest release first.",
     relhw:"Critically acclaimed Hollywood movies with an exact IMDb rating of 7.0 or higher.",
     mlott:"Newly streaming and confirmed upcoming Malayalam OTT movies across major Indian platforms.",
     mlup:"Confirmed upcoming Malayalam OTT premieres with their announced streaming date and platform, soonest first.",

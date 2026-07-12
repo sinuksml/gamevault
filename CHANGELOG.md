@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.2.0 - 2026-07-13
+
+- Expanded Coming Soon to major films in every original language when they have a confirmed U.S. theatrical release.
+- Added exact U.S. theatrical-date validation to avoid showing global, festival, or unrelated release dates.
+- Retained protection against old-film re-releases and added original-language labels for non-English movies.
+
 ## v1.1.0 - 2026-07-13
 
 - Introduced semantic application versioning with separate version, build date, release channel, and data-schema details.
