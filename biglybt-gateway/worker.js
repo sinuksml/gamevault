@@ -84,7 +84,7 @@ export default {
       // --- list torrents ---
       if(path === "/torrents" && request.method === "GET"){
         const res = await rpc(env, basic, "torrent-get", {
-          fields: ["id","hashString","name","percentDone","status","rateDownload","rateUpload","eta","peersSendingToUs","peersConnected"]
+          fields: ["id","hashString","name","percentDone","status","rateDownload","rateUpload","eta","peersSendingToUs","peersConnected","totalSize","sizeWhenDone","leftUntilDone","downloadedEver"]
         });
         if(res.status === 401) return json(env, { message: "Session expired — log in again." }, 401);
         if(!res.ok) return json(env, { message: "BiglyBT error ("+res.status+")." }, 502);
@@ -94,7 +94,9 @@ export default {
             id: t.hashString, name: t.name,
             progress: t.percentDone, status: STATUS[t.status] || "Unknown",
             downloadSpeed: t.rateDownload, uploadSpeed: t.rateUpload,
-            eta: etaText(t.eta), seeds: t.peersSendingToUs, peers: t.peersConnected
+            eta: etaText(t.eta), seeds: t.peersSendingToUs, peers: t.peersConnected,
+            totalSize: t.sizeWhenDone || t.totalSize || 0,
+            downloaded: t.downloadedEver || Math.max(0,(t.sizeWhenDone||t.totalSize||0)-(t.leftUntilDone||0))
           };
         });
         return json(env, list);
@@ -109,7 +111,9 @@ export default {
         let method = "", args = { ids: [id] };
         if(action === "start" || action === "resume") method = "torrent-start";
         else if(action === "pause" || action === "stop") method = "torrent-stop";
-        else if(action === "remove"){ method = "torrent-remove"; args["delete-local-data"] = false; }
+        else if(action === "remove" || action === "remove-data"){
+          method = "torrent-remove"; args["delete-local-data"] = action === "remove-data";
+        }
         else if(action === "priority"){ method = "torrent-set"; args.bandwidthPriority = b.priority === "high" ? 1 : (b.priority === "low" ? -1 : 0); }
         else return json(env, { message: "Unknown action." }, 400);
         const res = await rpc(env, basic, method, args);

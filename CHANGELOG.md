@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.07.12-r3
+
+- Fixed upcoming Hollywood results so old films with future re-releases are not shown as new premieres.
+- Added exact US physical-release dates for the Blu-ray list and invalidated stale media caches.
+- Sorted Malayalam and Tamil series by their latest episode date and used Indian provider availability.
+- Serialized Google Drive uploads so older requests cannot finish after and overwrite newer edits.
+- Added Unicode-safe title matching and removed Wikipedia story truncation.
+- Added downloaded/total sizes and separate remove-versus-delete-files actions to BiglyBT.
+- Improved recovery storage limits, runtime diagnostics, and service-worker update safety.
+
 ## 2026.07.12-r2
 
 - Added a stable sticky application header and clearer primary navigation hierarchy.

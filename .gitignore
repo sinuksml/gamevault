@@ -1,0 +1,10 @@
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.gradle/
+android-tv/.gradle/
+android-tv/**/build/
+node_modules/
+screenshots/
+test-results/

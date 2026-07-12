@@ -1,9 +1,11 @@
 ﻿"use strict";
-var APP_VERSION = "2026.07.12-r2";
+var APP_VERSION = "2026.07.12-r3";
 var APP_RELEASE_NOTES = [
   "Safer cloud restore and empty-vault protection",
   "Local recovery snapshots and diagnostics",
-  "Improved offline updates, accessibility, and reliability"
+  "Corrected theatrical, Blu-ray, and series release ordering",
+  "Serialized Drive uploads and safer recovery snapshots",
+  "Improved BiglyBT sizes, deletion choices, and diagnostics"
 ];
 var TV_MODE = new URLSearchParams(location.search).get("tv")==="1";
 if(TV_MODE) document.documentElement.classList.add("tv");
@@ -52,6 +54,12 @@ var expandedId = null; // selected game/details item in the Games section
 var GAME_VIEW_KEY="gamevault-game-view";
 var gameView="grid";
 try{ gameView=localStorage.getItem(GAME_VIEW_KEY)||"grid"; }catch(e){}
+var runtimeErrors=[];
+function reportError(scope,error){
+  runtimeErrors.unshift({at:new Date().toISOString(),scope:String(scope||"app"),message:String(error&&error.message||error||"Unknown error")});
+  runtimeErrors=runtimeErrors.slice(0,40);
+  try{ console.error("[GameVault] "+scope,error); }catch(e){}
+}
 
 function uid(){ return Math.random().toString(36).slice(2,10); }
 function today(){ var d=new Date(); return new Date(d.getFullYear(),d.getMonth(),d.getDate()); }
@@ -60,7 +68,11 @@ function fmt(s){ var d=parseD(s); if(!d) return "TBC"; return d.toLocaleDateStri
 function daysBetween(a,b){ return Math.round((b-a)/86400000); }
 function localISO(d){ d=d||new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
-function norm(s){ return String(s).toLowerCase().replace(/[^a-z0-9]/g,""); }
+function norm(s){
+  var value=String(s||"").normalize?String(s||"").normalize("NFKD"):String(s||"");
+  try{ return value.replace(/\p{M}/gu,"").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu,""); }
+  catch(e){ return value.toLowerCase().replace(/[^a-z0-9]/g,""); }
+}
 function urgency(left){ return left<=0 ? "#8B96AC" : left<=3 ? "#F05A5A" : left<=10 ? "#F2B84B" : "#2D7FF9"; }
 function scoreColor(s){ return !s ? "#8B96AC" : s>=90 ? "#3ECF8E" : s>=84 ? "#2D7FF9" : "#F2B84B"; }
 
@@ -159,8 +171,11 @@ function createRecoverySnapshot(reason,source){
   try{
     var list=readRecoverySnapshots(),raw=JSON.stringify(source);
     if(list[0] && list[0].raw===raw) return true;
+    if(raw.length>1800000) return false;
     list.unshift({createdAt:Date.now(),reason:reason||"Manual snapshot",size:vaultSize(source),raw:raw});
-    localStorage.setItem(RECOVERY_STORE,JSON.stringify(list.slice(0,MAX_RECOVERY_SNAPSHOTS)));
+    list=list.slice(0,MAX_RECOVERY_SNAPSHOTS);
+    while(list.length>1 && JSON.stringify(list).length>2000000) list.pop();
+    localStorage.setItem(RECOVERY_STORE,JSON.stringify(list));
     return true;
   }catch(e){ return false; }
 }
@@ -648,24 +663,30 @@ function gdFind(tok){
     return keep;
   });
 }
+var gdUploadQueue=Promise.resolve();
 function gdUpload(keepalive){
-  var body=JSON.stringify(data);
-  return gdToken().then(function(tok){
-    return gdFind(tok).then(function(fid){
-      if(fid){
-        return gdApi("https://www.googleapis.com/upload/drive/v3/files/"+fid+"?uploadType=media",
-          {method:"PATCH", headers:{"Content-Type":"application/json"}, body:body, keepalive:!!keepalive}, tok);
-      }
-      var boundary="gv"+Date.now();
-      var mp="--"+boundary+"\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"+
-        JSON.stringify({name:GD_FILENAME, mimeType:"application/json"})+
-        "\r\n--"+boundary+"\r\nContent-Type: application/json\r\n\r\n"+body+"\r\n--"+boundary+"--";
-      return gdApi("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id",
-        {method:"POST", headers:{"Content-Type":"multipart/related; boundary="+boundary}, body:mp}, tok)
-      .then(function(r){ return r.json(); })
-      .then(function(j){ try{ localStorage.setItem(GD_FILE_STORE,j.id); }catch(e){} });
+  function runUpload(){
+    var body=JSON.stringify(data),uploadedAt=Number(data.updatedAt)||0;
+    return gdToken().then(function(tok){
+      return gdFind(tok).then(function(fid){
+        if(fid){
+          return gdApi("https://www.googleapis.com/upload/drive/v3/files/"+fid+"?uploadType=media",
+            {method:"PATCH",headers:{"Content-Type":"application/json"},body:body,keepalive:!!keepalive},tok);
+        }
+        var boundary="gv"+Date.now();
+        var mp="--"+boundary+"\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"+
+          JSON.stringify({name:GD_FILENAME,mimeType:"application/json"})+
+          "\r\n--"+boundary+"\r\nContent-Type: application/json\r\n\r\n"+body+"\r\n--"+boundary+"--";
+        return gdApi("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id",
+          {method:"POST",headers:{"Content-Type":"multipart/related; boundary="+boundary},body:mp},tok)
+        .then(function(r){ return r.json(); })
+        .then(function(j){ try{ localStorage.setItem(GD_FILE_STORE,j.id); }catch(e){} });
+      }).then(function(){ return gdMaybeHistory(tok,body); })
+      .then(function(){ return uploadedAt; });
     });
-  });
+  }
+  gdUploadQueue=gdUploadQueue.catch(function(){}).then(runUpload);
+  return gdUploadQueue;
 }
 function gdDownload(){
   return gdToken().then(function(tok){
@@ -812,9 +833,10 @@ function silentPush(keepalive){
   // a cache-wiped device must pull the backup, not overwrite it
   if(vaultSize(data)===0 && !cloudChecked){ silentPullOnLoad(); return; }
   if(cloudMode()==="drive"){
-    gdUpload(keepalive).then(function(){
-      lastSyncedAt=data.updatedAt;
+    gdUpload(keepalive).then(function(uploadedAt){
+      lastSyncedAt=Math.max(lastSyncedAt,uploadedAt||0);
       setSyncStatus("Synced to Drive just now");
+      if((data.updatedAt||0)>(uploadedAt||0)) schedulePush();
     }).catch(function(){ setSyncStatus("Drive sync failed — will retry on next change"); });
     return;
   }
@@ -859,10 +881,11 @@ function pushCloud(){
   if(vaultSize(data)===0 && !confirm("This device's vault is EMPTY.\n\nPushing now would overwrite your cloud backup with nothing. Use Pull from cloud to get your data back instead.\n\nReally push an empty vault?")) return;
   if(cloudMode()==="drive"){
     flash("Uploading to Google Drive…");
-    gdUpload().then(function(){
-      lastSyncedAt=data.updatedAt;
+    gdUpload().then(function(uploadedAt){
+      lastSyncedAt=Math.max(lastSyncedAt,uploadedAt||0);
       setSyncStatus("Synced to Drive just now");
       flash("Pushed to Google Drive");
+      if((data.updatedAt||0)>(uploadedAt||0)) schedulePush();
     }).catch(function(e){ flash("Drive push failed — "+e.message); });
     return;
   }
@@ -1385,10 +1408,9 @@ function ensurePlot(name, kind){
     var plot="", anchor="";
     var m=text.match(/==\s*(Plot|Synopsis|Story|Premise|Narrative|Setting)\s*==\n?([\s\S]*?)(\n==[^=]|$)/);
     if(m){ anchor=m[1]; plot=m[2]; }
-    else plot=text.split("\n\n").slice(0,3).join("\n\n");
+    else plot=text;
     // keep the FULL section; turn sub-headings into separators instead of dropping text
     plot=plot.replace(/\n?===\s*([^=]*?)\s*===\n?/g,"\n— $1 —\n").trim();
-    if(plot.length>12000) plot=plot.slice(0,12000)+"…";
     plotCache[k]={p:plot, t:articleTitle, a:anchor};
     savePlots();
   });
@@ -2681,6 +2703,7 @@ function biglyRefresh(){
   });
 }
 function biglyAction(id, action, extra){
+  if(action==="remove-data" && !confirm("Delete this torrent AND its downloaded files? This cannot be undone.")) return Promise.resolve();
   biglyBusy=true; render();
   return biglyApi("/torrents/"+encodeURIComponent(id)+"/action",{
     method:"POST",
@@ -2703,11 +2726,14 @@ function biglyTorrentCard(t){
   var id=t.id||t.hash||t.infoHash||t.name;
   var pct=biglyPct(t.progress!=null?t.progress:t.percentDone);
   var status=t.status||t.state||"Unknown";
+  var total=Number(t.totalSize||t.size||0),downloaded=Number(t.downloaded||t.haveValid||t.downloadedEver||0);
+  if(!downloaded && total) downloaded=total*pct/100;
   return '<div class="card torrent-card">'+
     '<div class="torrent-head"><div class="torrent-name">'+esc(t.name||"Untitled torrent")+'</div><span class="torrent-status">'+esc(status)+'</span></div>'+
     '<div class="torrent-meter"><div class="torrent-fill" style="width:'+pct.toFixed(1)+'%"></div></div>'+
     '<div class="torrent-meta">'+
       '<div>Progress <b style="color:var(--text)">'+pct.toFixed(1)+'%</b></div>'+
+      '<div>Downloaded <b style="color:var(--text)">'+biglyBytes(downloaded)+' / '+biglyBytes(total)+'</b></div>'+
       '<div>ETA <b style="color:var(--text)">'+esc(t.eta||t.remaining||"TBC")+'</b></div>'+
       '<div>Down <b style="color:var(--text)">'+biglySpeed(t.downloadSpeed||t.downSpeed||0)+'</b></div>'+
       '<div>Up <b style="color:var(--text)">'+biglySpeed(t.uploadSpeed||t.upSpeed||0)+'</b></div>'+
@@ -2720,6 +2746,7 @@ function biglyTorrentCard(t){
       '<button class="btn" data-act="bigly-action" data-id="'+esc(String(id))+'" data-bigly="resume">Resume</button>'+
       '<button class="btn" data-act="bigly-action" data-id="'+esc(String(id))+'" data-bigly="stop">Stop</button>'+
       '<button class="btn ghost danger" data-act="bigly-action" data-id="'+esc(String(id))+'" data-bigly="remove">Remove</button>'+
+      '<button class="btn ghost danger" data-act="bigly-action" data-id="'+esc(String(id))+'" data-bigly="remove-data">Delete files</button>'+
       '<select class="selectmini bigly-priority" data-id="'+esc(String(id))+'"><option value="">Priority...</option><option value="high">High</option><option value="normal">Normal</option><option value="low">Low</option></select>'+
     '</div>'+
   '</div>';
@@ -2996,7 +3023,7 @@ function render(){
    synced game vault). Three tabs: upcoming Hollywood, released Hollywood
    (filtered to exact IMDb >= 7.0 via OMDb), and weekly Malayalam OTT. */
 var TMDB_KEY_STORE="ps5-tmdb-key", OMDB_KEY_STORE="ps5-omdb-key";
-var SECTION_KEY="ps5-section", FILMTAB_KEY="ps5-filmtab", FILM_CACHE_KEY="ps5-films-cache";
+var SECTION_KEY="ps5-section", FILMTAB_KEY="ps5-filmtab", FILM_CACHE_KEY="ps5-films-cache", MEDIA_CACHE_VERSION_KEY="gamevault-media-cache-version";
 var section="games", filmTab="watchlist";
 try{ section=localStorage.getItem(SECTION_KEY)||"games"; }catch(e){}
 try{ filmTab=localStorage.getItem(FILMTAB_KEY)||"watchlist"; }catch(e){}
@@ -3006,6 +3033,11 @@ var FILM_ORDER=["watchlist","bluray","uphw","relhw","mlott","mlup","watched"];
 var FILM_TTL={bluray:24*3600*1000, uphw:24*3600*1000, relhw:24*3600*1000, mlott:6*3600*1000, mlup:6*3600*1000};
 var filmCache={}, filmBusy={}, filmErr={};
 try{ filmCache=JSON.parse(localStorage.getItem(FILM_CACHE_KEY)||"{}")||{}; }catch(e){ filmCache={}; }
+try{
+  if(localStorage.getItem(MEDIA_CACHE_VERSION_KEY)!=="3"){
+    filmCache={}; localStorage.removeItem("ps5-series-cache"); localStorage.setItem(MEDIA_CACHE_VERSION_KEY,"3");
+  }
+}catch(e){}
 function saveFilmCache(){ try{ localStorage.setItem(FILM_CACHE_KEY, JSON.stringify(filmCache)); }catch(e){} }
 var FILM_GENRE_KEY="ps5-film-genre", SERIES_GENRE_KEY="ps5-series-genre";
 var FILM_YEAR_KEY="ps5-film-year", SERIES_YEAR_KEY="ps5-series-year";
@@ -3129,7 +3161,7 @@ function tmdbGet(path, params){
 }
 function mapMovie(m){
   return { id:m.id, title:m.title||m.name||"Untitled",
-    date:m.release_date||"", year:(m.release_date||"").slice(0,4),
+    date:m.release_date||"", originalDate:m.release_date||"", year:(m.release_date||"").slice(0,4),
     overview:m.overview||"", tmdb:Math.round((m.vote_average||0)*10)/10,
     genres:m.genre_ids||[],
     votes:m.vote_count||0, popularity:m.popularity||0,
@@ -3160,7 +3192,7 @@ function refreshImdbIfStale(x){
     if(typeof rt==="number"){
       x.imdb=rt;
       x.imdbAt=Date.now();
-      saveFilmCache(); saveSeriesCache(); save();
+      saveFilmCache(); saveSeriesCache(); persistSilent();
       if(section==="films"||section==="series") render();
     }
   });
@@ -3201,19 +3233,26 @@ function fetchUpHw(){
   if(filmYear && String(filmYear)===String(new Date().getFullYear())) from=localISO();
   var calls=[1,2].map(function(page){
     return tmdbGet("/discover/movie", addGenreParam({
-      with_original_language:"en", region:"US",
-      "release_date.gte":from, sort_by:"popularity.desc",
-      with_release_type:"2|3", "vote_count.gte":0, page:page
+      with_original_language:"en",
+      "primary_release_date.gte":from, "primary_release_date.lte":to||daysAheadISO(730),
+      sort_by:"popularity.desc", "vote_count.gte":0, page:page
     }, filmGenre));
   });
   return Promise.all(calls).then(function(pages){
     var seen={}, raw=[];
     pages.forEach(function(j){ (j.results||[]).forEach(function(m){ if(!seen[m.id]){ seen[m.id]=1; raw.push(m); } }); });
     // Keep major releases, then present them strictly by theatrical date.
-    var list=raw.filter(function(m){ return m.release_date && m.popularity>15; }).map(mapMovie);
-    list.sort(function(a,b){ return (a.date||"9999-99-99")<(b.date||"9999-99-99") ? -1 : 1; });
+    var list=raw.filter(function(m){ return m.release_date && m.release_date>=from && (!to||m.release_date<=to) && m.popularity>15; }).map(mapMovie);
+    list.sort(function(a,b){ return (a.date||"").localeCompare(b.date||"") || (b.popularity||0)-(a.popularity||0); });
     return list.slice(0,45);
   });
+}
+function pickReleaseEvent(detail,country,types,future){
+  var rows=(detail.release_dates&&detail.release_dates.results)||[];
+  var row=rows.filter(function(x){return x.iso_3166_1===country;})[0],todayIso=localISO(),dates=[];
+  if(row) (row.release_dates||[]).forEach(function(r){ if(types.indexOf(Number(r.type))>-1&&r.release_date) dates.push(r.release_date.slice(0,10)); });
+  dates=dates.filter(function(d){return future?d>=todayIso:d<=todayIso;}).sort();
+  return future?(dates[0]||null):(dates[dates.length-1]||null);
 }
 /* Recent major Hollywood physical releases. TMDB release type 5 is Physical/Blu-ray. */
 function fetchBluRayHw(){
@@ -3232,20 +3271,25 @@ function fetchBluRayHw(){
     pages.forEach(function(j){ (j.results||[]).forEach(function(m){
       if(!seen[m.id] && m.release_date && m.popularity>8){ seen[m.id]=1; list.push(mapMovie(m)); }
     }); });
-    return list.sort(newerFirst).slice(0,45);
+    var cands=list.slice(0,30);
+    return serialEach(cands,100,function(m){
+      return tmdbGet("/movie/"+m.id,{append_to_response:"release_dates"}).then(function(d){m.date=pickReleaseEvent(d,"US",[5],false)||"";});
+    }).then(function(){ return cands.filter(function(m){return !!m.date&&m.date>=from&&m.date<=to;}).sort(newerFirst).slice(0,30); });
   });
 }
 function fetchRelHw(){
   var from=filmYear ? yearStart(filmYear) : yearsAgoISO(2);
   var to=filmYear ? yearEnd(filmYear) : localISO();
   if(to>localISO()) to=localISO();
-  return tmdbGet("/discover/movie", addGenreParam({
+  var calls=[1,2].map(function(page){ return tmdbGet("/discover/movie", addGenreParam({
     with_original_language:"en", region:"US",
     "primary_release_date.lte":to, "primary_release_date.gte":from,
     sort_by:"primary_release_date.desc", with_release_type:"3",
-    "vote_count.gte":250, "vote_average.gte":6.0, page:1
-  }, filmGenre)).then(function(j){
-    var cands=(j.results||[]).filter(function(m){ return m.release_date; }).slice(0,32).map(mapMovie);
+    "vote_count.gte":250, "vote_average.gte":6.0, page:page
+  }, filmGenre)); });
+  return Promise.all(calls).then(function(pages){
+    var seen={},cands=[]; pages.forEach(function(j){(j.results||[]).forEach(function(m){if(!seen[m.id]&&m.release_date){seen[m.id]=1;cands.push(mapMovie(m));}});});
+    cands=cands.slice(0,40);
     return serialEach(cands, 200, function(m){
       return tmdbGet("/movie/"+m.id, {append_to_response:"watch/providers"}).then(function(d){
         m.imdbId=d.imdb_id||m.imdbId||null;
@@ -3257,7 +3301,7 @@ function fetchRelHw(){
       });
     }).then(function(){
       return cands.filter(function(m){ return typeof m.imdb==="number" && m.imdb>=7.0; })
-        .sort(function(a,b){ return (b.date||"")>(a.date||"") ? 1 : (b.date||"")<(a.date||"") ? -1 : b.imdb-a.imdb; }).slice(0,25);
+        .sort(function(a,b){ return (b.date||"").localeCompare(a.date||"") || b.imdb-a.imdb; }).slice(0,35);
     });
   });
 }
@@ -3346,7 +3390,7 @@ function ensureFilms(key, force){
   FILM_FETCH[key]().then(function(items){
     filmCache[key]={t:Date.now(), items:items};
     saveFilmCache(); delete filmBusy[key]; filmsMaybeRender();
-  }).catch(function(){ delete filmBusy[key]; filmErr[key]=1; filmsMaybeRender(); });
+  }).catch(function(e){ reportError("films:"+key,e); delete filmBusy[key]; filmErr[key]=1; filmsMaybeRender(); });
 }
 function filmsMaybeRender(){
   if(section!=="films") return;
@@ -3642,7 +3686,7 @@ function saveSeriesCache(){ try{ localStorage.setItem(SERIES_CACHE_KEY, JSON.str
 var seriesEpisodeCache={}, seriesSeasonSel={}, seriesEpisodeSel={}, seriesEpisodeBusy={};
 function mapSeries(s){
   return { id:s.id, title:s.name||s.original_name||"Untitled",
-    date:s.first_air_date||"", year:(s.first_air_date||"").slice(0,4),
+    date:s.first_air_date||"", firstAirDate:s.first_air_date||"", latestDate:s.last_air_date||"", year:(s.first_air_date||"").slice(0,4),
     overview:s.overview||"", tmdb:Math.round((s.vote_average||0)*10)/10,
     votes:s.vote_count||0, popularity:s.popularity||0, genres:s.genre_ids||[],
     poster:s.poster_path?("https://image.tmdb.org/t/p/w185"+s.poster_path):"",
@@ -3655,8 +3699,10 @@ function enrichSeriesIds(s){
     s.seriesType=d.type||"";
     s.episodeCount=d.number_of_episodes||0;
     s.networks=(d.networks||[]).map(function(n){ return n.name||""; }).filter(Boolean);
+    s.latestDate=(d.next_episode_to_air&&d.next_episode_to_air.air_date)||(d.last_episode_to_air&&d.last_episode_to_air.air_date)||d.last_air_date||s.latestDate||s.date;
     s.seasonList=(d.seasons||[]).filter(function(se){ return se.season_number>0; }).map(function(se){ return {n:se.season_number,name:se.name||("Season "+se.season_number),episodes:se.episode_count||0}; });
-    var wp=d["watch/providers"] && d["watch/providers"].results && d["watch/providers"].results.US;
+    var region=s.providerRegion||"US";
+    var wp=d["watch/providers"] && d["watch/providers"].results && d["watch/providers"].results[region];
     s.providers=(((wp&&wp.flatrate)||[]).concat((wp&&wp.free)||[])).map(function(p){ return p.provider_name; });
   }).then(function(){
     return omdbRatingById(s.imdbId).then(function(rt){ if(typeof rt==="number"){ s.imdb=rt; s.imdbAt=Date.now(); } });
@@ -3676,7 +3722,7 @@ function fetchSeriesLang(lang, minVotes, minRating, sortBy, pages, regionalOnly)
   var calls=[];
   for(var pg=1; pg<=pages; pg++){
     var params=addGenreParam({
-      with_original_language:lang, "first_air_date.lte":localISO(), watch_region:"US",
+      with_original_language:lang, "first_air_date.lte":localISO(), watch_region:regionalOnly?"IN":"US",
       sort_by:sortBy||"popularity.desc", "vote_count.gte":minVotes,
       "vote_average.gte":minRating, page:pg
     }, seriesGenre);
@@ -3693,7 +3739,7 @@ function fetchSeriesLang(lang, minVotes, minRating, sortBy, pages, regionalOnly)
     all.forEach(function(j){
       (j.results||[]).forEach(function(s){
         if(!s.name || !s.first_air_date || seen[s.id]) return;
-        seen[s.id]=1; cands.push(mapSeries(s));
+        seen[s.id]=1; var mapped=mapSeries(s); mapped.providerRegion=regionalOnly?"IN":"US"; cands.push(mapped);
       });
     });
     if(regionalOnly) cands.sort(newerFirst);
@@ -3704,8 +3750,8 @@ function fetchSeriesLang(lang, minVotes, minRating, sortBy, pages, regionalOnly)
     cands=cands.slice(0,45);
     var enrichList=regionalOnly?cands:cands.slice(0,24);
     return serialEach(enrichList, 120, enrichSeriesIds).then(function(){
-      return regionalOnly ? cands.filter(regionalTvSeriesOnly).sort(newerFirst) : cands;
-    }).then(function(){ return gdMaybeHistory(tok,body); });
+      return regionalOnly ? cands.filter(regionalTvSeriesOnly).sort(function(a,b){return (b.latestDate||b.date||"").localeCompare(a.latestDate||a.date||"");}) : cands;
+    });
   });
 }
 function gdMaybeHistory(tok,body){
@@ -3743,7 +3789,7 @@ function ensureSeries(key, force){
   SERIES_FETCH[key]().then(function(items){
     seriesCache[key]={t:Date.now(), items:items};
     saveSeriesCache(); delete seriesBusy[key]; seriesMaybeRender();
-  }).catch(function(){ delete seriesBusy[key]; seriesErr[key]=1; seriesMaybeRender(); });
+  }).catch(function(e){ reportError("series:"+key,e); delete seriesBusy[key]; seriesErr[key]=1; seriesMaybeRender(); });
 }
 function seriesMaybeRender(){
   if(section!=="series") return;
@@ -3810,7 +3856,7 @@ function markSeriesWatched(s){
   if(data.watchedSeries.some(function(x){ return x.key===key; })) return;
   data.watchedSeries.unshift({key:key, id:s.id, title:s.title, year:s.year||"", poster:s.poster||"",
     imdb:(typeof s.imdb==="number"?s.imdb:null), imdbId:s.imdbId||null, tmdb:s.tmdb||null,
-    date:s.date||"", overview:s.overview||"", genres:s.genres||[], seasons:s.seasons||"", seasonList:s.seasonList||[], providers:s.providers||[], t:Date.now()});
+    date:s.date||"", latestDate:s.latestDate||"", overview:s.overview||"", genres:s.genres||[], seasons:s.seasons||"", seasonList:s.seasonList||[], providers:s.providers||[], t:Date.now()});
   data.seriesWatchlist=(data.seriesWatchlist||[]).filter(function(x){ return seriesKey(x)!==key; });
   save(); flash("Moved to Watched - it won't show again");
 }
@@ -3895,10 +3941,11 @@ function seriesMeta(s, key){
   return parts.join(" ");
 }
 function seriesReleaseMeta(s){
-  var date=s&&(s.ottDate||s.date);
+  var date=s&&(s.ottDate||s.latestDate||s.date);
   if(!date) return "";
   var day=parseD(date).toLocaleDateString("en-IN",{weekday:"long"});
-  return '<div class="media-release">OTT premiere: '+esc(fmt(date))+' · '+esc(day)+'</div>';
+  var label=s.ottDate?"OTT premiere":s.latestDate?"Latest episode":"First aired";
+  return '<div class="media-release">'+label+': '+esc(fmt(date))+' · '+esc(day)+'</div>';
 }
 function seriesMain(s){
   return mediaPoster(s.poster,s.title)+mediaSummary(s.title,mediaRatingLabel(s),genreLabel(s.genres,SERIES_GENRES),seriesReleaseMeta(s));
@@ -3932,7 +3979,7 @@ function addSeriesWatchlist(s){
   if(inSeriesWatchlist(s)){ flash("Already in your series watchlist"); return; }
   data.seriesWatchlist.unshift({key:seriesKey(s), id:s.id, title:s.title, year:s.year||"", poster:s.poster||"",
     imdb:(typeof s.imdb==="number"?s.imdb:null), imdbId:s.imdbId||null, tmdb:s.tmdb||null,
-    overview:s.overview||"", genres:s.genres||[], date:s.date||"", seasons:s.seasons||"", seasonList:s.seasonList||[], providers:s.providers||[], added:Date.now()});
+    overview:s.overview||"", genres:s.genres||[], date:s.date||"", latestDate:s.latestDate||"", seasons:s.seasons||"", seasonList:s.seasonList||[], providers:s.providers||[], added:Date.now()});
   save(); flash("Added to your series watchlist");
 }
 function removeSeriesWatchlist(id){
@@ -5286,7 +5333,7 @@ function refreshRecoveryUi(){
   }
 }
 function exportDiagnostics(){
-  var report={app:"Sinu Game Vault",version:APP_VERSION,schema:SCHEMA_VERSION,generatedAt:new Date().toISOString(),device:deviceId(),userAgent:navigator.userAgent,online:navigator.onLine,storageItems:vaultSize(data),revision:data.revision||0,updatedAt:data.updatedAt||0,cloudMode:cloudMode()||"none",connections:{drive:!!gdTok(),jsonBin:!!getJB().bin,rawg:!!getKey(),tmdb:!!tmdbKey(),omdb:!!omdbKey(),plex:!!(plexServerUrl()&&plexToken()),biglybt:!!biglyProxyUrl()},collections:{},recentAudit:(data.audit||[]).slice(0,50)};
+  var report={app:"Sinu Game Vault",version:APP_VERSION,schema:SCHEMA_VERSION,generatedAt:new Date().toISOString(),device:deviceId(),userAgent:navigator.userAgent,online:navigator.onLine,storageItems:vaultSize(data),revision:data.revision||0,updatedAt:data.updatedAt||0,cloudMode:cloudMode()||"none",connections:{drive:!!gdTok(),jsonBin:!!getJB().bin,rawg:!!getKey(),tmdb:!!tmdbKey(),omdb:!!omdbKey(),plex:!!(plexServerUrl()&&plexToken()),biglybt:!!biglyProxyUrl()},collections:{},runtimeErrors:runtimeErrors.slice(),recentAudit:(data.audit||[]).slice(0,50)};
   VAULT_ARRAY_FIELDS.forEach(function(k){ report.collections[k]=(data[k]||[]).length; });
   downloadBlob(new Blob([JSON.stringify(report,null,2)],{type:"application/json"}),"game-vault-diagnostics-"+localISO()+".json");
 }
