@@ -1,7 +1,9 @@
-const CACHE_NAME = "gamevault-shell-v11";
+const CACHE_NAME = "gamevault-shell-v12";
 const APP_SHELL = [
   "./",
   "./index.html",
+  "./app.css",
+  "./app.js",
   "./icon.png",
   "./manifest.webmanifest"
 ];
@@ -19,6 +21,10 @@ self.addEventListener("activate", event => {
   );
 });
 
+self.addEventListener("message", event => {
+  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
+});
+
 self.addEventListener("fetch", event => {
   const req = event.request;
   if (req.method !== "GET") return;
@@ -29,7 +35,7 @@ self.addEventListener("fetch", event => {
         const copy = res.clone();
         caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
         return res;
-      }).catch(() => caches.match(req).then(cached => cached || caches.match("./index.html")))
+      }).catch(() => caches.match(req).then(cached => cached || (req.mode === "navigate" ? caches.match("./index.html") : Response.error())))
     );
   }
 });
