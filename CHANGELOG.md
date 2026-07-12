@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026.07.12-r4
+
+- Renamed the primary navigation to Games, Movies, TV Shows, Plex Library, and BiglyBT.
+- Clarified Games tabs as Now Playing, Rental Queue, Upcoming Releases, Discover, and Completed.
+- Reorganized Movies into My Watchlist, Coming Soon, New on Blu-ray, Discover, Malayalam OTT, and Watched.
+- Combined current and upcoming Malayalam OTT releases on one page.
+- Added synced Watching status, New Episodes, Upcoming, and unified Discover views for TV Shows.
+- Added language, genre, year, and streaming-provider filters to TV discovery.
+- Added Plex Home, Continue Watching, Movies, TV Shows, and Recently Added views.
+- Added Active, Queued, Completed, Seeding, and All Torrents filters to the native BiglyBT dashboard.
+
 ## 2026.07.12-r3
 
 - Fixed upcoming Hollywood results so old films with future re-releases are not shown as new premieres.

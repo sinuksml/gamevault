@@ -33,9 +33,9 @@
   <div class="sub">PS5 tracker &middot; rentals &middot; playing now &middot; watchlist &middot; library <span id="syncStatus" role="status" aria-live="polite" style="color:var(--muted)"></span></div>
   <div class="sectionsw" id="sectionSw">
     <button data-section="games" class="on">&#127918; Games</button>
-    <button data-section="films">&#127916; Films</button>
-    <button data-section="series">&#128250; Series</button>
-    <button data-section="plex">&#9654; Plex</button>
+    <button data-section="films">&#127916; Movies</button>
+    <button data-section="series">&#128250; TV Shows</button>
+    <button data-section="plex">&#9654; Plex Library</button>
     <button data-section="biglybt">&#8681; BiglyBT</button>
   </div>
   </header>
@@ -80,14 +80,14 @@
     </div>
     </details>
     <details class="settings-group">
-    <summary>Game, film &amp; series data services</summary>
-    <p><b style="color:var(--text)">Live internet updates (optional).</b> Get a free API key from <a href="https://rawg.io/apidocs" target="_blank" rel="noopener">rawg.io/apidocs</a> (sign up &rarr; Get API Key), paste it below, and the app can fetch cover art, scores, autocomplete and live lists for the Upcoming and For You tabs from the RAWG games database. Without a key, the built-in curated lists still work fully offline.</p>
+    <summary>Games, movies &amp; TV data services</summary>
+    <p><b style="color:var(--text)">Live internet updates (optional).</b> Get a free API key from <a href="https://rawg.io/apidocs" target="_blank" rel="noopener">rawg.io/apidocs</a> (sign up &rarr; Get API Key), paste it below, and the app can fetch cover art, scores, autocomplete and live lists for Upcoming Releases and Discover from the RAWG games database. Without a key, the built-in curated lists still work fully offline.</p>
     <div class="fields">
       <input class="f-name" id="apiKeyInput" placeholder="Paste RAWG API key here" autocomplete="off">
       <button class="btn blue" id="saveKeyBtn">Save key</button>
     </div>
     <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
-    <p><b style="color:var(--text)">Films &amp; TV Series sections (TMDB + IMDb).</b> The Films and Series tabs pull live data from <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">TMDB</a> &mdash; sign up free &rarr; Settings &rarr; API &rarr; copy the <b>API Key (v3 auth)</b>. For exact IMDb ratings where available, also get a free key from <a href="https://www.omdbapi.com/apikey.aspx" target="_blank" rel="noopener">OMDb</a> (activate the link they email you). Paste both below.</p>
+    <p><b style="color:var(--text)">Movies &amp; TV Shows sections (TMDB + IMDb).</b> These sections pull live data from <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">TMDB</a> &mdash; sign up free &rarr; Settings &rarr; API &rarr; copy the <b>API Key (v3 auth)</b>. For exact IMDb ratings where available, also get a free key from <a href="https://www.omdbapi.com/apikey.aspx" target="_blank" rel="noopener">OMDb</a> (activate the link they email you). Paste both below.</p>
     <div class="fields">
       <input class="f-name" id="tmdbKeyInput" placeholder="TMDB API key (v3 auth)" autocomplete="off">
       <input class="f-name" id="omdbKeyInput" placeholder="OMDb API key (for IMDb ratings)" autocomplete="off">

@@ -1,11 +1,11 @@
 ﻿"use strict";
-var APP_VERSION = "2026.07.12-r3";
+var APP_VERSION = "2026.07.12-r4";
 var APP_RELEASE_NOTES = [
-  "Safer cloud restore and empty-vault protection",
-  "Local recovery snapshots and diagnostics",
-  "Corrected theatrical, Blu-ray, and series release ordering",
-  "Serialized Drive uploads and safer recovery snapshots",
-  "Improved BiglyBT sizes, deletion choices, and diagnostics"
+  "Clearer Games, Movies, TV Shows, Plex Library and BiglyBT navigation",
+  "TV Watching, New Episodes, Upcoming and unified Discover tabs",
+  "Plex Home, Continue Watching and Recently Added views",
+  "Combined current and upcoming Malayalam OTT releases",
+  "BiglyBT Active, Queued, Completed, Seeding and All filters"
 ];
 var TV_MODE = new URLSearchParams(location.search).get("tv")==="1";
 if(TV_MODE) document.documentElement.classList.add("tv");
@@ -143,7 +143,7 @@ var BUILTIN_CATALOG = [
 ].map(function(g){ return {name:g[0], year:g[1], score:g[2], genre:g[3], note:g[4], rem:g[5]||""}; });
 
 /* ---------- storage ---------- */
-var VAULT_ARRAY_FIELDS = ["rentals","upcoming","played","dismissed","catalogExtra","vendors","queue","rentalHistory","playing","upcomingRemoved","watchedMovies","movieWatchlist","hiddenMovies","watchedSeries","seriesWatchlist","hiddenSeries"];
+var VAULT_ARRAY_FIELDS = ["rentals","upcoming","played","dismissed","catalogExtra","vendors","queue","rentalHistory","playing","upcomingRemoved","watchedMovies","movieWatchlist","hiddenMovies","watchedSeries","seriesWatchlist","watchingSeries","hiddenSeries"];
 var VAULT_OBJECT_FIELDS = ["covers","dismissedNames","fandom","hubkeys","keys","seriesRatings","aiChats"];
 function deviceId(){
   try{
@@ -223,12 +223,12 @@ function vaultSize(d){
          ((d&&d.rentalHistory)||[]).length + ((d&&d.queue)||[]).length +
          ((d&&d.playing)||[]).length + ((d&&d.movieWatchlist)||[]).length +
          ((d&&d.watchedMovies)||[]).length + ((d&&d.hiddenMovies)||[]).length +
-         ((d&&d.seriesWatchlist)||[]).length + ((d&&d.watchedSeries)||[]).length +
+         ((d&&d.seriesWatchlist)||[]).length + ((d&&d.watchingSeries)||[]).length + ((d&&d.watchedSeries)||[]).length +
          ((d&&d.hiddenSeries)||[]).length;
 }
 /* Schema migrations: bump SCHEMA_VERSION when structure changes and add an
    upgrade step below. Old data is always upgraded in place, never recreated. */
-var SCHEMA_VERSION = 6;
+var SCHEMA_VERSION = 7;
 function migrate(d){
   if(!d || typeof d!=="object" || Array.isArray(d)) d={};
   VAULT_ARRAY_FIELDS.forEach(function(k){ if(!Array.isArray(d[k])) d[k]=[]; });
@@ -262,6 +262,7 @@ function migrate(d){
   if(!d.hiddenMovies) d.hiddenMovies = []; // films marked Not Interested, synced
   if(!d.watchedSeries) d.watchedSeries = []; // TV series marked Watched, synced
   if(!d.seriesWatchlist) d.seriesWatchlist = []; // personal TV series watchlist, synced
+  if(!d.watchingSeries) d.watchingSeries = []; // TV shows currently being watched, synced
   if(!d.seriesRatings) d.seriesRatings = {}; // per-series preference ratings, synced
   if(!d.hiddenSeries) d.hiddenSeries = []; // TV series marked Not Interested, synced
   if(!d.aiChats) d.aiChats = {}; // saved AI assistant conversation links by title/service, synced
@@ -295,7 +296,7 @@ function dedupeList(arr){
 }
 var data = load();
 function vaultFingerprint(d){
-  return ["rentals","rentalHistory","playing","queue","played","movieWatchlist","watchedMovies","seriesWatchlist","watchedSeries"].map(function(k){ return k+":"+((d[k]||[]).length); }).join(", ");
+  return ["rentals","rentalHistory","playing","queue","played","movieWatchlist","watchedMovies","seriesWatchlist","watchingSeries","watchedSeries"].map(function(k){ return k+":"+((d[k]||[]).length); }).join(", ");
 }
 var lastAuditFingerprint=vaultFingerprint(data);
 function getKey(){ try { return localStorage.getItem(KEY_STORE) || ""; } catch(e){ return ""; } }
@@ -1269,6 +1270,8 @@ function featuredSeries(){
   var pool=[];
   function add(list){ (list||[]).forEach(function(s){ if(s&&mediaBgUrl(s)) pool.push(s); }); }
   add(seriesCache[seriesTab]&&seriesCache[seriesTab].items);
+  if(!pool.length&&(seriesTab==="serieswatching"||seriesTab==="seriesnew")) add(data.watchingSeries);
+  if(!pool.length) add(seriesCache.seriesdiscover&&seriesCache.seriesdiscover.items);
   if(!pool.length) add(seriesCache.enseries&&seriesCache.enseries.items);
   if(!pool.length) add(seriesSearchItems);
   if(!pool.length) add(data.seriesWatchlist);
@@ -1306,13 +1309,13 @@ function applyBackground(){
   var g=null, u="", label="Coming up next", title="", detail="", extra="";
   if(section==="films"){
     g=nextBigFilm(); u=mediaBgUrl(g); title=(g&&g.title)||"";
-    label=(g&&g.date&&g.date>=localISO(today()))?"Next big film":"Featured film";
+    label=(g&&g.date&&g.date>=localISO(today()))?"Next big movie":"Featured movie";
     detail=g?(g.date?fmt(g.date):(g.year||"Date TBA")):"";
     if(g&&(g.imdb||g.tmdb)) extra='<span class="chip">'+(g.imdb?"IMDb "+g.imdb.toFixed(1):"TMDB "+g.tmdb.toFixed(1))+'</span>';
   } else if(section==="series"){
     g=featuredSeries(); u=mediaBgUrl(g); title=(g&&g.title)||"";
-    label="Featured series";
-    detail=g?(g.year?("Started "+g.year):"TV Series"):"";
+    label="Featured TV show";
+    detail=g?(g.year?("Started "+g.year):"TV Show"):"";
     if(g&&(g.imdb||g.tmdb)) extra='<span class="chip">'+(g.imdb?"IMDb "+g.imdb.toFixed(1):"TMDB "+g.tmdb.toFixed(1))+'</span>';
   } else if(section==="biglybt"){
     ensureBiglyBluRayBackground();
@@ -1682,29 +1685,27 @@ function renderTabs(){
     return;
   }
   if(section==="plex"){
-    var pd=[["movies","●","Movies"],["shows","▣","TV Series"]];
+    var pd=[["home","⌂","Home"],["continue","▶","Continue Watching"],["movies","●","Movies"],["shows","▣","TV Shows"],["recent","+","Recently Added"]];
     document.getElementById("tabs").innerHTML=pd.map(function(d){
       return '<button class="tab '+(plexTab===d[0]?"on":"")+'" data-ptab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
     }).join("");
     return;
   }
   if(section==="series"){
-    var sd=[["serieswatchlist","♡","Watchlist"],["enseries","*","English"],["mlseries","◇","Malayalam"],["taseries","○","Tamil"],["hiseries","△","Hindi"],["serieswatched","✓","Watched"]];
+    var sd=[["serieswatchlist","♡","My Watchlist"],["serieswatching","▶","Watching"],["seriesnew","!","New Episodes"],["seriesupcoming","△","Upcoming"],["seriesdiscover","*","Discover"],["serieswatched","✓","Watched"]];
     document.getElementById("tabs").innerHTML = sd.map(function(d){
       return '<button class="tab '+(seriesTab===d[0]?"on":"")+'" data-stab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
     }).join("");
     return;
   }
   if(section==="films"){
-    var fd=[["watchlist","♥","Watchlist"],["uphw","△","Upcoming HW"],["relhw","★","Released HW"],["mlott","▶","Malayalam OTT"],["mlup","◇","Upcoming ML"],["watched","✓","Watched"]];
-    fd.splice(1,0,["bluray","◉","Blu-ray Releases"]);
-    fd[2][2]="Upcoming Releases";
+    var fd=[["watchlist","♥","My Watchlist"],["uphw","△","Coming Soon"],["bluray","◉","New on Blu-ray"],["relhw","★","Discover"],["mlott","▶","Malayalam OTT"],["watched","✓","Watched"]];
     document.getElementById("tabs").innerHTML = fd.map(function(d){
       return '<button class="tab '+(filmTab===d[0]?"on":"")+'" data-ftab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
     }).join("");
     return;
   }
-  var defs=[["rentals","✕","Rentals"],["playing","▶","Playing"],["queue","◇","Queue"],["upcoming","△","Upcoming"],["suggest","○","For You"],["played","□","Played"]];
+  var defs=[["rentals","✕","Rentals"],["playing","▶","Now Playing"],["queue","◇","Rental Queue"],["upcoming","△","Upcoming Releases"],["suggest","○","Discover"],["played","□","Completed"]];
   document.getElementById("tabs").innerHTML = defs.map(function(d){
     return '<button class="tab '+(tab===d[0]?"on":"")+'" data-tab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
   }).join("");
@@ -2776,9 +2777,10 @@ function renderBiglyBT(){
 
 /* ---------- Plex library (direct secure Plex Media Server API) ---------- */
 var PLEX_URL_KEY="gamevault-plex-url", PLEX_TOKEN_KEY="gamevault-plex-token", PLEX_CACHE_KEY="gamevault-plex-cache";
-var PLEX_ORDER=["movies","shows"], plexTab="movies", plexItems=[], plexBusy=false, plexErr="", plexConnected=false, plexAllowDelete=false, plexSearch="";
+var PLEX_ORDER=["home","continue","movies","shows","recent"], plexTab="home", plexItems=[], plexBusy=false, plexErr="", plexConnected=false, plexAllowDelete=false, plexSearch="";
 try{
-  plexTab=localStorage.getItem("gamevault-plex-tab")||"movies";
+  plexTab=localStorage.getItem("gamevault-plex-tab")||"home";
+  if(PLEX_ORDER.indexOf(plexTab)<0) plexTab="home";
   var savedPlex=JSON.parse(localStorage.getItem(PLEX_CACHE_KEY)||"null");
   if(savedPlex&&Array.isArray(savedPlex.items)) plexItems=savedPlex.items;
 }catch(e){}
@@ -2887,22 +2889,31 @@ function plexCard(item){
   var pct=Math.max(0,Math.min(100,plexProgress(item)));
   var status=item.type==="show"?(item.viewedLeafCount+" / "+item.leafCount+" episodes watched"):(item.watched?"Watched":pct?pct+"% watched":"Unwatched");
   return '<div class="card plex-card">'+mediaPoster(plexMediaUrl(item.thumb),item.title||item.type)+
-    '<div class="media-info"><div class="media-title">'+esc(item.title)+'</div><div class="media-meta">'+(item.year?'<span class="media-pill">'+esc(String(item.year))+'</span>':'')+'<span class="media-pill">'+(item.type==="show"?"TV Series":"Movie")+'</span></div>'+
+    '<div class="media-info"><div class="media-title">'+esc(item.title)+'</div><div class="media-meta">'+(item.year?'<span class="media-pill">'+esc(String(item.year))+'</span>':'')+'<span class="media-pill">'+(item.type==="show"?"TV Show":"Movie")+'</span></div>'+
     '<div class="plex-progress"><span style="width:'+pct+'%"></span></div><div class="plex-status '+(item.watched?'watched':'')+'">'+(item.watched?'✓ ':'')+esc(status)+'</div></div>'+
     (item.watched?'<div class="actions"><button class="btn ghost danger" data-act="plex-delete" data-id="'+esc(item.ratingKey)+'">Delete media file</button></div>':'')+'</div>';
 }
 function renderPlex(){
   var configured=plexServerUrl()&&plexToken();
-  var html='<div class="toolbar" style="margin-top:14px"><div class="searchwrap"><span class="sic">⌕</span><input class="tab-search" id="plexSearch" placeholder="Search Plex '+(plexTab==="shows"?'TV series':'movies')+'..." value="'+esc(plexSearch)+'" autocomplete="off"></div><button class="btn blue" data-act="plex-refresh"'+(plexBusy?' disabled':'')+'>'+(plexBusy?'Connecting...':'Refresh Plex')+'</button><button class="btn" data-act="plex-settings">Settings</button></div>';
+  var searchLabel=plexTab==="shows"?"TV shows":plexTab==="movies"?"movies":"library";
+  var html='<div class="toolbar" style="margin-top:14px"><div class="searchwrap"><span class="sic">⌕</span><input class="tab-search" id="plexSearch" placeholder="Search Plex '+searchLabel+'..." value="'+esc(plexSearch)+'" autocomplete="off"></div><button class="btn blue" data-act="plex-refresh"'+(plexBusy?' disabled':'')+'>'+(plexBusy?'Connecting...':'Refresh Plex')+'</button><button class="btn" data-act="plex-settings">Settings</button></div>';
   if(!configured) return html+'<div class="empty">Connect your Plex owner account in Settings. Your token stays only on this device.</div>';
   if(plexErr) html+='<div class="empty">'+esc(plexErr)+'</div>';
   if(plexConnected && !plexAllowDelete) html+='<div class="meta" style="margin-bottom:10px">Viewing is connected. To delete watched media files, enable <b>Allow media deletion</b> in Plex Server Settings → Library.</div>';
-  var kind=plexTab==="shows"?"show":"movie", term=norm(plexSearch);
-  var items=plexItems.filter(function(x){ return x.type===kind&&(!term||norm(x.title).indexOf(term)>-1); });
+  var term=norm(plexSearch),base=plexItems.filter(function(x){return !term||norm(x.title).indexOf(term)>-1;});
+  var continueItems=base.filter(function(x){var p=plexProgress(x);return p>0&&p<100;}).sort(function(a,b){return (b.lastViewedAt||0)-(a.lastViewedAt||0);});
+  var recentItems=base.slice().sort(function(a,b){return (b.addedAt||0)-(a.addedAt||0);}).slice(0,40);
+  if(plexTab==="home"){
+    var home=html+'<div class="sechead">Continue Watching · '+continueItems.length+'</div>';
+    home+=continueItems.length?'<div class="plex-grid">'+continueItems.slice(0,12).map(plexCard).join("")+'</div>':'<div class="empty">Nothing is currently in progress.</div>';
+    home+='<div class="sechead">Recently Added</div>'+(recentItems.length?'<div class="plex-grid">'+recentItems.slice(0,12).map(plexCard).join("")+'</div>':'<div class="empty">No cached Plex library yet.</div>');
+    return home;
+  }
+  var kind=plexTab==="shows"?"show":"movie",items=plexTab==="continue"?continueItems:plexTab==="recent"?recentItems:base.filter(function(x){return x.type===kind;});
   if(!items.length){
     if(plexBusy) return html+loadingSkeletons("media",6);
     if(!plexItems.length) return html+'<div class="empty">No cached Plex library yet. The Shield can be connected later; press Refresh Plex when it is reachable.</div>';
-    return html+'<div class="empty">No '+(kind==="show"?'TV series':'movies')+' match this search.</div>';
+    return html+'<div class="empty">No '+(plexTab==="continue"?'partially watched items':plexTab==="recent"?'recently added media':kind==="show"?'TV shows':'movies')+' match this search.</div>';
   }
   return html+'<div class="plex-grid">'+items.map(plexCard).join("")+'</div>';
 }
@@ -2922,18 +2933,25 @@ function plexDeleteItem(id){
 function renderPageContext(){
   var el=document.getElementById("pageContext"); if(!el) return;
   var parent="Games",key=tab,title="",desc="",count="";
-  var labels={rentals:"Rentals",playing:"Playing",queue:"Queue",upcoming:"Upcoming",suggest:"For You",played:"Played",watchlist:"Watchlist",bluray:"Blu-ray Releases",uphw:"Upcoming Releases",relhw:"Released Hollywood",mlott:"Malayalam OTT",mlup:"Upcoming Malayalam OTT",watched:"Watched",serieswatchlist:"Watchlist",enseries:"English Series",mlseries:"Malayalam Series",taseries:"Tamil Series",hiseries:"Hindi Series",serieswatched:"Watched",movies:"Movies",shows:"TV Series"};
-  var descriptions={rentals:"Active rentals, return dates and complete history",playing:"Now playing, resume-later and on-hold games",queue:"Your prioritized rental queue and vendor availability",upcoming:"Upcoming game releases and release countdowns",suggest:"Recommendations shaped by your ratings and library",played:"Finished games, ratings and personal history",watchlist:"Movies saved for later",bluray:"Major Hollywood home-media releases",uphw:"Major confirmed Hollywood theatrical releases",relhw:"Critically acclaimed released Hollywood films",mlott:"Latest Malayalam streaming releases",mlup:"Confirmed upcoming Malayalam streaming releases",watched:"Your completed movie library",serieswatchlist:"TV series saved for later",enseries:"Acclaimed English-language TV series",mlseries:"Popular Malayalam TV series",taseries:"Popular Tamil TV series",hiseries:"Popular Hindi TV series",serieswatched:"Your completed TV series",movies:"Movies available on your Plex server",shows:"TV series available on your Plex server"};
-  if(section==="films"){ parent="Films"; key=filmTab; }
-  else if(section==="series"){ parent="Series"; key=seriesTab; }
-  else if(section==="plex"){ parent="Plex"; key=plexTab; }
+  var labels={rentals:"Rentals",playing:"Now Playing",queue:"Rental Queue",upcoming:"Upcoming Releases",suggest:"Discover",played:"Completed",watchlist:"My Watchlist",bluray:"New on Blu-ray",uphw:"Coming Soon",relhw:"Discover",mlott:"Malayalam OTT",watched:"Watched",serieswatchlist:"My Watchlist",serieswatching:"Watching",seriesnew:"New Episodes",seriesupcoming:"Upcoming",seriesdiscover:"Discover",serieswatched:"Watched",home:"Home",continue:"Continue Watching",movies:"Movies",shows:"TV Shows",recent:"Recently Added"};
+  var descriptions={rentals:"Active rentals, return dates and complete history",playing:"Games in progress, saved for later, or on hold",queue:"Your prioritized rental queue and vendor availability",upcoming:"Upcoming game releases and release countdowns",suggest:"Recommendations shaped by your ratings and library",played:"Finished games, ratings and personal history",watchlist:"Movies saved for later",bluray:"Major new Hollywood physical-media releases",uphw:"Major confirmed Hollywood theatrical releases",relhw:"Critically acclaimed Hollywood movies to discover",mlott:"Latest and upcoming Malayalam streaming releases",watched:"Your completed movie library",serieswatchlist:"TV shows saved for later",serieswatching:"TV shows you are currently watching",seriesnew:"Latest episodes from shows you are watching",seriesupcoming:"New and returning TV shows coming soon",seriesdiscover:"Acclaimed TV shows filtered by language, genre and provider",serieswatched:"Your completed TV shows",home:"A summary of your Plex library",continue:"Partially watched movies and TV shows",movies:"Movies available on your Plex server",shows:"TV shows available on your Plex server",recent:"The latest media added to your Plex server"};
+  if(section==="films"){ parent="Movies"; key=filmTab; }
+  else if(section==="series"){ parent="TV Shows"; key=seriesTab; }
+  else if(section==="plex"){ parent="Plex Library"; key=plexTab; }
   else if(section==="biglybt"){ parent="BiglyBT"; key="biglybt"; }
-  title=labels[key]||(section==="biglybt"?"Downloads":"Library");
+  title=labels[key]||(section==="biglybt"?"BiglyBT":"Library");
   desc=descriptions[key]||(section==="biglybt"?"Downloads, progress, speed and torrent controls":"Your personal media library");
   if(section==="games"){
     var counts={rentals:data.rentals.length,playing:data.playing.length+data.rentals.length,queue:data.queue.length,upcoming:data.upcoming.length,suggest:fullCatalog().length,played:data.played.length};
     count=(counts[key]!=null?counts[key]:"")+" "+(counts[key]===1?"item":"items");
-  }else if(section==="plex") count=plexItems.filter(function(x){ return x.type===(plexTab==="shows"?"show":"movie"); }).length+" items";
+  }else if(section==="plex"){
+    var pc=plexItems;
+    if(plexTab==="movies") pc=pc.filter(function(x){return x.type==="movie";});
+    else if(plexTab==="shows") pc=pc.filter(function(x){return x.type==="show";});
+    else if(plexTab==="continue") pc=pc.filter(function(x){var p=plexProgress(x);return p>0&&p<100;});
+    else if(plexTab==="recent") pc=pc.slice().sort(function(a,b){return (b.addedAt||0)-(a.addedAt||0);}).slice(0,40);
+    count=pc.length+" items";
+  }
   if((section==="games"&&expandedId)||(section==="films"&&filmExpanded)||(section==="series"&&seriesExpanded)) desc="Full details and available actions";
   el.innerHTML='<div><div class="context-path">'+esc(parent)+' / '+esc(title)+'</div><h2>'+esc(title)+'</h2><p>'+esc(desc)+'</p></div>'+(count?'<span class="context-count">'+esc(count)+'</span>':'');
 }
@@ -3029,7 +3047,9 @@ try{ section=localStorage.getItem(SECTION_KEY)||"games"; }catch(e){}
 try{ filmTab=localStorage.getItem(FILMTAB_KEY)||"watchlist"; }catch(e){}
 function tmdbKey(){ try{ return localStorage.getItem(TMDB_KEY_STORE)||""; }catch(e){ return ""; } }
 function omdbKey(){ try{ return localStorage.getItem(OMDB_KEY_STORE)||""; }catch(e){ return ""; } }
-var FILM_ORDER=["watchlist","bluray","uphw","relhw","mlott","mlup","watched"];
+var FILM_ORDER=["watchlist","uphw","bluray","relhw","mlott","watched"];
+if(filmTab==="mlup") filmTab="mlott";
+if(FILM_ORDER.indexOf(filmTab)<0) filmTab="watchlist";
 var FILM_TTL={bluray:24*3600*1000, uphw:24*3600*1000, relhw:24*3600*1000, mlott:6*3600*1000, mlup:6*3600*1000};
 var filmCache={}, filmBusy={}, filmErr={};
 try{ filmCache=JSON.parse(localStorage.getItem(FILM_CACHE_KEY)||"{}")||{}; }catch(e){ filmCache={}; }
@@ -3051,9 +3071,10 @@ var FILM_VIEW_KEY="ps5-film-view", SERIES_VIEW_KEY="ps5-series-view";
 var filmView="grid", seriesView="grid";
 try{ filmView=localStorage.getItem(FILM_VIEW_KEY)||"grid"; }catch(e){}
 try{ seriesView=localStorage.getItem(SERIES_VIEW_KEY)||"grid"; }catch(e){}
-var SERIES_PROVIDER_KEY="ps5-series-provider";
-var seriesProvider="";
+var SERIES_PROVIDER_KEY="ps5-series-provider", SERIES_LANGUAGE_KEY="ps5-series-language";
+var seriesProvider="",seriesLanguage="";
 try{ seriesProvider=localStorage.getItem(SERIES_PROVIDER_KEY)||""; }catch(e){}
+try{ seriesLanguage=localStorage.getItem(SERIES_LANGUAGE_KEY)||""; }catch(e){}
 var US_STREAMERS=[
   ["","All streamers"],
   ["8","Netflix"],
@@ -3132,10 +3153,15 @@ function mediaSummary(title, rating, genre, extra){
 function mediaClose(kind){
   return '<div class="media-closebar"><button class="btn blue" data-act="media-close" data-kind="'+kind+'">Close</button></div>';
 }
+function seriesLanguageOptions(selected){
+  return [["","All languages"],["en","English"],["ml","Malayalam"],["ta","Tamil"],["hi","Hindi"]].map(function(p){
+    return '<option value="'+p[0]+'"'+(selected===p[0]?' selected':'')+'>'+p[1]+'</option>';
+  }).join("");
+}
 function detailNeighbors(kind,current){
   var list=[];
   if(kind==="film") list=filmTab==="watchlist"?(data.movieWatchlist||[]):filmTab==="watched"?(data.watchedMovies||[]):((filmCache[filmTab]||{}).items||[]);
-  else if(kind==="series") list=seriesTab==="serieswatchlist"?(data.seriesWatchlist||[]):seriesTab==="serieswatched"?(data.watchedSeries||[]):((seriesCache[seriesTab]||{}).items||[]);
+  else if(kind==="series") list=seriesTab==="serieswatchlist"?(data.seriesWatchlist||[]):seriesTab==="serieswatching"||seriesTab==="seriesnew"?(data.watchingSeries||[]):seriesTab==="serieswatched"?(data.watchedSeries||[]):((seriesCache[seriesTab]||{}).items||[]);
   else if(tab==="rentals") list=data.rentals.concat(data.rentalHistory);
   else if(tab==="playing") list=data.rentals.concat(data.playing,data.played.filter(function(x){return x.status==="Playing"||x.status==="Dropped";}));
   else if(tab==="queue") list=data.queue;
@@ -3573,12 +3599,11 @@ function movieCard(m, key){
 }
 function renderFilms(){
   var key=filmTab;
-  var titles={bluray:"Hollywood Blu-ray Releases", uphw:"Upcoming Hollywood Releases", relhw:"Released Hollywood", mlott:"Malayalam OTT Releases", mlup:"Upcoming Malayalam OTT", watched:"Watched Films"};
   var blurbs={
-    bluray:"Major Hollywood films released on Blu-ray, newest physical release first.",
-    uphw:"Major upcoming Hollywood releases with official theatrical dates, earliest release first. The list refreshes automatically as films are announced.",
-    relhw:"Recently released Hollywood films, critically acclaimed only — exact IMDb rating 7.0 and above.",
-    mlott:"Latest Malayalam films now streaming on OTT in India (Prime Video, JioHotstar, Netflix, SonyLIV, ZEE5 and more), by OTT release date — newest first. No rating filter.",
+    bluray:"Major Hollywood movies newly available on Blu-ray, ordered by physical release date.",
+    uphw:"Major upcoming Hollywood movies with confirmed theatrical dates, earliest release first.",
+    relhw:"Critically acclaimed Hollywood movies with an exact IMDb rating of 7.0 or higher.",
+    mlott:"Newly streaming and confirmed upcoming Malayalam OTT movies across major Indian platforms.",
     mlup:"Confirmed upcoming Malayalam OTT premieres with their announced streaming date and platform, soonest first.",
     watchlist:"Search any movie on the internet and add it to your personal watchlist. Tap a saved film to read its Wikipedia plot.",
     watched:"Films you’ve marked as watched. They’re hidden from every other tab and never come back on refresh — synced across your devices."
@@ -3630,11 +3655,12 @@ function renderFilms(){
   }
 
   var last=filmCache[key];
+  var mlUpcoming=key==="mlott"?filmCache.mlup:null;
   var html=
     '<div class="toolbar" style="margin-top:14px">'+
     '<select class="selectmini film-genre" title="Filter by genre">'+genreOptions(MOVIE_GENRES, filmGenre)+'</select>'+
     '<select class="selectmini film-year" title="Filter by year">'+yearOptions(filmYear)+'</select>'+
-    '<button class="btn blue" data-act="film-refresh"'+(filmBusy[key]?' disabled':'')+'>'+(filmBusy[key]?"Updating…":"↻ Refresh from internet")+'</button>'+
+    '<button class="btn blue" data-act="film-refresh"'+((filmBusy[key]||(key==="mlott"&&filmBusy.mlup))?' disabled':'')+'>'+((filmBusy[key]||(key==="mlott"&&filmBusy.mlup))?"Updating…":"↻ Refresh from internet")+'</button>'+
     '<span class="syncnote" style="align-self:center">'+(last?("Updated "+new Date(last.t).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})):"")+'</span>'+
     '</div>'+
     mediaViewToggle("film")+
@@ -3661,14 +3687,23 @@ function renderFilms(){
     return matchMediaYear(m, filmYear) && !hset2[mk] && (!hidePersonal || (!wset[mk] && !wlset[mk]));
   }); // watched/watchlist/hidden stay out of suggestion lists, except Upcoming
   if(key==="bluray"||key==="relhw"||key==="mlott") items.sort(newerFirst);
-  if(!items.length){
+  var upcomingItems=[];
+  if(key==="mlott") upcomingItems=((mlUpcoming&&mlUpcoming.items)||[]).filter(function(m){
+    var mk=movieWatchKey(m); return matchMediaYear(m,filmYear)&&!hset2[mk];
+  }).sort(function(a,b){return (a.ottDate||a.date||"").localeCompare(b.ottDate||b.date||"");});
+  if(!items.length && !upcomingItems.length){
     setTimeout(function(){ ensureFilms(key); },60);
     return html+'<div class="empty">'+(filmBusy[key]?"Loading…":(last?"Nothing left here — everything shown is marked Watched.":"Nothing to show yet — tap ↻ Refresh."))+'</div>';
   }
   setTimeout(function(){ ensureFilms(key); },60); // refresh silently if stale
-  html+='<div class="'+mediaWrapClass("film")+'">';
-  items.forEach(function(m){ html+=movieCard(m,key); });
-  html+='</div>';
+  if(key==="mlott") setTimeout(function(){ensureFilms("mlup");},120);
+  if(key==="mlott") html+='<div class="sechead">Now Streaming · '+items.length+'</div>';
+  if(items.length){ html+='<div class="'+mediaWrapClass("film")+'">'; items.forEach(function(m){ html+=movieCard(m,key); }); html+='</div>'; }
+  if(key==="mlott"){
+    html+='<div class="sechead">Coming to Malayalam OTT · '+upcomingItems.length+'</div>';
+    if(upcomingItems.length){ html+='<div class="'+mediaWrapClass("film")+'">'; upcomingItems.forEach(function(m){ html+=movieCard(m,"mlup"); }); html+='</div>'; }
+    else html+='<div class="empty">No confirmed upcoming Malayalam OTT dates are available yet.</div>';
+  }
   if(filmBusy[key]) html+='<div class="meta" style="margin-top:8px">Refreshing…</div>';
   return html;
 }
@@ -3678,8 +3713,10 @@ function renderFilms(){
 var SERIESTAB_KEY="ps5-seriestab", SERIES_CACHE_KEY="ps5-series-cache-v2";
 var seriesTab="serieswatchlist";
 try{ seriesTab=localStorage.getItem(SERIESTAB_KEY)||"serieswatchlist"; }catch(e){}
-var SERIES_ORDER=["serieswatchlist","enseries","mlseries","taseries","hiseries","serieswatched"];
-var SERIES_TTL={enseries:24*3600*1000, mlseries:24*3600*1000, taseries:24*3600*1000, hiseries:24*3600*1000};
+var SERIES_ORDER=["serieswatchlist","serieswatching","seriesnew","seriesupcoming","seriesdiscover","serieswatched"];
+if(["enseries","mlseries","taseries","hiseries"].indexOf(seriesTab)>-1) seriesTab="seriesdiscover";
+if(SERIES_ORDER.indexOf(seriesTab)<0) seriesTab="serieswatchlist";
+var SERIES_TTL={enseries:24*3600*1000,mlseries:24*3600*1000,taseries:24*3600*1000,hiseries:24*3600*1000,seriesdiscover:24*3600*1000,seriesupcoming:12*3600*1000};
 var seriesCache={}, seriesBusy={}, seriesErr={};
 try{ seriesCache=JSON.parse(localStorage.getItem(SERIES_CACHE_KEY)||"{}")||{}; }catch(e){ seriesCache={}; }
 function saveSeriesCache(){ try{ localStorage.setItem(SERIES_CACHE_KEY, JSON.stringify(seriesCache)); }catch(e){} }
@@ -3778,8 +3815,41 @@ function fetchEnSeries(){ return fetchSeriesLang("en", 350, 7.2, "vote_average.d
 function fetchMlSeries(){ return fetchSeriesLang("ml", 1, 0, "first_air_date.desc", 6, true); }
 function fetchTaSeries(){ return fetchSeriesLang("ta", 1, 0, "first_air_date.desc", 8, true); }
 function fetchHiSeries(){ return fetchSeriesLang("hi", 20, 6.5, "popularity.desc", 4); }
-var SERIES_FETCH={enseries:fetchEnSeries, mlseries:fetchMlSeries, taseries:fetchTaSeries, hiseries:fetchHiSeries};
+function fetchSeriesDiscover(){
+  if(seriesLanguage==="ml") return fetchMlSeries();
+  if(seriesLanguage==="ta") return fetchTaSeries();
+  if(seriesLanguage==="hi") return fetchHiSeries();
+  if(seriesLanguage==="en") return fetchEnSeries();
+  return Promise.all([
+    fetchSeriesLang("en",350,7.2,"vote_average.desc",1),
+    fetchSeriesLang("ml",1,0,"first_air_date.desc",1,true),
+    fetchSeriesLang("ta",1,0,"first_air_date.desc",1,true),
+    fetchSeriesLang("hi",20,6.5,"popularity.desc",1)
+  ]).then(function(groups){
+    var seen={},out=[]; groups.forEach(function(list){(list||[]).forEach(function(s){if(!seen[s.id]){seen[s.id]=1;out.push(s);}});});
+    return rankEnglishSeries(out).slice(0,70);
+  });
+}
+function fetchUpcomingSeries(){
+  var params=addGenreParam({"first_air_date.gte":localISO(),"first_air_date.lte":daysAheadISO(365),sort_by:"popularity.desc","vote_count.gte":0,page:1},seriesGenre);
+  if(seriesLanguage) params.with_original_language=seriesLanguage;
+  if(seriesProvider){params.with_watch_providers=seriesProvider;params.watch_region=seriesLanguage&&seriesLanguage!=="en"?"IN":"US";}
+  return tmdbGet("/discover/tv",params).then(function(j){
+    return (j.results||[]).filter(function(s){return s.name&&s.first_air_date>=localISO();}).map(mapSeries).sort(function(a,b){return a.date.localeCompare(b.date);}).slice(0,45);
+  });
+}
+var SERIES_FETCH={enseries:fetchEnSeries,mlseries:fetchMlSeries,taseries:fetchTaSeries,hiseries:fetchHiSeries,seriesdiscover:fetchSeriesDiscover,seriesupcoming:fetchUpcomingSeries};
+var seriesPersonalRefreshAt=0;
 function ensureSeries(key, force){
+  if(key==="serieswatching"||key==="seriesnew"){
+    if(!tmdbKey()||seriesBusy[key]) return;
+    if(!force&&Date.now()-seriesPersonalRefreshAt<6*3600*1000) return;
+    var personal=(data.watchingSeries||[]).slice(0,30);
+    if(!personal.length) return;
+    seriesBusy[key]=1;
+    serialEach(personal,120,enrichSeriesIds).then(function(){seriesPersonalRefreshAt=Date.now();delete seriesBusy[key];persistSilent();seriesMaybeRender();}).catch(function(e){delete seriesBusy[key];reportError("series:"+key,e);seriesMaybeRender();});
+    return;
+  }
   if(!SERIES_FETCH[key]) return;
   if(seriesBusy[key]) return;
   if(!tmdbKey()) return;
@@ -3804,6 +3874,7 @@ function seriesPoster(s){
 function seriesKey(s){ return "tmdbtv:"+(s.id!=null?s.id:norm(s.title)); }
 function watchedSeriesKeys(){ var out={}; (data.watchedSeries||[]).forEach(function(s){ out[s.key]=1; }); return out; }
 function watchlistSeriesKeys(){ var out={}; (data.seriesWatchlist||[]).forEach(function(s){ out[s.key||seriesKey(s)]=1; }); return out; }
+function watchingSeriesKeys(){ var out={}; (data.watchingSeries||[]).forEach(function(s){ out[s.key||seriesKey(s)]=1; }); return out; }
 function hiddenSeriesKeys(){ var out={}; (data.hiddenSeries||[]).forEach(function(s){ out[s.key]=1; }); return out; }
 function seriesPlotName(s){ return s.title+(s.year?(" "+s.year):""); }
 function findCachedSeries(id){
@@ -3811,7 +3882,7 @@ function findCachedSeries(id){
   return null;
 }
 function findSeriesAny(id){
-  return findSearchSeries(id)||findWatchlistSeries(id)||findCachedSeries(id)||(data.watchedSeries||[]).filter(function(x){ return String(x.id)===String(id); })[0]||(data.hiddenSeries||[]).filter(function(x){ return String(x.id)===String(id); })[0]||null;
+  return findSearchSeries(id)||findWatchlistSeries(id)||(data.watchingSeries||[]).filter(function(x){ return String(x.id)===String(id); })[0]||findCachedSeries(id)||(data.watchedSeries||[]).filter(function(x){ return String(x.id)===String(id); })[0]||(data.hiddenSeries||[]).filter(function(x){ return String(x.id)===String(id); })[0]||null;
 }
 function seriesRating(s){ return (data.seriesRatings||{})[seriesKey(s)]||0; }
 function setSeriesRating(s,n){
@@ -3833,7 +3904,7 @@ function seriesPrefWeights(){
     rated++;
     s.genres.forEach(function(g){ weights[g]=(weights[g]||0)+r; });
   }
-  [data.seriesWatchlist||[], data.watchedSeries||[]].forEach(function(list){ list.forEach(function(s){ add(s, seriesRating(s)); }); });
+  [data.seriesWatchlist||[],data.watchingSeries||[],data.watchedSeries||[]].forEach(function(list){ list.forEach(function(s){ add(s, seriesRating(s)); }); });
   for(var k in seriesCache){ var c=seriesCache[k]; if(c&&c.items) c.items.forEach(function(s){ add(s, seriesRating(s)); }); }
   return {weights:weights, rated:rated};
 }
@@ -3858,7 +3929,20 @@ function markSeriesWatched(s){
     imdb:(typeof s.imdb==="number"?s.imdb:null), imdbId:s.imdbId||null, tmdb:s.tmdb||null,
     date:s.date||"", latestDate:s.latestDate||"", overview:s.overview||"", genres:s.genres||[], seasons:s.seasons||"", seasonList:s.seasonList||[], providers:s.providers||[], t:Date.now()});
   data.seriesWatchlist=(data.seriesWatchlist||[]).filter(function(x){ return seriesKey(x)!==key; });
+  data.watchingSeries=(data.watchingSeries||[]).filter(function(x){ return seriesKey(x)!==key; });
   save(); flash("Moved to Watched - it won't show again");
+}
+function markSeriesWatching(s){
+  if(!s) return;
+  var key=seriesKey(s);
+  if(!data.watchingSeries) data.watchingSeries=[];
+  data.seriesWatchlist=(data.seriesWatchlist||[]).filter(function(x){return seriesKey(x)!==key;});
+  data.watchedSeries=(data.watchedSeries||[]).filter(function(x){return seriesKey(x)!==key;});
+  data.hiddenSeries=(data.hiddenSeries||[]).filter(function(x){return seriesKey(x)!==key;});
+  if(!data.watchingSeries.some(function(x){return seriesKey(x)===key;})){
+    data.watchingSeries.unshift({key:key,id:s.id,title:s.title,year:s.year||"",poster:s.poster||"",imdb:typeof s.imdb==="number"?s.imdb:null,imdbId:s.imdbId||null,tmdb:s.tmdb||null,date:s.date||"",latestDate:s.latestDate||"",overview:s.overview||"",genres:s.genres||[],seasons:s.seasons||"",seasonList:s.seasonList||[],providers:s.providers||[],started:Date.now()});
+  }
+  save(); flash("Moved to Watching");
 }
 function unwatchSeries(key){
   data.watchedSeries=(data.watchedSeries||[]).filter(function(s){ return s.key!==key; });
@@ -3869,6 +3953,7 @@ function hideSeries(s){
   var key=seriesKey(s);
   if(!data.hiddenSeries) data.hiddenSeries=[];
   data.seriesWatchlist=(data.seriesWatchlist||[]).filter(function(x){ return seriesKey(x)!==key; });
+  data.watchingSeries=(data.watchingSeries||[]).filter(function(x){ return seriesKey(x)!==key; });
   if(!data.hiddenSeries.some(function(x){ return x.key===key; })){
     data.hiddenSeries.unshift({key:key, id:s.id, title:s.title, year:s.year||"", poster:s.poster||"",
       imdb:(typeof s.imdb==="number"?s.imdb:null), imdbId:s.imdbId||null, tmdb:s.tmdb||null,
@@ -3881,7 +3966,7 @@ function unhideSeries(key){
   save(); flash("Restored");
 }
 function seriesMoreMenu(s){
-  return '<select class="selectmini sr-more" data-id="'+esc(String(s.id))+'"><option value="">Move to...</option><option value="watched">Watched</option><option value="watchlist">Add to Watchlist</option><option value="hide">Not Interested</option></select>';
+  return '<select class="selectmini sr-more" data-id="'+esc(String(s.id))+'"><option value="">Move to...</option><option value="watching">Watching</option><option value="watched">Watched</option><option value="watchlist">Add to Watchlist</option><option value="hide">Not Interested</option></select>';
 }
 function seriesLinks(title,year){
   var q=title+" "+(year||"");
@@ -3976,6 +4061,7 @@ function addSeriesWatchlist(s){
   if(!s) return;
   if(!data.seriesWatchlist) data.seriesWatchlist=[];
   data.hiddenSeries=(data.hiddenSeries||[]).filter(function(x){ return seriesKey(x)!==seriesKey(s); });
+  data.watchingSeries=(data.watchingSeries||[]).filter(function(x){ return seriesKey(x)!==seriesKey(s); });
   if(inSeriesWatchlist(s)){ flash("Already in your series watchlist"); return; }
   data.seriesWatchlist.unshift({key:seriesKey(s), id:s.id, title:s.title, year:s.year||"", poster:s.poster||"",
     imdb:(typeof s.imdb==="number"?s.imdb:null), imdbId:s.imdbId||null, tmdb:s.tmdb||null,
@@ -4012,7 +4098,11 @@ function renderSeries(){
     mlseries:"Malayalam TV series only, newest first. Television serials and YouTube series are excluded.",
     taseries:"Tamil TV series only, newest first. Television serials and YouTube series are excluded.",
     hiseries:"Popular, highly rated Hindi series and originals.",
-    serieswatchlist:"Search any TV series on the internet and add it to your personal watchlist. Tap a saved show to read the Wikipedia plot.",
+    serieswatchlist:"Search any TV show on the internet and save it for later.",
+    serieswatching:"TV shows you are currently watching. Move a show here from its action menu.",
+    seriesnew:"Recent episodes from TV shows in your Watching list.",
+    seriesupcoming:"Popular new TV shows with confirmed upcoming premiere dates.",
+    seriesdiscover:"Highly rated TV shows across English, Malayalam, Tamil and Hindi, shaped by your ratings.",
     serieswatched:"Series you've marked as watched. They stay hidden from the other lists after refresh and sync."
   };
   var selectedSeries=seriesExpanded?findSeriesAny(seriesExpanded):null;
@@ -4048,6 +4138,16 @@ function renderSeries(){
     }
     return wh;
   }
+  if(key==="serieswatching"||key==="seriesnew"){
+    var personal=(data.watchingSeries||[]).filter(function(s){return matchMediaYear(s,seriesYear);}).slice();
+    if(key==="seriesnew"){
+      var cutoff=daysAgoISO(45);
+      personal=personal.filter(function(s){return s.latestDate&&s.latestDate>=cutoff;}).sort(function(a,b){return (b.latestDate||"").localeCompare(a.latestDate||"");});
+    }else personal.sort(newerFirst);
+    var po='<div class="toolbar" style="margin-top:14px"><select class="selectmini series-year" title="Filter by year">'+yearOptions(seriesYear)+'</select><button class="btn blue" data-act="series-refresh"'+(seriesBusy[key]?' disabled':'')+'>'+(seriesBusy[key]?"Updating...":"↻ Check for new episodes")+'</button></div>'+mediaViewToggle("series")+'<div class="meta" style="margin:14px 0 10px">'+blurbs[key]+'</div>';
+    if(!personal.length) return po+'<div class="empty">'+(key==="seriesnew"?"No episodes were released in the last 45 days for shows in Watching.":"Nothing is currently marked Watching. Open a show and choose Watching from its menu.")+'</div>';
+    po+='<div class="'+mediaWrapClass("series")+'">'; personal.forEach(function(s){po+=seriesCard(s,key);}); return po+'</div>';
+  }
   if(key==="serieswatched"){
     var ws=(data.watchedSeries||[]).filter(function(s){ return matchMediaYear(s, seriesYear); }).slice().sort(newerFirst);
     var out='<div class="toolbar" style="margin-top:14px"><select class="selectmini series-year" title="Filter by year">'+yearOptions(seriesYear)+'</select></div>'+mediaViewToggle("series")+'<div class="meta" style="margin:14px 0 10px">'+blurbs.serieswatched+'</div>';
@@ -4056,6 +4156,7 @@ function renderSeries(){
   }
   var last=seriesCache[key];
   var html='<div class="toolbar" style="margin-top:14px">'+
+    ((key==="seriesdiscover"||key==="seriesupcoming")?'<select class="selectmini series-language" title="Filter by language">'+seriesLanguageOptions(seriesLanguage)+'</select>':'')+
     '<select class="selectmini series-genre" title="Filter by genre">'+genreOptions(SERIES_GENRES, seriesGenre)+'</select>'+
     '<select class="selectmini series-year" title="Filter by year">'+yearOptions(seriesYear)+'</select>'+
     '<select class="selectmini series-provider" title="Filter by streaming platform">'+providerOptions(seriesProvider)+'</select>'+
@@ -4067,12 +4168,14 @@ function renderSeries(){
   if(seriesErr[key] && !last) return html+'<div class="empty">Could not load - check your internet and API key, then <button class="btn" data-act="series-refresh">↻ Try again</button></div>';
   var wset=watchedSeriesKeys();
   var wlset=watchlistSeriesKeys();
+  var wingSet=watchingSeriesKeys();
   var hset2=hiddenSeriesKeys();
   var items=((last&&last.items)||[]).filter(function(s){
     var sk=seriesKey(s);
-    return matchMediaYear(s, seriesYear) && !wset[sk] && !wlset[sk] && !hset2[sk];
+    return matchMediaYear(s, seriesYear) && !wset[sk] && !wlset[sk] && !wingSet[sk] && !hset2[sk];
   });
-  if(key==="mlseries"||key==="taseries") items.sort(newerFirst);
+  if(key==="seriesupcoming") items.sort(function(a,b){return (a.date||"").localeCompare(b.date||"");});
+  else if(key==="mlseries"||key==="taseries") items.sort(newerFirst);
   else items.sort(function(a,b){ return (b.imdb||b.tmdb||0)-(a.imdb||a.tmdb||0); });
   if(!items.length){
     setTimeout(function(){ ensureSeries(key); },60);
@@ -4096,6 +4199,7 @@ function switchFilmTab(next){
   render();
   window.scrollTo(0, tabScroll["film:"+next]||0);
   ensureFilms(next);
+  if(next==="mlott") ensureFilms("mlup");
 }
 function switchPlexTab(next){
   tabScroll["plex:"+plexTab]=window.scrollY;
@@ -4308,7 +4412,7 @@ document.getElementById("content").addEventListener("click",function(e){
     return;
   }
 
-  if(act==="film-refresh"){ ensureFilms(filmTab,true); return; }
+  if(act==="film-refresh"){ ensureFilms(filmTab,true); if(filmTab==="mlott") ensureFilms("mlup",true); return; }
   if(act==="clear-sug-filters"){ sugGenre="All"; sugTier="All"; render(); return; }
   if(act==="detail-neighbor"){
     var neighborKind=b.getAttribute("data-kind");
@@ -4740,6 +4844,14 @@ document.getElementById("content").addEventListener("change",function(e){
     render(); ensureSeries(seriesTab,true);
     return;
   }
+  var sl=e.target.closest(".series-language");
+  if(sl){
+    seriesLanguage=sl.value;
+    try{localStorage.setItem(SERIES_LANGUAGE_KEY,seriesLanguage);}catch(err){}
+    delete seriesCache.seriesdiscover; delete seriesCache.seriesupcoming; saveSeriesCache();
+    render(); ensureSeries(seriesTab,true);
+    return;
+  }
   var srs=e.target.closest(".sr-season");
   if(srs){
     seriesSeasonSel[srs.getAttribute("data-id")]=srs.value;
@@ -4764,7 +4876,8 @@ document.getElementById("content").addEventListener("change",function(e){
   var smore=e.target.closest(".sr-more");
   if(smore){
     var sx=findSeriesAny(smore.getAttribute("data-id"));
-    if(smore.value==="watched") markSeriesWatched(sx);
+    if(smore.value==="watching") markSeriesWatching(sx);
+    else if(smore.value==="watched") markSeriesWatched(sx);
     else if(smore.value==="watchlist") addSeriesWatchlist(sx);
     else if(smore.value==="hide") hideSeries(sx);
     return;
@@ -5401,6 +5514,7 @@ function globalRefresh(){
   silentPullOnLoad();
   if(tmdbKey()){
     ensureFilms(filmTab,true);
+    if(filmTab==="mlott") ensureFilms("mlup",true);
     ensureSeries(seriesTab,true);
   }
   if(plexServerUrl() && plexToken()) plexRefresh();

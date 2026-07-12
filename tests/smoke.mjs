@@ -33,4 +33,8 @@ assert.doesNotMatch(sw,/install[\s\S]{0,250}skipWaiting/);
 assert.match(sw,/if \(res\.ok\)/);
 assert.match(js,/data-bigly="remove-data"/);
 assert.doesNotMatch(js,/plot\.length>12000/);
+for(const label of ["Movies","TV Shows","Plex Library"]){ assert.ok(html.includes(label),`primary navigation must include ${label}`); }
+for(const key of ["serieswatching","seriesnew","seriesupcoming","seriesdiscover"]){ assert.ok(js.includes(key),`TV navigation must include ${key}`); }
+assert.match(js,/watchingSeries/);
+assert.match(js,/PLEX_ORDER=\["home","continue","movies","shows","recent"\]/);
 console.log("GameVault smoke checks passed");
