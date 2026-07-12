@@ -1,8 +1,9 @@
 ﻿"use strict";
-var APP_VERSION = "1.2.2";
+var APP_VERSION = "1.2.3";
 var APP_BUILD_DATE = "2026-07-13";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Locked accidental pinch and gesture zoom on iPhone while preserving scrolling",
   "Optimized portrait and landscape layouts for iPhone 17 Pro",
   "Fixed clipped text, top controls, forms and action buttons on iPhone",
   "Added Dynamic Island and home-indicator safe-area support",
@@ -16,6 +17,12 @@ var APP_RELEASE_NOTES = [
   "Combined current and upcoming Malayalam OTT releases",
   "BiglyBT Active, Queued, Completed, Seeding and All filters"
 ];
+
+if(/iPhone|iPad|iPod/i.test(navigator.userAgent)){
+  ["gesturestart","gesturechange","gestureend"].forEach(function(type){
+    document.addEventListener(type,function(event){ event.preventDefault(); },{passive:false});
+  });
+}
 function applyAppVersion(){
   var badge=document.getElementById("appVersionBadge");
   if(badge){ badge.textContent="v"+APP_VERSION; badge.title=APP_RELEASE_CHANNEL+" build "+APP_BUILD_DATE; }

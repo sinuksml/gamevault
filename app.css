@@ -517,6 +517,7 @@ html.density-compact .toolbar{margin:9px 0}
 
 @media (max-width:720px){
   :root{--header-height:118px}
+  html,body{touch-action:pan-x pan-y}
   .wrap{padding-top:max(0px,env(safe-area-inset-top));padding-right:max(12px,env(safe-area-inset-right));padding-bottom:max(82px,calc(66px + env(safe-area-inset-bottom)));padding-left:max(12px,env(safe-area-inset-left))}
   .app-header{margin:0 -4px 9px;padding:9px 4px 7px}
   .brand .sym{display:none}

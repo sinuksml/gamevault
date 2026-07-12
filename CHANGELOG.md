@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.2.3 - 2026-07-13
+
+- Disabled accidental pinch, double-touch, and gesture zoom on iPhone.
+- Preserved normal vertical scrolling, horizontal navigation, taps, and form interactions.
+
 ## v1.2.2 - 2026-07-13
 
 - Optimized the mobile layout for iPhone 17 Pro portrait and landscape viewports.
