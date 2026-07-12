@@ -1,5 +1,5 @@
 ﻿"use strict";
-var APP_VERSION = "2026.07.12-r1";
+var APP_VERSION = "2026.07.12-r2";
 var APP_RELEASE_NOTES = [
   "Safer cloud restore and empty-vault protection",
   "Local recovery snapshots and diagnostics",
@@ -25,6 +25,11 @@ function setTvZoom(v){
   if(typeof flash==="function") flash("TV zoom "+Math.round(v*100)+"%");
 }
 applyTvZoom();
+var DENSITY_KEY="gamevault-density";
+var uiDensity="comfortable";
+try{ uiDensity=localStorage.getItem(DENSITY_KEY)||"comfortable"; }catch(e){}
+function applyDensity(){ document.documentElement.classList.toggle("density-compact",uiDensity==="compact"&&!TV_MODE); }
+applyDensity();
 var STORE_KEY = "ps5-tracker-v1";
 var RECOVERY_STORE = "gamevault-recovery-v1";
 var DEVICE_STORE = "gamevault-device-id";
@@ -1003,7 +1008,7 @@ function gameViewToggle(){
 }
 function gameTile(x,id,sub,detailHtml){
   var score=x&&x.score?("Critic "+x.score):(x&&x.rrating?x.rrating+"★":(x&&x.rating?Math.round(x.rating*10)/10+"★":"Game"));
-  return '<div class="card game-tile"><div class="game-tile-main" data-act="game-open" data-id="'+esc(String(id))+'">'+
+  return '<div class="card game-tile"><div class="game-tile-main" role="button" tabindex="0" data-act="game-open" data-id="'+esc(String(id))+'">'+
     '<div class="game-cover-wrap">'+gameCoverHero(x)+'</div>'+
     '<div class="game-tile-info"><div class="game-tile-title">'+esc(x.name)+'</div>'+
     '<div class="game-tile-meta"><span class="game-pill">'+esc(score)+'</span><span class="game-pill">'+esc(x.genre||tierFor(x.name)||"PS5")+'</span>'+(sub?'<span class="game-pill">'+sub+'</span>':'')+'</div>'+
@@ -1027,7 +1032,7 @@ function gameFindById(id){
   return null;
 }
 function gamePage(x,actionsHtml,extraHtml){
-  return '<div class="game-page">'+mediaClose("game")+
+  return '<div class="game-page">'+mediaClose("game")+detailNeighbors("game",x)+
     '<div class="game-page-head"><div class="game-page-cover">'+gameCoverHero(x)+'</div>'+
     '<div><div class="game-page-title">'+esc(x.name)+'</div>'+
     '<div class="game-page-sub">'+badges(x.name)+'<span class="game-pill">'+esc(x.genre||tierFor(x.name)||"PS5")+'</span>'+(x.score?'<span class="game-pill">Critic '+x.score+'</span>':'')+(x.rrating?'<span class="game-pill">'+x.rrating+'★ users</span>':'')+'</div>'+
@@ -1595,6 +1600,12 @@ function toolbar(addLabel, searchPh){
     '</div></div>'+gameViewToggle();
 }
 function noMatch(){ return '<div class="empty">No games match “'+esc(q())+'” in this tab.</div>'; }
+function loadingSkeletons(kind,count){
+  count=count||6;
+  var cls=kind==="game"?"game-grid":"media-grid",out='<div class="'+cls+' skeleton-grid" aria-label="Loading content">';
+  for(var i=0;i<count;i++) out+='<div class="skeleton-card"><div class="skeleton-art"></div><div class="skeleton-line wide"></div><div class="skeleton-line"></div></div>';
+  return out+'</div>';
+}
 /* find a game by name (norm-equal) in any list — the duplicate gate */
 function inList(list,name){
   var n=norm(name);
@@ -1607,11 +1618,31 @@ function renderStats(){
   var active=data.rentals.filter(function(r){ return r.days-daysBetween(parseD(r.start),t0)>0; }).length;
   var urgent=data.rentals.some(function(r){ var l=r.days-daysBetween(parseD(r.start),t0); return l>0&&l<=3; });
   var totalRented=data.rentals.length+data.rentalHistory.length;
-  document.getElementById("stats").innerHTML =
-    '<div class="stat" data-tab="rentals" title="Open Rentals"><div class="v" style="color:'+(urgent?"#F05A5A":"var(--text)")+'">'+active+'</div><div class="k">Active rentals</div></div>'+
-    '<div class="stat" data-tab="rentals" title="Open Rentals"><div class="v">'+totalRented+'</div><div class="k">Total rented</div></div>'+
-    '<div class="stat" data-tab="rentals" title="Open Rentals"><div class="v" style="color:#F2B84B">'+fmtMoney(totalSpent())+'</div><div class="k">Total spent</div></div>'+
-    '<div class="stat" data-tab="played" title="Open Played"><div class="v">'+data.played.length+'</div><div class="k">Played</div></div>';
+  function tile(value,label,dest,color){ return '<div class="stat" data-tab="'+dest+'" role="button" tabindex="0" title="Open '+esc(label)+'"><div class="v"'+(color?' style="color:'+color+'"':'')+'>'+esc(String(value))+'</div><div class="k">'+esc(label)+'</div></div>'; }
+  var html="";
+  if(tab==="rentals"){
+    var due=data.rentals.map(function(r){ return r.days-daysBetween(parseD(r.start),t0); }).filter(function(n){ return n>=0; }).sort(function(a,b){return a-b;})[0];
+    html=tile(active,"Active rentals","rentals",urgent?"var(--danger)":"var(--text)")+tile(due==null?"-":due+"d","Nearest return","rentals",due!=null&&due<=3?"var(--danger)":"var(--text)")+tile(totalRented,"Total rented","rentals")+tile(fmtMoney(totalSpent()),"Total spent","rentals","var(--warning)");
+  }else if(tab==="playing"){
+    var resume=data.played.filter(function(x){return x.status==="Playing";}).length;
+    var hold=data.played.filter(function(x){return x.status==="Dropped";}).length;
+    html=tile(active,"Active rentals","rentals")+tile(data.playing.length,"Playing now","playing","var(--success)")+tile(resume,"Resume later","playing")+tile(hold,"On hold","playing","var(--warning)");
+  }else if(tab==="queue"){
+    var dated=data.queue.filter(function(x){return !!x.availableFrom;}).length;
+    html=tile(data.queue.length,"Queued","queue")+tile(dated,"Dates tracked","queue","var(--accent)")+tile(data.queue.length?1:0,"Top priority","queue")+tile(active,"Active rentals","rentals");
+  }else if(tab==="upcoming"){
+    var soon=data.upcoming.filter(function(x){var d=parseD(x.date);return d&&daysBetween(t0,d)>=0&&daysBetween(t0,d)<=30;}).length;
+    var wanted=data.upcoming.filter(function(x){return !!x.want;}).length;
+    html=tile(data.upcoming.length,"Upcoming","upcoming")+tile(soon,"Next 30 days","upcoming","var(--warning)")+tile(wanted,"Wanted","upcoming","var(--success)")+tile((data.upcomingRemoved||[]).length,"Removed","upcoming");
+  }else if(tab==="suggest"){
+    var rated=data.played.filter(function(x){return Number(x.rating)>0;}).length;
+    html=tile(fullCatalog().length,"Curated titles","suggest")+tile(rated,"Ratings used","played","var(--success)")+tile((data.dismissed||[]).length,"Hidden","suggest")+tile(data.queue.length,"In queue","queue");
+  }else{
+    var ratings=data.played.map(function(x){return Number(x.rating)||0;}).filter(Boolean);
+    var avg=ratings.length?(ratings.reduce(function(a,b){return a+b;},0)/ratings.length).toFixed(1):"-";
+    html=tile(data.played.length,"Played","played")+tile(avg,"Average rating","played","var(--warning)")+tile(data.played.filter(function(x){return x.status==="Platinum";}).length,"Platinum","played","var(--success)")+tile(data.played.filter(function(x){return x.status==="Dropped";}).length,"On hold","playing");
+  }
+  document.getElementById("stats").innerHTML=html;
 }
 
 /* Per-tab scroll memory: leaving a tab saves its position, returning restores it */
@@ -2382,7 +2413,7 @@ function renderSuggest(){
     }).join("")+'</div>'+
     '<div class="chipbar">'+genreList.map(function(g){
       return '<button class="gchip '+(g===sugGenre?"on":"")+'" data-genre="'+esc(g)+'">'+esc(g)+'</button>';
-    }).join("")+'</div>'+
+    }).join("")+((sugGenre!=="All"||sugTier!=="All")?'<button class="gchip clear-filter" data-act="clear-sug-filters">Clear filters</button>':'')+'</div>'+
     gameViewToggle();
 
   if(!shown.length) html+= q()?noMatch():'<div class="empty">Nothing left to suggest here — either you’ve played everything (impressive) or try Refresh for more.</div>';
@@ -2711,7 +2742,7 @@ function renderBiglyBT(){
   }
   html+='<div class="toolbar" style="margin-top:14px"><button class="btn blue" data-act="bigly-refresh"'+(biglyBusy?' disabled':'')+'>'+(biglyBusy?'Refreshing...':'Refresh')+'</button><button class="btn ghost danger" data-act="bigly-logout">Logout</button><span class="syncnote" style="align-self:center">Connected through proxy. Private server address is not stored in GameVault.</span></div>';
   if(biglyErr) html+='<div class="empty">'+esc(biglyErr)+'</div>';
-  if(!biglyItems.length) html+='<div class="empty">'+(biglyBusy?'Loading BiglyBT dashboard...':'No torrents returned by the proxy yet.')+'</div>';
+  if(!biglyItems.length) html+=biglyBusy?loadingSkeletons("game",4):'<div class="empty">No torrents returned by the proxy yet.</div>';
   else html+='<div class="torrent-grid">'+biglyItems.map(biglyTorrentCard).join("")+'</div>';
   return html;
 }
@@ -2842,7 +2873,7 @@ function renderPlex(){
   var kind=plexTab==="shows"?"show":"movie", term=norm(plexSearch);
   var items=plexItems.filter(function(x){ return x.type===kind&&(!term||norm(x.title).indexOf(term)>-1); });
   if(!items.length){
-    if(plexBusy) return html+'<div class="empty">Loading your Plex library...</div>';
+    if(plexBusy) return html+loadingSkeletons("media",6);
     if(!plexItems.length) return html+'<div class="empty">No cached Plex library yet. The Shield can be connected later; press Refresh Plex when it is reachable.</div>';
     return html+'<div class="empty">No '+(kind==="show"?'TV series':'movies')+' match this search.</div>';
   }
@@ -2861,7 +2892,54 @@ function plexDeleteItem(id){
   }).catch(function(e){ plexBusy=false; plexErr=e.message||"Plex delete failed"; render(); });
 }
 
+function renderPageContext(){
+  var el=document.getElementById("pageContext"); if(!el) return;
+  var parent="Games",key=tab,title="",desc="",count="";
+  var labels={rentals:"Rentals",playing:"Playing",queue:"Queue",upcoming:"Upcoming",suggest:"For You",played:"Played",watchlist:"Watchlist",bluray:"Blu-ray Releases",uphw:"Upcoming Releases",relhw:"Released Hollywood",mlott:"Malayalam OTT",mlup:"Upcoming Malayalam OTT",watched:"Watched",serieswatchlist:"Watchlist",enseries:"English Series",mlseries:"Malayalam Series",taseries:"Tamil Series",hiseries:"Hindi Series",serieswatched:"Watched",movies:"Movies",shows:"TV Series"};
+  var descriptions={rentals:"Active rentals, return dates and complete history",playing:"Now playing, resume-later and on-hold games",queue:"Your prioritized rental queue and vendor availability",upcoming:"Upcoming game releases and release countdowns",suggest:"Recommendations shaped by your ratings and library",played:"Finished games, ratings and personal history",watchlist:"Movies saved for later",bluray:"Major Hollywood home-media releases",uphw:"Major confirmed Hollywood theatrical releases",relhw:"Critically acclaimed released Hollywood films",mlott:"Latest Malayalam streaming releases",mlup:"Confirmed upcoming Malayalam streaming releases",watched:"Your completed movie library",serieswatchlist:"TV series saved for later",enseries:"Acclaimed English-language TV series",mlseries:"Popular Malayalam TV series",taseries:"Popular Tamil TV series",hiseries:"Popular Hindi TV series",serieswatched:"Your completed TV series",movies:"Movies available on your Plex server",shows:"TV series available on your Plex server"};
+  if(section==="films"){ parent="Films"; key=filmTab; }
+  else if(section==="series"){ parent="Series"; key=seriesTab; }
+  else if(section==="plex"){ parent="Plex"; key=plexTab; }
+  else if(section==="biglybt"){ parent="BiglyBT"; key="biglybt"; }
+  title=labels[key]||(section==="biglybt"?"Downloads":"Library");
+  desc=descriptions[key]||(section==="biglybt"?"Downloads, progress, speed and torrent controls":"Your personal media library");
+  if(section==="games"){
+    var counts={rentals:data.rentals.length,playing:data.playing.length+data.rentals.length,queue:data.queue.length,upcoming:data.upcoming.length,suggest:fullCatalog().length,played:data.played.length};
+    count=(counts[key]!=null?counts[key]:"")+" "+(counts[key]===1?"item":"items");
+  }else if(section==="plex") count=plexItems.filter(function(x){ return x.type===(plexTab==="shows"?"show":"movie"); }).length+" items";
+  if((section==="games"&&expandedId)||(section==="films"&&filmExpanded)||(section==="series"&&seriesExpanded)) desc="Full details and available actions";
+  el.innerHTML='<div><div class="context-path">'+esc(parent)+' / '+esc(title)+'</div><h2>'+esc(title)+'</h2><p>'+esc(desc)+'</p></div>'+(count?'<span class="context-count">'+esc(count)+'</span>':'');
+}
+var RECENT_VIEWED_KEY="gamevault-recent-viewed";
+function recentViewed(){ try{ var a=JSON.parse(localStorage.getItem(RECENT_VIEWED_KEY)||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function rememberViewed(kind,id,title,subtab){
+  if(!title) return;
+  var list=recentViewed(),key=kind+":"+String(id);
+  list=list.filter(function(x){return x.key!==key;});
+  list.unshift({key:key,kind:kind,id:String(id),title:title,tab:subtab||"",at:Date.now()});
+  try{ localStorage.setItem(RECENT_VIEWED_KEY,JSON.stringify(list.slice(0,7))); }catch(e){}
+}
+function renderRecentStrip(){
+  var el=document.getElementById("recentStrip"); if(!el) return;
+  var list=recentViewed();
+  if(!list.length || filmExpanded || seriesExpanded || expandedId || section==="biglybt"){ el.innerHTML=""; el.style.display="none"; return; }
+  el.style.display="flex";
+  el.innerHTML='<span class="recent-label">Recent</span>'+list.map(function(x){return '<button class="recent-item" data-act="recent-open" data-kind="'+esc(x.kind)+'" data-id="'+esc(x.id)+'" data-subtab="'+esc(x.tab)+'">'+esc(x.title)+'</button>';}).join("");
+}
+function openRecent(kind,id,subtab){
+  if(kind==="film"){
+    switchSection("films"); filmTab=subtab||"watchlist"; filmExpanded=id; try{localStorage.setItem(FILMTAB_KEY,filmTab);}catch(err){}
+  }else if(kind==="series"){
+    switchSection("series"); seriesTab=subtab||"serieswatchlist"; seriesExpanded=id; try{localStorage.setItem(SERIESTAB_KEY,seriesTab);}catch(err){}
+  }else{
+    switchSection("games"); tab=subtab||"played"; expandedId=id;
+  }
+  render(); window.scrollTo(0,0);
+}
+
 function render(){
+  renderPageContext();
+  renderRecentStrip();
   var statsEl=document.getElementById("stats");
   document.body.classList.toggle("bigly-active",section==="biglybt");
   if(section==="biglybt"){
@@ -3021,6 +3099,23 @@ function mediaSummary(title, rating, genre, extra){
 }
 function mediaClose(kind){
   return '<div class="media-closebar"><button class="btn blue" data-act="media-close" data-kind="'+kind+'">Close</button></div>';
+}
+function detailNeighbors(kind,current){
+  var list=[];
+  if(kind==="film") list=filmTab==="watchlist"?(data.movieWatchlist||[]):filmTab==="watched"?(data.watchedMovies||[]):((filmCache[filmTab]||{}).items||[]);
+  else if(kind==="series") list=seriesTab==="serieswatchlist"?(data.seriesWatchlist||[]):seriesTab==="serieswatched"?(data.watchedSeries||[]):((seriesCache[seriesTab]||{}).items||[]);
+  else if(tab==="rentals") list=data.rentals.concat(data.rentalHistory);
+  else if(tab==="playing") list=data.rentals.concat(data.playing,data.played.filter(function(x){return x.status==="Playing"||x.status==="Dropped";}));
+  else if(tab==="queue") list=data.queue;
+  else if(tab==="upcoming") list=data.upcoming;
+  else if(tab==="played") list=data.played;
+  else list=fullCatalog();
+  function itemId(x){ return String(x.id!=null?x.id:("name:"+norm(x.name||x.title||""))); }
+  var currentId=itemId(current),idx=-1;
+  for(var i=0;i<list.length;i++){ if(itemId(list[i])===currentId){idx=i;break;} }
+  if(idx<0 || list.length<2) return "";
+  var prev=list[(idx-1+list.length)%list.length],next=list[(idx+1)%list.length];
+  return '<div class="detail-neighbors"><button class="btn" data-act="detail-neighbor" data-kind="'+kind+'" data-id="'+esc(itemId(prev))+'">← '+esc(prev.name||prev.title||"Previous")+'</button><button class="btn" data-act="detail-neighbor" data-kind="'+kind+'" data-id="'+esc(itemId(next))+'">'+esc(next.name||next.title||"Next")+' →</button></div>';
 }
 function daysAgoISO(n){ var d=new Date(); d.setDate(d.getDate()-n); return localISO(d); }
 function daysAheadISO(n){ var d=new Date(); d.setDate(d.getDate()+n); return localISO(d); }
@@ -3388,7 +3483,7 @@ function movieMain(m,key){
   return mediaPoster(m.poster,m.title)+mediaSummary(m.title,mediaRatingLabel(m),genreLabel(m.genres,MOVIE_GENRES),filmReleaseMeta(m,key));
 }
 function mediaPageHero(kind,x,genreList){
-  return mediaClose(kind)+'<div class="media-page-head">'+
+  return mediaClose(kind)+detailNeighbors(kind,x)+'<div class="media-page-head">'+
     '<div class="media-page-poster">'+(x.poster?'<img src="'+esc(x.poster)+'" alt="'+esc(x.title||kind)+' poster" loading="lazy">':'<div class="poster-ph">'+(kind==="film"?"FILM":"TV")+'</div>')+'</div>'+
     '<div><div class="media-page-title">'+esc(x.title)+'</div>'+
     '<div class="media-page-sub"><span class="media-pill imdb">'+esc(mediaRatingLabel(x))+'</span><span class="media-pill">'+esc(genreLabel(x.genres,genreList))+'</span>'+(x.year?'<span class="media-pill">'+esc(x.year)+'</span>':'')+'</div>'+
@@ -3411,10 +3506,10 @@ function filmDetailPage(m,key){
   return '<div class="media-page">'+mediaPageHero("film",m,MOVIE_GENRES)+filmReleaseMeta(m,key)+mediaProvidersBlock(m)+plotBlock(moviePlotName(m),"film")+aiPanel("film",m)+actions+'</div>';
 }
 function watchlistSearchCard(m){
-  return '<div class="card media-card"><div class="media-main clickrow" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+movieMain(m,"search")+'</div>'+(filmView==="list"?movieQuickActions(m,"search"):"")+'</div>';
+  return '<div class="card media-card"><div class="media-main clickrow" role="button" tabindex="0" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+movieMain(m,"search")+'</div>'+(filmView==="list"?movieQuickActions(m,"search"):"")+'</div>';
 }
 function watchlistCard(m){
-  return '<div class="card media-card"><div class="media-main clickrow" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+movieMain(m,"watchlist")+'</div>'+(filmView==="list"?movieQuickActions(m,"watchlist"):"")+'</div>';
+  return '<div class="card media-card"><div class="media-main clickrow" role="button" tabindex="0" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+movieMain(m,"watchlist")+'</div>'+(filmView==="list"?movieQuickActions(m,"watchlist"):"")+'</div>';
 }
 function movieQuickActions(m,key){
   var showReviews=(key==="mlott"||key==="mlup"||(key==="watched"&&m.providers&&m.providers.length));
@@ -3430,7 +3525,7 @@ function movieQuickActions(m,key){
   return h+'</div>';
 }
 function movieCard(m, key){
-  return '<div class="card media-card"><div class="media-main clickrow" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+movieMain(m,key)+'</div>'+(filmView==="list"?movieQuickActions(m,key):"")+'</div>';
+  return '<div class="card media-card"><div class="media-main clickrow" role="button" tabindex="0" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+movieMain(m,key)+'</div>'+(filmView==="list"?movieQuickActions(m,key):"")+'</div>';
 }
 function renderFilms(){
   var key=filmTab;
@@ -3508,7 +3603,7 @@ function renderFilms(){
     return html+'<div class="empty">Add your free <b>OMDb API key</b> in Settings for exact IMDb ratings on this tab.</div>';
   }
   if(filmBusy[key] && !last){
-    return html+'<div class="empty">Loading '+titles[key]+' from the internet'+(key==="relhw"?" (checking IMDb ratings, takes a few seconds)":(key==="mlott"||key==="mlup")?" (checking OTT dates & platforms, takes a few seconds)":"")+'…</div>';
+    return html+loadingSkeletons("media",8);
   }
   if(filmErr[key] && !last){
     return html+'<div class="empty">Couldn’t load — check your internet and API key, then <button class="btn" data-act="film-refresh">↻ Try again</button></div>';
@@ -3858,10 +3953,10 @@ function seriesDetailPage(s,key){
   return '<div class="media-page">'+mediaPageHero("series",s,SERIES_GENRES)+seriesReleaseMeta(s)+mediaProvidersBlock(s)+seriesEpisodeBlock(s)+aiPanel("series",s)+actions+'</div>';
 }
 function seriesSearchCard(s){
-  return '<div class="card media-card"><div class="media-main clickrow" data-act="sr-toggle" data-id="'+esc(String(s.id))+'">'+seriesMain(s)+'</div></div>';
+  return '<div class="card media-card"><div class="media-main clickrow" role="button" tabindex="0" data-act="sr-toggle" data-id="'+esc(String(s.id))+'">'+seriesMain(s)+'</div></div>';
 }
 function seriesCard(s, key){
-  return '<div class="card media-card"><div class="media-main clickrow" data-act="sr-toggle" data-id="'+esc(String(s.id))+'">'+seriesMain(s)+'</div></div>';
+  return '<div class="card media-card"><div class="media-main clickrow" role="button" tabindex="0" data-act="sr-toggle" data-id="'+esc(String(s.id))+'">'+seriesMain(s)+'</div></div>';
 }
 function renderSeries(){
   var key=seriesTab;
@@ -3921,7 +4016,7 @@ function renderSeries(){
     '<span class="syncnote" style="align-self:center">'+(last?("Updated "+new Date(last.t).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})):"")+'</span>'+
     '</div>'+mediaViewToggle("series")+'<div class="meta" style="margin-bottom:10px">'+blurbs[key]+'</div>';
   if(!tmdbKey()) return html+'<div class="empty">Add your free <b>TMDB API key</b> in Settings to load TV series.</div>';
-  if(seriesBusy[key] && !last) return html+'<div class="empty">Loading series from the internet...</div>';
+  if(seriesBusy[key] && !last) return html+loadingSkeletons("media",8);
   if(seriesErr[key] && !last) return html+'<div class="empty">Could not load - check your internet and API key, then <button class="btn" data-act="series-refresh">↻ Try again</button></div>';
   var wset=watchedSeriesKeys();
   var wlset=watchlistSeriesKeys();
@@ -3981,6 +4076,10 @@ function switchSection(s){
 document.getElementById("sectionSw").addEventListener("click",function(e){
   var b=e.target.closest("[data-section]"); if(b) switchSection(b.getAttribute("data-section"));
 });
+document.getElementById("recentStrip").addEventListener("click",function(e){
+  var b=e.target.closest('[data-act="recent-open"]');
+  if(b) openRecent(b.getAttribute("data-kind"),b.getAttribute("data-id"),b.getAttribute("data-subtab")||"");
+});
 
 /* ---------- actions ---------- */
 function byId(arr,id){ for(var i=0;i<arr.length;i++) if(arr[i].id===id) return arr[i]; return null; }
@@ -4008,6 +4107,7 @@ function toggleSettings(force){
     var jb=getJB();
     document.getElementById("jbKeyInput").value=jb.key;
     document.getElementById("jbBinInput").value=jb.bin;
+    var densityInput=document.getElementById("densityInput"); if(densityInput) densityInput.value=uiDensity;
     refreshRecoveryUi();
   }
 }
@@ -4100,6 +4200,10 @@ if(saveBiglyProxyBtn) saveBiglyProxyBtn.addEventListener("click",function(){
   toggleSettings(false);
   flash(biglyProxyUrl()?"BiglyBT proxy saved":"BiglyBT proxy cleared");
 });
+document.addEventListener("keydown",function(e){
+  if((e.key!=="Enter"&&e.key!==" ") || !e.target || e.target.tagName==="BUTTON" || e.target.tagName==="A") return;
+  if(e.target.matches('[role="button"]')){ e.preventDefault(); e.target.click(); }
+});
 var plexDiscoverBtn=document.getElementById("plexDiscoverBtn");
 if(plexDiscoverBtn) plexDiscoverBtn.addEventListener("click",plexDiscover);
 var savePlexBtn=document.getElementById("savePlexBtn");
@@ -4112,6 +4216,12 @@ var clearPlexBtn=document.getElementById("clearPlexBtn");
 if(clearPlexBtn) clearPlexBtn.addEventListener("click",function(){
   setPlexConfig("",""); plexConnected=false; plexAllowDelete=false; plexErr=""; toggleSettings(false); render(); flash("Plex disconnected; cached titles were kept");
 });
+var densityInput=document.getElementById("densityInput");
+if(densityInput) densityInput.addEventListener("change",function(){
+  uiDensity=this.value==="compact"?"compact":"comfortable";
+  try{ localStorage.setItem(DENSITY_KEY,uiDensity); }catch(e){}
+  applyDensity(); render(); flash(uiDensity==="compact"?"Compact layout enabled":"Comfortable layout enabled");
+});
 
 document.getElementById("content").addEventListener("click",function(e){
   var vc=e.target.closest("[data-vendor]");
@@ -4122,6 +4232,9 @@ document.getElementById("content").addEventListener("click",function(e){
   if(gc){ sugGenre=gc.getAttribute("data-genre"); render(); return; }
   var b=e.target.closest("[data-act]"); if(!b) return;
   var act=b.getAttribute("data-act"), id=b.getAttribute("data-id"), nm=b.getAttribute("data-name");
+  if(act==="recent-open"){
+    openRecent(b.getAttribute("data-kind"),id,b.getAttribute("data-subtab")||""); return;
+  }
   if(act==="plex-settings"){ toggleSettings(true); return; }
   if(act==="plex-refresh"){ plexRefresh(); return; }
   if(act==="plex-delete"){ plexDeleteItem(id); return; }
@@ -4149,7 +4262,21 @@ document.getElementById("content").addEventListener("click",function(e){
   }
 
   if(act==="film-refresh"){ ensureFilms(filmTab,true); return; }
+  if(act==="clear-sug-filters"){ sugGenre="All"; sugTier="All"; render(); return; }
+  if(act==="detail-neighbor"){
+    var neighborKind=b.getAttribute("data-kind");
+    if(neighborKind==="film"){
+      filmExpanded=id; var nf=findMovieAny(id); if(nf){rememberViewed("film",id,nf.title,filmTab);ensurePlot(moviePlotName(nf),"film");}
+    }else if(neighborKind==="series"){
+      seriesExpanded=id; var ns=findSeriesAny(id); if(ns) rememberViewed("series",id,ns.title,seriesTab);
+    }else{
+      expandedId=id; var ng=gameFindById(id); if(ng){rememberViewed("game",id,ng.name,tab);if(tab==="playing")ensurePlot(ng.name);}
+    }
+    if(!TV_MODE && history.state && history.state.gameVaultDetail) history.replaceState({gameVaultDetail:neighborKind,id:id},"",location.href);
+    render(); window.scrollTo(0,0); return;
+  }
   if(act==="media-close"){
+    if(!TV_MODE && history.state && history.state.gameVaultDetail){ history.back(); return; }
     var mk=b.getAttribute("data-kind");
     var returnY=mk==="film"?filmDetailReturnY:mk==="series"?seriesDetailReturnY:gameDetailReturnY;
     if(mk==="film") filmExpanded=null;
@@ -4177,8 +4304,9 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="game-open"){
     if(!expandedId) gameDetailReturnY=window.scrollY;
     expandedId=b.getAttribute("data-id");
+    if(!TV_MODE) history.pushState({gameVaultDetail:"game",id:expandedId},"",location.href.split("#")[0]+"#game-detail");
     var gx=gameFindById(expandedId);
-    if(gx) ensurePlot(gx.name);
+    if(gx){ rememberViewed("game",expandedId,gx.name,tab); ensurePlot(gx.name); }
     render(); window.scrollTo(0,0);
     return;
   }
@@ -4189,8 +4317,9 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="mw-toggle"){
     if(String(filmExpanded)!==String(id)) filmDetailReturnY=window.scrollY;
     filmExpanded = String(filmExpanded)===String(id) ? null : id;
+    if(filmExpanded && !TV_MODE) history.pushState({gameVaultDetail:"film",id:id},"",location.href.split("#")[0]+"#film-detail");
     var wm=findMovieAny(id);
-    if(filmExpanded && wm) ensurePlot(moviePlotName(wm),"film");
+    if(filmExpanded && wm){ rememberViewed("film",id,wm.title,filmTab); ensurePlot(moviePlotName(wm),"film"); }
     render(); if(filmExpanded) window.scrollTo(0,0); return;
   }
   if(act==="mw-watched"){
@@ -4227,7 +4356,9 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="sr-toggle"){
     if(String(seriesExpanded)!==String(id)) seriesDetailReturnY=window.scrollY;
     seriesExpanded = String(seriesExpanded)===String(id) ? null : id;
+    if(seriesExpanded && !TV_MODE) history.pushState({gameVaultDetail:"series",id:id},"",location.href.split("#")[0]+"#series-detail");
     var ss=findSeriesAny(id)||(data.watchedSeries||[]).filter(function(x){ return String(x.id)===String(id); })[0];
+    if(seriesExpanded && ss) rememberViewed("series",id,ss.title,seriesTab);
     if(seriesExpanded && ss && (!ss.seasonList || !ss.seasonList.length || !ss.providers)){
       enrichSeriesIds(ss).then(function(){ if(section==="series" && String(seriesExpanded)===String(id)) render(); });
     }
@@ -4990,6 +5121,12 @@ function gameVaultTvBack(){
   return "clear";
 }
 window.gameVaultTvBack=gameVaultTvBack;
+
+window.addEventListener("popstate",function(){
+  if(filmExpanded){ filmExpanded=null; aiOpen=null; render(); restoreDetailScroll(filmDetailReturnY); return; }
+  if(seriesExpanded){ seriesExpanded=null; aiOpen=null; render(); restoreDetailScroll(seriesDetailReturnY); return; }
+  if(expandedId){ expandedId=null; aiOpen=null; render(); restoreDetailScroll(gameDetailReturnY); }
+});
 document.addEventListener("click",function(e){
   if(!TV_MODE) return;
   var a=e.target.closest&&e.target.closest("a[href]");

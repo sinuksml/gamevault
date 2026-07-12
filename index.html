@@ -18,6 +18,7 @@
 <a class="skiplink" href="#content">Skip to content</a>
 <div id="bg"></div>
 <div class="wrap">
+  <header class="app-header">
   <div class="topbar">
     <div class="brand"><h1>SINU GAME VAULT</h1><span class="sym">&#9651;&#9675;&#10005;&#9633;</span></div>
     <div class="tvzoom" aria-label="TV zoom controls">
@@ -37,6 +38,9 @@
     <button data-section="plex">&#9654; Plex</button>
     <button data-section="biglybt">&#8681; BiglyBT</button>
   </div>
+  </header>
+  <div class="page-context" id="pageContext" aria-live="polite"></div>
+  <div class="recent-strip" id="recentStrip"></div>
   <div id="hero"></div>
   <div class="menupanel" id="menuPanel">
     <button class="btn" id="pushBtn">&#8657; Push to cloud</button>
@@ -123,6 +127,9 @@
       <p id="systemSummary" class="syncnote"></p>
       <div class="connection-grid" id="connectionGrid"></div>
       <div class="fields">
+        <label class="setting-control">Interface density
+          <select class="f-sm" id="densityInput"><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select>
+        </label>
         <button class="btn" id="snapshotBtn">Create recovery point</button>
         <select class="f-name" id="snapshotSelect" aria-label="Recovery point"></select>
         <button class="btn" id="restoreSnapshotBtn">Restore selected</button>

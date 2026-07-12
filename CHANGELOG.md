@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026.07.12-r2
+
+- Added a stable sticky application header and clearer primary navigation hierarchy.
+- Added contextual section titles, descriptions, item counts, and recently viewed shortcuts.
+- Added contextual Games dashboard statistics for Rentals, Playing, Queue, Upcoming, For You, and Played.
+- Refined grids, lists, cards, full-page details, typography, spacing, contrast, and responsive behavior.
+- Added Comfortable and Compact interface density settings.
+- Added browser Back support and Previous/Next navigation for full-page details.
+- Added stable loading skeletons and a list-optimized BiglyBT dashboard.
+- Improved keyboard accessibility and selectable card focus behavior.
+
 ## 2026.07.12-r1
 
 - Split the application shell, styles, and JavaScript into maintainable files.
