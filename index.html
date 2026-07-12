@@ -4124,8 +4124,14 @@ function seriesMeta(s, key){
   if(key==="serieswatched") parts.unshift('<span style="color:#9AA6BC">✓ Watched</span>');
   return parts.join(" ");
 }
+function seriesReleaseMeta(s){
+  var date=s&&(s.ottDate||s.date);
+  if(!date) return "";
+  var day=parseD(date).toLocaleDateString("en-IN",{weekday:"long"});
+  return '<div class="media-release">OTT premiere: '+esc(fmt(date))+' · '+esc(day)+'</div>';
+}
 function seriesMain(s){
-  return mediaPoster(s.poster,"TV")+mediaSummary(s.title,mediaRatingLabel(s),genreLabel(s.genres,SERIES_GENRES));
+  return mediaPoster(s.poster,"TV")+mediaSummary(s.title,mediaRatingLabel(s),genreLabel(s.genres,SERIES_GENRES),seriesReleaseMeta(s));
 }
 function seriesCard(s, key){
   var open=String(seriesExpanded)===String(s.id);
@@ -4233,7 +4239,7 @@ function seriesDetailPage(s,key){
     '<a class="btn" href="https://www.themoviedb.org/tv/'+s.id+'" target="_blank" rel="noopener">TMDB</a>';
   if(inSeriesWatchlist(s)) actions+='<button class="btn ghost danger" data-act="sw-remove" data-id="'+esc(String(s.id))+'">Remove from Watchlist</button>';
   actions+='</div>';
-  return '<div class="media-page">'+mediaPageHero("series",s,SERIES_GENRES)+mediaProvidersBlock(s)+seriesEpisodeBlock(s)+aiPanel("series",s)+actions+'</div>';
+  return '<div class="media-page">'+mediaPageHero("series",s,SERIES_GENRES)+seriesReleaseMeta(s)+mediaProvidersBlock(s)+seriesEpisodeBlock(s)+aiPanel("series",s)+actions+'</div>';
 }
 function seriesSearchCard(s){
   return '<div class="card media-card"><div class="media-main clickrow" data-act="sr-toggle" data-id="'+esc(String(s.id))+'">'+seriesMain(s)+'</div></div>';
