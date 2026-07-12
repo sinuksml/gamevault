@@ -8,8 +8,12 @@ const css=fs.readFileSync("app.css","utf8");
 const sw=fs.readFileSync("sw.js","utf8");
 const manifest=JSON.parse(fs.readFileSync("manifest.webmanifest","utf8"));
 
-assert.match(html,/href="app\.css"/);
-assert.match(html,/src="app\.js"/);
+assert.match(html,/href="app\.css(?:\?v=\d+\.\d+\.\d+)?"/);
+assert.match(html,/src="app\.js(?:\?v=\d+\.\d+\.\d+)?"/);
+assert.match(html,/viewport-fit=cover/);
+assert.match(css,/safe-area-inset-left/);
+assert.match(css,/-webkit-text-size-adjust:100%/);
+assert.match(css,/@media \(max-width:520px\)/);
 assert.ok(html.length<50000,"index.html should stay a small application shell");
 assert.ok(css.length>10000,"application styles are unexpectedly empty");
 assert.ok(js.length>100000,"application script is unexpectedly empty");

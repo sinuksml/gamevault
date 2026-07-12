@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.2.2 - 2026-07-13
+
+- Optimized the mobile layout for iPhone 17 Pro portrait and landscape viewports.
+- Added safe-area support for the Dynamic Island, rounded display edges, and home indicator.
+- Prevented top-bar controls, cards, forms, buttons, metadata, and long labels from overflowing their containers.
+- Increased iOS form-control text to 16px to prevent Safari input zoom from disrupting the layout.
+
 ## v1.2.1 - 2026-07-13
 
 - Moved the application version into a fixed top-bar badge so it remains visible on desktop, mobile, and Android TV.

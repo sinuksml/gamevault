@@ -1,4 +1,4 @@
-const CACHE_NAME = "gamevault-shell-v18";
+const CACHE_NAME = "gamevault-shell-v19";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -37,7 +37,7 @@ self.addEventListener("fetch", event => {
           caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
         }
         return res;
-      }).catch(() => caches.match(req).then(cached => cached || (req.mode === "navigate" ? caches.match("./index.html") : Response.error())))
+      }).catch(() => caches.match(req, { ignoreSearch:true }).then(cached => cached || (req.mode === "navigate" ? caches.match("./index.html") : Response.error())))
     );
   }
 });
