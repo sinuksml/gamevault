@@ -1,8 +1,9 @@
 ﻿"use strict";
-var APP_VERSION = "1.2.0";
+var APP_VERSION = "1.2.1";
 var APP_BUILD_DATE = "2026-07-13";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Version badge is always visible in the top bar",
   "Coming Soon now includes major U.S. theatrical releases in every language",
   "Exact U.S. theatrical dates replace global or festival dates",
   "Original language is shown for non-English upcoming movies",

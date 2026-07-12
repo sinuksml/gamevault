@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.2.1 - 2026-07-13
+
+- Moved the application version into a fixed top-bar badge so it remains visible on desktop, mobile, and Android TV.
+
 ## v1.2.0 - 2026-07-13
 
 - Expanded Coming Soon to major films in every original language when they have a confirmed U.S. theatrical release.
