@@ -122,6 +122,7 @@
   .sectionsw button { flex:0 0 auto; background:var(--glass); border:1px solid var(--glassbrd); color:var(--muted); font:700 12.5px "Segoe UI",system-ui; padding:7px 20px; border-radius:99px; cursor:pointer; backdrop-filter:blur(14px) saturate(1.6); -webkit-backdrop-filter:blur(14px) saturate(1.6); transition:color .2s ease, background .3s cubic-bezier(.34,1.56,.64,1); }
   .sectionsw button.on { color:var(--text); background:var(--glasson); box-shadow:0 3px 12px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.24); }
   .sectionsw button:active { transform:scale(.95); }
+  @media (max-width:620px){ .sectionsw { justify-content:flex-start; overflow-x:auto; padding:2px 2px 6px; scrollbar-width:none; } .sectionsw::-webkit-scrollbar { display:none; } }
   /* movie provider / rating chips */
   .prov { display:inline-block; font-size:11px; font-weight:600; color:var(--text2); background:var(--inset); border:1px solid var(--border); border-radius:6px; padding:1px 7px; margin:2px 4px 0 0; }
   .imdb { color:#0A0D13; background:#F5C518; border-color:#F5C518; font-weight:800; }
@@ -290,6 +291,14 @@
   .torrent-meter { height:8px; border-radius:999px; background:var(--inset); border:1px solid var(--inborder); overflow:hidden; }
   .torrent-fill { height:100%; background:linear-gradient(90deg,var(--accent),#65d6ff); border-radius:999px; }
   .torrent-login { max-width:720px; margin:16px auto 0; }
+  .plex-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(165px,1fr)); gap:16px; align-items:start; }
+  .plex-card { padding:0; overflow:hidden; }
+  .plex-card .poster-wrap { aspect-ratio:2/3; }
+  .plex-card .actions { padding:0 11px 12px; }
+  .plex-progress { height:6px; margin-top:9px; border-radius:99px; overflow:hidden; background:var(--inset); border:1px solid var(--inborder); }
+  .plex-progress > span { display:block; height:100%; border-radius:99px; background:var(--accent); }
+  .plex-status { margin-top:7px; color:var(--muted); font-size:11px; font-weight:750; }
+  .plex-status.watched { color:#48c78e; }
   body.bigly-active .wrap { max-width:1500px; }
   body.bigly-active #hero { display:none !important; }
   .bigly-browser { padding:0; overflow:hidden; min-height:70vh; }
@@ -432,6 +441,7 @@
     <button data-section="games" class="on">&#127918; Games</button>
     <button data-section="films">&#127916; Films</button>
     <button data-section="series">&#128250; Series</button>
+    <button data-section="plex">&#9654; Plex</button>
     <button data-section="biglybt">&#8681; BiglyBT</button>
   </div>
   <div id="hero"></div>
@@ -489,6 +499,16 @@
       <select class="f-sm" id="biglyModeInput"><option value="iframe">Internal browser (recommended)</option><option value="api">Native dashboard (optional)</option></select>
       <button class="btn blue" id="saveBiglyProxyBtn">Save BiglyBT gateway</button>
     </div>
+    <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
+    <p><b style="color:var(--text)">Plex library.</b> Enter an owner <a href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/" target="_blank" rel="noopener">X-Plex-Token</a> and either your secure Plex Media Server URL or use Discover Server. The token stays only in this browser and is never included in Drive/JSONBin backups. For deletion, enable <b>Settings &rarr; Server &rarr; Library &rarr; Allow media deletion</b> in Plex. Use an HTTPS <b>plex.direct</b> connection when opening GameVault from GitHub Pages.</p>
+    <div class="fields">
+      <input class="f-name" id="plexUrlInput" placeholder="Secure Plex server URL (https://...plex.direct:32400)" autocomplete="off">
+      <input class="f-name" id="plexTokenInput" type="password" placeholder="X-Plex-Token" autocomplete="off">
+      <button class="btn" id="plexDiscoverBtn">Discover Server</button>
+      <button class="btn blue" id="savePlexBtn">Save Plex</button>
+      <button class="btn ghost danger" id="clearPlexBtn">Disconnect</button>
+    </div>
+    <div class="syncnote" id="plexSettingsStatus" style="margin-top:7px"></div>
     <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
     <p><b style="color:var(--text)">JSONBin sync (optional fallback).</b> Used only when Google Drive is not connected. Get a free account at <a href="https://jsonbin.io" target="_blank" rel="noopener">jsonbin.io</a> &rarr; open <b>API Keys</b> &rarr; copy your <b>Master Key</b> and paste it below on <b>this device</b>, then Save. Every change you make here now saves to the cloud automatically a couple of seconds after you type &mdash; no button to press. On your <b>other device</b> (phone or PC), open the app, paste the <b>same Master Key</b>, then copy the <b>Bin ID</b> shown here into that device's Settings too, and Save. From then on both devices silently stay in sync: whichever has the newest change wins, checked every time the app opens. The Push/Pull buttons in the &#8943; menu still work if you ever want to force a sync manually.</p>
     <div class="fields">
@@ -2031,6 +2051,13 @@ function renderTabs(){
     document.getElementById("tabs").innerHTML="";
     return;
   }
+  if(section==="plex"){
+    var pd=[["movies","●","Movies"],["shows","▣","TV Series"]];
+    document.getElementById("tabs").innerHTML=pd.map(function(d){
+      return '<button class="tab '+(plexTab===d[0]?"on":"")+'" data-ptab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
+    }).join("");
+    return;
+  }
   if(section==="series"){
     var sd=[["serieswatchlist","♡","Watchlist"],["enseries","*","English"],["mlseries","◇","Malayalam"],["taseries","○","Tamil"],["hiseries","△","Hindi"],["serieswatched","✓","Watched"]];
     document.getElementById("tabs").innerHTML = sd.map(function(d){
@@ -3112,6 +3139,151 @@ function renderBiglyBT(){
   return html;
 }
 
+/* ---------- Plex library (direct secure Plex Media Server API) ---------- */
+var PLEX_URL_KEY="gamevault-plex-url", PLEX_TOKEN_KEY="gamevault-plex-token", PLEX_CACHE_KEY="gamevault-plex-cache";
+var PLEX_ORDER=["movies","shows"], plexTab="movies", plexItems=[], plexBusy=false, plexErr="", plexConnected=false, plexAllowDelete=false, plexSearch="";
+try{
+  plexTab=localStorage.getItem("gamevault-plex-tab")||"movies";
+  var savedPlex=JSON.parse(localStorage.getItem(PLEX_CACHE_KEY)||"null");
+  if(savedPlex&&Array.isArray(savedPlex.items)) plexItems=savedPlex.items;
+}catch(e){}
+function plexServerUrl(){ try{ return (localStorage.getItem(PLEX_URL_KEY)||"").trim().replace(/\/+$/,""); }catch(e){ return ""; } }
+function plexToken(){ try{ return localStorage.getItem(PLEX_TOKEN_KEY)||""; }catch(e){ return ""; } }
+function setPlexConfig(url,token){
+  try{
+    localStorage.setItem(PLEX_URL_KEY,(url||"").trim().replace(/\/+$/,""));
+    localStorage.setItem(PLEX_TOKEN_KEY,(token||"").trim());
+  }catch(e){}
+}
+function plexWithToken(path, base){
+  var u=new URL(path,(base||plexServerUrl())+"/");
+  u.searchParams.set("X-Plex-Token",plexToken());
+  return u.toString();
+}
+function plexRequest(path,opts){
+  var base=plexServerUrl(), token=plexToken();
+  if(!base||!token) return Promise.reject(new Error("Add your Plex server URL and owner token in Settings first."));
+  if(location.protocol==="https:" && /^http:\/\//i.test(base)) return Promise.reject(new Error("GameVault is using HTTPS, so the browser blocks an HTTP Plex server. Use the server's secure plex.direct URL."));
+  opts=opts||{};
+  opts.headers=Object.assign({"Accept":"application/json"},opts.headers||{});
+  return fetch(plexWithToken(path),opts).then(function(r){
+    return r.text().then(function(t){
+      if(!r.ok) throw new Error(r.status===401?"Plex rejected the token.":r.status===403?"Plex denied this action. Confirm this is the owner token and Allow media deletion is enabled.":("Plex returned "+r.status));
+      if(!t) return {};
+      try{ return JSON.parse(t); }catch(e){ return new DOMParser().parseFromString(t,"application/xml"); }
+    });
+  }).catch(function(e){
+    if(e&&e.message&&e.message!=="Failed to fetch") throw e;
+    throw new Error("Plex is offline or unreachable. Cached library items remain visible until the Shield is available again.");
+  });
+}
+function plexObjects(payload,names){
+  if(payload&&payload.MediaContainer){
+    var out=[];
+    names.forEach(function(n){ var v=payload.MediaContainer[n]; if(Array.isArray(v)) out=out.concat(v); });
+    return out;
+  }
+  if(payload&&payload.documentElement){
+    return [].slice.call(payload.documentElement.children||[]).filter(function(el){ return names.indexOf(el.tagName)>-1; }).map(function(el){
+      var o={}; [].slice.call(el.attributes||[]).forEach(function(a){ o[a.name]=a.value; }); return o;
+    });
+  }
+  return [];
+}
+function plexContainerAttr(payload,name){
+  if(payload&&payload.MediaContainer) return payload.MediaContainer[name];
+  if(payload&&payload.documentElement) return payload.documentElement.getAttribute(name);
+  return null;
+}
+function plexMapItem(x,kind){
+  var duration=Number(x.duration)||0, offset=Number(x.viewOffset)||0;
+  var watched=kind==="show" ? (Number(x.leafCount)>0&&Number(x.viewedLeafCount)>=Number(x.leafCount)) : Number(x.viewCount)>0;
+  return {ratingKey:String(x.ratingKey||""),type:kind,title:x.title||"Untitled",year:x.year||"",summary:x.summary||"",thumb:x.thumb||"",art:x.art||"",
+    duration:duration,viewOffset:offset,viewCount:Number(x.viewCount)||0,leafCount:Number(x.leafCount)||0,viewedLeafCount:Number(x.viewedLeafCount)||0,
+    addedAt:Number(x.addedAt)||0,lastViewedAt:Number(x.lastViewedAt)||0,watched:watched};
+}
+function plexSaveCache(){
+  try{ localStorage.setItem(PLEX_CACHE_KEY,JSON.stringify({at:Date.now(),items:plexItems})); }catch(e){}
+}
+function plexMediaUrl(path){ return path&&plexServerUrl()&&plexToken()?plexWithToken(path):""; }
+function plexRefresh(){
+  if(plexBusy) return Promise.resolve();
+  plexBusy=true; plexErr=""; render();
+  return Promise.all([plexRequest("/"),plexRequest("/library/sections")]).then(function(res){
+    var allowDelete=plexContainerAttr(res[0],"allowMediaDeletion");
+    plexAllowDelete=allowDelete===true||Number(allowDelete)===1;
+    var sections=plexObjects(res[1],["Directory"]).filter(function(s){ return s.type==="movie"||s.type==="show"; });
+    return Promise.all(sections.map(function(s){
+      return plexRequest("/library/sections/"+encodeURIComponent(s.key)+"/all?sort=titleSort&X-Plex-Container-Start=0&X-Plex-Container-Size=5000").then(function(p){
+        return plexObjects(p,["Metadata","Video","Directory"]).map(function(x){ return plexMapItem(x,s.type); });
+      });
+    }));
+  }).then(function(groups){
+    plexItems=[].concat.apply([],groups).filter(function(x){ return x.ratingKey; });
+    plexItems.sort(function(a,b){ return a.title.localeCompare(b.title); });
+    plexConnected=true; plexBusy=false; plexSaveCache(); render();
+  }).catch(function(e){ plexConnected=false; plexBusy=false; plexErr=e.message||"Plex is unavailable"; render(); });
+}
+function plexDiscover(){
+  var input=document.getElementById("plexTokenInput"), token=(input&&input.value.trim())||plexToken();
+  var status=document.getElementById("plexSettingsStatus");
+  if(!token){ if(status) status.textContent="Enter your X-Plex-Token first."; return; }
+  if(status) status.textContent="Discovering your Plex Media Server...";
+  fetch("https://plex.tv/api/resources?includeHttps=1&includeRelay=1&X-Plex-Token="+encodeURIComponent(token),{headers:{Accept:"application/xml"}}).then(function(r){ if(!r.ok) throw new Error("Plex account rejected the token"); return r.text(); }).then(function(t){
+    var doc=new DOMParser().parseFromString(t,"application/xml");
+    var devices=[].slice.call(doc.querySelectorAll("Device")).filter(function(d){ return (d.getAttribute("provides")||"").split(",").indexOf("server")>-1&&d.getAttribute("owned")!=="0"; });
+    if(!devices.length) throw new Error("No owned Plex server was found on this account");
+    var conns=[].slice.call(devices[0].querySelectorAll("Connection"));
+    var conn=conns.filter(function(c){ return c.getAttribute("protocol")==="https"&&c.getAttribute("relay")!=="1"&&c.getAttribute("local")!=="1"; })[0]||
+      conns.filter(function(c){ return c.getAttribute("protocol")==="https"&&c.getAttribute("relay")!=="1"; })[0]||
+      conns.filter(function(c){ return c.getAttribute("protocol")==="https"; })[0];
+    if(!conn) throw new Error("Plex did not publish a secure server connection");
+    document.getElementById("plexUrlInput").value=conn.getAttribute("uri")||"";
+    document.getElementById("plexTokenInput").value=devices[0].getAttribute("accessToken")||token;
+    if(status) status.textContent="Server found. Press Save Plex to connect.";
+  }).catch(function(e){ if(status) status.textContent=e.message||"Server discovery failed"; });
+}
+function plexProgress(item){
+  if(item.watched) return 100;
+  if(item.type==="show") return item.leafCount?Math.round(item.viewedLeafCount/item.leafCount*100):0;
+  return item.duration?Math.round(item.viewOffset/item.duration*100):0;
+}
+function plexCard(item){
+  var pct=Math.max(0,Math.min(100,plexProgress(item)));
+  var status=item.type==="show"?(item.viewedLeafCount+" / "+item.leafCount+" episodes watched"):(item.watched?"Watched":pct?pct+"% watched":"Unwatched");
+  return '<div class="card plex-card">'+mediaPoster(plexMediaUrl(item.thumb),item.type==="show"?"TV":"FILM")+
+    '<div class="media-info"><div class="media-title">'+esc(item.title)+'</div><div class="media-meta">'+(item.year?'<span class="media-pill">'+esc(String(item.year))+'</span>':'')+'<span class="media-pill">'+(item.type==="show"?"TV Series":"Movie")+'</span></div>'+
+    '<div class="plex-progress"><span style="width:'+pct+'%"></span></div><div class="plex-status '+(item.watched?'watched':'')+'">'+(item.watched?'✓ ':'')+esc(status)+'</div></div>'+
+    (item.watched?'<div class="actions"><button class="btn ghost danger" data-act="plex-delete" data-id="'+esc(item.ratingKey)+'">Delete media file</button></div>':'')+'</div>';
+}
+function renderPlex(){
+  var configured=plexServerUrl()&&plexToken();
+  var html='<div class="toolbar" style="margin-top:14px"><div class="searchwrap"><span class="sic">⌕</span><input class="tab-search" id="plexSearch" placeholder="Search Plex '+(plexTab==="shows"?'TV series':'movies')+'..." value="'+esc(plexSearch)+'" autocomplete="off"></div><button class="btn blue" data-act="plex-refresh"'+(plexBusy?' disabled':'')+'>'+(plexBusy?'Connecting...':'Refresh Plex')+'</button><button class="btn" data-act="plex-settings">Settings</button></div>';
+  if(!configured) return html+'<div class="empty">Connect your Plex owner account in Settings. Your token stays only on this device.</div>';
+  if(plexErr) html+='<div class="empty">'+esc(plexErr)+'</div>';
+  if(plexConnected && !plexAllowDelete) html+='<div class="meta" style="margin-bottom:10px">Viewing is connected. To delete watched media files, enable <b>Allow media deletion</b> in Plex Server Settings → Library.</div>';
+  var kind=plexTab==="shows"?"show":"movie", term=norm(plexSearch);
+  var items=plexItems.filter(function(x){ return x.type===kind&&(!term||norm(x.title).indexOf(term)>-1); });
+  if(!items.length){
+    if(plexBusy) return html+'<div class="empty">Loading your Plex library...</div>';
+    if(!plexItems.length) return html+'<div class="empty">No cached Plex library yet. The Shield can be connected later; press Refresh Plex when it is reachable.</div>';
+    return html+'<div class="empty">No '+(kind==="show"?'TV series':'movies')+' match this search.</div>';
+  }
+  return html+'<div class="plex-grid">'+items.map(plexCard).join("")+'</div>';
+}
+function plexDeleteItem(id){
+  var item=plexItems.filter(function(x){ return x.ratingKey===String(id); })[0];
+  if(!item||!item.watched) return;
+  if(!plexConnected){ flash("Reconnect Plex before deleting media"); return; }
+  if(!plexAllowDelete){ flash("Enable Allow media deletion in Plex Server Settings first"); return; }
+  var what=item.type==="show"?"the entire TV series and all of its media files":"this movie and its media file";
+  if(!confirm('Permanently delete "'+item.title+'"? Plex will remove '+what+' from the Shield storage. This cannot be undone in GameVault.')) return;
+  plexBusy=true; render();
+  plexRequest("/library/metadata/"+encodeURIComponent(item.ratingKey),{method:"DELETE"}).then(function(){
+    plexItems=plexItems.filter(function(x){ return x.ratingKey!==item.ratingKey; }); plexBusy=false; plexSaveCache(); render(); flash("Deleted from Plex and removed the media file");
+  }).catch(function(e){ plexBusy=false; plexErr=e.message||"Plex delete failed"; render(); });
+}
+
 function render(){
   var statsEl=document.getElementById("stats");
   document.body.classList.toggle("bigly-active",section==="biglybt");
@@ -3124,6 +3296,14 @@ function render(){
       return;
     }
     document.getElementById("content").innerHTML=renderBiglyBT();
+    applyBackground();
+    tvAfterRender();
+    return;
+  }
+  if(section==="plex"){
+    statsEl.style.display="none";
+    renderTabs();
+    document.getElementById("content").innerHTML=renderPlex();
     applyBackground();
     tvAfterRender();
     return;
@@ -4339,19 +4519,27 @@ function switchFilmTab(next){
   window.scrollTo(0, tabScroll["film:"+next]||0);
   ensureFilms(next);
 }
+function switchPlexTab(next){
+  tabScroll["plex:"+plexTab]=window.scrollY;
+  plexTab=next; try{ localStorage.setItem("gamevault-plex-tab",next); }catch(e){}
+  render();
+  window.scrollTo(0,tabScroll["plex:"+next]||0);
+}
 function switchSection(s){
   if(section===s) return;
   if(section==="films") tabScroll["film:"+filmTab]=window.scrollY;
   else if(section==="series") tabScroll["series:"+seriesTab]=window.scrollY;
+  else if(section==="plex") tabScroll["plex:"+plexTab]=window.scrollY;
   else if(section==="biglybt") tabScroll.biglybt=window.scrollY;
   else tabScroll[tab]=window.scrollY;
   section=s; try{ localStorage.setItem(SECTION_KEY,s); }catch(e){}
   expandedId=null; filmExpanded=null; seriesExpanded=null;
   [].forEach.call(document.querySelectorAll("#sectionSw button"),function(b){ b.classList.toggle("on", b.getAttribute("data-section")===s); });
   render();
-  window.scrollTo(0, section==="films" ? (tabScroll["film:"+filmTab]||0) : section==="series" ? (tabScroll["series:"+seriesTab]||0) : section==="biglybt" ? (tabScroll.biglybt||0) : (tabScroll[tab]||0));
+  window.scrollTo(0, section==="films" ? (tabScroll["film:"+filmTab]||0) : section==="series" ? (tabScroll["series:"+seriesTab]||0) : section==="plex" ? (tabScroll["plex:"+plexTab]||0) : section==="biglybt" ? (tabScroll.biglybt||0) : (tabScroll[tab]||0));
   if(section==="films") ensureFilms(filmTab);
   if(section==="series") ensureSeries(seriesTab);
+  if(section==="plex" && plexServerUrl() && plexToken() && !plexItems.length) plexRefresh();
   if(section==="biglybt" && biglyToken) biglyRefresh();
 }
 document.getElementById("sectionSw").addEventListener("click",function(e){
@@ -4376,6 +4564,10 @@ function toggleSettings(force){
     if(biglyProxy) biglyProxy.value=biglyProxyUrl();
     var biglyModeSel=document.getElementById("biglyModeInput");
     if(biglyModeSel) biglyModeSel.value=biglyMode();
+    var plexUrlInput=document.getElementById("plexUrlInput"), plexTokenInput=document.getElementById("plexTokenInput"), plexStatus=document.getElementById("plexSettingsStatus");
+    if(plexUrlInput) plexUrlInput.value=plexServerUrl();
+    if(plexTokenInput) plexTokenInput.value=plexToken();
+    if(plexStatus) plexStatus.textContent=plexServerUrl()&&plexToken()?(plexConnected?"Connected to Plex on this device.":"Plex is configured; refresh when the Shield is reachable."):"Not configured.";
     gdSetStatus();
     var jb=getJB();
     document.getElementById("jbKeyInput").value=jb.key;
@@ -4387,6 +4579,8 @@ document.getElementById("menuBtn").addEventListener("click",function(){
   document.getElementById("menuPanel").classList.toggle("open");
 });
 document.getElementById("tabs").addEventListener("click",function(e){
+  var pb=e.target.closest("[data-ptab]");
+  if(pb){ switchPlexTab(pb.getAttribute("data-ptab")); return; }
   var sb=e.target.closest("[data-stab]");
   if(sb){ switchSeriesTab(sb.getAttribute("data-stab")); return; }
   var fb=e.target.closest("[data-ftab]");
@@ -4469,6 +4663,18 @@ if(saveBiglyProxyBtn) saveBiglyProxyBtn.addEventListener("click",function(){
   toggleSettings(false);
   flash(biglyProxyUrl()?"BiglyBT proxy saved":"BiglyBT proxy cleared");
 });
+var plexDiscoverBtn=document.getElementById("plexDiscoverBtn");
+if(plexDiscoverBtn) plexDiscoverBtn.addEventListener("click",plexDiscover);
+var savePlexBtn=document.getElementById("savePlexBtn");
+if(savePlexBtn) savePlexBtn.addEventListener("click",function(){
+  setPlexConfig(document.getElementById("plexUrlInput").value,document.getElementById("plexTokenInput").value);
+  plexErr=""; plexConnected=false; toggleSettings(false); flash("Plex saved on this device");
+  if(section==="plex") plexRefresh();
+});
+var clearPlexBtn=document.getElementById("clearPlexBtn");
+if(clearPlexBtn) clearPlexBtn.addEventListener("click",function(){
+  setPlexConfig("",""); plexConnected=false; plexAllowDelete=false; plexErr=""; toggleSettings(false); render(); flash("Plex disconnected; cached titles were kept");
+});
 
 document.getElementById("content").addEventListener("click",function(e){
   var vc=e.target.closest("[data-vendor]");
@@ -4479,6 +4685,9 @@ document.getElementById("content").addEventListener("click",function(e){
   if(gc){ sugGenre=gc.getAttribute("data-genre"); render(); return; }
   var b=e.target.closest("[data-act]"); if(!b) return;
   var act=b.getAttribute("data-act"), id=b.getAttribute("data-id"), nm=b.getAttribute("data-name");
+  if(act==="plex-settings"){ toggleSettings(true); return; }
+  if(act==="plex-refresh"){ plexRefresh(); return; }
+  if(act==="plex-delete"){ plexDeleteItem(id); return; }
   if(act==="bigly-settings"){ toggleSettings(true); return; }
   if(act==="bigly-home"){ var bh=document.getElementById("biglyFrame"); if(bh) bh.src=biglyFrameUrl(); return; }
   if(act==="bigly-native"){ var bn=document.getElementById("biglyFrame"); if(bn) bn.src=biglyProxyUrl()+"/__native"; return; }
@@ -5084,6 +5293,14 @@ document.getElementById("content").addEventListener("keydown",function(e){
 
 /* ---------- per-tab search + autocomplete (input delegation) ---------- */
 document.getElementById("content").addEventListener("input",function(e){
+  if(e.target.id==="plexSearch"){
+    plexSearch=e.target.value;
+    var plexPos=e.target.selectionStart;
+    render();
+    var plexInput=document.getElementById("plexSearch");
+    if(plexInput){ plexInput.focus(); try{ plexInput.setSelectionRange(plexPos,plexPos); }catch(err){} }
+    return;
+  }
   if(e.target.id==="swSearch"){
     seriesSearchQ=e.target.value;
     var sq=seriesSearchQ.trim();
@@ -5501,6 +5718,7 @@ function globalRefresh(){
     if(biglyFrame){ flash("Reloading the current BiglyBT view…"); biglyFrame.src=biglyFrame.src; }
     return;
   }
+  if(section==="plex"){ flash("Refreshing Plex library..."); plexRefresh(); return; }
   if(section==="series"){ flash("Refreshing TV series from the internet..."); ensureSeries(seriesTab,true); return; }
   if(section==="films"){ flash("Refreshing films from the internet…"); ensureFilms(filmTab,true); return; }
   plotPending={}; plotErr={};   // unstick any hung Wikipedia loads
@@ -5530,12 +5748,12 @@ document.addEventListener("touchend",function(e){
   if(Date.now()-swT>600) return;                                 // slow drag, not a swipe
   if(Math.abs(dx)<70 || Math.abs(dx)<Math.abs(dy)*1.8) return;   // mostly vertical → scrolling
   if(section==="biglybt") return;
-  var order = section==="films" ? FILM_ORDER : section==="series" ? SERIES_ORDER : TAB_ORDER;
-  var cur = section==="films" ? filmTab : section==="series" ? seriesTab : tab;
+  var order = section==="films" ? FILM_ORDER : section==="series" ? SERIES_ORDER : section==="plex" ? PLEX_ORDER : TAB_ORDER;
+  var cur = section==="films" ? filmTab : section==="series" ? seriesTab : section==="plex" ? plexTab : tab;
   var i=order.indexOf(cur); if(i<0) return;
   var ni=i+(dx<0?1:-1);
   if(ni<0 || ni>=order.length) return;
-  if(section==="films") switchFilmTab(order[ni]); else if(section==="series") switchSeriesTab(order[ni]); else switchTab(order[ni]);
+  if(section==="films") switchFilmTab(order[ni]); else if(section==="series") switchSeriesTab(order[ni]); else if(section==="plex") switchPlexTab(order[ni]); else switchTab(order[ni]);
 },{passive:true});
 
 /* ---------- back to top ---------- */
@@ -5575,6 +5793,7 @@ setTimeout(function(){
 render();
 if(section==="films") ensureFilms(filmTab);
 if(section==="series") ensureSeries(seriesTab);
+if(section==="plex" && plexServerUrl() && plexToken()) plexRefresh();
 silentPullOnLoad();
 setTimeout(backfillImages,1500);
 </script>
