@@ -52,4 +52,14 @@ for(const label of ["Movies","TV Shows","Plex Library"]){ assert.ok(html.include
 for(const key of ["serieswatching","seriesnew","seriesupcoming","seriesdiscover"]){ assert.ok(js.includes(key),`TV navigation must include ${key}`); }
 assert.match(js,/watchingSeries/);
 assert.match(js,/PLEX_ORDER=\["home","continue","movies","shows","recent"\]/);
+assert.match(html,/id="desktopRailBtn"/);
+assert.match(html,/id="commandPalette"/);
+assert.match(html,/app\.css\?v=1\.5\.0/);
+assert.match(html,/app\.js\?v=1\.5\.0/);
+assert.match(css,/@media \(min-width:900px\)/);
+assert.match(css,/html:not\(\.tv\) \.sectionsw/);
+assert.match(js,/function openCommandPalette\(/);
+assert.match(js,/function applyDesktopShell\(/);
+assert.match(js,/document\.body\.classList\.remove\("command-open"\)/);
+assert.match(sw,/gamevault-shell-v24/);
 console.log("GameVault smoke checks passed");

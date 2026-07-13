@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Sinu Game Vault — PS5 Tracker</title>
-<link rel="stylesheet" href="app.css?v=1.4.1">
+<link rel="stylesheet" href="app.css?v=1.5.0">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -20,7 +20,10 @@
 <div class="wrap">
   <header class="app-header">
   <div class="topbar">
+    <button class="iconbtn desktop-only desktop-rail-toggle" id="desktopRailBtn" title="Collapse or expand navigation" aria-label="Collapse or expand navigation">&#9776;</button>
     <div class="brand"><h1>SINU GAME VAULT</h1><span class="sym">&#9651;&#9675;&#10005;&#9633;</span></div>
+    <button class="desktop-command-btn desktop-only" id="commandBtn" type="button" title="Search and quick actions (Ctrl+K)"><span aria-hidden="true">&#8981;</span><span>Search</span><kbd>Ctrl K</kbd></button>
+    <span class="desktop-sync-pill desktop-only" id="desktopSyncPill" role="status" aria-live="polite">Local data</span>
     <span class="version-badge version-badge-top" id="appVersionBadge" aria-label="Application version"></span>
     <div class="tvzoom" aria-label="TV zoom controls">
       <button class="iconbtn" id="tvZoomOutBtn" title="Zoom out">-</button>
@@ -158,5 +161,17 @@
 <button id="toTop" title="Back to top">&#8679;</button>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=1.4.1"></script></body>
+<div class="command-palette" id="commandPalette" role="dialog" aria-modal="true" aria-labelledby="commandTitle" hidden>
+  <div class="command-panel">
+    <div class="command-head">
+      <span class="command-icon" aria-hidden="true">&#8981;</span>
+      <input id="commandInput" type="search" placeholder="Search games, movies, TV shows, Plex and pages" autocomplete="off" aria-label="Search GameVault">
+      <button class="iconbtn" id="commandCloseBtn" type="button" title="Close search" aria-label="Close search">&#10005;</button>
+    </div>
+    <div class="command-results" id="commandResults" role="listbox" aria-label="Search results"></div>
+    <div class="command-foot"><span><kbd>&uarr;</kbd><kbd>&darr;</kbd> Navigate</span><span><kbd>Enter</kbd> Open</span><span><kbd>Esc</kbd> Close</span></div>
+  </div>
+</div>
+
+<script src="app.js?v=1.5.0"></script></body>
 </html>
