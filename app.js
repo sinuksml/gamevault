@@ -1,8 +1,11 @@
 ﻿"use strict";
-var APP_VERSION = "1.2.3";
+var APP_VERSION = "1.3.0";
 var APP_BUILD_DATE = "2026-07-13";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Redesigned the iPhone interface with a native-style bottom navigation bar",
+  "Added compact phone headers, centered subsection tabs and full-screen Settings",
+  "Improved mobile touch targets, detail pages, menus and safe-area spacing",
   "Locked accidental pinch and gesture zoom on iPhone while preserving scrolling",
   "Optimized portrait and landscape layouts for iPhone 17 Pro",
   "Fixed clipped text, top controls, forms and action buttons on iPhone",
@@ -1701,6 +1704,22 @@ function switchTab(next){
   window.scrollTo(0, tabScroll[next]||0);
 }
 
+function centerActiveTab(){
+  var strip=document.getElementById("tabs");
+  if(!strip) return;
+  var active=strip.querySelector(".tab.on");
+  if(!active) return;
+  var left=active.offsetLeft-(strip.clientWidth-active.offsetWidth)/2;
+  if(Math.abs(strip.scrollLeft-left)>4) strip.scrollTo({left:Math.max(0,left),behavior:"smooth"});
+}
+function finishTabRender(){
+  [].forEach.call(document.querySelectorAll("#tabs .tab"),function(b){
+    if(b.classList.contains("on")) b.setAttribute("aria-current","page");
+    else b.removeAttribute("aria-current");
+  });
+  requestAnimationFrame(centerActiveTab);
+}
+
 function renderTabs(){
   if(section==="biglybt"){
     document.getElementById("tabs").innerHTML="";
@@ -1711,6 +1730,7 @@ function renderTabs(){
     document.getElementById("tabs").innerHTML=pd.map(function(d){
       return '<button class="tab '+(plexTab===d[0]?"on":"")+'" data-ptab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
     }).join("");
+    finishTabRender();
     return;
   }
   if(section==="series"){
@@ -1718,6 +1738,7 @@ function renderTabs(){
     document.getElementById("tabs").innerHTML = sd.map(function(d){
       return '<button class="tab '+(seriesTab===d[0]?"on":"")+'" data-stab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
     }).join("");
+    finishTabRender();
     return;
   }
   if(section==="films"){
@@ -1725,12 +1746,14 @@ function renderTabs(){
     document.getElementById("tabs").innerHTML = fd.map(function(d){
       return '<button class="tab '+(filmTab===d[0]?"on":"")+'" data-ftab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
     }).join("");
+    finishTabRender();
     return;
   }
   var defs=[["rentals","✕","Rentals"],["playing","▶","Now Playing"],["queue","◇","Rental Queue"],["upcoming","△","Upcoming Releases"],["suggest","○","Discover"],["played","□","Completed"]];
   document.getElementById("tabs").innerHTML = defs.map(function(d){
     return '<button class="tab '+(tab===d[0]?"on":"")+'" data-tab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
   }).join("");
+  finishTabRender();
 }
 
 function vendorOptions(sel){
@@ -3005,6 +3028,8 @@ function openRecent(kind,id,subtab){
 }
 
 function render(){
+  var detailOpen=!!((section==="games"&&gameView==="grid"&&expandedId)||(section==="films"&&filmExpanded)||(section==="series"&&seriesExpanded));
+  document.body.classList.toggle("detail-open",detailOpen);
   renderPageContext();
   renderRecentStrip();
   var statsEl=document.getElementById("stats");
@@ -3173,7 +3198,7 @@ function mediaSummary(title, rating, genre, extra){
     '<span class="media-pill imdb">'+esc(rating)+'</span><span class="media-pill">'+esc(genre)+'</span></div>'+(extra||'')+'</div>';
 }
 function mediaClose(kind){
-  return '<div class="media-closebar"><button class="btn blue" data-act="media-close" data-kind="'+kind+'">Close</button></div>';
+  return '<div class="media-closebar"><button class="btn blue" data-act="media-close" data-kind="'+kind+'">&larr; Back</button></div>';
 }
 function seriesLanguageOptions(selected){
   return [["","All languages"],["en","English"],["ml","Malayalam"],["ta","Tamil"],["hi","Hindi"]].map(function(p){
@@ -4252,7 +4277,11 @@ function switchSection(s){
   else tabScroll[tab]=window.scrollY;
   section=s; try{ localStorage.setItem(SECTION_KEY,s); }catch(e){}
   expandedId=null; filmExpanded=null; seriesExpanded=null;
-  [].forEach.call(document.querySelectorAll("#sectionSw button"),function(b){ b.classList.toggle("on", b.getAttribute("data-section")===s); });
+  [].forEach.call(document.querySelectorAll("#sectionSw button"),function(b){
+    var active=b.getAttribute("data-section")===s;
+    b.classList.toggle("on",active);
+    if(active) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current");
+  });
   render();
   window.scrollTo(0, section==="films" ? (tabScroll["film:"+filmTab]||0) : section==="series" ? (tabScroll["series:"+seriesTab]||0) : section==="plex" ? (tabScroll["plex:"+plexTab]||0) : section==="biglybt" ? (tabScroll.biglybt||0) : (tabScroll[tab]||0));
   if(section==="films") ensureFilms(filmTab);
@@ -4274,6 +4303,8 @@ function toggleSettings(force){
   var box=document.getElementById("settingsBox");
   var show=(typeof force==="boolean")?force:(box.style.display==="none");
   box.style.display=show?"block":"none";
+  document.body.classList.toggle("settings-open",show);
+  if(show) setMenuOpen(false);
   if(show){
     document.getElementById("apiKeyInput").value=getKey();
     document.getElementById("tmdbKeyInput").value=tmdbKey();
@@ -4299,9 +4330,20 @@ function toggleSettings(force){
   }
 }
 
+function setMenuOpen(show){
+  var panel=document.getElementById("menuPanel");
+  panel.classList.toggle("open",!!show);
+  document.body.classList.toggle("menu-open",!!show);
+  document.getElementById("menuBtn").setAttribute("aria-expanded",show?"true":"false");
+}
+document.getElementById("menuBtn").setAttribute("aria-expanded","false");
 document.getElementById("menuBtn").addEventListener("click",function(){
-  document.getElementById("menuPanel").classList.toggle("open");
+  setMenuOpen(!document.getElementById("menuPanel").classList.contains("open"));
 });
+var menuCloseBtn=document.getElementById("menuCloseBtn");
+if(menuCloseBtn) menuCloseBtn.addEventListener("click",function(){setMenuOpen(false);});
+var settingsCloseBtn=document.getElementById("settingsCloseBtn");
+if(settingsCloseBtn) settingsCloseBtn.addEventListener("click",function(){toggleSettings(false);});
 document.getElementById("tabs").addEventListener("click",function(e){
   var pb=e.target.closest("[data-ptab]");
   if(pb){ switchPlexTab(pb.getAttribute("data-ptab")); return; }
@@ -5292,7 +5334,7 @@ function gameVaultTvBack(){
   }
   var panel=document.getElementById("menuPanel");
   if(panel && panel.classList.contains("open")){
-    panel.classList.remove("open");
+    setMenuOpen(false);
     tvEnsureFocus();
     return "handled";
   }
@@ -5564,15 +5606,19 @@ function globalRefresh(){
   setTimeout(backfillImages,600);
 }
 document.getElementById("refreshBtn").addEventListener("click",globalRefresh);
+var menuRefreshBtn=document.getElementById("menuRefreshBtn");
+if(menuRefreshBtn) menuRefreshBtn.addEventListener("click",function(){ setMenuOpen(false); globalRefresh(); });
 
 /* ---------- swipe between tabs (phone) ---------- */
 var TAB_ORDER=["rentals","playing","queue","upcoming","suggest","played"];
 var swX=null,swY=0,swT=0;
 document.addEventListener("touchstart",function(e){
   if(e.touches.length!==1){ swX=null; return; }
+  var startX=e.touches[0].clientX;
+  if(startX<24 || startX>window.innerWidth-24 || document.body.classList.contains("detail-open") || document.body.classList.contains("settings-open")){ swX=null; return; }
   // don't hijack horizontal gestures on inputs or scrollable strips
-  if(e.target && e.target.closest && e.target.closest("input,textarea,select,.chipbar,#tabs,.ac-drop")){ swX=null; return; }
-  swX=e.touches[0].clientX; swY=e.touches[0].clientY; swT=Date.now();
+  if(e.target && e.target.closest && e.target.closest("input,textarea,select,.chipbar,#tabs,.sectionsw,.recent-strip,.viewbar,.actions,.ac-drop")){ swX=null; return; }
+  swX=startX; swY=e.touches[0].clientY; swT=Date.now();
 },{passive:true});
 document.addEventListener("touchend",function(e){
   if(swX===null) return;
@@ -5643,7 +5689,11 @@ document.addEventListener("error",function(e){
 setTimeout(function(){
   if(gdClientId()) gdLoadGoogleIdentity().catch(function(){});
 },1000);
-[].forEach.call(document.querySelectorAll("#sectionSw button"),function(b){ b.classList.toggle("on", b.getAttribute("data-section")===section); });
+[].forEach.call(document.querySelectorAll("#sectionSw button"),function(b){
+  var active=b.getAttribute("data-section")===section;
+  b.classList.toggle("on",active);
+  if(active) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current");
+});
 render();
 refreshRecoveryUi();
 if(section==="films") ensureFilms(filmTab);

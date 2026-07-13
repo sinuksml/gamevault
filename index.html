@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Sinu Game Vault — PS5 Tracker</title>
-<link rel="stylesheet" href="app.css?v=1.2.3">
+<link rel="stylesheet" href="app.css?v=1.3.0">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -33,17 +33,19 @@
   </div>
   <div class="sub">PS5 tracker &middot; rentals &middot; playing now &middot; watchlist &middot; library <span id="syncStatus" role="status" aria-live="polite" style="color:var(--muted)"></span></div>
   <div class="sectionsw" id="sectionSw">
-    <button data-section="games" class="on">&#127918; Games</button>
-    <button data-section="films">&#127916; Movies</button>
-    <button data-section="series">&#128250; TV Shows</button>
-    <button data-section="plex">&#9654; Plex Library</button>
-    <button data-section="biglybt">&#8681; BiglyBT</button>
+    <button data-section="games" class="on" aria-current="page"><span class="section-icon">&#127918;</span><span class="section-label">Games</span></button>
+    <button data-section="films"><span class="section-icon">&#127916;</span><span class="section-label">Movies</span></button>
+    <button data-section="series"><span class="section-icon">&#128250;</span><span class="section-label">TV Shows</span></button>
+    <button data-section="plex"><span class="section-icon">&#9654;</span><span class="section-label"><span class="desktop-label">Plex Library</span><span class="mobile-label">Plex</span></span></button>
+    <button data-section="biglybt"><span class="section-icon">&#8681;</span><span class="section-label">BiglyBT</span></button>
   </div>
   </header>
   <div class="page-context" id="pageContext" aria-live="polite"></div>
   <div class="recent-strip" id="recentStrip"></div>
   <div id="hero"></div>
   <div class="menupanel" id="menuPanel">
+    <div class="mobile-sheet-head"><strong>Quick actions</strong><button class="btn ghost" id="menuCloseBtn">Done</button></div>
+    <button class="btn" id="menuRefreshBtn">&#8635; Refresh all data</button>
     <button class="btn" id="pushBtn">&#8657; Push to cloud</button>
     <button class="btn" id="pullBtn">&#8659; Pull from cloud</button>
     <button class="btn" id="exportBtn">Export backup</button>
@@ -52,6 +54,7 @@
     <input type="file" id="importFile" accept=".json" style="display:none">
   </div>
   <div class="settings" id="settingsBox" style="display:none">
+    <div class="settings-mobile-head"><div><span>GAMEVAULT</span><h2>Settings</h2></div><button class="btn blue" id="settingsCloseBtn">Done</button></div>
     <details class="settings-group" open>
     <summary>Google Drive sync</summary>
     <p><b style="color:var(--text)">Google Drive sync (primary).</b> For Google Drive backup, click <b>Sign in with Google</b> below. Your data syncs automatically to a file in your Drive called <b>game-vault-backup.json</b>. If you clear your browser cache, just sign back in with the same Google account and your data reappears. Every change uploads a couple of seconds after you make it, and the app pulls the newest copy whenever it opens. One-time setup: open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">console.cloud.google.com</a> &rarr; create a project &rarr; enable the <b>Google Drive API</b> &rarr; configure the OAuth consent screen (External, then <b>Publish</b>) &rarr; Create Credentials &rarr; <b>OAuth client ID</b> &rarr; Web application &rarr; add <b>https://sinuksml.github.io</b> under Authorized JavaScript origins &rarr; copy the Client ID below. Then press Sign in with Google on each device &mdash; same Google account, same data everywhere. If you ever clear the cache, just sign in again and the app finds your file.</p>
@@ -69,7 +72,7 @@
       <p><b style="color:var(--text)">Android TV phone login.</b> If normal Google sign-in does not open on the TV browser, create a Google OAuth client with application type <b>TVs and Limited Input devices</b>, paste it below, then use the QR login. Scan the QR on your phone, approve access, and the TV will connect to the same Drive backup.</p>
       <div class="fields">
         <input class="f-name" id="gdTvClientInput" placeholder="TV OAuth Client ID" autocomplete="off">
-        <input class="f-name" id="gdTvSecretInput" placeholder="TV OAuth Client Secret, if Google shows one" autocomplete="off">
+        <input class="f-name" id="gdTvSecretInput" type="password" placeholder="TV OAuth Client Secret, if Google shows one" autocomplete="off">
         <button class="btn blue" id="gdTvSaveBtn">Save TV login</button>
       </div>
       <div class="fields" style="margin-top:8px">
@@ -84,14 +87,14 @@
     <summary>Games, movies &amp; TV data services</summary>
     <p><b style="color:var(--text)">Live internet updates (optional).</b> Get a free API key from <a href="https://rawg.io/apidocs" target="_blank" rel="noopener">rawg.io/apidocs</a> (sign up &rarr; Get API Key), paste it below, and the app can fetch cover art, scores, autocomplete and live lists for Upcoming Releases and Discover from the RAWG games database. Without a key, the built-in curated lists still work fully offline.</p>
     <div class="fields">
-      <input class="f-name" id="apiKeyInput" placeholder="Paste RAWG API key here" autocomplete="off">
+      <input class="f-name" id="apiKeyInput" type="password" placeholder="Paste RAWG API key here" autocomplete="off">
       <button class="btn blue" id="saveKeyBtn">Save key</button>
     </div>
     <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
     <p><b style="color:var(--text)">Movies &amp; TV Shows sections (TMDB + IMDb).</b> These sections pull live data from <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">TMDB</a> &mdash; sign up free &rarr; Settings &rarr; API &rarr; copy the <b>API Key (v3 auth)</b>. For exact IMDb ratings where available, also get a free key from <a href="https://www.omdbapi.com/apikey.aspx" target="_blank" rel="noopener">OMDb</a> (activate the link they email you). Paste both below.</p>
     <div class="fields">
-      <input class="f-name" id="tmdbKeyInput" placeholder="TMDB API key (v3 auth)" autocomplete="off">
-      <input class="f-name" id="omdbKeyInput" placeholder="OMDb API key (for IMDb ratings)" autocomplete="off">
+      <input class="f-name" id="tmdbKeyInput" type="password" placeholder="TMDB API key (v3 auth)" autocomplete="off">
+      <input class="f-name" id="omdbKeyInput" type="password" placeholder="OMDb API key (for IMDb ratings)" autocomplete="off">
       <button class="btn blue" id="saveFilmKeysBtn">Save film keys</button>
     </div>
     </details>
@@ -118,7 +121,7 @@
     <summary>JSONBin fallback</summary>
     <p><b style="color:var(--text)">JSONBin sync (optional fallback).</b> Used only when Google Drive is not connected. Get a free account at <a href="https://jsonbin.io" target="_blank" rel="noopener">jsonbin.io</a> &rarr; open <b>API Keys</b> &rarr; copy your <b>Master Key</b> and paste it below on <b>this device</b>, then Save. Every change you make here now saves to the cloud automatically a couple of seconds after you type &mdash; no button to press. On your <b>other device</b> (phone or PC), open the app, paste the <b>same Master Key</b>, then copy the <b>Bin ID</b> shown here into that device's Settings too, and Save. From then on both devices silently stay in sync: whichever has the newest change wins, checked every time the app opens. The Push/Pull buttons in the &#8943; menu still work if you ever want to force a sync manually.</p>
     <div class="fields">
-      <input class="f-name" id="jbKeyInput" placeholder="JSONBin Master Key" autocomplete="off">
+      <input class="f-name" id="jbKeyInput" type="password" placeholder="JSONBin Master Key" autocomplete="off">
       <input class="f-name" id="jbBinInput" placeholder="Bin ID (auto-filled after first push)" autocomplete="off">
       <button class="btn blue" id="saveSyncBtn">Save sync settings</button>
     </div>
@@ -149,5 +152,5 @@
 <button id="toTop" title="Back to top">&#8679;</button>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=1.2.3"></script></body>
+<script src="app.js?v=1.3.0"></script></body>
 </html>
