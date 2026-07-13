@@ -717,7 +717,9 @@ html.tv .brand h1{font-size:27px;letter-spacing:.12em}
 html.tv .brand .sym{font-size:15px}
 html.tv .sub{display:none}
 html.tv .version-badge-top{font-size:11px;padding:5px 9px}
-html.tv .tvzoom{display:none}
+html.tv .tvzoom{display:flex;gap:6px;align-items:center}
+html.tv .tvzoom .iconbtn{min-width:46px;min-height:46px;padding:0;border-radius:9px}
+html.tv #tvZoomResetBtn{min-width:60px;font-variant-numeric:tabular-nums}
 html.tv .topbar>.iconbtn{min-width:50px;min-height:50px;padding:0;border-radius:10px;font-size:18px}
 
 html.tv .sectionsw{
