@@ -1066,6 +1066,136 @@ html.tv #toTop{display:none!important}
   html:not(.tv) #hero{min-height:54px}
 }
 
+/* v1.6 title workflow: stable cards, direct status actions and compact menus. */
+.media-card,.game-tile{position:relative;display:flex;flex-direction:column;min-width:0;overflow:visible}
+.media-main,.game-tile-main{flex:1;min-width:0;border-radius:inherit;overflow:hidden}
+.title-state{
+  position:absolute;z-index:4;left:9px;top:9px;display:inline-flex;align-items:center;min-height:23px;
+  padding:4px 8px;border:1px solid rgba(255,255,255,.32);border-radius:5px;color:#fff;
+  background:rgba(9,13,20,.84);box-shadow:0 4px 14px rgba(0,0,0,.3);font-size:9px;font-weight:900;
+  letter-spacing:.08em;line-height:1;pointer-events:none;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)
+}
+.state-watchlist,.state-serieswatchlist{background:rgba(31,102,73,.92)}
+.state-watched,.state-serieswatched,.state-game-completed{background:rgba(58,72,91,.94)}
+.state-uphw,.state-seriesupcoming,.state-game-upcoming{background:rgba(118,75,12,.94)}
+.state-bluray{background:rgba(38,76,138,.94)}
+.state-mlott,.state-seriesnew{background:rgba(116,42,87,.94)}
+.state-serieswatching,.state-game-playing{background:rgba(23,100,119,.94)}
+.state-game-rental{background:rgba(32,105,72,.94)}
+.state-game-history{background:rgba(68,75,87,.94)}
+.state-game-queue,.state-game-resume{background:rgba(47,73,132,.94)}
+.state-game-hold{background:rgba(135,54,60,.94)}
+.state-game-discover{background:rgba(82,58,126,.94)}
+.media-card-actions,.game-card-actions{
+  position:relative;z-index:5;display:flex;align-items:center;gap:6px;min-height:49px;padding:7px 8px;
+  border-top:1px solid var(--border3);background:color-mix(in srgb,var(--surface-raised) 82%,transparent)
+}
+.media-card-actions .btn,.game-card-actions .btn{min-height:34px;padding:7px 9px;white-space:nowrap}
+.title-primary,.game-primary{flex:1;justify-content:center;min-width:0;font-weight:850;overflow:hidden;text-overflow:ellipsis}
+.title-menu{position:relative;flex:0 0 auto}
+.title-menu[open]{z-index:25}
+.title-menu>summary{
+  min-width:40px;min-height:34px;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 9px;
+  list-style:none;color:var(--text2);background:var(--btnbg);border:1px solid var(--btnborder);border-radius:7px;
+  font-size:18px;font-weight:900;line-height:1;cursor:pointer;user-select:none
+}
+.title-menu>summary::-webkit-details-marker{display:none}
+.title-menu>summary span{font-size:11px;font-weight:800}
+.title-menu>summary:hover,.title-menu[open]>summary{color:var(--text);border-color:var(--accent);background:var(--surface-soft)}
+.title-menu-pop{
+  position:absolute;z-index:50;right:0;bottom:calc(100% + 7px);width:max-content;min-width:190px;max-width:260px;
+  padding:6px;background:var(--surface-raised);border:1px solid var(--border2);border-radius:8px;
+  box-shadow:0 18px 54px rgba(0,0,0,.45)
+}
+.title-menu-pop button{
+  width:100%;min-height:36px;display:flex;align-items:center;padding:7px 9px;color:var(--text2);background:transparent;
+  border:0;border-radius:6px;font:750 12px "Segoe UI",system-ui;text-align:left;cursor:pointer;white-space:nowrap
+}
+.title-menu-pop button:hover{color:var(--text);background:var(--surface-soft)}
+.title-menu-pop button.danger{color:var(--danger)}
+.tab-count{
+  display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;margin-left:5px;padding:0 6px;
+  border-radius:99px;color:var(--muted);background:var(--inset);border:1px solid var(--border);font-size:9px;font-weight:900
+}
+.tab.on .tab-count{color:var(--accenttext);background:color-mix(in srgb,var(--accent) 18%,var(--inset));border-color:color-mix(in srgb,var(--accent) 48%,var(--border))}
+.detail-actionbar{position:sticky;z-index:24;top:calc(var(--header-height) + 48px);align-items:center;margin:14px 0 16px;padding:9px;border:1px solid var(--border);border-radius:9px;background:var(--stickybg);box-shadow:0 8px 28px rgba(0,0,0,.22);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.detail-actionbar .title-primary{flex:0 1 auto;min-width:150px}
+.detail-actionbar .title-menu-pop{top:calc(100% + 7px);bottom:auto;right:auto;left:0}
+.media-closebar{position:sticky;z-index:38;top:calc(var(--header-height) + 5px);height:0;margin:0;justify-content:flex-end;pointer-events:none}
+.detail-close{
+  pointer-events:auto;width:42px;height:42px;display:inline-flex;align-items:center;justify-content:center;padding:0;
+  color:var(--text);background:var(--surface-raised);border:1px solid var(--border2);border-radius:50%;
+  box-shadow:0 8px 24px rgba(0,0,0,.32);font:500 28px/1 "Segoe UI",system-ui;cursor:pointer
+}
+.detail-close:hover{color:#fff;background:var(--danger);border-color:var(--danger)}
+.settings-close{position:static;flex:0 0 auto}
+
+html.light .title-menu-pop{box-shadow:0 18px 46px rgba(32,48,75,.2)}
+html.light .media-card-actions,html.light .game-card-actions{background:rgba(235,241,248,.96);border-color:rgba(73,99,134,.2)}
+html.light .detail-actionbar{background:rgba(238,243,249,.94);border-color:rgba(73,99,134,.25);box-shadow:0 8px 24px rgba(35,55,86,.14)}
+
+@media (min-width:900px){
+  html:not(.tv) .desktop-rail-tools{
+    width:100%;display:flex;flex-direction:column;gap:5px;margin-top:auto;padding-top:9px;border-top:1px solid var(--border)
+  }
+  html:not(.tv) .desktop-rail-tools button{min-height:38px}
+  html:not(.tv) .desktop-rail-status .rail-status-dot{width:8px;height:8px;flex:0 0 auto;border-radius:50%;background:var(--dim);box-shadow:0 0 0 3px color-mix(in srgb,var(--dim) 15%,transparent)}
+  html:not(.tv) .desktop-rail-status.saving .rail-status-dot{background:var(--warning)}
+  html:not(.tv) .desktop-rail-status.error .rail-status-dot{background:var(--danger)}
+  html:not(.tv) .desktop-rail-status.ok .rail-status-dot{background:var(--success)}
+  html:not(.tv) .desktop-rail-version{padding:6px 9px 2px;color:var(--dim);font-size:9px;font-weight:850;letter-spacing:.08em}
+  html:not(.tv).desktop-nav-collapsed .desktop-rail-version{padding:5px 0;text-align:center;font-size:8px}
+  html:not(.tv) .toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
+  html:not(.tv) .toolbar>select{flex:0 0 auto;min-width:132px;max-width:210px}
+  html:not(.tv) .toolbar>.searchwrap{flex:1 1 330px;min-width:240px}
+  html:not(.tv) .toolbar>.syncnote{margin-left:auto;white-space:nowrap}
+  html:not(.tv) .viewbar{min-height:36px;margin:-2px 0 10px}
+  html:not(.tv) .tabs{align-items:center}
+  html:not(.tv) .tab{display:inline-flex;align-items:center;justify-content:center;gap:3px;min-height:39px;white-space:nowrap}
+  html:not(.tv) .media-grid,.game-grid{align-items:stretch}
+  html:not(.tv) .media-grid .media-card,html:not(.tv) .game-grid .game-tile{height:100%;margin-bottom:0}
+  html:not(.tv) .media-grid .media-info{min-height:102px}
+  html:not(.tv) .media-grid .media-title{min-height:35px}
+  html:not(.tv) .game-grid .game-tile-info{min-height:100px}
+  html:not(.tv) .media-grid .media-card-actions .compact-link,html:not(.tv) .media-grid .media-card-actions .imdbbtn{display:none}
+  html:not(.tv) .media-grid .title-menu>summary span{display:none}
+  html:not(.tv) .media-list .media-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;overflow:visible}
+  html:not(.tv) .media-list .media-main{grid-column:1;min-height:112px}
+  html:not(.tv) .media-list .media-card-actions{grid-column:2;min-width:350px;justify-content:flex-end;border-top:0;border-left:1px solid var(--border3);padding:10px}
+  html:not(.tv) .media-list .title-primary{max-width:145px}
+  html:not(.tv) .media-list .title-menu-pop{right:0}
+  html:not(.tv) .media-page,html:not(.tv) .game-page{padding:20px 24px 40px;border:1px solid var(--border);border-radius:10px}
+  html:not(.tv) .media-page-head{grid-template-columns:minmax(175px,230px) minmax(0,1fr);gap:24px}
+  html:not(.tv) .game-page-head{grid-template-columns:minmax(230px,340px) minmax(0,1fr);gap:24px}
+  html:not(.tv) .media-page-overview{max-width:900px;font-size:14px;line-height:1.7}
+  html.light:not(.tv) body{background:#d7e0eb}
+  html.light:not(.tv) .sectionsw{background:rgba(235,240,247,.98);border-color:#a8b7ca;box-shadow:0 12px 34px rgba(38,56,84,.16)}
+  html.light:not(.tv) .sectionsw button{color:#4e5e72;border-color:transparent}
+  html.light:not(.tv) .sectionsw button:hover{background:rgba(255,255,255,.78);border-color:#b6c4d5}
+  html.light:not(.tv) .sectionsw button.on{color:#17243a;background:#fff;border-color:#83a7d5;box-shadow:0 4px 14px rgba(38,67,105,.13)}
+  html.light:not(.tv) .app-header{background:rgba(215,224,235,.96);border-color:#aab9cb}
+  html.light:not(.tv) .tabs{background:rgba(233,239,246,.94);border-color:#aebdce}
+  html.light:not(.tv) .tab.on{background:#fff;border-color:#7da4d5;box-shadow:0 3px 12px rgba(37,63,99,.14)}
+  html.light:not(.tv) .card,html.light:not(.tv) .media-card,html.light:not(.tv) .game-tile,html.light:not(.tv) .media-page,html.light:not(.tv) .game-page{background:rgba(248,250,253,.98);border-color:#aebdce;box-shadow:0 5px 18px rgba(36,55,82,.12)}
+  html.light:not(.tv) input,html.light:not(.tv) select,html.light:not(.tv) textarea{background:#fff;border-color:#9fb0c5;color:#17243a}
+  html.light:not(.tv) .btn{background:#eef3f8;border-color:#9eafc4;color:#26374d}
+  html.light:not(.tv) .btn:hover{background:#fff;border-color:#568aca;color:#10233b}
+  html.light:not(.tv) .btn.blue{background:#1768be;border-color:#1768be;color:#fff}
+}
+
+@media (max-width:899px){
+  .media-card-actions,.game-card-actions{flex-wrap:wrap}
+  .media-card-actions .compact-link,.media-card-actions .imdbbtn{display:none}
+  .title-menu>summary span{display:none}
+  .detail-actionbar{position:relative;top:auto;overflow:visible}
+  .media-closebar{top:calc(var(--header-height) + 4px)}
+}
+
+html.tv .media-card-actions,html.tv .game-card-actions{display:none!important}
+html.tv .detail-close{width:54px;height:54px;border-radius:10px;font-size:34px}
+html.tv .media-closebar{height:66px;justify-content:flex-start}
+html.tv .detail-actionbar{position:relative;top:auto}
+
 @media (forced-colors:active){
   .card,.media-card,.game-tile,.plex-card,.tabs,.sectionsw,.settings,.menupanel,.command-panel{forced-color-adjust:auto;border:1px solid CanvasText}
   .tab.on,.sectionsw button.on,.command-item.on{outline:2px solid Highlight;color:HighlightText;background:Highlight}

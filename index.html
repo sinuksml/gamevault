@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Sinu Game Vault — PS5 Tracker</title>
-<link rel="stylesheet" href="app.css?v=1.5.0">
+<link rel="stylesheet" href="app.css?v=1.6.0">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -41,6 +41,12 @@
     <button data-section="series"><span class="section-icon">&#128250;</span><span class="section-label">TV Shows</span></button>
     <button data-section="plex"><span class="section-icon">&#9654;</span><span class="section-label"><span class="desktop-label">Plex Library</span><span class="mobile-label">Plex</span></span></button>
     <button data-section="biglybt"><span class="section-icon">&#8681;</span><span class="section-label">BiglyBT</span></button>
+    <div class="desktop-rail-tools desktop-only" aria-label="Application utilities">
+      <button class="desktop-rail-status" id="desktopRailSync" type="button" title="Cloud sync status"><span class="rail-status-dot" aria-hidden="true"></span><span class="section-label" id="desktopRailSyncText">Local data</span></button>
+      <button id="desktopRailTheme" type="button" title="Switch light or dark mode"><span class="section-icon" aria-hidden="true">&#9788;</span><span class="section-label">Appearance</span></button>
+      <button id="desktopRailSettings" type="button" title="Open Settings"><span class="section-icon" aria-hidden="true">&#9881;</span><span class="section-label">Settings</span></button>
+      <span class="desktop-rail-version" id="desktopRailVersion">v1.6.0</span>
+    </div>
   </div>
   </header>
   <div class="page-context" id="pageContext" aria-live="polite"></div>
@@ -57,7 +63,7 @@
     <input type="file" id="importFile" accept=".json" style="display:none">
   </div>
   <div class="settings" id="settingsBox" style="display:none">
-    <div class="settings-mobile-head"><div><span>GAMEVAULT</span><h2>Settings</h2></div><button class="btn blue" id="settingsCloseBtn">Done</button></div>
+    <div class="settings-mobile-head"><div><span>GAMEVAULT</span><h2>Settings</h2></div><button class="detail-close settings-close" id="settingsCloseBtn" aria-label="Close Settings" title="Close Settings">&times;</button></div>
     <details class="settings-group" open>
     <summary>Google Drive sync</summary>
     <p><b style="color:var(--text)">Google Drive sync (primary).</b> For Google Drive backup, click <b>Sign in with Google</b> below. Your data syncs automatically to a file in your Drive called <b>game-vault-backup.json</b>. If you clear your browser cache, just sign back in with the same Google account and your data reappears. Every change uploads a couple of seconds after you make it, and the app pulls the newest copy whenever it opens. One-time setup: open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">console.cloud.google.com</a> &rarr; create a project &rarr; enable the <b>Google Drive API</b> &rarr; configure the OAuth consent screen (External, then <b>Publish</b>) &rarr; Create Credentials &rarr; <b>OAuth client ID</b> &rarr; Web application &rarr; add <b>https://sinuksml.github.io</b> under Authorized JavaScript origins &rarr; copy the Client ID below. Then press Sign in with Google on each device &mdash; same Google account, same data everywhere. If you ever clear the cache, just sign in again and the app finds your file.</p>
@@ -173,5 +179,5 @@
   </div>
 </div>
 
-<script src="app.js?v=1.5.0"></script></body>
+<script src="app.js?v=1.6.0"></script></body>
 </html>

@@ -1,8 +1,11 @@
 ﻿"use strict";
-var APP_VERSION = "1.5.0";
+var APP_VERSION = "1.6.0";
 var APP_BUILD_DATE = "2026-07-13";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Added one-click Watchlist, Watching and Watched actions with Undo",
+  "Redesigned title cards, full-page details and desktop Library utilities",
+  "Improved Windows alignment, sorting, status visibility and light-mode contrast",
   "Added a Windows laptop workspace with compact navigation and wider 16:9 layouts",
   "Added Ctrl+K search, keyboard shortcuts and persistent desktop navigation preferences",
   "Moved desktop Settings and quick actions into non-disruptive overlay panels",
@@ -37,6 +40,7 @@ if(/iPhone|iPad|iPod/i.test(navigator.userAgent)){
 function applyAppVersion(){
   var badge=document.getElementById("appVersionBadge");
   if(badge){ badge.textContent="v"+APP_VERSION; badge.title=APP_RELEASE_CHANNEL+" build "+APP_BUILD_DATE; }
+  var rail=document.getElementById("desktopRailVersion"); if(rail) rail.textContent="v"+APP_VERSION;
   document.documentElement.setAttribute("data-app-version",APP_VERSION);
 }
 applyAppVersion();
@@ -537,6 +541,15 @@ function setSyncStatus(s){
     pill.classList.toggle("saving",/saving|checking/i.test(text));
     pill.classList.toggle("error",/fail|error|retry/i.test(text));
     pill.classList.toggle("ok",/synced|up to date|ready/i.test(text));
+  }
+  var rail=document.getElementById("desktopRailSync"),railText=document.getElementById("desktopRailSyncText");
+  if(rail){
+    var railValue=s||((typeof cloudMode==="function"&&cloudMode())?"Cloud ready":"Local data");
+    if(railText) railText.textContent=railValue;
+    rail.title=railValue+" — click to sync";
+    rail.classList.toggle("saving",/saving|checking/i.test(railValue));
+    rail.classList.toggle("error",/fail|error|retry/i.test(railValue));
+    rail.classList.toggle("ok",/synced|up to date|ready/i.test(railValue));
   }
 }
 
@@ -1103,14 +1116,45 @@ function gameViewToggle(){
     '<button class="gchip '+(gameView==="list"?"on":"")+'" data-act="game-view" data-view="list">List View</button>'+
   '</div>';
 }
+function gameTileState(x,id,sub){
+  if(tab==="rentals") return byId(data.rentals,id)?["ACTIVE RENTAL","rental"]:["HISTORY","history"];
+  if(tab==="playing"){
+    if(x.status==="Dropped"||sub==="On Hold") return ["ON HOLD","hold"];
+    if(x.status==="Playing"||sub==="Resume") return ["RESUME LATER","resume"];
+    return ["PLAYING","playing"];
+  }
+  if(tab==="queue") return ["QUEUE","queue"];
+  if(tab==="upcoming") return ["UPCOMING","upcoming"];
+  if(tab==="suggest") return ["DISCOVER","discover"];
+  if(tab==="played") return ["COMPLETED","completed"];
+  return null;
+}
+function gameTilePrimary(x,id){
+  var sid=esc(String(id));
+  if(tab==="rentals"){
+    if(byId(data.rentals,id)) return '<button class="btn blue game-primary" data-act="return-played" data-id="'+sid+'">&#10003; Return &amp; complete</button>';
+    return '<button class="btn game-primary" data-act="hist-again" data-id="'+sid+'">Rent again</button>';
+  }
+  if(tab==="playing"){
+    if(byId(data.rentals,id)) return '<button class="btn blue game-primary" data-act="return-played" data-id="'+sid+'">&#10003; Finish game</button>';
+    if(byId(data.playing,id)) return '<button class="btn blue game-primary" data-act="pl-played" data-id="'+sid+'">&#10003; Finish game</button>';
+    return '<button class="btn game-primary" data-act="played-now" data-id="'+sid+'">Play now</button>';
+  }
+  if(tab==="queue") return '<button class="btn blue game-primary" data-act="q-rent" data-id="'+sid+'">Start rental</button>';
+  if(tab==="upcoming") return '<button class="btn blue game-primary" data-act="up-queue" data-id="'+sid+'">+ Rental Queue</button>';
+  if(tab==="suggest") return '<button class="btn blue game-primary" data-act="sug-queue" data-name="'+esc(x.name)+'">+ Rental Queue</button>';
+  if(tab==="played") return '<button class="btn game-primary" data-act="played-resume" data-id="'+sid+'">Resume later</button>';
+  return "";
+}
 function gameTile(x,id,sub,detailHtml){
   var score=x&&x.score?("Critic "+x.score):(x&&x.rrating?x.rrating+"★":(x&&x.rating?Math.round(x.rating*10)/10+"★":"Game"));
-  return '<div class="card game-tile"><div class="game-tile-main" role="button" tabindex="0" data-act="game-open" data-id="'+esc(String(id))+'">'+
+  var state=gameTileState(x,id,sub);
+  return '<div class="card game-tile">'+(state?'<span class="title-state state-game-'+state[1]+'">'+state[0]+'</span>':'')+'<div class="game-tile-main" role="button" tabindex="0" data-act="game-open" data-id="'+esc(String(id))+'">'+
     '<div class="game-cover-wrap">'+gameCoverHero(x)+'</div>'+
     '<div class="game-tile-info"><div class="game-tile-title">'+esc(x.name)+'</div>'+
     '<div class="game-tile-meta"><span class="game-pill">'+esc(score)+'</span><span class="game-pill">'+esc(x.genre||tierFor(x.name)||"PS5")+'</span>'+(sub?'<span class="game-pill">'+sub+'</span>':'')+'</div>'+
     (detailHtml?'<div class="game-tile-detail">'+detailHtml+'</div>':'')+'</div>'+
-  '</div></div>';
+  '</div><div class="game-card-actions">'+gameTilePrimary(x,id)+'</div></div>';
 }
 function rentalDaysChip(left){
   var label=left<=0?"Expired":left+" day"+(left===1?"":"s")+" left";
@@ -1767,6 +1811,32 @@ function finishTabRender(){
   });
   requestAnimationFrame(centerActiveTab);
 }
+function tabCount(kind,key){
+  if(kind==="game"){
+    if(key==="rentals") return (data.rentals||[]).length;
+    if(key==="playing") return (data.rentals||[]).length+(data.playing||[]).length+(data.played||[]).filter(function(x){return x.status==="Playing"||x.status==="Dropped";}).length;
+    if(key==="queue") return (data.queue||[]).length;
+    if(key==="upcoming") return (data.upcoming||[]).length;
+    if(key==="played") return (data.played||[]).filter(function(x){return x.status!=="Playing"&&x.status!=="Dropped";}).length;
+    return 0;
+  }
+  if(kind==="film"){
+    if(key==="watchlist") return (data.movieWatchlist||[]).length;
+    if(key==="watched") return (data.watchedMovies||[]).length;
+    return ((filmCache[key]||{}).items||[]).length;
+  }
+  if(kind==="series"){
+    if(key==="serieswatchlist") return (data.seriesWatchlist||[]).length;
+    if(key==="serieswatching") return (data.watchingSeries||[]).length;
+    if(key==="serieswatched") return (data.watchedSeries||[]).length;
+    return ((seriesCache[key]||{}).items||[]).length;
+  }
+  return 0;
+}
+function tabCountHtml(kind,key){
+  var n=tabCount(kind,key);
+  return n?'<span class="tab-count">'+n+'</span>':'';
+}
 
 function renderTabs(){
   if(section==="biglybt"){
@@ -1784,7 +1854,7 @@ function renderTabs(){
   if(section==="series"){
     var sd=[["serieswatchlist","♡","My Watchlist"],["serieswatching","▶","Watching"],["seriesnew","!","New Episodes"],["seriesupcoming","△","Upcoming"],["seriesdiscover","*","Discover"],["serieswatched","✓","Watched"]];
     document.getElementById("tabs").innerHTML = sd.map(function(d){
-      return '<button class="tab '+(seriesTab===d[0]?"on":"")+'" data-stab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
+      return '<button class="tab '+(seriesTab===d[0]?"on":"")+'" data-stab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+tabCountHtml("series",d[0])+'</button>';
     }).join("");
     finishTabRender();
     return;
@@ -1792,14 +1862,14 @@ function renderTabs(){
   if(section==="films"){
     var fd=[["watchlist","♥","My Watchlist"],["uphw","△","Coming Soon"],["bluray","◉","New on Blu-ray"],["relhw","★","Discover"],["mlott","▶","Malayalam OTT"],["watched","✓","Watched"]];
     document.getElementById("tabs").innerHTML = fd.map(function(d){
-      return '<button class="tab '+(filmTab===d[0]?"on":"")+'" data-ftab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
+      return '<button class="tab '+(filmTab===d[0]?"on":"")+'" data-ftab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+tabCountHtml("film",d[0])+'</button>';
     }).join("");
     finishTabRender();
     return;
   }
   var defs=[["rentals","✕","Rentals"],["playing","▶","Now Playing"],["queue","◇","Rental Queue"],["upcoming","△","Upcoming Releases"],["suggest","○","Discover"],["played","□","Completed"]];
   document.getElementById("tabs").innerHTML = defs.map(function(d){
-    return '<button class="tab '+(tab===d[0]?"on":"")+'" data-tab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';
+    return '<button class="tab '+(tab===d[0]?"on":"")+'" data-tab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+tabCountHtml("game",d[0])+'</button>';
   }).join("");
   finishTabRender();
 }
@@ -3176,6 +3246,10 @@ var FILM_VIEW_KEY="ps5-film-view", SERIES_VIEW_KEY="ps5-series-view";
 var filmView="grid", seriesView="grid";
 try{ filmView=localStorage.getItem(FILM_VIEW_KEY)||"grid"; }catch(e){}
 try{ seriesView=localStorage.getItem(SERIES_VIEW_KEY)||"grid"; }catch(e){}
+var FILM_SORT_KEY="gamevault-film-sort", SERIES_SORT_KEY="gamevault-series-sort";
+var filmSort="smart", seriesSort="smart";
+try{ filmSort=localStorage.getItem(FILM_SORT_KEY)||"smart"; }catch(e){}
+try{ seriesSort=localStorage.getItem(SERIES_SORT_KEY)||"smart"; }catch(e){}
 var SERIES_PROVIDER_KEY="ps5-series-provider", SERIES_LANGUAGE_KEY="ps5-series-language";
 var seriesProvider="",seriesLanguage="";
 try{ seriesProvider=localStorage.getItem(SERIES_PROVIDER_KEY)||""; }catch(e){}
@@ -3235,6 +3309,22 @@ function mediaViewToggle(kind){
     '<button class="gchip '+(v==="list"?"on":"")+'" data-act="media-view" data-kind="'+kind+'" data-view="list">List View</button>'+
   '</div>';
 }
+function mediaSortSelect(kind){
+  var value=kind==="series"?seriesSort:filmSort;
+  var labels={smart:"Recommended order",added:"Recently added",newest:"Newest release",oldest:"Oldest release",rating:"Highest rated",title:"Title A–Z"};
+  return '<select class="selectmini '+kind+'-sort" title="Sort titles">'+Object.keys(labels).map(function(v){return '<option value="'+v+'"'+(value===v?' selected':'')+'>'+labels[v]+'</option>';}).join("")+'</select>';
+}
+function applyMediaSort(items,kind){
+  var mode=kind==="series"?seriesSort:filmSort;
+  if(mode==="smart") return items;
+  return items.slice().sort(function(a,b){
+    if(mode==="title") return String(a.title||"").localeCompare(String(b.title||""));
+    if(mode==="rating") return (Number(b.imdb||b.tmdb)||0)-(Number(a.imdb||a.tmdb)||0);
+    if(mode==="added") return Number(b.added||b.started||b.t||0)-Number(a.added||a.started||a.t||0);
+    var ad=String(a.ottDate||a.latestDate||a.date||a.year||""),bd=String(b.ottDate||b.latestDate||b.date||b.year||"");
+    return mode==="oldest"?ad.localeCompare(bd):bd.localeCompare(ad);
+  });
+}
 function mediaWrapClass(kind){
   var v=kind==="series"?seriesView:filmView;
   return 'cards '+(v==="list"?'media-list':'media-grid');
@@ -3256,7 +3346,15 @@ function mediaSummary(title, rating, genre, extra){
     '<span class="media-pill imdb">'+esc(rating)+'</span><span class="media-pill">'+esc(genre)+'</span></div>'+(extra||'')+'</div>';
 }
 function mediaClose(kind){
-  return '<div class="media-closebar"><button class="btn blue" data-act="media-close" data-kind="'+kind+'">&larr; Back</button></div>';
+  return '<div class="media-closebar"><button class="detail-close" data-act="media-close" data-kind="'+kind+'" aria-label="Close details" title="Close details (Esc)">&times;</button></div>';
+}
+function closeMediaStateDetail(kind,id){
+  var wasOpen=kind==="film"?String(filmExpanded)===String(id):String(seriesExpanded)===String(id);
+  if(!wasOpen) return false;
+  if(kind==="film") filmExpanded=null; else seriesExpanded=null;
+  aiOpen=null;
+  if(!TV_MODE&&history.state&&history.state.gameVaultDetail) history.replaceState(null,"",location.href.split("#")[0]);
+  return true;
 }
 function seriesLanguageOptions(selected){
   return [["","All languages"],["en","English"],["ml","Malayalam"],["ta","Tamil"],["hi","Hindi"]].map(function(p){
@@ -3569,8 +3667,22 @@ function watchlistMovieKeys(){ var s={}; (data.movieWatchlist||[]).forEach(funct
 function isMovieWatched(m, set){ return !!(set||watchedMovieKeys())[movieWatchKey(m)]; }
 function hiddenMovieKeys(){ var s={}; (data.hiddenMovies||[]).forEach(function(w){ s[w.key]=1; }); return s; }
 function moviePlotName(m){ return m.title+(m.year?(" "+m.year):""); }
+function captureVaultLists(keys){
+  var snapshot={};
+  keys.forEach(function(key){ snapshot[key]=JSON.parse(JSON.stringify(data[key]||[])); });
+  return snapshot;
+}
+function commitVaultUndo(snapshot,message){
+  save();
+  flash(message,function(){
+    Object.keys(snapshot).forEach(function(key){ data[key]=snapshot[key]; });
+    save();
+    flash("Change undone");
+  });
+}
 function markMovieWatched(m){
   if(!m) return;
+  var undo=captureVaultLists(["movieWatchlist","watchedMovies","hiddenMovies"]);
   var key=movieWatchKey(m);
   if(!data.watchedMovies) data.watchedMovies=[];
   data.movieWatchlist=(data.movieWatchlist||[]).filter(function(x){ return movieWatchKey(x)!==key; });
@@ -3579,14 +3691,16 @@ function markMovieWatched(m){
   data.watchedMovies.unshift({key:key, id:m.id, title:m.title, year:m.year||"", poster:m.poster||"",
     imdb:(typeof m.imdb==="number"?m.imdb:null), imdbId:m.imdbId||null,
     providers:m.providers||[], ottDate:m.ottDate||"", date:m.date||"", overview:m.overview||"", genres:m.genres||[], t:Date.now()});
-  save(); flash("Moved to Watched — it won’t show up again");
+  commitVaultUndo(undo,"Marked Watched — it won’t show up again");
 }
 function unwatchMovie(key){
+  var undo=captureVaultLists(["watchedMovies"]);
   data.watchedMovies=(data.watchedMovies||[]).filter(function(w){return w.key!==key;});
-  save(); flash("Removed from Watched");
+  commitVaultUndo(undo,"Removed from Watched");
 }
 function hideMovie(m){
   if(!m) return;
+  var undo=captureVaultLists(["movieWatchlist","hiddenMovies"]);
   var key=movieWatchKey(m);
   if(!data.hiddenMovies) data.hiddenMovies=[];
   data.movieWatchlist=(data.movieWatchlist||[]).filter(function(x){ return movieWatchKey(x)!==key; });
@@ -3595,11 +3709,12 @@ function hideMovie(m){
       imdb:(typeof m.imdb==="number"?m.imdb:null), imdbId:m.imdbId||null, tmdb:m.tmdb||null,
       providers:m.providers||[], ottDate:m.ottDate||"", date:m.date||"", overview:m.overview||"", genres:m.genres||[], t:Date.now()});
   }
-  save(); flash("Moved to Not Interested");
+  commitVaultUndo(undo,"Moved to Not Interested");
 }
 function unhideMovie(key){
+  var undo=captureVaultLists(["hiddenMovies"]);
   data.hiddenMovies=(data.hiddenMovies||[]).filter(function(x){ return x.key!==key; });
-  save(); flash("Restored");
+  commitVaultUndo(undo,"Restored");
 }
 function findCachedMovie(id){
   for(var k in filmCache){ var c=filmCache[k]; if(c&&c.items){ for(var i=0;i<c.items.length;i++){ if(String(c.items[i].id)===String(id)) return c.items[i]; } } }
@@ -3637,19 +3752,44 @@ function findWatchlistMovie(id){ return (data.movieWatchlist||[]).filter(functio
 function inWatchlist(m){ return (data.movieWatchlist||[]).some(function(x){ return String(x.id)===String(m.id); }); }
 function addToWatchlist(m){
   if(!m) return;
+  var undo=captureVaultLists(["movieWatchlist","hiddenMovies"]);
   if(!data.movieWatchlist) data.movieWatchlist=[];
   data.hiddenMovies=(data.hiddenMovies||[]).filter(function(x){ return movieWatchKey(x)!==movieWatchKey(m); });
   if(inWatchlist(m)){ flash("Already in your watchlist"); return; }
   data.movieWatchlist.unshift({key:movieWatchKey(m), id:m.id, title:m.title, year:m.year||"", poster:m.poster||"",
     imdb:(typeof m.imdb==="number"?m.imdb:null), imdbId:m.imdbId||null, tmdb:m.tmdb||null, overview:m.overview||"", genres:m.genres||[], added:Date.now()});
-  save(); flash("Added to your watchlist");
+  commitVaultUndo(undo,"Added to your watchlist");
 }
 function removeFromWatchlist(id){
+  var undo=captureVaultLists(["movieWatchlist"]);
   data.movieWatchlist=(data.movieWatchlist||[]).filter(function(x){ return String(x.id)!==String(id); });
-  save(); flash("Removed from watchlist");
+  commitVaultUndo(undo,"Removed from watchlist");
 }
-function movieMoreMenu(m){
-  return '<select class="selectmini mv-more" data-id="'+esc(String(m.id))+'"><option value="">Move to...</option><option value="watched">Watched</option><option value="watchlist">Add to Watchlist</option><option value="hide">Not Interested</option></select>';
+function titleOverflow(label,items){
+  return '<details class="title-menu"><summary aria-label="More actions for '+esc(label)+'" title="More actions">&#8943;<span>More</span></summary><div class="title-menu-pop">'+items.join("")+'</div></details>';
+}
+function moviePrimaryAction(m,key,compact){
+  var id=esc(String(m.id)),cls=compact?'btn title-primary compact':'btn blue title-primary';
+  if(key==="watched") return '<button class="'+cls+'" data-act="movie-primary" data-state="unwatch" data-id="'+id+'">&#8634; Restore</button>';
+  if(key==="watchlist") return '<button class="'+cls+'" data-act="movie-primary" data-state="watched" data-id="'+id+'">&#10003; Mark Watched</button>';
+  return '<button class="'+cls+'" data-act="movie-primary" data-state="watchlist" data-id="'+id+'">+ Watchlist</button>';
+}
+function movieMoreMenu(m,key){
+  var id=esc(String(m.id)),items=[];
+  if(key!=="watchlist"&&key!=="watched") items.push('<button type="button" data-act="movie-state" data-state="watched" data-id="'+id+'">&#10003; Mark Watched</button>');
+  if(key!=="watchlist") items.push('<button type="button" data-act="movie-state" data-state="watchlist" data-id="'+id+'">+ Add to Watchlist</button>');
+  if(key!=="watched") items.push('<button type="button" data-act="movie-state" data-state="hide" data-id="'+id+'">Not Interested</button>');
+  if(key==="watchlist") items.push('<button type="button" class="danger" data-act="movie-state" data-state="remove" data-id="'+id+'">Remove from Watchlist</button>');
+  if(key==="watched") items.push('<button type="button" data-act="movie-state" data-state="unwatch" data-id="'+id+'">Restore to suggestions</button>');
+  return titleOverflow(m.title,items);
+}
+function movieStateBadge(key){
+  var labels={watchlist:"WATCHLIST",watched:"WATCHED",uphw:"UPCOMING",bluray:"BLU-RAY",mlott:"OTT"};
+  return labels[key]?'<span class="title-state state-'+key+'">'+labels[key]+'</span>':'';
+}
+function movieCompactLinks(m){
+  var q=m.title+" "+(m.year||"");
+  return '<a class="btn compact-link" href="https://www.youtube.com/results?search_query='+encodeURIComponent(q+" trailer")+'" target="_blank" rel="noopener">&#9654; Trailer</a>'+imdbLink(m);
 }
 function releaseCountdown(date){
   if(!date) return "";
@@ -3684,37 +3824,24 @@ function mediaProvidersBlock(x){
 }
 function filmDetailPage(m,key){
   refreshImdbIfStale(m);
-  var actions='<div class="actions">';
-  if(key==="watched") actions+='<button class="btn blue" data-act="mv-unwatch" data-key="'+esc(m.key||movieWatchKey(m))+'">Unwatch</button>';
-  else actions+=movieMoreMenu(m);
-  if(inWatchlist(m)) actions+='<button class="btn ghost danger" data-act="mw-remove" data-id="'+esc(String(m.id))+'">Remove from Watchlist</button>';
+  var actions='<div class="actions detail-actionbar">'+moviePrimaryAction(m,key,false)+movieMoreMenu(m,key);
   var showReviews=(key==="mlott"||key==="mlup"||(key==="watched"&&m.providers&&m.providers.length));
   actions+=movieLinks(m.title,m.year)+imdbLink(m)+((key==="bluray"||key==="uphw"||key==="relhw"||key==="watched"||key==="watchlist")?reeloadReviewLink(m.title,m.year,"movie"):"")+(showReviews?mlReviewLinks(m.title):"")+
     tmdbMovieLink(m)+
     '<button class="btn" data-act="ai-open" data-ai-type="film" data-id="'+esc(String(m.id))+'">AI Assistant</button></div>';
-  return '<div class="media-page">'+mediaPageHero("film",m,MOVIE_GENRES)+filmReleaseMeta(m,key)+mediaProvidersBlock(m)+plotBlock(moviePlotName(m),"film")+aiPanel("film",m)+actions+'</div>';
+  return '<div class="media-page">'+mediaPageHero("film",m,MOVIE_GENRES)+filmReleaseMeta(m,key)+actions+mediaProvidersBlock(m)+plotBlock(moviePlotName(m),"film")+aiPanel("film",m)+'</div>';
 }
 function watchlistSearchCard(m){
-  return '<div class="card media-card"><div class="media-main clickrow" role="button" tabindex="0" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+movieMain(m,"search")+'</div>'+(filmView==="list"?movieQuickActions(m,"search"):"")+'</div>';
+  return movieCard(m,"search");
 }
 function watchlistCard(m){
-  return '<div class="card media-card"><div class="media-main clickrow" role="button" tabindex="0" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+movieMain(m,"watchlist")+'</div>'+(filmView==="list"?movieQuickActions(m,"watchlist"):"")+'</div>';
+  return movieCard(m,"watchlist");
 }
 function movieQuickActions(m,key){
-  var showReviews=(key==="mlott"||key==="mlup"||(key==="watched"&&m.providers&&m.providers.length));
-  var h='<div class="actions" style="padding:0 12px 12px">';
-  if(key==="watched") h+='<button class="btn blue" data-act="mv-unwatch" data-key="'+esc(m.key||movieWatchKey(m))+'">Unwatch</button>';
-  else h+=movieMoreMenu(m);
-  h+=movieLinks(m.title,m.year)+imdbLink(m)+
-    ((key==="bluray"||key==="uphw"||key==="relhw"||key==="watched"||key==="watchlist"||key==="search")?reeloadReviewLink(m.title,m.year,"movie"):"")+
-    (showReviews?mlReviewLinks(m.title):"")+
-    tmdbMovieLink(m)+
-    '<button class="btn" data-act="ai-open" data-ai-type="film" data-id="'+esc(String(m.id))+'">AI Assistant</button>';
-  if(key==="watchlist") h+='<button class="btn ghost danger" data-act="mw-remove" data-id="'+esc(String(m.id))+'">Remove</button>';
-  return h+'</div>';
+  return '<div class="media-card-actions">'+moviePrimaryAction(m,key,true)+movieCompactLinks(m)+movieMoreMenu(m,key)+'</div>';
 }
 function movieCard(m, key){
-  return '<div class="card media-card"><div class="media-main clickrow" role="button" tabindex="0" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+movieMain(m,key)+'</div>'+(filmView==="list"?movieQuickActions(m,key):"")+'</div>';
+  return '<div class="card media-card">'+movieStateBadge(key)+'<div class="media-main clickrow" role="button" tabindex="0" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+movieMain(m,key)+'</div>'+movieQuickActions(m,key)+'</div>';
 }
 function renderFilms(){
   var key=filmTab;
@@ -3735,10 +3862,10 @@ function renderFilms(){
 
   // Watchlist tab: internet search + personal list, from the synced vault
   if(key==="watchlist"){
-    var wl=(data.movieWatchlist||[]).filter(function(m){ return matchMediaYear(m, filmYear); }).slice().sort(newerFirst);
+    var wl=applyMediaSort((data.movieWatchlist||[]).filter(function(m){ return matchMediaYear(m, filmYear); }).slice().sort(newerFirst),"film");
     var hidden=data.hiddenMovies||[];
     var hset=hiddenMovieKeys();
-    var wh='<div class="toolbar" style="margin-top:14px"><select class="selectmini film-year" title="Filter by year">'+yearOptions(filmYear)+'</select><div class="searchwrap"><span class="sic">⌕</span>'+
+    var wh='<div class="toolbar" style="margin-top:14px"><select class="selectmini film-year" title="Filter by year">'+yearOptions(filmYear)+'</select>'+mediaSortSelect("film")+'<div class="searchwrap"><span class="sic">⌕</span>'+
       '<input class="tab-search" id="mwSearch" placeholder="Search any movie to add…" value="'+esc(movieSearchQ)+'" autocomplete="off">'+
       (movieSearchQ?'<button class="sclear" data-act="mw-clear" title="Clear">✕</button>':'')+'</div></div>'+
       mediaViewToggle("film")+
@@ -3765,8 +3892,8 @@ function renderFilms(){
 
   // Watched tab: rendered straight from the synced vault, no internet needed
   if(key==="watched"){
-    var wm=(data.watchedMovies||[]).filter(function(m){ return matchMediaYear(m, filmYear); }).slice().sort(newerFirst);
-    var wh='<div class="toolbar" style="margin-top:14px"><select class="selectmini film-year" title="Filter by year">'+yearOptions(filmYear)+'</select></div>'+mediaViewToggle("film")+'<div class="meta" style="margin:14px 0 10px">'+blurbs.watched+'</div>';
+    var wm=applyMediaSort((data.watchedMovies||[]).filter(function(m){ return matchMediaYear(m, filmYear); }).slice().sort(newerFirst),"film");
+    var wh='<div class="toolbar" style="margin-top:14px"><select class="selectmini film-year" title="Filter by year">'+yearOptions(filmYear)+'</select>'+mediaSortSelect("film")+'</div>'+mediaViewToggle("film")+'<div class="meta" style="margin:14px 0 10px">'+blurbs.watched+'</div>';
     if(!wm.length) return wh+'<div class="empty">No watched films yet. On any film, pick <b>✓ Watched</b> from its dropdown to file it here.</div>';
     wh+='<div class="'+mediaWrapClass("film")+'">';
     wm.forEach(function(m){ wh+=movieCard(m,"watched"); });
@@ -3779,6 +3906,7 @@ function renderFilms(){
     '<div class="toolbar" style="margin-top:14px">'+
     '<select class="selectmini film-genre" title="Filter by genre">'+genreOptions(MOVIE_GENRES, filmGenre)+'</select>'+
     '<select class="selectmini film-year" title="Filter by year">'+yearOptions(filmYear)+'</select>'+
+    mediaSortSelect("film")+
     '<button class="btn blue" data-act="film-refresh"'+((filmBusy[key]||(key==="mlott"&&filmBusy.mlup))?' disabled':'')+'>'+((filmBusy[key]||(key==="mlott"&&filmBusy.mlup))?"Updating…":"↻ Refresh from internet")+'</button>'+
     '<span class="syncnote" style="align-self:center">'+(last?("Updated "+new Date(last.t).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})):"")+'</span>'+
     '</div>'+
@@ -3806,10 +3934,12 @@ function renderFilms(){
     return matchMediaYear(m, filmYear) && !hset2[mk] && (!hidePersonal || (!wset[mk] && !wlset[mk]));
   }); // watched/watchlist/hidden stay out of suggestion lists, except Upcoming
   if(key==="bluray"||key==="relhw"||key==="mlott") items.sort(newerFirst);
+  items=applyMediaSort(items,"film");
   var upcomingItems=[];
   if(key==="mlott") upcomingItems=((mlUpcoming&&mlUpcoming.items)||[]).filter(function(m){
     var mk=movieWatchKey(m); return matchMediaYear(m,filmYear)&&!hset2[mk];
   }).sort(function(a,b){return (a.ottDate||a.date||"").localeCompare(b.ottDate||b.date||"");});
+  upcomingItems=applyMediaSort(upcomingItems,"film");
   if(!items.length && !upcomingItems.length){
     setTimeout(function(){ ensureFilms(key); },60);
     return html+'<div class="empty">'+(filmBusy[key]?"Loading…":(last?"Nothing left here — everything shown is marked Watched.":"Nothing to show yet — tap ↻ Refresh."))+'</div>';
@@ -4041,6 +4171,7 @@ function rankEnglishSeries(list){
 }
 function markSeriesWatched(s){
   if(!s) return;
+  var undo=captureVaultLists(["seriesWatchlist","watchingSeries","watchedSeries"]);
   var key=seriesKey(s);
   if(!data.watchedSeries) data.watchedSeries=[];
   if(data.watchedSeries.some(function(x){ return x.key===key; })) return;
@@ -4049,10 +4180,11 @@ function markSeriesWatched(s){
     date:s.date||"", latestDate:s.latestDate||"", overview:s.overview||"", genres:s.genres||[], seasons:s.seasons||"", seasonList:s.seasonList||[], providers:s.providers||[], t:Date.now()});
   data.seriesWatchlist=(data.seriesWatchlist||[]).filter(function(x){ return seriesKey(x)!==key; });
   data.watchingSeries=(data.watchingSeries||[]).filter(function(x){ return seriesKey(x)!==key; });
-  save(); flash("Moved to Watched - it won't show again");
+  commitVaultUndo(undo,"Marked Watched — it won’t show again");
 }
 function markSeriesWatching(s){
   if(!s) return;
+  var undo=captureVaultLists(["seriesWatchlist","watchingSeries","watchedSeries","hiddenSeries"]);
   var key=seriesKey(s);
   if(!data.watchingSeries) data.watchingSeries=[];
   data.seriesWatchlist=(data.seriesWatchlist||[]).filter(function(x){return seriesKey(x)!==key;});
@@ -4061,14 +4193,16 @@ function markSeriesWatching(s){
   if(!data.watchingSeries.some(function(x){return seriesKey(x)===key;})){
     data.watchingSeries.unshift({key:key,id:s.id,title:s.title,year:s.year||"",poster:s.poster||"",imdb:typeof s.imdb==="number"?s.imdb:null,imdbId:s.imdbId||null,tmdb:s.tmdb||null,date:s.date||"",latestDate:s.latestDate||"",overview:s.overview||"",genres:s.genres||[],seasons:s.seasons||"",seasonList:s.seasonList||[],providers:s.providers||[],started:Date.now()});
   }
-  save(); flash("Moved to Watching");
+  commitVaultUndo(undo,"Moved to Watching");
 }
 function unwatchSeries(key){
+  var undo=captureVaultLists(["watchedSeries"]);
   data.watchedSeries=(data.watchedSeries||[]).filter(function(s){ return s.key!==key; });
-  save(); flash("Removed from Watched");
+  commitVaultUndo(undo,"Removed from Watched");
 }
 function hideSeries(s){
   if(!s) return;
+  var undo=captureVaultLists(["seriesWatchlist","watchingSeries","hiddenSeries"]);
   var key=seriesKey(s);
   if(!data.hiddenSeries) data.hiddenSeries=[];
   data.seriesWatchlist=(data.seriesWatchlist||[]).filter(function(x){ return seriesKey(x)!==key; });
@@ -4078,14 +4212,36 @@ function hideSeries(s){
       imdb:(typeof s.imdb==="number"?s.imdb:null), imdbId:s.imdbId||null, tmdb:s.tmdb||null,
       date:s.date||"", overview:s.overview||"", genres:s.genres||[], seasons:s.seasons||"", seasonList:s.seasonList||[], providers:s.providers||[], t:Date.now()});
   }
-  save(); flash("Moved to Not Interested");
+  commitVaultUndo(undo,"Moved to Not Interested");
 }
 function unhideSeries(key){
+  var undo=captureVaultLists(["hiddenSeries"]);
   data.hiddenSeries=(data.hiddenSeries||[]).filter(function(s){ return s.key!==key; });
-  save(); flash("Restored");
+  commitVaultUndo(undo,"Restored");
 }
-function seriesMoreMenu(s){
-  return '<select class="selectmini sr-more" data-id="'+esc(String(s.id))+'"><option value="">Move to...</option><option value="watching">Watching</option><option value="watched">Watched</option><option value="watchlist">Add to Watchlist</option><option value="hide">Not Interested</option></select>';
+function seriesPrimaryAction(s,key,compact){
+  var id=esc(String(s.id)),cls=compact?'btn title-primary compact':'btn blue title-primary';
+  if(key==="serieswatched") return '<button class="'+cls+'" data-act="series-primary" data-state="unwatch" data-id="'+id+'">&#8634; Restore</button>';
+  if(key==="serieswatchlist"||key==="serieswatching"||key==="seriesnew") return '<button class="'+cls+'" data-act="series-primary" data-state="watched" data-id="'+id+'">&#10003; Mark Watched</button>';
+  return '<button class="'+cls+'" data-act="series-primary" data-state="watchlist" data-id="'+id+'">+ Watchlist</button>';
+}
+function seriesMoreMenu(s,key){
+  var id=esc(String(s.id)),items=[];
+  if(key!=="serieswatching"&&key!=="seriesnew"&&key!=="serieswatched") items.push('<button type="button" data-act="series-state" data-state="watching" data-id="'+id+'">&#9654; Start Watching</button>');
+  if(key!=="serieswatched") items.push('<button type="button" data-act="series-state" data-state="watched" data-id="'+id+'">&#10003; Mark Watched</button>');
+  if(key!=="serieswatchlist") items.push('<button type="button" data-act="series-state" data-state="watchlist" data-id="'+id+'">+ Add to Watchlist</button>');
+  if(key!=="serieswatched") items.push('<button type="button" data-act="series-state" data-state="hide" data-id="'+id+'">Not Interested</button>');
+  if(key==="serieswatchlist") items.push('<button type="button" class="danger" data-act="series-state" data-state="remove" data-id="'+id+'">Remove from Watchlist</button>');
+  if(key==="serieswatched") items.push('<button type="button" data-act="series-state" data-state="unwatch" data-id="'+id+'">Restore to suggestions</button>');
+  return titleOverflow(s.title,items);
+}
+function seriesStateBadge(key){
+  var labels={serieswatchlist:"WATCHLIST",serieswatching:"WATCHING",seriesnew:"NEW EPISODE",seriesupcoming:"UPCOMING",serieswatched:"WATCHED"};
+  return labels[key]?'<span class="title-state state-'+key+'">'+labels[key]+'</span>':'';
+}
+function seriesCompactLinks(s){
+  var q=s.title+" "+(s.year||"");
+  return '<a class="btn compact-link" href="https://www.youtube.com/results?search_query='+encodeURIComponent(q+" trailer")+'" target="_blank" rel="noopener">&#9654; Trailer</a>'+seriesImdbLink(s);
 }
 function seriesLinks(title,year){
   var q=title+" "+(year||"");
@@ -4178,6 +4334,7 @@ function findWatchlistSeries(id){ return (data.seriesWatchlist||[]).filter(funct
 function inSeriesWatchlist(s){ return (data.seriesWatchlist||[]).some(function(x){ return String(x.id)===String(s.id); }); }
 function addSeriesWatchlist(s){
   if(!s) return;
+  var undo=captureVaultLists(["seriesWatchlist","watchingSeries","hiddenSeries"]);
   if(!data.seriesWatchlist) data.seriesWatchlist=[];
   data.hiddenSeries=(data.hiddenSeries||[]).filter(function(x){ return seriesKey(x)!==seriesKey(s); });
   data.watchingSeries=(data.watchingSeries||[]).filter(function(x){ return seriesKey(x)!==seriesKey(s); });
@@ -4185,30 +4342,28 @@ function addSeriesWatchlist(s){
   data.seriesWatchlist.unshift({key:seriesKey(s), id:s.id, title:s.title, year:s.year||"", poster:s.poster||"",
     imdb:(typeof s.imdb==="number"?s.imdb:null), imdbId:s.imdbId||null, tmdb:s.tmdb||null,
     overview:s.overview||"", genres:s.genres||[], date:s.date||"", latestDate:s.latestDate||"", seasons:s.seasons||"", seasonList:s.seasonList||[], providers:s.providers||[], added:Date.now()});
-  save(); flash("Added to your series watchlist");
+  commitVaultUndo(undo,"Added to your series watchlist");
 }
 function removeSeriesWatchlist(id){
+  var undo=captureVaultLists(["seriesWatchlist"]);
   data.seriesWatchlist=(data.seriesWatchlist||[]).filter(function(x){ return String(x.id)!==String(id); });
-  save(); flash("Removed from watchlist");
+  commitVaultUndo(undo,"Removed from watchlist");
 }
 function seriesDetailPage(s,key){
   refreshImdbIfStale(s);
-  var actions='<div class="actions">';
-  if(key==="serieswatched") actions+='<button class="btn blue" data-act="sr-unwatch" data-key="'+esc(s.key||seriesKey(s))+'">Unwatch</button>';
-  else actions+=seriesMoreMenu(s);
+  var actions='<div class="actions detail-actionbar">'+seriesPrimaryAction(s,key,false)+seriesMoreMenu(s,key);
   if(key!=="serieswatched") actions+=seriesRatingDots(s);
   actions+=seriesLinks(s.title,s.year)+((key==="enseries"||key==="serieswatchlist"||key==="serieswatched")?reeloadReviewLink(s.title,s.year,"series"):"")+seriesImdbLink(s)+
     '<button class="btn" data-act="ai-open" data-ai-type="series" data-id="'+esc(String(s.id))+'">AI Assistant</button>'+
     '<a class="btn" href="https://www.themoviedb.org/tv/'+s.id+'" target="_blank" rel="noopener">TMDB</a>';
-  if(inSeriesWatchlist(s)) actions+='<button class="btn ghost danger" data-act="sw-remove" data-id="'+esc(String(s.id))+'">Remove from Watchlist</button>';
   actions+='</div>';
-  return '<div class="media-page">'+mediaPageHero("series",s,SERIES_GENRES)+seriesReleaseMeta(s)+mediaProvidersBlock(s)+seriesEpisodeBlock(s)+aiPanel("series",s)+actions+'</div>';
+  return '<div class="media-page">'+mediaPageHero("series",s,SERIES_GENRES)+seriesReleaseMeta(s)+actions+mediaProvidersBlock(s)+seriesEpisodeBlock(s)+aiPanel("series",s)+'</div>';
 }
 function seriesSearchCard(s){
-  return '<div class="card media-card"><div class="media-main clickrow" role="button" tabindex="0" data-act="sr-toggle" data-id="'+esc(String(s.id))+'">'+seriesMain(s)+'</div></div>';
+  return seriesCard(s,"seriessearch");
 }
 function seriesCard(s, key){
-  return '<div class="card media-card"><div class="media-main clickrow" role="button" tabindex="0" data-act="sr-toggle" data-id="'+esc(String(s.id))+'">'+seriesMain(s)+'</div></div>';
+  return '<div class="card media-card">'+seriesStateBadge(key)+'<div class="media-main clickrow" role="button" tabindex="0" data-act="sr-toggle" data-id="'+esc(String(s.id))+'">'+seriesMain(s)+'</div><div class="media-card-actions">'+seriesPrimaryAction(s,key,true)+seriesCompactLinks(s)+seriesMoreMenu(s,key)+'</div></div>';
 }
 function renderSeries(){
   var key=seriesTab;
@@ -4230,10 +4385,10 @@ function renderSeries(){
     return seriesDetailPage(selectedSeries,key);
   }
   if(key==="serieswatchlist"){
-    var wl=(data.seriesWatchlist||[]).filter(function(s){ return matchMediaYear(s, seriesYear); }).slice().sort(newerFirst);
+    var wl=applyMediaSort((data.seriesWatchlist||[]).filter(function(s){ return matchMediaYear(s, seriesYear); }).slice().sort(newerFirst),"series");
     var hidden=data.hiddenSeries||[];
     var hset=hiddenSeriesKeys();
-    var wh='<div class="toolbar" style="margin-top:14px"><select class="selectmini series-year" title="Filter by year">'+yearOptions(seriesYear)+'</select><div class="searchwrap"><span class="sic">⌕</span>'+
+    var wh='<div class="toolbar" style="margin-top:14px"><select class="selectmini series-year" title="Filter by year">'+yearOptions(seriesYear)+'</select>'+mediaSortSelect("series")+'<div class="searchwrap"><span class="sic">⌕</span>'+
       '<input class="tab-search" id="swSearch" placeholder="Search any TV series to add..." value="'+esc(seriesSearchQ)+'" autocomplete="off">'+
       (seriesSearchQ?'<button class="sclear" data-act="sw-clear" title="Clear">×</button>':'')+'</div></div>'+
       mediaViewToggle("series")+
@@ -4263,13 +4418,14 @@ function renderSeries(){
       var cutoff=daysAgoISO(45);
       personal=personal.filter(function(s){return s.latestDate&&s.latestDate>=cutoff;}).sort(function(a,b){return (b.latestDate||"").localeCompare(a.latestDate||"");});
     }else personal.sort(newerFirst);
-    var po='<div class="toolbar" style="margin-top:14px"><select class="selectmini series-year" title="Filter by year">'+yearOptions(seriesYear)+'</select><button class="btn blue" data-act="series-refresh"'+(seriesBusy[key]?' disabled':'')+'>'+(seriesBusy[key]?"Updating...":"↻ Check for new episodes")+'</button></div>'+mediaViewToggle("series")+'<div class="meta" style="margin:14px 0 10px">'+blurbs[key]+'</div>';
+    personal=applyMediaSort(personal,"series");
+    var po='<div class="toolbar" style="margin-top:14px"><select class="selectmini series-year" title="Filter by year">'+yearOptions(seriesYear)+'</select>'+mediaSortSelect("series")+'<button class="btn blue" data-act="series-refresh"'+(seriesBusy[key]?' disabled':'')+'>'+(seriesBusy[key]?"Updating...":"↻ Check for new episodes")+'</button></div>'+mediaViewToggle("series")+'<div class="meta" style="margin:14px 0 10px">'+blurbs[key]+'</div>';
     if(!personal.length) return po+'<div class="empty">'+(key==="seriesnew"?"No episodes were released in the last 45 days for shows in Watching.":"Nothing is currently marked Watching. Open a show and choose Watching from its menu.")+'</div>';
     po+='<div class="'+mediaWrapClass("series")+'">'; personal.forEach(function(s){po+=seriesCard(s,key);}); return po+'</div>';
   }
   if(key==="serieswatched"){
-    var ws=(data.watchedSeries||[]).filter(function(s){ return matchMediaYear(s, seriesYear); }).slice().sort(newerFirst);
-    var out='<div class="toolbar" style="margin-top:14px"><select class="selectmini series-year" title="Filter by year">'+yearOptions(seriesYear)+'</select></div>'+mediaViewToggle("series")+'<div class="meta" style="margin:14px 0 10px">'+blurbs.serieswatched+'</div>';
+    var ws=applyMediaSort((data.watchedSeries||[]).filter(function(s){ return matchMediaYear(s, seriesYear); }).slice().sort(newerFirst),"series");
+    var out='<div class="toolbar" style="margin-top:14px"><select class="selectmini series-year" title="Filter by year">'+yearOptions(seriesYear)+'</select>'+mediaSortSelect("series")+'</div>'+mediaViewToggle("series")+'<div class="meta" style="margin:14px 0 10px">'+blurbs.serieswatched+'</div>';
     if(!ws.length) return out+'<div class="empty">No watched series yet. Pick <b>✓ Watched</b> from any series dropdown to file it here.</div>';
     out+='<div class="'+mediaWrapClass("series")+'">'; ws.forEach(function(s){ out+=seriesCard(s,"serieswatched"); }); return out+'</div>';
   }
@@ -4279,6 +4435,7 @@ function renderSeries(){
     '<select class="selectmini series-genre" title="Filter by genre">'+genreOptions(SERIES_GENRES, seriesGenre)+'</select>'+
     '<select class="selectmini series-year" title="Filter by year">'+yearOptions(seriesYear)+'</select>'+
     '<select class="selectmini series-provider" title="Filter by streaming platform">'+providerOptions(seriesProvider)+'</select>'+
+    mediaSortSelect("series")+
     '<button class="btn blue" data-act="series-refresh"'+(seriesBusy[key]?' disabled':'')+'>'+(seriesBusy[key]?"Updating...":"↻ Refresh from internet")+'</button>'+
     '<span class="syncnote" style="align-self:center">'+(last?("Updated "+new Date(last.t).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})):"")+'</span>'+
     '</div>'+mediaViewToggle("series")+'<div class="meta" style="margin-bottom:10px">'+blurbs[key]+'</div>';
@@ -4296,6 +4453,7 @@ function renderSeries(){
   if(key==="seriesupcoming") items.sort(function(a,b){return (a.date||"").localeCompare(b.date||"");});
   else if(key==="mlseries"||key==="taseries") items.sort(newerFirst);
   else items.sort(function(a,b){ return (b.imdb||b.tmdb||0)-(a.imdb||a.tmdb||0); });
+  items=applyMediaSort(items,"series");
   if(!items.length){
     setTimeout(function(){ ensureSeries(key); },60);
     return html+'<div class="empty">'+(seriesBusy[key]?"Loading...":(last?"Nothing left here - everything shown is marked Watched.":"Nothing to show yet - tap Refresh."))+'</div>';
@@ -4454,6 +4612,12 @@ function desktopOpenTabByIndex(index){
 }
 var desktopRailBtn=document.getElementById("desktopRailBtn");
 if(desktopRailBtn)desktopRailBtn.addEventListener("click",function(){try{localStorage.setItem(DESKTOP_RAIL_KEY,desktopRailCollapsed()?"0":"1");}catch(e){}applyDesktopShell();});
+var desktopRailTheme=document.getElementById("desktopRailTheme");
+if(desktopRailTheme)desktopRailTheme.addEventListener("click",function(){var b=document.getElementById("themeBtn");if(b)b.click();});
+var desktopRailSettings=document.getElementById("desktopRailSettings");
+if(desktopRailSettings)desktopRailSettings.addEventListener("click",function(){toggleSettings(true);});
+var desktopRailSync=document.getElementById("desktopRailSync");
+if(desktopRailSync)desktopRailSync.addEventListener("click",function(){if(cloudMode())silentPullOnLoad();else toggleSettings(true);});
 var commandBtn=document.getElementById("commandBtn"),commandCloseBtn=document.getElementById("commandCloseBtn"),commandInput=document.getElementById("commandInput"),commandResults=document.getElementById("commandResults"),commandPalette=document.getElementById("commandPalette");
 if(commandBtn)commandBtn.addEventListener("click",function(){openCommandPalette("");});
 if(commandCloseBtn)commandCloseBtn.addEventListener("click",function(){closeCommandPalette(true);});
@@ -4478,6 +4642,14 @@ document.addEventListener("keydown",function(e){
     var close=document.querySelector('[data-act="media-close"]');if(close){e.preventDefault();close.click();return;}
   }
   if(editable)return;
+  if(!e.ctrlKey&&!e.altKey&&!e.metaKey&&(e.key.toLowerCase()==="w"||e.key.toLowerCase()==="l")){
+    if(section==="films"&&filmExpanded){
+      var km=findMovieAny(filmExpanded);if(km){e.preventDefault();var kmi=filmExpanded;closeMediaStateDetail("film",kmi);if(e.key.toLowerCase()==="w")markMovieWatched(km);else addToWatchlist(km);restoreDetailScroll(filmDetailReturnY);return;}
+    }
+    if(section==="series"&&seriesExpanded){
+      var ks=findSeriesAny(seriesExpanded);if(ks){e.preventDefault();var ksi=seriesExpanded;closeMediaStateDetail("series",ksi);if(e.key.toLowerCase()==="w")markSeriesWatched(ks);else addSeriesWatchlist(ks);restoreDetailScroll(seriesDetailReturnY);return;}
+    }
+  }
   if(e.key==="/"&&!e.ctrlKey&&!e.altKey&&!e.metaKey){var search=[].filter.call(document.querySelectorAll(".searchwrap input"),function(x){return x.offsetParent!==null;})[0];if(search){e.preventDefault();search.focus();search.select();}return;}
   if(e.altKey&&!e.ctrlKey&&/^[1-6]$/.test(e.key)){
     e.preventDefault();var n=Number(e.key)-1;
@@ -4742,6 +4914,47 @@ document.getElementById("content").addEventListener("click",function(e){
     var gx=gameFindById(expandedId);
     if(gx){ rememberViewed("game",expandedId,gx.name,tab); ensurePlot(gx.name); }
     render(); window.scrollTo(0,0);
+    return;
+  }
+  if(act==="played-resume"){
+    var pr=byId(data.played,id);
+    if(pr){ pr.status="Playing"; save(); flash("Moved to Playing → Resume Later"); }
+    return;
+  }
+  if(act==="played-now"){
+    var pnw=byId(data.played,id);
+    if(!pnw) return;
+    var existingNow=inList(data.playing,pnw.name);
+    if(!existingNow){
+      data.playing.unshift({id:uid(),name:pnw.name,added:localISO(),rating:pnw.rating||0,note:pnw.note||"",vendor:pnw.vendor||"",cost:pnw.cost||0,score:pnw.score||null,rrating:pnw.rrating||null,img:coverUrl(pnw)||undefined});
+    }
+    data.played=data.played.filter(function(x){ return x.id!==pnw.id; });
+    save(); flash(existingNow?"Already in Now Playing":"Moved to Now Playing");
+    return;
+  }
+  if(act==="movie-primary"||act==="movie-state"){
+    var ma=findMovieAny(id),ms=b.getAttribute("data-state");
+    if(!ma) return;
+    var movieWasOpen=closeMediaStateDetail("film",id);
+    if(ms==="watched") markMovieWatched(ma);
+    else if(ms==="watchlist") addToWatchlist(ma);
+    else if(ms==="hide") hideMovie(ma);
+    else if(ms==="remove") removeFromWatchlist(id);
+    else if(ms==="unwatch") unwatchMovie(ma.key||movieWatchKey(ma));
+    if(movieWasOpen) restoreDetailScroll(filmDetailReturnY);
+    return;
+  }
+  if(act==="series-primary"||act==="series-state"){
+    var sa=findSeriesAny(id),ssv=b.getAttribute("data-state");
+    if(!sa) return;
+    var seriesWasOpen=closeMediaStateDetail("series",id);
+    if(ssv==="watching") markSeriesWatching(sa);
+    else if(ssv==="watched") markSeriesWatched(sa);
+    else if(ssv==="watchlist") addSeriesWatchlist(sa);
+    else if(ssv==="hide") hideSeries(sa);
+    else if(ssv==="remove") removeSeriesWatchlist(id);
+    else if(ssv==="unwatch") unwatchSeries(sa.key||seriesKey(sa));
+    if(seriesWasOpen) restoreDetailScroll(seriesDetailReturnY);
     return;
   }
   if(act==="mv-unwatch"){ unwatchMovie(b.getAttribute("data-key")); return; }
@@ -5087,6 +5300,10 @@ document.getElementById("content").addEventListener("change",function(e){
     biglyAction(bp.getAttribute("data-id"),"priority",{priority:bp.value});
     return;
   }
+  var fs=e.target.closest(".film-sort");
+  if(fs){ filmSort=fs.value; try{localStorage.setItem(FILM_SORT_KEY,filmSort);}catch(err){} render(); return; }
+  var ssrt=e.target.closest(".series-sort");
+  if(ssrt){ seriesSort=ssrt.value; try{localStorage.setItem(SERIES_SORT_KEY,seriesSort);}catch(err){} render(); return; }
   var fg=e.target.closest(".film-genre");
   if(fg){
     filmGenre=fg.value;
@@ -5928,6 +6145,12 @@ function applyTheme(t){
   document.documentElement.classList.toggle("light", t==="light");
   var b=document.getElementById("themeBtn");
   if(b) b.innerHTML = t==="light" ? "&#9790;" : "&#9788;";
+  var rail=document.getElementById("desktopRailTheme");
+  if(rail){
+    var icon=rail.querySelector(".section-icon"),label=rail.querySelector(".section-label");
+    if(icon) icon.innerHTML=t==="light"?"&#9790;":"&#9788;";
+    if(label) label.textContent=t==="light"?"Dark mode":"Light mode";
+  }
 }
 applyTheme(theme);
 document.getElementById("themeBtn").addEventListener("click",function(){
