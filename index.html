@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Sinu Game Vault — PS5 Tracker</title>
-<link rel="stylesheet" href="app.css?v=1.3.0">
+<link rel="stylesheet" href="app.css?v=1.4.0">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -135,6 +135,12 @@
         <label class="setting-control">Interface density
           <select class="f-sm" id="densityInput"><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select>
         </label>
+        <div class="tv-settings-zoom tv-only" aria-label="TV display size">
+          <span>TV display size</span>
+          <button class="btn" id="tvSettingsZoomOutBtn" type="button">Smaller</button>
+          <button class="btn" id="tvSettingsZoomResetBtn" type="button">90%</button>
+          <button class="btn" id="tvSettingsZoomInBtn" type="button">Larger</button>
+        </div>
         <button class="btn" id="snapshotBtn">Create recovery point</button>
         <select class="f-name" id="snapshotSelect" aria-label="Recovery point"></select>
         <button class="btn" id="restoreSnapshotBtn">Restore selected</button>
@@ -152,5 +158,5 @@
 <button id="toTop" title="Back to top">&#8679;</button>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=1.3.0"></script></body>
+<script src="app.js?v=1.4.0"></script></body>
 </html>

@@ -1,8 +1,12 @@
 ﻿"use strict";
-var APP_VERSION = "1.3.0";
+var APP_VERSION = "1.4.0";
 var APP_BUILD_DATE = "2026-07-13";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Redesigned Android TV with a dedicated navigation rail and 10-foot layout",
+  "Added stable per-screen focus memory, overlay focus traps and remote-safe text editing",
+  "Added cinematic TV details, compact status rows and fixed-position notifications",
+  "Upgraded the Shield launcher lifecycle, offline recovery and external-page return controls",
   "Redesigned the iPhone interface with a native-style bottom navigation bar",
   "Added compact phone headers, centered subsection tabs and full-screen Settings",
   "Improved mobile touch targets, detail pages, menus and safe-area spacing",
@@ -44,6 +48,8 @@ function applyTvZoom(){
   document.documentElement.style.setProperty("--tv-zoom", String(z));
   var btn=document.getElementById("tvZoomResetBtn");
   if(btn) btn.textContent=Math.round(z*100)+"%";
+  var settingsBtn=document.getElementById("tvSettingsZoomResetBtn");
+  if(settingsBtn) settingsBtn.textContent=Math.round(z*100)+"%";
 }
 function setTvZoom(v){
   v=Math.min(1.15, Math.max(0.70, Math.round(v*100)/100));
@@ -475,11 +481,14 @@ function jbPushCloud(){
   })
   .catch(function(err){ busy=false; flash("Push failed — check internet and Master Key"); });
 }
-function jbPullCloud(){
+function jbPullCloud(confirmed){
   var jb=getJB();
   if(!jb.key||!jb.bin){ flash("Enter Master Key and Bin ID in Settings first"); toggleSettings(true); return; }
   if(busy) return;
-  if(!confirm("Replace the data on THIS device with the cloud copy?")) return;
+  if(!confirmed){
+    if(TV_MODE){tvConfirm("Replace the data on this device with the JSONBin cloud copy?","Replace local data",function(){jbPullCloud(true);});return;}
+    if(!confirm("Replace the data on THIS device with the cloud copy?")) return;
+  }
   busy=true;
   fetch("https://api.jsonbin.io/v3/b/"+jb.bin+"/latest",{ headers:{ "X-Master-Key":jb.key } })
   .then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return res.json(); })
@@ -903,8 +912,12 @@ function silentPullOnLoad(){
   }
   jbSilentPullOnLoad();
 }
-function pushCloud(){
-  if(vaultSize(data)===0 && !confirm("This device's vault is EMPTY.\n\nPushing now would overwrite your cloud backup with nothing. Use Pull from cloud to get your data back instead.\n\nReally push an empty vault?")) return;
+function pushCloud(confirmed){
+  if(vaultSize(data)===0&&!confirmed){
+    var emptyWarning="This device's vault is empty. Pushing now would overwrite the cloud backup with nothing. Pull from cloud instead unless this is intentional.";
+    if(TV_MODE){tvConfirm(emptyWarning,"Push empty vault",function(){pushCloud(true);});return;}
+    if(!confirm(emptyWarning)) return;
+  }
   if(cloudMode()==="drive"){
     flash("Uploading to Google Drive…");
     gdUpload().then(function(uploadedAt){
@@ -918,9 +931,12 @@ function pushCloud(){
   if(!cloudMode()){ flash("Connect Google Drive (or JSONBin) in Settings first"); toggleSettings(true); return; }
   jbPushCloud();
 }
-function pullCloud(){
+function pullCloud(confirmed){
   if(cloudMode()==="drive"){
-    if(!confirm("Replace the data on THIS device with the Google Drive copy?")) return;
+    if(!confirmed){
+      if(TV_MODE){tvConfirm("Replace the data on this device with the Google Drive copy?","Replace local data",function(){pullCloud(true);});return;}
+      if(!confirm("Replace the data on THIS device with the Google Drive copy?")) return;
+    }
     gdDownload().then(function(d){
       if(d && d.rentals && d.upcoming && d.played){
         adoptVault(d,"Google Drive manual pull"); lastSyncedAt=data.updatedAt; render();
@@ -2749,11 +2765,17 @@ function biglyRefresh(){
   });
 }
 function biglyAction(id, action, extra){
-  if(action==="remove-data" && !confirm("Delete this torrent AND its downloaded files? This cannot be undone.")) return Promise.resolve();
+  var confirmed=extra&&extra.__confirmed;
+  if((action==="remove"||action==="remove-data")&&!confirmed){
+    var warning=action==="remove-data"?"Delete this torrent and all of its downloaded files? This cannot be undone.":"Remove this torrent from BiglyBT? Downloaded files will be kept.";
+    if(TV_MODE){tvConfirm(warning,action==="remove-data"?"Delete files":"Remove torrent",function(){biglyAction(id,action,{__confirmed:true});});return Promise.resolve();}
+    if(!confirm(warning)) return Promise.resolve();
+  }
+  var payload=Object.assign({action:action},extra||{});delete payload.__confirmed;
   biglyBusy=true; render();
   return biglyApi("/torrents/"+encodeURIComponent(id)+"/action",{
     method:"POST",
-    body:JSON.stringify(Object.assign({action:action},extra||{}))
+    body:JSON.stringify(payload)
   }).then(function(){ return biglyRefresh(); }).catch(function(e){ biglyErr=e.message||"Action failed"; biglyBusy=false; render(); });
 }
 function biglyBytes(n){
@@ -2962,13 +2984,17 @@ function renderPlex(){
   }
   return html+'<div class="plex-grid">'+items.map(plexCard).join("")+'</div>';
 }
-function plexDeleteItem(id){
+function plexDeleteItem(id,confirmed){
   var item=plexItems.filter(function(x){ return x.ratingKey===String(id); })[0];
   if(!item||!item.watched) return;
   if(!plexConnected){ flash("Reconnect Plex before deleting media"); return; }
   if(!plexAllowDelete){ flash("Enable Allow media deletion in Plex Server Settings first"); return; }
   var what=item.type==="show"?"the entire TV series and all of its media files":"this movie and its media file";
-  if(!confirm('Permanently delete "'+item.title+'"? Plex will remove '+what+' from the Shield storage. This cannot be undone in GameVault.')) return;
+  var warning='Permanently delete "'+item.title+'"? Plex will remove '+what+' from the Shield storage. This cannot be undone in GameVault.';
+  if(!confirmed){
+    if(TV_MODE){tvConfirm(warning,"Delete from Plex",function(){plexDeleteItem(id,true);});return;}
+    if(!confirm(warning)) return;
+  }
   plexBusy=true; render();
   plexRequest("/library/metadata/"+encodeURIComponent(item.ratingKey),{method:"DELETE"}).then(function(){
     plexItems=plexItems.filter(function(x){ return x.ratingKey!==item.ratingKey; }); plexBusy=false; plexSaveCache(); render(); flash("Deleted from Plex and removed the media file");
@@ -4328,6 +4354,7 @@ function toggleSettings(force){
     var densityInput=document.getElementById("densityInput"); if(densityInput) densityInput.value=uiDensity;
     refreshRecoveryUi();
   }
+  if(TV_MODE) setTimeout(tvEnsureFocus,0);
 }
 
 function setMenuOpen(show){
@@ -4335,6 +4362,7 @@ function setMenuOpen(show){
   panel.classList.toggle("open",!!show);
   document.body.classList.toggle("menu-open",!!show);
   document.getElementById("menuBtn").setAttribute("aria-expanded",show?"true":"false");
+  if(TV_MODE) setTimeout(tvEnsureFocus,0);
 }
 document.getElementById("menuBtn").setAttribute("aria-expanded","false");
 document.getElementById("menuBtn").addEventListener("click",function(){
@@ -4366,6 +4394,12 @@ var tvZoomInBtn=document.getElementById("tvZoomInBtn");
 if(tvZoomInBtn) tvZoomInBtn.addEventListener("click",function(){ setTvZoom(tvZoomValue()+0.05); });
 var tvZoomResetBtn=document.getElementById("tvZoomResetBtn");
 if(tvZoomResetBtn) tvZoomResetBtn.addEventListener("click",function(){ setTvZoom(0.90); });
+var tvSettingsZoomOutBtn=document.getElementById("tvSettingsZoomOutBtn");
+if(tvSettingsZoomOutBtn) tvSettingsZoomOutBtn.addEventListener("click",function(){ setTvZoom(tvZoomValue()-0.05); });
+var tvSettingsZoomInBtn=document.getElementById("tvSettingsZoomInBtn");
+if(tvSettingsZoomInBtn) tvSettingsZoomInBtn.addEventListener("click",function(){ setTvZoom(tvZoomValue()+0.05); });
+var tvSettingsZoomResetBtn=document.getElementById("tvSettingsZoomResetBtn");
+if(tvSettingsZoomResetBtn) tvSettingsZoomResetBtn.addEventListener("click",function(){ setTvZoom(0.90); });
 document.getElementById("saveKeyBtn").addEventListener("click",function(){
   var v=document.getElementById("apiKeyInput").value.trim();
   setSyncedKey("rawg", v);
@@ -5143,16 +5177,58 @@ document.getElementById("content").addEventListener("input",function(e){
 
 /* ---------- Android TV remote navigation (?tv=1 only) ---------- */
 var tvReturnFocus=null;
+var tvReturnFocusKey="";
 var tvEditingInput=null;
+var tvFocusMemory={};
+var tvLastMoveAt=0;
+var tvSelectReturnKey="";
 function tvIsEditable(el){
   return !!(el && /^(INPUT|TEXTAREA|SELECT)$/i.test(el.tagName));
 }
 function tvIsTextInput(el){
   return !!(el && /^(INPUT|TEXTAREA)$/i.test(el.tagName));
 }
+function tvIsSearchInput(el){
+  if(!tvIsTextInput(el)) return false;
+  var text=((el.id||"")+" "+(el.name||"")+" "+(el.placeholder||"")+" "+(el.getAttribute("aria-label")||"")).toLowerCase();
+  return /search|find title|autocomplete/.test(text);
+}
+function tvViewKey(){
+  if(section==="films") return "films:"+filmTab;
+  if(section==="series") return "series:"+seriesTab;
+  if(section==="plex") return "plex:"+plexTab;
+  if(section==="biglybt") return "biglybt";
+  return "games:"+tab;
+}
+function tvElementKey(el){
+  if(!el) return "";
+  if(el.getAttribute("data-tv-key")) return el.getAttribute("data-tv-key");
+  var names=["id","data-section","data-tab","data-ftab","data-stab","data-ptab","data-act","data-id","data-view","data-key","data-vendor","data-genre","data-tier","href"];
+  var bits=[];
+  names.forEach(function(name){ var value=el.getAttribute&&el.getAttribute(name); if(value) bits.push(name+"="+value); });
+  if(!bits.length){
+    var label=(el.getAttribute&&el.getAttribute("aria-label"))||el.textContent||el.tagName||"item";
+    bits.push("label="+label.trim().replace(/\s+/g," ").slice(0,80));
+  }
+  var key=bits.join("|");
+  try{ el.setAttribute("data-tv-key",key); }catch(e){}
+  return key;
+}
+function tvFindByKey(key,list){
+  if(!key) return null;
+  list=list||tvFocusable();
+  for(var i=0;i<list.length;i++) if(tvElementKey(list[i])===key) return list[i];
+  return null;
+}
 function tvPrepareInputs(){
   if(!TV_MODE) return;
   [].forEach.call(document.querySelectorAll("input,textarea"),function(el){
+    if(tvIsSearchInput(el)){
+      el.setAttribute("data-tv-search","1");
+      el.setAttribute("data-tv-skip","1");
+      el.tabIndex=-1;
+      return;
+    }
     if(el===tvEditingInput) return;
     if(!el.hasAttribute("data-tv-readonly")){
       el.setAttribute("data-tv-readonly","1");
@@ -5188,6 +5264,7 @@ function tvCloseSelect(){
 function tvOpenSelect(sel){
   if(!TV_MODE || !sel || sel.tagName!=="SELECT") return false;
   tvCloseSelect();
+  tvSelectReturnKey=tvElementKey(sel);
   var overlay=document.createElement("div");
   overlay.id="tvSelectMenu";
   overlay.className="tv-select-menu";
@@ -5202,13 +5279,13 @@ function tvOpenSelect(sel){
       sel.value=opt.value;
       tvCloseSelect();
       sel.dispatchEvent(new Event("change",{bubbles:true}));
-      setTimeout(function(){ tvFocus(sel); },0);
+      setTimeout(function(){ var target=tvFindByKey(tvSelectReturnKey); if(target) tvFocus(target); else tvEnsureFocus(); },0);
     });
     panel.appendChild(btn);
   });
   overlay.appendChild(panel);
   overlay.addEventListener("click",function(e){
-    if(e.target===overlay){ tvCloseSelect(); tvFocus(sel); }
+    if(e.target===overlay){ tvCloseSelect(); var target=tvFindByKey(tvSelectReturnKey); if(target) tvFocus(target); else tvEnsureFocus(); }
   });
   document.body.appendChild(overlay);
   setTimeout(function(){
@@ -5220,23 +5297,52 @@ function tvOpenSelect(sel){
 function tvRememberFocus(el){
   if(!TV_MODE || !el || tvIsEditable(el)) return;
   tvReturnFocus=el;
+  tvReturnFocusKey=tvElementKey(el);
+  tvFocusMemory[tvViewKey()]=tvReturnFocusKey;
+}
+function tvFocusRoot(){
+  var overlay=document.getElementById("tvSelectMenu")||document.getElementById("tvConfirmMenu");
+  if(overlay) return overlay;
+  var settings=document.getElementById("settingsBox");
+  if(document.body.classList.contains("settings-open")&&settings) return settings;
+  var menu=document.getElementById("menuPanel");
+  if(document.body.classList.contains("menu-open")&&menu) return menu;
+  if(document.body.classList.contains("detail-open")) return document.getElementById("content")||document;
+  return document;
+}
+function tvBringIntoView(el){
+  if(!el) return;
+  var horizontal=el.closest&&el.closest(".tabs,.recent-strip,.viewbar");
+  if(horizontal){
+    var er=el.getBoundingClientRect(), hr=horizontal.getBoundingClientRect();
+    if(er.left<hr.left+16) horizontal.scrollLeft-=hr.left+16-er.left;
+    else if(er.right>hr.right-16) horizontal.scrollLeft+=er.right-(hr.right-16);
+  }
+  var r=el.getBoundingClientRect();
+  var topSafe=Math.max(90,window.innerHeight*.16), bottomSafe=window.innerHeight*.84;
+  if(r.top<topSafe || r.bottom>bottomSafe){
+    var target=window.innerHeight*.38;
+    window.scrollBy({top:Math.round(r.top-target),behavior:"auto"});
+  }
 }
 function tvFocus(el, opts){
   if(!TV_MODE || !el) return false;
   try{ el.focus({preventScroll:!!(opts&&opts.preventScroll)}); }catch(e){ try{ el.focus(); }catch(err){} }
   [].forEach.call(document.querySelectorAll(".tv-focus"),function(x){ if(x!==el) x.classList.remove("tv-focus"); });
   el.classList.add("tv-focus");
-  if(!(opts&&opts.preventScroll)) el.scrollIntoView({block:"nearest", inline:"nearest", behavior:"smooth"});
+  if(!(opts&&opts.preventScroll)) tvBringIntoView(el);
   if(!tvIsEditable(el)) tvReturnFocus=el;
+  if(!tvIsEditable(el)) tvRememberFocus(el);
   return true;
 }
 function tvFocusable(){
   if(!TV_MODE) return [];
   var sel='button,a[href],input,select,textarea,[data-act],.clickrow,[tabindex="0"]';
-  return [].filter.call(document.querySelectorAll(sel),function(el){
-    if(el.disabled || el.getAttribute("aria-hidden")==="true") return false;
+  var root=tvFocusRoot();
+  return [].filter.call(root.querySelectorAll(sel),function(el){
+    if(el.disabled || el.getAttribute("aria-hidden")==="true" || el.getAttribute("data-tv-skip")==="1" || el.tabIndex<0) return false;
     var st=getComputedStyle(el), r=el.getBoundingClientRect();
-    return st.display!=="none" && st.visibility!=="hidden" && r.width>0 && r.height>0;
+    return st.display!=="none" && st.visibility!=="hidden" && st.pointerEvents!=="none" && r.width>0 && r.height>0;
   });
 }
 function tvMakeFocusable(){
@@ -5248,6 +5354,7 @@ function tvMakeFocusable(){
       el.setAttribute("role","button");
     }
   });
+  tvFocusable().forEach(tvElementKey);
 }
 function tvEnsureFocus(){
   if(!TV_MODE) return;
@@ -5255,10 +5362,14 @@ function tvEnsureFocus(){
   var list=tvFocusable();
   if(!list.length) return;
   if(document.activeElement && list.indexOf(document.activeElement)>-1) return;
-  var preferred=(tvReturnFocus && list.indexOf(tvReturnFocus)>-1 && tvReturnFocus) || document.querySelector(".tab.on") || document.querySelector("#sectionSw button.on") || list[0];
+  var activeTab=document.querySelector(".tab.on"),activeSection=document.querySelector("#sectionSw button.on");
+  var preferred=tvFindByKey(tvFocusMemory[tvViewKey()],list)||tvFindByKey(tvReturnFocusKey,list)||(tvReturnFocus&&list.indexOf(tvReturnFocus)>-1&&tvReturnFocus)||(list.indexOf(activeTab)>-1&&activeTab)||(list.indexOf(activeSection)>-1&&activeSection)||list[0];
   setTimeout(function(){ tvFocus(preferred,{preventScroll:true}); },0);
 }
-function tvAfterRender(){ tvEnsureFocus(); }
+function tvAfterRender(){
+  if(!TV_MODE) return;
+  requestAnimationFrame(function(){ requestAnimationFrame(tvEnsureFocus); });
+}
 function tvNearestInViewport(list){
   var mid=window.scrollY+window.innerHeight*.42, best=list[0], score=Infinity;
   list.forEach(function(el){
@@ -5293,34 +5404,80 @@ function tvDirectionalScore(curRect, nextRect, dir){
   }
   return primary*10 + secondary;
 }
+function tvGroup(el){
+  if(!el||!el.closest) return document;
+  return el.closest("#sectionSw,#tabs,.stats,.toolbar,.viewbar,.media-grid,.game-grid,.plex-grid,.torrent-grid,.actions,.menupanel,.settings,.tv-select-panel,.tv-confirm-panel")||document;
+}
+function tvBestDirectional(cur,list,dir){
+  var cr=cur.getBoundingClientRect(),best=null,bestScore=Infinity;
+  list.forEach(function(el){
+    if(el===cur) return;
+    var score=tvDirectionalScore(cr,el.getBoundingClientRect(),dir);
+    if(score<bestScore){bestScore=score;best=el;}
+  });
+  return best;
+}
 function tvMove(dir){
+  var now=Date.now();
+  if(now-tvLastMoveAt<55) return;
+  tvLastMoveAt=now;
   var list=tvFocusable();
   if(!list.length) return;
   var cur=document.activeElement;
   if(list.indexOf(cur)<0){ tvFocus(tvNearestInViewport(list)); return; }
-  var cr=cur.getBoundingClientRect();
-  var best=null, bestScore=Infinity;
-  list.forEach(function(el){
-    if(el===cur) return;
-    var score=tvDirectionalScore(cr,el.getBoundingClientRect(),dir);
-    if(score<bestScore){ bestScore=score; best=el; }
-  });
+  var group=tvGroup(cur);
+  var same=list.filter(function(el){return tvGroup(el)===group;});
+  var best=tvBestDirectional(cur,same,dir)||tvBestDirectional(cur,list,dir);
   if(best){
     tvFocus(best);
   } else if(dir==="down") {
-    window.scrollBy({top:Math.round(window.innerHeight*.55), behavior:"smooth"});
+    window.scrollBy({top:Math.round(window.innerHeight*.48), behavior:"auto"});
+    setTimeout(function(){tvFocus(tvNearestInViewport(tvFocusable()));},0);
   } else if(dir==="up") {
-    window.scrollBy({top:-Math.round(window.innerHeight*.55), behavior:"smooth"});
+    window.scrollBy({top:-Math.round(window.innerHeight*.48), behavior:"auto"});
+    setTimeout(function(){tvFocus(tvNearestInViewport(tvFocusable()));},0);
   } else {
     var idx=list.indexOf(cur), ni=idx+(dir==="right"?1:-1);
     if(ni>=0 && ni<list.length) tvFocus(list[ni]);
   }
 }
+function tvMoveTextCursor(el,dir){
+  if(!el || typeof el.selectionStart!=="number") return;
+  var start=el.selectionStart,end=el.selectionEnd;
+  var pos=dir==="left"?Math.max(0,start-1):Math.min((el.value||"").length,end+1);
+  try{el.setSelectionRange(pos,pos);}catch(e){}
+}
+function tvCloseConfirm(result){
+  var overlay=document.getElementById("tvConfirmMenu");
+  if(!overlay) return;
+  var callback=overlay._confirmCallback,returnKey=overlay._returnKey;
+  overlay.remove();
+  if(result&&callback) callback();
+  setTimeout(function(){var target=tvFindByKey(returnKey);if(target)tvFocus(target);else tvEnsureFocus();},0);
+}
+function tvConfirm(message,confirmLabel,callback){
+  if(!TV_MODE){if(window.confirm(message))callback();return;}
+  tvCloseConfirm(false);
+  var overlay=document.createElement("div");
+  overlay.id="tvConfirmMenu";overlay.className="tv-confirm-menu";overlay._confirmCallback=callback;overlay._returnKey=tvElementKey(document.activeElement);
+  var panel=document.createElement("div");panel.className="tv-confirm-panel";
+  var title=document.createElement("h2");title.textContent="Confirm action";
+  var copy=document.createElement("p");copy.textContent=message;
+  var actions=document.createElement("div");actions.className="tv-confirm-actions";
+  var cancel=document.createElement("button");cancel.className="btn blue";cancel.type="button";cancel.textContent="Cancel";cancel.addEventListener("click",function(){tvCloseConfirm(false);});
+  var accept=document.createElement("button");accept.className="btn ghost danger";accept.type="button";accept.textContent=confirmLabel||"Confirm";accept.addEventListener("click",function(){tvCloseConfirm(true);});
+  actions.appendChild(cancel);actions.appendChild(accept);panel.appendChild(title);panel.appendChild(copy);panel.appendChild(actions);overlay.appendChild(panel);document.body.appendChild(overlay);
+  tvMakeFocusable();setTimeout(function(){tvFocus(cancel);},0);
+}
 function gameVaultTvBack(){
   if(!TV_MODE) return "clear";
+  if(document.getElementById("tvConfirmMenu")){
+    tvCloseConfirm(false);
+    return "handled";
+  }
   if(document.getElementById("tvSelectMenu")){
     tvCloseSelect();
-    tvEnsureFocus();
+    var selectReturn=tvFindByKey(tvSelectReturnKey);if(selectReturn)tvFocus(selectReturn);else tvEnsureFocus();
     return "handled";
   }
   var el=document.activeElement;
@@ -5328,7 +5485,9 @@ function gameVaultTvBack(){
     if(tvIsTextInput(el)) tvStopInputEdit(el);
     else el.blur();
     var list=tvFocusable();
-    if(tvReturnFocus && list.indexOf(tvReturnFocus)>-1) tvFocus(tvReturnFocus);
+    var returnTarget=tvFindByKey(tvReturnFocusKey,list);
+    if(returnTarget) tvFocus(returnTarget);
+    else if(tvReturnFocus && list.indexOf(tvReturnFocus)>-1) tvFocus(tvReturnFocus);
     else tvEnsureFocus();
     return "handled";
   }
@@ -5381,14 +5540,34 @@ document.addEventListener("focusin",function(e){
 },true);
 document.addEventListener("focusout",function(e){
   if(!TV_MODE || !e.target || !e.target.classList) return;
-  if(tvIsTextInput(e.target) && e.target!==tvEditingInput) tvStopInputEdit(e.target);
+  if(tvIsTextInput(e.target)){
+    if(e.target===tvEditingInput){
+      e.target.readOnly=true;
+      e.target.classList.remove("tv-editing");
+      tvEditingInput=null;
+    }else if(!e.target.readOnly){
+      e.target.readOnly=true;
+    }
+  }
   e.target.classList.remove("tv-focus");
 },true);
 document.addEventListener("keydown",function(e){
   if(!TV_MODE) return;
   var tag=(document.activeElement&&document.activeElement.tagName)||"";
+  var editingText=tvEditingInput&&document.activeElement===tvEditingInput;
   var editing=/^(INPUT|TEXTAREA|SELECT)$/i.test(tag);
   if(e.key==="ArrowLeft"||e.key==="ArrowRight"||e.key==="ArrowUp"||e.key==="ArrowDown"){
+    if(editingText){
+      e.preventDefault();
+      if(e.key==="ArrowLeft"||e.key==="ArrowRight") tvMoveTextCursor(document.activeElement,e.key==="ArrowLeft"?"left":"right");
+      else{
+        var editEl=document.activeElement;
+        tvStopInputEdit(editEl);
+        var editReturn=tvFindByKey(tvReturnFocusKey);if(editReturn)tvFocus(editReturn,{preventScroll:true});else tvEnsureFocus();
+        tvMove(e.key==="ArrowUp"?"up":"down");
+      }
+      return;
+    }
     e.preventDefault();
     tvMove(e.key.replace("Arrow","").toLowerCase());
     return;
@@ -5557,8 +5736,10 @@ document.getElementById("importFile").addEventListener("change",function(e){
 document.getElementById("snapshotBtn").addEventListener("click",function(){ createRecoverySnapshot("Manual recovery point",data); refreshRecoveryUi(); flash("Recovery point created"); });
 document.getElementById("restoreSnapshotBtn").addEventListener("click",function(){
   var sel=document.getElementById("snapshotSelect"); if(!sel.value && sel.value!=="0"){ flash("No recovery point selected"); return; }
-  if(!confirm("Replace the current vault with this recovery point? A copy of the current vault will be kept first.")) return;
-  try{ restoreRecoverySnapshot(sel.value); refreshRecoveryUi(); flash("Recovery point restored"); }catch(e){ flash(e.message); }
+  function restoreSelected(){try{restoreRecoverySnapshot(sel.value);refreshRecoveryUi();flash("Recovery point restored");}catch(e){flash(e.message);}}
+  var warning="Replace the current vault with this recovery point? A copy of the current vault will be kept first.";
+  if(TV_MODE){tvConfirm(warning,"Restore recovery point",restoreSelected);return;}
+  if(confirm(warning)) restoreSelected();
 });
 document.getElementById("encryptedExportBtn").addEventListener("click",function(){
   if(!window.crypto || !crypto.subtle){ flash("Encrypted backups are not supported in this browser"); return; }

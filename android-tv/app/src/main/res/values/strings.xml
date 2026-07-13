@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">GameVault</string>
+    <string name="offline_title">GameVault is offline</string>
+    <string name="offline_message">Check the Shield network connection, then try again.</string>
+    <string name="retry">Retry</string>
+    <string name="return_to_gamevault">Return to GameVault</string>
 </resources>
