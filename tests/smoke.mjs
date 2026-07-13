@@ -49,13 +49,13 @@ assert.match(sw,/if \(res\.ok\)/);
 assert.match(js,/data-bigly="remove-data"/);
 assert.doesNotMatch(js,/plot\.length>12000/);
 for(const label of ["Movies","TV Shows","Plex Library"]){ assert.ok(html.includes(label),`primary navigation must include ${label}`); }
-for(const key of ["serieswatching","seriesnew","seriesupcoming","seriesdiscover"]){ assert.ok(js.includes(key),`TV navigation must include ${key}`); }
+for(const key of ["serieswatching","seriesnew","seriesupcoming","enseries","mlseries","taseries","hiseries"]){ assert.ok(js.includes(key),`TV navigation must include ${key}`); }
 assert.match(js,/watchingSeries/);
 assert.match(js,/PLEX_ORDER=\["home","continue","movies","shows","recent"\]/);
 assert.match(html,/id="desktopRailBtn"/);
 assert.match(html,/id="commandPalette"/);
-assert.match(html,/app\.css\?v=1\.6\.0/);
-assert.match(html,/app\.js\?v=1\.6\.0/);
+assert.match(html,/app\.css\?v=1\.7\.0/);
+assert.match(html,/app\.js\?v=1\.7\.0/);
 assert.match(css,/@media \(min-width:900px\)/);
 assert.match(css,/html:not\(\.tv\) \.sectionsw/);
 assert.match(js,/function openCommandPalette\(/);
@@ -66,5 +66,8 @@ assert.match(js,/function seriesPrimaryAction\(/);
 assert.match(js,/function applyMediaSort\(/);
 assert.match(html,/id="desktopRailSync"/);
 assert.match(css,/\.title-menu-pop/);
-assert.match(sw,/gamevault-shell-v25/);
+assert.match(html,/class="hamburger-icon"/);
+assert.match(js,/function detailToolbar\(/);
+assert.match(js,/var SERIES_ORDER=\["serieswatchlist","serieswatching","seriesnew","seriesupcoming","enseries","mlseries","taseries","hiseries","serieswatched"\]/);
+assert.match(sw,/gamevault-shell-v26/);
 console.log("GameVault smoke checks passed");

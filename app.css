@@ -1201,3 +1201,61 @@ html.tv .detail-actionbar{position:relative;top:auto}
   .tab.on,.sectionsw button.on,.command-item.on{outline:2px solid Highlight;color:HighlightText;background:Highlight}
   .btn,.iconbtn,input,select,textarea{border:1px solid ButtonText}
 }
+
+/* v1.7 wide-screen alignment, high-resolution artwork and stable detail navigation. */
+#bg{transition:opacity .28s ease;will-change:opacity}
+#bg.bg-changing{opacity:.28}
+#bg[data-section="films"],#bg[data-section="series"],#bg[data-section="biglybt"]{background-position:center 16%}
+.hamburger-icon{width:18px;height:16px;display:grid;align-content:center;justify-items:center;gap:3px;pointer-events:none}
+.hamburger-icon span{display:block;width:15px;height:2px;border-radius:2px;background:currentColor}
+.desktop-rail-toggle{display:inline-flex;align-items:center;justify-content:center}
+
+.media-closebar.detail-toolbar{
+  position:sticky;z-index:38;top:calc(var(--header-height) + 5px);height:auto;min-height:52px;
+  display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;
+  margin:0 0 16px;padding:4px 0;pointer-events:auto
+}
+.detail-toolbar .detail-neighbors{min-width:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0}
+.detail-toolbar .detail-neighbors .btn{width:100%;max-width:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.detail-toolbar>.detail-close{grid-column:2;flex:0 0 auto}
+
+@media (min-width:900px){
+  html:not(.tv) .topbar{align-items:center}
+  html:not(.tv) .topbar .brand{align-items:center;min-width:220px}
+  html:not(.tv) .brand h1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.1}
+  html:not(.tv) .desktop-rail-toggle{align-self:center}
+  html:not(.tv) .detail-actionbar{top:calc(var(--header-height) + 64px)}
+}
+
+@media (min-width:1500px) and (max-width:2199px){
+  html:not(.tv) .media-grid{grid-template-columns:repeat(auto-fill,minmax(225px,1fr));gap:15px}
+  html:not(.tv) .game-grid{grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:15px}
+  html:not(.tv) .plex-grid{grid-template-columns:repeat(auto-fill,minmax(225px,1fr));gap:15px}
+}
+
+@media (min-width:2200px){
+  html:not(.tv){--desktop-rail:202px}
+  html:not(.tv).desktop-nav-collapsed{--desktop-rail:64px}
+  html:not(.tv) .wrap{padding-right:34px;padding-left:calc(var(--desktop-rail) + 42px)}
+  html:not(.tv) #content{width:100%;max-width:2300px;margin-right:auto}
+  html:not(.tv) .media-grid{grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:17px}
+  html:not(.tv) .game-grid{grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:17px}
+  html:not(.tv) .plex-grid{grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:17px}
+  html:not(.tv) .media-page,html:not(.tv) .game-page{padding:24px 30px 48px}
+  html:not(.tv) .media-page-head{grid-template-columns:minmax(210px,260px) minmax(0,1fr);gap:30px}
+  html:not(.tv) .game-page-head{grid-template-columns:minmax(280px,390px) minmax(0,1fr);gap:30px}
+}
+
+@media (max-width:899px){
+  html:not(.tv) .media-closebar.detail-toolbar{
+    top:0;min-height:calc(58px + env(safe-area-inset-top));margin:0 -14px 14px;
+    padding:max(8px,env(safe-area-inset-top)) 14px 6px;align-items:end;
+    background:var(--stickybg);border-bottom:1px solid var(--border3);
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)
+  }
+  html:not(.tv) .detail-toolbar .detail-neighbors{gap:5px}
+  html:not(.tv) .detail-toolbar .detail-neighbors .btn{min-height:40px;padding:7px 8px;font-size:11px}
+}
+
+html.tv .media-closebar.detail-toolbar{height:auto;min-height:66px;grid-template-columns:minmax(0,1fr) auto;justify-content:stretch}
+html.tv .detail-toolbar .detail-neighbors .btn{font-size:16px}
