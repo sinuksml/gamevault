@@ -1,8 +1,11 @@
 ﻿"use strict";
-var APP_VERSION = "1.7.0";
+var APP_VERSION = "1.8.0";
 var APP_BUILD_DATE = "2026-07-13";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Rebuilt Android TV focus navigation for predictable one-step D-pad movement",
+  "Made all TV menus, settings groups, dropdowns, dialogs and detail actions reachable",
+  "Removed TV focus jumps caused by page recentering and card scaling",
   "Added dedicated English, Malayalam, Tamil and Hindi TV show tabs",
   "Improved 1080p and 2K layouts with sharper wide-screen artwork",
   "Fixed desktop navigation and detail-toolbar alignment",
@@ -5599,6 +5602,7 @@ var tvEditingInput=null;
 var tvFocusMemory={};
 var tvLastMoveAt=0;
 var tvSelectReturnKey="";
+var TV_MOVE_DELAY=135;
 function tvIsEditable(el){
   return !!(el && /^(INPUT|TEXTAREA|SELECT)$/i.test(el.tagName));
 }
@@ -5736,11 +5740,11 @@ function tvBringIntoView(el){
     else if(er.right>hr.right-16) horizontal.scrollLeft+=er.right-(hr.right-16);
   }
   var r=el.getBoundingClientRect();
-  var topSafe=Math.max(90,window.innerHeight*.16), bottomSafe=window.innerHeight*.84;
-  if(r.top<topSafe || r.bottom>bottomSafe){
-    var target=window.innerHeight*.38;
-    window.scrollBy({top:Math.round(r.top-target),behavior:"auto"});
-  }
+  var topSafe=Math.max(72,window.innerHeight*.10), bottomSafe=window.innerHeight-Math.max(72,window.innerHeight*.10);
+  var delta=0;
+  if(r.top<topSafe) delta=r.top-topSafe;
+  else if(r.bottom>bottomSafe) delta=r.bottom-bottomSafe;
+  if(delta) window.scrollBy({top:Math.round(delta),behavior:"auto"});
 }
 function tvFocus(el, opts){
   if(!TV_MODE || !el) return false;
@@ -5754,10 +5758,12 @@ function tvFocus(el, opts){
 }
 function tvFocusable(){
   if(!TV_MODE) return [];
-  var sel='button,a[href],input,select,textarea,[data-act],.clickrow,[tabindex="0"]';
+  var sel='button,a[href],input,select,textarea,summary,[role="button"],[data-act],.clickrow,[tabindex="0"]';
   var root=tvFocusRoot();
   return [].filter.call(root.querySelectorAll(sel),function(el){
     if(el.disabled || el.getAttribute("aria-hidden")==="true" || el.getAttribute("data-tv-skip")==="1" || el.tabIndex<0) return false;
+    var closed=el.closest&&el.closest("details:not([open])");
+    if(closed && el.tagName!=="SUMMARY") return false;
     var st=getComputedStyle(el), r=el.getBoundingClientRect();
     return st.display!=="none" && st.visibility!=="hidden" && st.pointerEvents!=="none" && r.width>0 && r.height>0;
   });
@@ -5765,7 +5771,7 @@ function tvFocusable(){
 function tvMakeFocusable(){
   if(!TV_MODE) return;
   tvPrepareInputs();
-  [].forEach.call(document.querySelectorAll('.clickrow,[data-act]'),function(el){
+  [].forEach.call(document.querySelectorAll('.clickrow,[data-act],summary,[role="button"]'),function(el){
     if(!/^(BUTTON|A|INPUT|SELECT|TEXTAREA)$/i.test(el.tagName)){
       el.tabIndex=0;
       el.setAttribute("role","button");
@@ -5787,43 +5793,54 @@ function tvAfterRender(){
   if(!TV_MODE) return;
   requestAnimationFrame(function(){ requestAnimationFrame(tvEnsureFocus); });
 }
-function tvNearestInViewport(list){
-  var mid=window.scrollY+window.innerHeight*.42, best=list[0], score=Infinity;
-  list.forEach(function(el){
-    var r=el.getBoundingClientRect(), y=window.scrollY+r.top+r.height/2;
-    var s=Math.abs(y-mid);
-    if(s<score){ score=s; best=el; }
-  });
-  return best;
-}
 function tvRectGap(a1,a2,b1,b2){
   if(a2>=b1 && b2>=a1) return 0;
   return a2<b1 ? b1-a2 : a1-b2;
 }
 function tvDirectionalScore(curRect, nextRect, dir){
-  var primary, secondary;
+  var cx=curRect.left+curRect.width/2,cy=curRect.top+curRect.height/2;
+  var nx=nextRect.left+nextRect.width/2,ny=nextRect.top+nextRect.height/2;
+  var primary, secondary, overlap;
   if(dir==="left"){
-    if(nextRect.right>curRect.left-4) return Infinity;
-    primary=curRect.left-nextRect.right;
+    if(nx>=cx-3) return Infinity;
+    primary=cx-nx;
     secondary=tvRectGap(curRect.top,curRect.bottom,nextRect.top,nextRect.bottom);
+    overlap=secondary===0;
   } else if(dir==="right"){
-    if(nextRect.left<curRect.right+4) return Infinity;
-    primary=nextRect.left-curRect.right;
+    if(nx<=cx+3) return Infinity;
+    primary=nx-cx;
     secondary=tvRectGap(curRect.top,curRect.bottom,nextRect.top,nextRect.bottom);
+    overlap=secondary===0;
   } else if(dir==="up"){
-    if(nextRect.bottom>curRect.top-4) return Infinity;
-    primary=curRect.top-nextRect.bottom;
+    if(ny>=cy-3) return Infinity;
+    primary=cy-ny;
     secondary=tvRectGap(curRect.left,curRect.right,nextRect.left,nextRect.right);
+    overlap=secondary===0;
   } else {
-    if(nextRect.top<curRect.bottom+4) return Infinity;
-    primary=nextRect.top-curRect.bottom;
+    if(ny<=cy+3) return Infinity;
+    primary=ny-cy;
     secondary=tvRectGap(curRect.left,curRect.right,nextRect.left,nextRect.right);
+    overlap=secondary===0;
   }
-  return primary*10 + secondary;
+  return primary + secondary*3 + (overlap?0:420);
 }
 function tvGroup(el){
   if(!el||!el.closest) return document;
-  return el.closest("#sectionSw,#tabs,.stats,.toolbar,.viewbar,.media-grid,.game-grid,.plex-grid,.torrent-grid,.actions,.menupanel,.settings,.tv-select-panel,.tv-confirm-panel")||document;
+  return el.closest("#sectionSw,#tabs,.stats,.toolbar,.viewbar,.media-grid,.game-grid,.plex-grid,.torrent-grid,.actions,.title-menu-pop,.menupanel,.settings-group,.settings,.tv-select-panel,.tv-confirm-actions,.tv-confirm-panel")||document;
+}
+function tvGroupAxis(group){
+  if(!group||group===document) return "spatial";
+  if(group.matches("#sectionSw,.settings,.settings-group,.title-menu-pop,.tv-select-panel")) return "vertical";
+  if(group.matches("#tabs,.viewbar,.actions,.tv-confirm-actions")) return "horizontal";
+  return "spatial";
+}
+function tvOrderedMove(cur,list,dir,axis){
+  if(!list.length) return null;
+  var forward=(axis==="horizontal"&&(dir==="right"))||(axis==="vertical"&&(dir==="down"));
+  var backward=(axis==="horizontal"&&(dir==="left"))||(axis==="vertical"&&(dir==="up"));
+  if(!forward&&!backward) return null;
+  var idx=list.indexOf(cur),next=idx+(forward?1:-1);
+  return next>=0&&next<list.length?list[next]:null;
 }
 function tvBestDirectional(cur,list,dir){
   var cr=cur.getBoundingClientRect(),best=null,bestScore=Infinity;
@@ -5834,29 +5851,42 @@ function tvBestDirectional(cur,list,dir){
   });
   return best;
 }
+function tvPreferredTransition(cur,group,list,dir){
+  if(group&&group.id==="sectionSw"&&dir==="right"){
+    return document.querySelector("#tabs .tab.on")||document.querySelector("#tabs .tab")||document.querySelector("#content button,#content [data-act],#content .clickrow");
+  }
+  if(group&&group.id==="tabs"&&dir==="up") return document.querySelector("#sectionSw button.on");
+  if(group&&group.id==="tabs"&&dir==="down"){
+    var below=[].filter.call(document.querySelectorAll(".toolbar button,.toolbar select,.viewbar button,#content button,#content select,#content [data-act],#content .clickrow"),function(el){return list.indexOf(el)>-1;});
+    return tvBestDirectional(cur,below,"down")||below[0]||null;
+  }
+  return null;
+}
 function tvMove(dir){
   var now=Date.now();
-  if(now-tvLastMoveAt<55) return;
+  if(now-tvLastMoveAt<TV_MOVE_DELAY) return;
   tvLastMoveAt=now;
   var list=tvFocusable();
   if(!list.length) return;
   var cur=document.activeElement;
-  if(list.indexOf(cur)<0){ tvFocus(tvNearestInViewport(list)); return; }
+  if(list.indexOf(cur)<0){ tvEnsureFocus(); return; }
   var group=tvGroup(cur);
   var same=list.filter(function(el){return tvGroup(el)===group;});
-  var best=tvBestDirectional(cur,same,dir)||tvBestDirectional(cur,list,dir);
-  if(best){
-    tvFocus(best);
-  } else if(dir==="down") {
-    window.scrollBy({top:Math.round(window.innerHeight*.48), behavior:"auto"});
-    setTimeout(function(){tvFocus(tvNearestInViewport(tvFocusable()));},0);
-  } else if(dir==="up") {
-    window.scrollBy({top:-Math.round(window.innerHeight*.48), behavior:"auto"});
-    setTimeout(function(){tvFocus(tvNearestInViewport(tvFocusable()));},0);
-  } else {
-    var idx=list.indexOf(cur), ni=idx+(dir==="right"?1:-1);
-    if(ni>=0 && ni<list.length) tvFocus(list[ni]);
+  var axis=tvGroupAxis(group);
+  var best=tvOrderedMove(cur,same,dir,axis)||tvPreferredTransition(cur,group,list,dir)||tvBestDirectional(cur,same,dir);
+  if(!best){
+    var outside=list.filter(function(el){return tvGroup(el)!==group;});
+    best=tvBestDirectional(cur,outside,dir);
   }
+  if(!best && dir==="left" && group!==document){
+    var activeSection=document.querySelector("#sectionSw button.on");
+    if(activeSection&&list.indexOf(activeSection)>-1) best=activeSection;
+  }
+  if(!best && dir==="up" && group!==document){
+    var activeTab=document.querySelector("#tabs .tab.on");
+    if(activeTab&&list.indexOf(activeTab)>-1) best=activeTab;
+  }
+  if(best) tvFocus(best);
 }
 function tvMoveTextCursor(el,dir){
   if(!el || typeof el.selectionStart!=="number") return;
@@ -5968,46 +5998,55 @@ document.addEventListener("focusout",function(e){
   }
   e.target.classList.remove("tv-focus");
 },true);
-document.addEventListener("keydown",function(e){
-  if(!TV_MODE) return;
+function tvHandleTvKey(key){
+  if(!TV_MODE) return false;
   var tag=(document.activeElement&&document.activeElement.tagName)||"";
   var editingText=tvEditingInput&&document.activeElement===tvEditingInput;
   var editing=/^(INPUT|TEXTAREA|SELECT)$/i.test(tag);
-  if(e.key==="ArrowLeft"||e.key==="ArrowRight"||e.key==="ArrowUp"||e.key==="ArrowDown"){
+  if(key==="ArrowLeft"||key==="ArrowRight"||key==="ArrowUp"||key==="ArrowDown"){
     if(editingText){
-      e.preventDefault();
-      if(e.key==="ArrowLeft"||e.key==="ArrowRight") tvMoveTextCursor(document.activeElement,e.key==="ArrowLeft"?"left":"right");
+      if(key==="ArrowLeft"||key==="ArrowRight") tvMoveTextCursor(document.activeElement,key==="ArrowLeft"?"left":"right");
       else{
         var editEl=document.activeElement;
         tvStopInputEdit(editEl);
         var editReturn=tvFindByKey(tvReturnFocusKey);if(editReturn)tvFocus(editReturn,{preventScroll:true});else tvEnsureFocus();
-        tvMove(e.key==="ArrowUp"?"up":"down");
+        tvMove(key==="ArrowUp"?"up":"down");
       }
-      return;
+      return true;
     }
-    e.preventDefault();
-    tvMove(e.key.replace("Arrow","").toLowerCase());
-    return;
+    tvMove(key.replace("Arrow","").toLowerCase());
+    return true;
   }
-  if((e.key==="Enter"||e.key===" ") && document.activeElement && tvIsTextInput(document.activeElement)){
+  if((key==="Enter"||key===" ") && document.activeElement && tvIsTextInput(document.activeElement)){
     if(document.activeElement!==tvEditingInput || document.activeElement.readOnly){
-      e.preventDefault();
       tvStartInputEdit(document.activeElement);
     }
-    return;
+    return true;
   }
-  if((e.key==="Enter"||e.key===" ") && document.activeElement && document.activeElement.tagName==="SELECT"){
-    e.preventDefault();
+  if((key==="Enter"||key===" ") && document.activeElement && document.activeElement.tagName==="SELECT"){
     tvOpenSelect(document.activeElement);
-    return;
+    return true;
   }
-  if((e.key==="Enter"||e.key===" ") && document.activeElement && !editing){
+  if((key==="Enter"||key===" ") && document.activeElement && !editing){
     var el=document.activeElement;
-    if(el.matches && el.matches('[data-act],.clickrow,button,a[href]')){
-      e.preventDefault();
+    if(el.matches && el.matches('[data-act],.clickrow,button,a[href],summary,[role="button"]')){
       el.click();
+      if(el.tagName==="SUMMARY") setTimeout(tvAfterRender,0);
+      return true;
     }
   }
+  return false;
+}
+window.gameVaultTvKey=tvHandleTvKey;
+document.addEventListener("keydown",function(e){
+  if(!TV_MODE) return;
+  if(tvHandleTvKey(e.key)){
+    e.preventDefault();
+    e.stopPropagation();
+  }
+},true);
+document.addEventListener("toggle",function(e){
+  if(TV_MODE && e.target && e.target.tagName==="DETAILS") tvAfterRender();
 },true);
 
 /* ---------- autocomplete ---------- */

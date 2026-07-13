@@ -1,12 +1,12 @@
-# GameVault Android TV Launcher 1.4.1
+# GameVault Android TV Launcher 1.5.0
 
 This is a tiny Android TV WebView app for NVIDIA Shield TV Pro.
 
 The tile opens GameVault directly inside the APK:
 
-`https://sinuksml.github.io/gamevault/?tv=1&appv=1.4.1`
+`https://sinuksml.github.io/gamevault/?tv=1&appv=1.5.0`
 
-The `?tv=1` flag enables the remote-friendly TV layout without changing the normal PC/mobile website. Version 1.4.1 adds a ten-foot navigation rail, stable D-pad focus memory, remote-safe form controls, full-screen details, an offline screen, an internal external-page viewer, and persistent top-bar TV zoom controls. YouTube links open in the Android TV YouTube app when it is installed.
+The `?tv=1` flag enables the remote-friendly TV layout without changing the normal PC/mobile website. Version 1.5.0 adds debounced Shield remote input, deterministic one-item D-pad navigation, stable focus memory, remote-safe form controls, full-screen details, an offline screen, an internal external-page viewer, and persistent top-bar TV zoom controls. YouTube links open in the Android TV YouTube app when it is installed.
 
 For Google Drive on TV, use the QR login flow in Settings instead of the normal browser popup login. Search fields are intentionally skipped by D-pad navigation on TV; use PC or mobile when text search is needed.
 

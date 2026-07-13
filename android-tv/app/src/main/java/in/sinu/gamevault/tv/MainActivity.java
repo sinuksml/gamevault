@@ -9,6 +9,7 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -27,13 +28,16 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
-    private static final String GAMEVAULT_URL = "https://sinuksml.github.io/gamevault/?tv=1&appv=1.4.1";
+    private static final String GAMEVAULT_URL = "https://sinuksml.github.io/gamevault/?tv=1&appv=1.5.0";
     private static final int EXTERNAL_BAR_HEIGHT_DP = 64;
+    private static final long REMOTE_REPEAT_INTERVAL_MS = 180;
 
     private WebView webView;
     private LinearLayout externalBar;
     private LinearLayout offlinePanel;
     private boolean clearHistoryOnGameVaultReturn;
+    private int lastRemoteKeyCode = KeyEvent.KEYCODE_UNKNOWN;
+    private long lastRemoteKeyAt;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,7 +89,7 @@ public class MainActivity extends Activity {
         settings.setAllowContentAccess(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        settings.setUserAgentString(settings.getUserAgentString() + " GameVaultTV/1.4.1");
+        settings.setUserAgentString(settings.getUserAgentString() + " GameVaultTV/1.5.0");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             settings.setSafeBrowsingEnabled(true);
         }
@@ -256,14 +260,23 @@ public class MainActivity extends Activity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (event.getAction() == KeyEvent.ACTION_DOWN && offlinePanel.getVisibility() != View.VISIBLE && isGameVaultPage()) {
-            String key = jsKey(event.getKeyCode());
-            if (key != null) {
-                sendKeyToPage(key);
-                return true;
-            }
+        String key = jsKey(event.getKeyCode());
+        if (key == null || offlinePanel.getVisibility() == View.VISIBLE || !isGameVaultPage()) {
+            return super.dispatchKeyEvent(event);
         }
-        return super.dispatchKeyEvent(event);
+        if (event.getAction() == KeyEvent.ACTION_UP) return true;
+        if (event.getAction() != KeyEvent.ACTION_DOWN) return true;
+
+        long now = SystemClock.uptimeMillis();
+        boolean enter = "Enter".equals(key);
+        boolean firstPress = event.getRepeatCount() == 0 || event.getKeyCode() != lastRemoteKeyCode;
+        boolean repeatReady = !enter && now - lastRemoteKeyAt >= REMOTE_REPEAT_INTERVAL_MS;
+        if (firstPress || repeatReady) {
+            lastRemoteKeyCode = event.getKeyCode();
+            lastRemoteKeyAt = now;
+            sendKeyToPage(key);
+        }
+        return true;
     }
 
     private String jsKey(int keyCode) {
@@ -285,7 +298,8 @@ public class MainActivity extends Activity {
     }
 
     private void sendKeyToPage(String key) {
-        String js = "document.dispatchEvent(new KeyboardEvent('keydown',{key:'" + key + "',bubbles:true,cancelable:true}));";
+        String js = "(function(){if(window.gameVaultTvKey){window.gameVaultTvKey('" + key + "');return;}" +
+            "document.dispatchEvent(new KeyboardEvent('keydown',{key:'" + key + "',bubbles:true,cancelable:true}));})();";
         webView.evaluateJavascript(js, null);
     }
 

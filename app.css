@@ -791,17 +791,18 @@ html.tv .meta,html.tv .syncnote{font-size:15px;line-height:1.45}
 html.tv .chip,html.tv .prov{font-size:14px;padding:5px 10px}
 
 html.tv :focus{outline:none}
+html.tv button,html.tv a,html.tv input,html.tv select,html.tv textarea,html.tv summary,
+html.tv [role="button"],html.tv [data-act],html.tv .clickrow{scroll-margin:104px 34px}
 html.tv :focus-visible,html.tv .tv-focus{
   position:relative;z-index:12;
   outline:3px solid #6ee7f9!important;outline-offset:4px;
   box-shadow:0 0 0 7px rgba(110,231,249,.20),0 18px 42px rgba(0,0,0,.45)!important;
 }
-html.tv button.tv-focus,html.tv a.tv-focus,html.tv [role="button"].tv-focus{transform:scale(1.035)}
 html.tv .media-card:focus-within,html.tv .game-tile:focus-within,html.tv .plex-card:focus-within{
-  z-index:10;border-color:#6ee7f9;transform:scale(1.045);
+  z-index:10;border-color:#6ee7f9;
   box-shadow:0 0 0 3px rgba(110,231,249,.22),0 22px 54px rgba(0,0,0,.5);
 }
-html.tv .sectionsw button.tv-focus,html.tv .tab.tv-focus{transform:scale(1.025)}
+html.tv summary.tv-focus{border-radius:8px;background:color-mix(in srgb,var(--accent) 12%,var(--surface-soft))}
 
 html.tv body.menu-open::before,html.tv body.settings-open::before{
   content:"";position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.62);
