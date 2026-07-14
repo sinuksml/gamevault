@@ -1,8 +1,9 @@
 ﻿"use strict";
-var APP_VERSION = "1.9.0";
+var APP_VERSION = "1.9.1";
 var APP_BUILD_DATE = "2026-07-14";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Restored phone QR login for Google Drive inside the TV System page",
   "Replaced the Shield layout with a dedicated view-only TV interface",
   "Added YouTube-style navigation, horizontal shelves and cinematic title details",
   "Removed editing, search, backup and advanced settings from the normal TV experience",
@@ -819,27 +820,32 @@ function gdSignOut(){
 function gdTvSetStatus(msg){
   var el=document.getElementById("gdTvStatus");
   if(el) el.textContent=msg||"";
+  var tvEl=document.getElementById("tvGdStatus");
+  if(tvEl) tvEl.textContent=msg||"";
 }
 function gdTvStop(){
   if(gdTvPollTimer){ clearTimeout(gdTvPollTimer); gdTvPollTimer=null; }
   var cancel=document.getElementById("gdTvCancelBtn");
   if(cancel) cancel.style.display="none";
+  var tvCancel=document.getElementById("tvGdCancelBtn");
+  if(tvCancel) tvCancel.style.display="none";
 }
 function gdTvQrUrl(url){
   return "https://quickchart.io/qr?size=280&text="+encodeURIComponent(url);
 }
 function gdTvRenderCode(info){
   var box=document.getElementById("gdTvBox");
-  if(!box) return;
   var url=info.verification_url_complete||info.verification_uri_complete||info.verification_url||info.verification_uri;
   var base=info.verification_url||info.verification_uri||"https://www.google.com/device";
-  box.style.display="block";
-  box.innerHTML=
+  var markup=
     '<b style="color:var(--text)">Scan with your phone</b>'+
     '<img src="'+gdTvQrUrl(url)+'" alt="Google TV login QR">'+
     '<div class="meta">If the QR does not open, go to <a href="'+esc(base)+'" target="_blank" rel="noopener">'+esc(base)+'</a> and enter:</div>'+
     '<div class="tv-code">'+esc(info.user_code||"")+'</div>'+
     '<div class="meta">Waiting for approval on your phone...</div>';
+  if(box){ box.style.display="block"; box.innerHTML=markup; }
+  var tvBox=document.getElementById("tvGdQrBox");
+  if(tvBox){ tvBox.style.display="grid"; tvBox.innerHTML=markup; }
 }
 function gdTvPoll(deviceCode, interval, expiresAt){
   if(Date.now()>expiresAt){ gdTvStop(); gdTvSetStatus("QR login expired - start again."); return; }
@@ -859,8 +865,10 @@ function gdTvPoll(deviceCode, interval, expiresAt){
       gdSaveTok({access_token:j.access_token, exp:Date.now()+(Number(j.expires_in)||3600)*1000, refresh_token:j.refresh_token||"", tv:true});
       gdSetStatus(); gdTvSetStatus("Connected - pulling Drive backup...");
       var box=document.getElementById("gdTvBox"); if(box) box.style.display="none";
+      var tvBox=document.getElementById("tvGdQrBox"); if(tvBox) tvBox.style.display="none";
       flash("Google Drive connected on TV");
       silentPullOnLoad();
+      if(TV_MODE&&tvSection==="system")setTimeout(function(){renderTvApp("system:sync");},250);
       return;
     }
     if(j.error==="authorization_pending"){
@@ -895,6 +903,7 @@ function gdTvStart(){
     gdTvRenderCode(info);
     gdTvSetStatus("Scan the QR with your phone.");
     var cancel=document.getElementById("gdTvCancelBtn"); if(cancel) cancel.style.display="";
+    var tvCancel=document.getElementById("tvGdCancelBtn"); if(tvCancel) tvCancel.style.display="";
     gdTvPoll(info.device_code, Math.max(5,Number(info.interval)||5), Date.now()+(Number(info.expires_in)||1800)*1000);
   }).catch(function(e){
     gdTvSetStatus(e.message);
@@ -3346,10 +3355,14 @@ function tvHeaderHtml(){
 }
 function tvSystemHtml(){
   var syncTime=lastSyncedAt?new Date(lastSyncedAt).toLocaleString():"Not synced in this session";
+  var connected=gdConnected(),tvReady=!!gdTvClientId();
+  var drivePanel='<section class="tv-drive-login"><div class="tv-drive-copy"><span>Google Drive</span><strong>'+(connected?'Connected':'Connect this TV')+'</strong><small id="tvGdStatus">'+esc(connected?'Your library syncs automatically.':(tvReady?'Scan a QR code with your phone to restore your library.':'TV OAuth login is not configured on this device.'))+'</small></div><div class="tv-drive-actions">'+
+    (connected?'<button type="button" data-tv-system="drive-disconnect" data-tv-key="system:drive-disconnect">Disconnect Drive</button>':(tvReady?'<button type="button" data-tv-system="drive-login" data-tv-key="system:drive-login">Login with phone QR</button>':'<span>Use the existing Settings page once to save the TV OAuth Client ID.</span>'))+
+    '<button type="button" id="tvGdCancelBtn" data-tv-system="drive-cancel" data-tv-key="system:drive-cancel" style="display:none">Cancel QR login</button></div><div class="tv-drive-qr" id="tvGdQrBox" style="display:none"></div></section>';
   return '<div class="tv-system-grid"><div class="tv-system-card"><span>Cloud</span><strong>'+esc(tvSyncLabel())+'</strong><small>'+esc(syncTime)+'</small></div>'+
     '<div class="tv-system-card"><span>Library</span><strong>'+vaultSize(data)+' saved items</strong><small>View-only on this TV</small></div>'+
     '<div class="tv-system-card"><span>Display</span><strong>'+Math.round(tvZoomValue()*100)+'%</strong><small>Optimized for 4K television</small></div></div>'+
-    '<div class="tv-system-actions"><button type="button" data-tv-system="sync" data-tv-key="system:sync">↻ Sync now</button><button type="button" data-tv-system="zoom-out" data-tv-key="system:zoom-out">− Smaller</button><button type="button" data-tv-system="zoom-reset" data-tv-key="system:zoom-reset">Reset size</button><button type="button" data-tv-system="zoom-in" data-tv-key="system:zoom-in">+ Larger</button><button type="button" data-tv-system="reload" data-tv-key="system:reload">Reload app</button></div><p class="tv-system-note">Library editing, API keys, backup and advanced settings remain available on your phone and PC.</p>';
+    drivePanel+'<div class="tv-system-actions"><button type="button" data-tv-system="sync" data-tv-key="system:sync">↻ Sync now</button><button type="button" data-tv-system="zoom-out" data-tv-key="system:zoom-out">− Smaller</button><button type="button" data-tv-system="zoom-reset" data-tv-key="system:zoom-reset">Reset size</button><button type="button" data-tv-system="zoom-in" data-tv-key="system:zoom-in">+ Larger</button><button type="button" data-tv-system="reload" data-tv-key="system:reload">Reload app</button></div><p class="tv-system-note">Library editing, API keys, backup and advanced settings remain available on your phone and PC.</p>';
 }
 function tvBiglyHtml(){
   if(!biglyProxyUrl())return '<div class="tv-empty-state"><strong>BiglyBT is not configured</strong><span>Configure the secure gateway on your phone or PC. TV access is view-only.</span></div>';
@@ -3442,6 +3455,12 @@ function tvOpenDetail(key){
 function tvCloseDetail(){tvDetail=null;renderTvApp(tvLastCardBySection[tvSection]||("nav:"+tvSection));}
 function tvSystemAction(action){
   if(action==="sync"){silentPullOnLoad();flash("Checking Google Drive…");}
+  else if(action==="drive-login")gdTvStart();
+  else if(action==="drive-cancel"){
+    gdTvStop();gdTvSetStatus("QR login cancelled");
+    var tvBox=document.getElementById("tvGdQrBox");if(tvBox)tvBox.style.display="none";
+  }
+  else if(action==="drive-disconnect"){gdSignOut();renderTvApp("system:drive-login");}
   else if(action==="reload")location.reload();
   else if(action==="zoom-out"){setTvZoom(tvZoomValue()-.05);renderTvApp("system:zoom-out");}
   else if(action==="zoom-reset"){setTvZoom(.90);renderTvApp("system:zoom-reset");}
