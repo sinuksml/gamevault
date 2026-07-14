@@ -1,8 +1,11 @@
 ﻿"use strict";
-var APP_VERSION = "1.10.0";
+var APP_VERSION = "1.11.0";
 var APP_BUILD_DATE = "2026-07-14";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Added optional BiglyBT auto-removal for completed torrents while always preserving downloaded files",
+  "Added full Plex movie and TV show details with the existing media actions",
+  "Enabled guarded permanent Plex deletion for watched, partially watched and unwatched media",
   "Added a private PC and mobile Health section based on the July 2026 lab report",
   "Added weekly food, activity, sleep, hydration and follow-up lab tracking",
   "Moved the TV login QR into a fully visible fixed overlay",
@@ -3022,7 +3025,7 @@ function renderBiglyBT(){
 
 /* ---------- Plex library (direct secure Plex Media Server API) ---------- */
 var PLEX_URL_KEY="gamevault-plex-url", PLEX_TOKEN_KEY="gamevault-plex-token", PLEX_CACHE_KEY="gamevault-plex-cache";
-var PLEX_ORDER=["home","continue","movies","shows","recent"], plexTab="home", plexItems=[], plexBusy=false, plexErr="", plexConnected=false, plexAllowDelete=false, plexSearch="";
+var PLEX_ORDER=["home","continue","movies","shows","recent"], plexTab="home", plexItems=[], plexBusy=false, plexErr="", plexConnected=false, plexAllowDelete=false, plexSearch="", plexExpanded=null, plexDetailReturnY=0, plexEnriched={}, plexEnrichBusy={};
 try{
   plexTab=localStorage.getItem("gamevault-plex-tab")||"home";
   if(PLEX_ORDER.indexOf(plexTab)<0) plexTab="home";
@@ -3080,9 +3083,13 @@ function plexContainerAttr(payload,name){
 function plexMapItem(x,kind){
   var duration=Number(x.duration)||0, offset=Number(x.viewOffset)||0;
   var watched=kind==="show" ? (Number(x.leafCount)>0&&Number(x.viewedLeafCount)>=Number(x.leafCount)) : Number(x.viewCount)>0;
+  var genres=(x.Genre||[]).map(function(g){ return g.tag||g.name||""; }).filter(Boolean);
+  var guids=(x.Guid||[]).map(function(g){ return g.id||""; }), imdbId="";
+  guids.some(function(g){ var m=String(g).match(/imdb:\/\/(tt\d+)/i); if(m){ imdbId=m[1]; return true; } return false; });
   return {ratingKey:String(x.ratingKey||""),type:kind,title:x.title||"Untitled",year:x.year||"",summary:x.summary||"",thumb:x.thumb||"",art:x.art||"",
     duration:duration,viewOffset:offset,viewCount:Number(x.viewCount)||0,leafCount:Number(x.leafCount)||0,viewedLeafCount:Number(x.viewedLeafCount)||0,
-    addedAt:Number(x.addedAt)||0,lastViewedAt:Number(x.lastViewedAt)||0,watched:watched};
+    addedAt:Number(x.addedAt)||0,lastViewedAt:Number(x.lastViewedAt)||0,watched:watched,genres:genres,imdbId:imdbId,
+    rating:Number(x.audienceRating||x.rating)||null,date:x.originallyAvailableAt||""};
 }
 function plexSaveCache(){
   try{ localStorage.setItem(PLEX_CACHE_KEY,JSON.stringify({at:Date.now(),items:plexItems})); }catch(e){}
@@ -3130,21 +3137,101 @@ function plexProgress(item){
   if(item.type==="show") return item.leafCount?Math.round(item.viewedLeafCount/item.leafCount*100):0;
   return item.duration?Math.round(item.viewOffset/item.duration*100):0;
 }
+function plexSyntheticId(item){ return "plex-"+item.type+"-"+item.ratingKey; }
+function plexGenreIds(names,list){
+  var wanted=(names||[]).map(norm),out=[];
+  (list||[]).forEach(function(g){ if(wanted.indexOf(norm(g[1]))>-1) out.push(g[0]); });
+  return out;
+}
+function plexAsMedia(item){
+  if(!item) return null;
+  var cached=plexEnriched[item.ratingKey]||{}, isShow=item.type==="show";
+  return Object.assign({},cached,{
+    id:plexSyntheticId(item),plexRatingKey:item.ratingKey,plexType:item.type,title:item.title,year:String(item.year||cached.year||""),
+    date:item.date||cached.date||"",overview:item.summary||cached.overview||"",poster:plexMediaUrl(item.thumb)||cached.poster||"",
+    backdrop:plexMediaUrl(item.art)||cached.backdrop||"",imdbId:item.imdbId||cached.imdbId||null,
+    imdb:typeof cached.imdb==="number"?cached.imdb:(typeof item.rating==="number"?item.rating:null),tmdbId:cached.tmdbId||null,
+    genres:(cached.genres&&cached.genres.length)?cached.genres:plexGenreIds(item.genres,isShow?SERIES_GENRES:MOVIE_GENRES),
+    providers:cached.providers||[],seasons:cached.seasons||0,seasonList:cached.seasonList||[],latestDate:cached.latestDate||""
+  });
+}
+function plexFindItem(id){
+  return plexItems.filter(function(x){ return x.ratingKey===String(id)||plexSyntheticId(x)===String(id); })[0]||null;
+}
+function findPlexMedia(id,type){
+  var item=plexItems.filter(function(x){ return (!type||x.type===type)&&(x.ratingKey===String(id)||plexSyntheticId(x)===String(id)); })[0];
+  return plexAsMedia(item);
+}
+function plexEnrichItem(item){
+  if(!item||!tmdbKey()||plexEnriched[item.ratingKey]||plexEnrichBusy[item.ratingKey]) return;
+  plexEnrichBusy[item.ratingKey]=1;
+  var searchPath=item.type==="show"?"/search/tv":"/search/movie";
+  var params={query:item.title,include_adult:"false",page:1};
+  if(item.year) params[item.type==="show"?"first_air_date_year":"year"]=item.year;
+  tmdbGet(searchPath,params).then(function(j){
+    var results=j.results||[], exact=results.filter(function(x){ var d=item.type==="show"?x.first_air_date:x.release_date; return !item.year||String(d||"").slice(0,4)===String(item.year); })[0]||results[0];
+    if(!exact) throw new Error("No TMDB match");
+    if(item.type==="show"){
+      var s=mapSeries(exact),tmdbId=s.id;
+      return enrichSeriesIds(s).then(function(){ s.tmdbId=tmdbId; return s; });
+    }
+    var m=mapMovie(exact),tmdbId=m.id;
+    return tmdbGet("/movie/"+tmdbId,{append_to_response:"external_ids,watch/providers"}).then(function(d){
+      m.tmdbId=tmdbId;m.imdbId=(d.external_ids&&d.external_ids.imdb_id)||m.imdbId;
+      m.genres=(d.genres||[]).map(function(g){return g.id;});
+      var wp=d["watch/providers"]&&d["watch/providers"].results&&d["watch/providers"].results.US;
+      m.providers=(((wp&&wp.flatrate)||[]).concat((wp&&wp.free)||[])).map(function(p){return p.provider_name;});
+      return omdbRatingById(m.imdbId).then(function(rt){if(typeof rt==="number")m.imdb=rt;return m;});
+    });
+  }).then(function(m){
+    plexEnriched[item.ratingKey]=m;delete plexEnrichBusy[item.ratingKey];
+    if(section==="plex"&&plexExpanded===item.ratingKey) render();
+  }).catch(function(){ delete plexEnrichBusy[item.ratingKey]; });
+}
+function plexMovieState(m){
+  if(isMovieWatched(m)) return "watched";
+  if(inWatchlist(m)) return "watchlist";
+  return "plex";
+}
+function plexSeriesState(s){
+  if((data.watchedSeries||[]).some(function(x){return String(x.id)===String(s.id);})) return "serieswatched";
+  if((data.watchingSeries||[]).some(function(x){return String(x.id)===String(s.id);})) return "serieswatching";
+  if(inSeriesWatchlist(s)) return "serieswatchlist";
+  return "plex";
+}
+function plexHero(item,m){
+  var list=item.type==="show"?SERIES_GENRES:MOVIE_GENRES;
+  return '<div class="media-closebar detail-toolbar">'+mediaClose("plex")+'</div><div class="media-page-head">'+
+    '<div class="media-page-poster">'+(m.poster?'<img src="'+esc(m.poster)+'" alt="'+esc(m.title)+' poster" loading="lazy">':'<div class="poster-ph">'+(item.type==="show"?'TV':'FILM')+'</div>')+'</div><div><div class="media-page-title">'+esc(m.title)+'</div><div class="media-page-sub"><span class="media-pill imdb">'+esc(mediaRatingLabel(m))+'</span><span class="media-pill">'+esc(genreLabel(m.genres,list))+'</span>'+(m.year?'<span class="media-pill">'+esc(m.year)+'</span>':'')+'</div>'+(m.overview?'<div class="media-page-overview">'+esc(m.overview)+'</div>':'')+'</div></div>';
+}
+function plexDetailPage(item){
+  var m=plexAsMedia(item), actions='<div class="actions detail-actionbar">';
+  refreshImdbIfStale(m);
+  if(item.type==="show"){
+    var sk=plexSeriesState(m);
+    actions+=seriesPrimaryAction(m,sk,false)+seriesMoreMenu(m,sk)+seriesRatingDots(m)+seriesLinks(m.title,m.year)+reeloadReviewLink(m.title,m.year,"series")+seriesImdbLink(m)+'<button class="btn" data-act="ai-open" data-ai-type="series" data-id="'+esc(String(m.id))+'">AI Assistant</button>'+(m.tmdbId?'<a class="btn" href="https://www.themoviedb.org/tv/'+m.tmdbId+'" target="_blank" rel="noopener">TMDB</a>':'');
+  }else{
+    var mk=plexMovieState(m);
+    actions+=moviePrimaryAction(m,mk,false)+movieMoreMenu(m,mk)+movieLinks(m.title,m.year)+imdbLink(m)+reeloadReviewLink(m.title,m.year,"movie")+(m.tmdbId?'<a class="btn" href="https://www.themoviedb.org/movie/'+m.tmdbId+'" target="_blank" rel="noopener">TMDB</a>':'')+'<button class="btn" data-act="ai-open" data-ai-type="film" data-id="'+esc(String(m.id))+'">AI Assistant</button>';
+  }
+  actions+='<button class="btn ghost danger" data-act="plex-delete" data-id="'+esc(item.ratingKey)+'">Permanently delete from Plex</button></div>';
+  return '<div class="media-page plex-detail">'+plexHero(item,m)+actions+mediaProvidersBlock(m)+(item.type==="show"?(seriesEpisodeBlock(m)||plotBlock(seriesPlotName(m),"TV series")):plotBlock(moviePlotName(m),"film"))+aiPanel(item.type==="show"?"series":"film",m)+'</div>';
+}
 function plexCard(item){
   var pct=Math.max(0,Math.min(100,plexProgress(item)));
   var status=item.type==="show"?(item.viewedLeafCount+" / "+item.leafCount+" episodes watched"):(item.watched?"Watched":pct?pct+"% watched":"Unwatched");
-  return '<div class="card plex-card">'+mediaPoster(plexMediaUrl(item.thumb),item.title||item.type)+
+  return '<div class="card plex-card"><div class="media-main clickrow" role="button" tabindex="0" data-act="plex-open" data-id="'+esc(item.ratingKey)+'">'+mediaPoster(plexMediaUrl(item.thumb),item.title||item.type)+
     '<div class="media-info"><div class="media-title">'+esc(item.title)+'</div><div class="media-meta">'+(item.year?'<span class="media-pill">'+esc(String(item.year))+'</span>':'')+'<span class="media-pill">'+(item.type==="show"?"TV Show":"Movie")+'</span></div>'+
-    '<div class="plex-progress"><span style="width:'+pct+'%"></span></div><div class="plex-status '+(item.watched?'watched':'')+'">'+(item.watched?'✓ ':'')+esc(status)+'</div></div>'+
-    (item.watched?'<div class="actions"><button class="btn ghost danger" data-act="plex-delete" data-id="'+esc(item.ratingKey)+'">Delete media file</button></div>':'')+'</div>';
+    '<div class="plex-progress"><span style="width:'+pct+'%"></span></div><div class="plex-status '+(item.watched?'watched':'')+'">'+(item.watched?'✓ ':'')+esc(status)+'</div></div></div></div>';
 }
 function renderPlex(){
+  if(plexExpanded){ var selected=plexFindItem(plexExpanded); if(selected){ plexEnrichItem(selected); return plexDetailPage(selected); } plexExpanded=null; }
   var configured=plexServerUrl()&&plexToken();
   var searchLabel=plexTab==="shows"?"TV shows":plexTab==="movies"?"movies":"library";
   var html='<div class="toolbar" style="margin-top:14px"><div class="searchwrap"><span class="sic">⌕</span><input class="tab-search" id="plexSearch" placeholder="Search Plex '+searchLabel+'..." value="'+esc(plexSearch)+'" autocomplete="off"></div><button class="btn blue" data-act="plex-refresh"'+(plexBusy?' disabled':'')+'>'+(plexBusy?'Connecting...':'Refresh Plex')+'</button><button class="btn" data-act="plex-settings">Settings</button></div>';
   if(!configured) return html+'<div class="empty">Connect your Plex owner account in Settings. Your token stays only on this device.</div>';
   if(plexErr) html+='<div class="empty">'+esc(plexErr)+'</div>';
-  if(plexConnected && !plexAllowDelete) html+='<div class="meta" style="margin-bottom:10px">Viewing is connected. To delete watched media files, enable <b>Allow media deletion</b> in Plex Server Settings → Library.</div>';
+  if(plexConnected && !plexAllowDelete) html+='<div class="meta" style="margin-bottom:10px">Viewing is connected. To permanently delete media, enable <b>Allow media deletion</b> in Plex Server Settings → Library.</div>';
   var term=norm(plexSearch),base=plexItems.filter(function(x){return !term||norm(x.title).indexOf(term)>-1;});
   var continueItems=base.filter(function(x){var p=plexProgress(x);return p>0&&p<100;}).sort(function(a,b){return (b.lastViewedAt||0)-(a.lastViewedAt||0);});
   var recentItems=base.slice().sort(function(a,b){return (b.addedAt||0)-(a.addedAt||0);}).slice(0,40);
@@ -3164,18 +3251,19 @@ function renderPlex(){
 }
 function plexDeleteItem(id,confirmed){
   var item=plexItems.filter(function(x){ return x.ratingKey===String(id); })[0];
-  if(!item||!item.watched) return;
+  if(!item) return;
   if(!plexConnected){ flash("Reconnect Plex before deleting media"); return; }
   if(!plexAllowDelete){ flash("Enable Allow media deletion in Plex Server Settings first"); return; }
   var what=item.type==="show"?"the entire TV series and all of its media files":"this movie and its media file";
-  var warning='Permanently delete "'+item.title+'"? Plex will remove '+what+' from the Shield storage. This cannot be undone in GameVault.';
+  var progress=item.watched?"watched":plexProgress(item)>0?"partially watched":"unwatched";
+  var warning='Permanently delete "'+item.title+'"? This item is '+progress+'. Plex will remove '+what+' from the Shield storage. This cannot be undone in GameVault.';
   if(!confirmed){
     if(TV_MODE){tvConfirm(warning,"Delete from Plex",function(){plexDeleteItem(id,true);});return;}
     if(!confirm(warning)) return;
   }
   plexBusy=true; render();
   plexRequest("/library/metadata/"+encodeURIComponent(item.ratingKey),{method:"DELETE"}).then(function(){
-    plexItems=plexItems.filter(function(x){ return x.ratingKey!==item.ratingKey; }); plexBusy=false; plexSaveCache(); render(); flash("Deleted from Plex and removed the media file");
+    plexItems=plexItems.filter(function(x){ return x.ratingKey!==item.ratingKey; }); delete plexEnriched[item.ratingKey]; if(plexExpanded===item.ratingKey) plexExpanded=null; plexBusy=false; plexSaveCache(); render(); flash("Deleted from Plex and removed the media file");
   }).catch(function(e){ plexBusy=false; plexErr=e.message||"Plex delete failed"; render(); });
 }
 
@@ -3202,7 +3290,7 @@ function renderPageContext(){
     else if(plexTab==="recent") pc=pc.slice().sort(function(a,b){return (b.addedAt||0)-(a.addedAt||0);}).slice(0,40);
     count=pc.length+" items";
   }
-  if((section==="games"&&expandedId)||(section==="films"&&filmExpanded)||(section==="series"&&seriesExpanded)) desc="Full details and available actions";
+  if((section==="games"&&expandedId)||(section==="films"&&filmExpanded)||(section==="series"&&seriesExpanded)||(section==="plex"&&plexExpanded)) desc="Full details and available actions";
   el.innerHTML='<div><div class="context-path">'+esc(parent)+' / '+esc(title)+'</div><h2>'+esc(title)+'</h2><p>'+esc(desc)+'</p></div>'+(count?'<span class="context-count">'+esc(count)+'</span>':'');
 }
 var RECENT_VIEWED_KEY="gamevault-recent-viewed";
@@ -3217,7 +3305,7 @@ function rememberViewed(kind,id,title,subtab){
 function renderRecentStrip(){
   var el=document.getElementById("recentStrip"); if(!el) return;
   var list=recentViewed();
-  if(!list.length || filmExpanded || seriesExpanded || expandedId || section==="biglybt"){ el.innerHTML=""; el.style.display="none"; return; }
+  if(!list.length || filmExpanded || seriesExpanded || plexExpanded || expandedId || section==="biglybt"){ el.innerHTML=""; el.style.display="none"; return; }
   el.style.display="flex";
   el.innerHTML='<span class="recent-label">Recent</span>'+list.map(function(x){return '<button class="recent-item" data-act="recent-open" data-kind="'+esc(x.kind)+'" data-id="'+esc(x.id)+'" data-subtab="'+esc(x.tab)+'">'+esc(x.title)+'</button>';}).join("");
 }
@@ -3614,7 +3702,7 @@ function render(){
     renderTvApp();
     return;
   }
-  var detailOpen=!!((section==="games"&&gameView==="grid"&&expandedId)||(section==="films"&&filmExpanded)||(section==="series"&&seriesExpanded));
+  var detailOpen=!!((section==="games"&&gameView==="grid"&&expandedId)||(section==="films"&&filmExpanded)||(section==="series"&&seriesExpanded)||(section==="plex"&&plexExpanded));
   document.body.classList.toggle("detail-open",detailOpen);
   renderPageContext();
   renderRecentStrip();
@@ -4195,7 +4283,7 @@ function findCachedMovie(id){
   return null;
 }
 function findMovieAny(id){
-  return findSearchMovie(id)||findWatchlistMovie(id)||findCachedMovie(id)||(data.watchedMovies||[]).filter(function(x){ return String(x.id)===String(id); })[0]||(data.hiddenMovies||[]).filter(function(x){ return String(x.id)===String(id); })[0]||null;
+  return findSearchMovie(id)||findWatchlistMovie(id)||findCachedMovie(id)||(data.watchedMovies||[]).filter(function(x){ return String(x.id)===String(id); })[0]||(data.hiddenMovies||[]).filter(function(x){ return String(x.id)===String(id); })[0]||findPlexMedia(id,"movie")||null;
 }
 var provChips=function(list){ return (list||[]).map(function(p){ return '<span class="prov">'+esc(p)+'</span>'; }).join(""); };
 
@@ -4607,7 +4695,7 @@ function findCachedSeries(id){
   return null;
 }
 function findSeriesAny(id){
-  return findSearchSeries(id)||findWatchlistSeries(id)||(data.watchingSeries||[]).filter(function(x){ return String(x.id)===String(id); })[0]||findCachedSeries(id)||(data.watchedSeries||[]).filter(function(x){ return String(x.id)===String(id); })[0]||(data.hiddenSeries||[]).filter(function(x){ return String(x.id)===String(id); })[0]||null;
+  return findSearchSeries(id)||findWatchlistSeries(id)||(data.watchingSeries||[]).filter(function(x){ return String(x.id)===String(id); })[0]||findCachedSeries(id)||(data.watchedSeries||[]).filter(function(x){ return String(x.id)===String(id); })[0]||(data.hiddenSeries||[]).filter(function(x){ return String(x.id)===String(id); })[0]||findPlexMedia(id,"show")||null;
 }
 function seriesRating(s){ return (data.seriesRatings||{})[seriesKey(s)]||0; }
 function setSeriesRating(s,n){
@@ -4731,11 +4819,12 @@ function seriesImdbLink(s){
   return '<a class="btn imdbbtn" href="'+url+'" target="_blank" rel="noopener">IMDb ↗</a>';
 }
 function ensureSeriesEpisodes(s, seasonNo){
-  if(!s||!s.id||!seasonNo||!tmdbKey()) return;
+  var tmdbId=s&&(s.tmdbId||s.id);
+  if(!s||!tmdbId||!seasonNo||!tmdbKey()||!/^\d+$/.test(String(tmdbId))) return;
   var key=s.id+":"+seasonNo;
   if(seriesEpisodeCache[key] || seriesEpisodeBusy[key]) return;
   seriesEpisodeBusy[key]=1;
-  tmdbGet("/tv/"+s.id+"/season/"+seasonNo, {}).then(function(j){
+  tmdbGet("/tv/"+tmdbId+"/season/"+seasonNo, {}).then(function(j){
     seriesEpisodeCache[key]=(j.episodes||[]).map(function(e){
       return {n:e.episode_number, title:e.name||("Episode "+e.episode_number), overview:e.overview||"", air:e.air_date||""};
     });
@@ -4957,7 +5046,7 @@ function switchFilmTab(next){
 }
 function switchPlexTab(next){
   tabScroll["plex:"+plexTab]=window.scrollY;
-  plexTab=next; try{ localStorage.setItem("gamevault-plex-tab",next); }catch(e){}
+  plexTab=next; plexExpanded=null; try{ localStorage.setItem("gamevault-plex-tab",next); }catch(e){}
   render();
   window.scrollTo(0,tabScroll["plex:"+next]||0);
 }
@@ -4970,7 +5059,7 @@ function switchSection(s){
   else if(section==="health") tabScroll["health:"+healthTab]=window.scrollY;
   else tabScroll[tab]=window.scrollY;
   section=s; try{ localStorage.setItem(SECTION_KEY,s); }catch(e){}
-  expandedId=null; filmExpanded=null; seriesExpanded=null;
+  expandedId=null; filmExpanded=null; seriesExpanded=null; plexExpanded=null;
   [].forEach.call(document.querySelectorAll("#sectionSw button"),function(b){
     var active=b.getAttribute("data-section")===s;
     b.classList.toggle("on",active);
@@ -5345,6 +5434,12 @@ document.getElementById("content").addEventListener("click",function(e){
   }
   if(act==="plex-settings"){ toggleSettings(true); return; }
   if(act==="plex-refresh"){ plexRefresh(); return; }
+  if(act==="plex-open"){
+    if(String(plexExpanded)!==String(id)) plexDetailReturnY=window.scrollY;
+    plexExpanded=String(id); var pi=plexFindItem(id); if(pi){ var pm=plexAsMedia(pi); rememberViewed(pi.type==="show"?"series":"film",pm.id,pm.title,plexTab); plexEnrichItem(pi); if(pi.type!=="show") ensurePlot(moviePlotName(pm),"film"); }
+    if(!TV_MODE) history.pushState({gameVaultDetail:"plex",id:id},"",location.href.split("#")[0]+"#plex-detail");
+    render(); window.scrollTo(0,0); return;
+  }
   if(act==="plex-delete"){ plexDeleteItem(id); return; }
   if(act==="bigly-settings"){ toggleSettings(true); return; }
   if(act==="bigly-home"){ var bh=document.getElementById("biglyFrame"); if(bh) bh.src=biglyFrameUrl(); return; }
@@ -5386,10 +5481,11 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="media-close"){
     if(!TV_MODE && history.state && history.state.gameVaultDetail){ history.back(); return; }
     var mk=b.getAttribute("data-kind");
-    var returnY=mk==="film"?filmDetailReturnY:mk==="series"?seriesDetailReturnY:gameDetailReturnY;
+    var returnY=mk==="film"?filmDetailReturnY:mk==="series"?seriesDetailReturnY:mk==="plex"?plexDetailReturnY:gameDetailReturnY;
     if(mk==="film") filmExpanded=null;
     if(mk==="series") seriesExpanded=null;
     if(mk==="game") expandedId=null;
+    if(mk==="plex") plexExpanded=null;
     aiOpen=null;
     render();
     restoreDetailScroll(returnY);
@@ -6445,6 +6541,10 @@ function gameVaultTvBack(){
     seriesExpanded=null; aiOpen=null; render(); restoreDetailScroll(seriesDetailReturnY);
     return "handled";
   }
+  if(section==="plex" && plexExpanded){
+    plexExpanded=null; aiOpen=null; render(); restoreDetailScroll(plexDetailReturnY);
+    return "handled";
+  }
   if(section==="games" && expandedId){
     expandedId=null; aiOpen=null; render(); restoreDetailScroll(gameDetailReturnY);
     return "handled";
@@ -6456,6 +6556,7 @@ window.gameVaultTvBack=gameVaultTvBack;
 window.addEventListener("popstate",function(){
   if(filmExpanded){ filmExpanded=null; aiOpen=null; render(); restoreDetailScroll(filmDetailReturnY); return; }
   if(seriesExpanded){ seriesExpanded=null; aiOpen=null; render(); restoreDetailScroll(seriesDetailReturnY); return; }
+  if(plexExpanded){ plexExpanded=null; aiOpen=null; render(); restoreDetailScroll(plexDetailReturnY); return; }
   if(expandedId){ expandedId=null; aiOpen=null; render(); restoreDetailScroll(gameDetailReturnY); }
 });
 document.addEventListener("click",function(e){
