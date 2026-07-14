@@ -1,8 +1,10 @@
 ﻿"use strict";
-var APP_VERSION = "1.9.4";
+var APP_VERSION = "1.10.0";
 var APP_BUILD_DATE = "2026-07-14";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Added a private PC and mobile Health section based on the July 2026 lab report",
+  "Added weekly food, activity, sleep, hydration and follow-up lab tracking",
   "Moved the TV login QR into a fully visible fixed overlay",
   "Fixed the TV OAuth Save button being pushed beyond the right edge",
   "Added remote-friendly one-time TV OAuth setup before Google Drive QR login",
@@ -215,7 +217,25 @@ var BUILTIN_CATALOG = [
 
 /* ---------- storage ---------- */
 var VAULT_ARRAY_FIELDS = ["rentals","upcoming","played","dismissed","catalogExtra","vendors","queue","rentalHistory","playing","upcomingRemoved","watchedMovies","movieWatchlist","hiddenMovies","watchedSeries","seriesWatchlist","watchingSeries","hiddenSeries"];
-var VAULT_OBJECT_FIELDS = ["covers","dismissedNames","fandom","hubkeys","keys","seriesRatings","aiChats"];
+var VAULT_OBJECT_FIELDS = ["covers","dismissedNames","fandom","hubkeys","keys","seriesRatings","aiChats","health"];
+function healthDefaults(){
+  return {
+    foodLog:[],
+    labs:[{date:"2026-07-11",totalCholesterol:211,ldl:145.4,hdl:27,triglycerides:193,hba1c:5.3,fastingGlucose:86.8,eosinophilsAbs:912}],
+    targets:{plantMeals:10,fishMeals:2,redMeatMeals:1,friedMeals:1,sugaryItems:2,fruitServings:14,vegetableServings:21,wholeGrainMeals:7,activityMinutes:150,strengthDays:2},
+    doctorNotes:"Review the lipid profile and eosinophilia with a qualified clinician."
+  };
+}
+function normalizeHealth(h){
+  var base=healthDefaults();
+  h=(h&&typeof h==="object"&&!Array.isArray(h))?h:{};
+  if(!Array.isArray(h.foodLog))h.foodLog=[];
+  if(!Array.isArray(h.labs)||!h.labs.length)h.labs=base.labs;
+  if(!h.targets||typeof h.targets!=="object"||Array.isArray(h.targets))h.targets={};
+  Object.keys(base.targets).forEach(function(k){if(!Number.isFinite(Number(h.targets[k])))h.targets[k]=base.targets[k];});
+  if(typeof h.doctorNotes!=="string")h.doctorNotes=base.doctorNotes;
+  return h;
+}
 function deviceId(){
   try{
     var id=localStorage.getItem(DEVICE_STORE);
@@ -295,11 +315,11 @@ function vaultSize(d){
          ((d&&d.playing)||[]).length + ((d&&d.movieWatchlist)||[]).length +
          ((d&&d.watchedMovies)||[]).length + ((d&&d.hiddenMovies)||[]).length +
          ((d&&d.seriesWatchlist)||[]).length + ((d&&d.watchingSeries)||[]).length + ((d&&d.watchedSeries)||[]).length +
-         ((d&&d.hiddenSeries)||[]).length;
+         ((d&&d.hiddenSeries)||[]).length + ((((d&&d.health)||{}).foodLog)||[]).length;
 }
 /* Schema migrations: bump SCHEMA_VERSION when structure changes and add an
    upgrade step below. Old data is always upgraded in place, never recreated. */
-var SCHEMA_VERSION = 7;
+var SCHEMA_VERSION = 8;
 function migrate(d){
   if(!d || typeof d!=="object" || Array.isArray(d)) d={};
   VAULT_ARRAY_FIELDS.forEach(function(k){ if(!Array.isArray(d[k])) d[k]=[]; });
@@ -337,6 +357,7 @@ function migrate(d){
   if(!d.seriesRatings) d.seriesRatings = {}; // per-series preference ratings, synced
   if(!d.hiddenSeries) d.hiddenSeries = []; // TV series marked Not Interested, synced
   if(!d.aiChats) d.aiChats = {}; // saved AI assistant conversation links by title/service, synced
+  d.health=normalizeHealth(d.health);
   // v5: a game appears at most once per library — merge accidental duplicates
   d.played = dedupeList(d.played);
   d.playing = dedupeList(d.playing);
@@ -367,7 +388,7 @@ function dedupeList(arr){
 }
 var data = load();
 function vaultFingerprint(d){
-  return ["rentals","rentalHistory","playing","queue","played","movieWatchlist","watchedMovies","seriesWatchlist","watchingSeries","watchedSeries"].map(function(k){ return k+":"+((d[k]||[]).length); }).join(", ");
+  return ["rentals","rentalHistory","playing","queue","played","movieWatchlist","watchedMovies","seriesWatchlist","watchingSeries","watchedSeries"].map(function(k){ return k+":"+((d[k]||[]).length); }).join(", ")+", health:"+((((d.health||{}).foodLog)||[]).length);
 }
 var lastAuditFingerprint=vaultFingerprint(data);
 function getKey(){ try { return localStorage.getItem(KEY_STORE) || ""; } catch(e){ return ""; } }
@@ -1891,6 +1912,11 @@ function renderTabs(){
     document.getElementById("tabs").innerHTML="";
     return;
   }
+  if(section==="health"){
+    var hd=[["healthoverview","&#9829;","Overview"],["healthfood","&#9783;","Food & Activity"],["healthlabs","&#8599;","Lab Trends"]];
+    document.getElementById("tabs").innerHTML=hd.map(function(d){return '<button class="tab '+(healthTab===d[0]?"on":"")+'" data-htab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';}).join("");
+    finishTabRender();return;
+  }
   if(section==="plex"){
     var pd=[["home","⌂","Home"],["continue","▶","Continue Watching"],["movies","●","Movies"],["shows","▣","TV Shows"],["recent","+","Recently Added"]];
     document.getElementById("tabs").innerHTML=pd.map(function(d){
@@ -1907,7 +1933,9 @@ function renderTabs(){
     finishTabRender();
     return;
   }
-  if(section==="films"){
+  if(section==="health"){
+    u=""; title="";
+  } else if(section==="films"){
     var fd=[["watchlist","♥","My Watchlist"],["uphw","△","Coming Soon"],["bluray","◉","New on Blu-ray"],["relhw","★","Discover"],["mlott","▶","Malayalam OTT"],["watched","✓","Watched"]];
     document.getElementById("tabs").innerHTML = fd.map(function(d){
       return '<button class="tab '+(filmTab===d[0]?"on":"")+'" data-ftab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+tabCountHtml("film",d[0])+'</button>';
@@ -3154,12 +3182,13 @@ function plexDeleteItem(id,confirmed){
 function renderPageContext(){
   var el=document.getElementById("pageContext"); if(!el) return;
   var parent="Games",key=tab,title="",desc="",count="";
-  var labels={rentals:"Rentals",playing:"Now Playing",queue:"Rental Queue",upcoming:"Upcoming Releases",suggest:"Discover",played:"Completed",watchlist:"My Watchlist",bluray:"New on Blu-ray",uphw:"Coming Soon",relhw:"Discover",mlott:"Malayalam OTT",watched:"Watched",serieswatchlist:"My Watchlist",serieswatching:"Watching",seriesnew:"New Episodes",seriesupcoming:"Upcoming",enseries:"English",mlseries:"Malayalam",taseries:"Tamil",hiseries:"Hindi",serieswatched:"Watched",home:"Home",continue:"Continue Watching",movies:"Movies",shows:"TV Shows",recent:"Recently Added"};
-  var descriptions={rentals:"Active rentals, return dates and complete history",playing:"Games in progress, saved for later, or on hold",queue:"Your prioritized rental queue and vendor availability",upcoming:"Upcoming game releases and release countdowns",suggest:"Recommendations shaped by your ratings and library",played:"Finished games, ratings and personal history",watchlist:"Movies saved for later",bluray:"Major new Hollywood physical-media releases",uphw:"Major movies in every language with a confirmed U.S. theatrical release",relhw:"Critically acclaimed Hollywood movies to discover",mlott:"Latest and upcoming Malayalam streaming releases",watched:"Your completed movie library",serieswatchlist:"TV shows saved for later",serieswatching:"TV shows you are currently watching",seriesnew:"Latest episodes from shows you are watching",seriesupcoming:"New and returning TV shows coming soon",enseries:"Highly rated English TV shows",mlseries:"Malayalam TV shows, newest first",taseries:"Tamil TV shows, newest first",hiseries:"Hindi TV shows, newest first",serieswatched:"Your completed TV shows",home:"A summary of your Plex library",continue:"Partially watched movies and TV shows",movies:"Movies available on your Plex server",shows:"TV shows available on your Plex server",recent:"The latest media added to your Plex server"};
+  var labels={rentals:"Rentals",playing:"Now Playing",queue:"Rental Queue",upcoming:"Upcoming Releases",suggest:"Discover",played:"Completed",watchlist:"My Watchlist",bluray:"New on Blu-ray",uphw:"Coming Soon",relhw:"Discover",mlott:"Malayalam OTT",watched:"Watched",serieswatchlist:"My Watchlist",serieswatching:"Watching",seriesnew:"New Episodes",seriesupcoming:"Upcoming",enseries:"English",mlseries:"Malayalam",taseries:"Tamil",hiseries:"Hindi",serieswatched:"Watched",home:"Home",continue:"Continue Watching",movies:"Movies",shows:"TV Shows",recent:"Recently Added",healthoverview:"Overview",healthfood:"Food & Activity",healthlabs:"Lab Trends"};
+  var descriptions={rentals:"Active rentals, return dates and complete history",playing:"Games in progress, saved for later, or on hold",queue:"Your prioritized rental queue and vendor availability",upcoming:"Upcoming game releases and release countdowns",suggest:"Recommendations shaped by your ratings and library",played:"Finished games, ratings and personal history",watchlist:"Movies saved for later",bluray:"Major new Hollywood physical-media releases",uphw:"Major movies in every language with a confirmed U.S. theatrical release",relhw:"Critically acclaimed Hollywood movies to discover",mlott:"Latest and upcoming Malayalam streaming releases",watched:"Your completed movie library",serieswatchlist:"TV shows saved for later",serieswatching:"TV shows you are currently watching",seriesnew:"Latest episodes from shows you are watching",seriesupcoming:"New and returning TV shows coming soon",enseries:"Highly rated English TV shows",mlseries:"Malayalam TV shows, newest first",taseries:"Tamil TV shows, newest first",hiseries:"Hindi TV shows, newest first",serieswatched:"Watched",home:"A summary of your Plex library",continue:"Partially watched movies and TV shows",movies:"Movies available on your Plex server",shows:"TV shows available on your Plex server",recent:"The latest media added to your Plex server",healthoverview:"Your July 2026 report priorities and this week's progress",healthfood:"Track vegetarian and non-vegetarian meals, activity and recovery",healthlabs:"Compare future blood-test results with your July 2026 baseline"};
   if(section==="films"){ parent="Movies"; key=filmTab; }
   else if(section==="series"){ parent="TV Shows"; key=seriesTab; }
   else if(section==="plex"){ parent="Plex Library"; key=plexTab; }
   else if(section==="biglybt"){ parent="BiglyBT"; key="biglybt"; }
+  else if(section==="health"){ parent="Health"; key=healthTab; }
   title=labels[key]||(section==="biglybt"?"BiglyBT":"Library");
   desc=descriptions[key]||(section==="biglybt"?"Downloads, progress, speed and torrent controls":"Your personal media library");
   if(section==="games"){
@@ -3201,6 +3230,88 @@ function openRecent(kind,id,subtab){
     switchSection("games"); tab=subtab||"played"; expandedId=id;
   }
   render(); window.scrollTo(0,0);
+}
+
+/* ---------- personal health monitor (PC/mobile only) ---------- */
+function healthWeekStart(offset){
+  var d=today(),day=d.getDay()||7;
+  d.setDate(d.getDate()-day+1+(Number(offset)||0)*7);
+  return d;
+}
+function healthDay(date,create){
+  data.health=normalizeHealth(data.health);
+  var item=data.health.foodLog.filter(function(x){return x.date===date;})[0];
+  if(!item&&create){
+    item={date:date,plantMeals:0,fishMeals:0,poultryMeals:0,redMeatMeals:0,friedMeals:0,sugaryItems:0,fruitServings:0,vegetableServings:0,wholeGrainMeals:0,waterCups:0,activityMinutes:0,strength:false,sleepHours:0,notes:""};
+    data.health.foodLog.push(item);
+  }
+  return item||{};
+}
+function healthWeekEntries(){
+  var start=healthWeekStart(healthWeekOffset),out=[];
+  for(var i=0;i<7;i++){var d=new Date(start);d.setDate(start.getDate()+i);out.push({date:localISO(d),day:d});}
+  return out;
+}
+function healthWeekSummary(){
+  var sums={plantMeals:0,fishMeals:0,poultryMeals:0,redMeatMeals:0,friedMeals:0,sugaryItems:0,fruitServings:0,vegetableServings:0,wholeGrainMeals:0,waterCups:0,activityMinutes:0,strengthDays:0,sleepTotal:0,sleepDays:0};
+  healthWeekEntries().forEach(function(x){
+    var d=healthDay(x.date,false);
+    Object.keys(sums).forEach(function(k){if(k!=="strengthDays"&&k!=="sleepTotal"&&k!=="sleepDays")sums[k]+=Number(d[k])||0;});
+    if(d.strength)sums.strengthDays++;
+    if(Number(d.sleepHours)>0){sums.sleepTotal+=Number(d.sleepHours);sums.sleepDays++;}
+  });
+  sums.nonVegMeals=sums.fishMeals+sums.poultryMeals+sums.redMeatMeals;
+  sums.sleepAverage=sums.sleepDays?sums.sleepTotal/sums.sleepDays:0;
+  return sums;
+}
+function healthRangeLabel(){var a=healthWeekStart(healthWeekOffset),b=new Date(a);b.setDate(a.getDate()+6);return fmt(localISO(a))+" - "+fmt(localISO(b));}
+function healthProgress(label,value,target,lowerIsBetter){
+  value=Number(value)||0;target=Math.max(1,Number(target)||1);
+  var ok=lowerIsBetter?value<=target:value>=target;
+  var pct=lowerIsBetter?(value?Math.min(100,target/value*100):100):Math.min(100,value/target*100);
+  return '<div class="health-progress '+(ok?'good':'pending')+'"><div><strong>'+esc(label)+'</strong><span>'+value+' / '+target+(lowerIsBetter?' max':'')+'</span></div><div class="health-track"><i style="width:'+Math.round(pct)+'%"></i></div></div>';
+}
+function healthMetric(label,value,unit,tone,detail){return '<div class="health-metric '+tone+'"><span>'+esc(label)+'</span><strong>'+esc(String(value))+' <small>'+esc(unit||"")+'</small></strong><p>'+esc(detail||"")+'</p></div>';}
+function renderHealthOverview(){
+  var s=healthWeekSummary(),t=data.health.targets,last=data.health.labs.slice().sort(function(a,b){return (b.date||"").localeCompare(a.date||"");})[0]||{};
+  return '<div class="health-intro"><div><span class="health-eyebrow">REPORT BASELINE · 11 JUL 2026</span><h3>Heart health is the current priority</h3><p>Your glucose, liver, kidney and thyroid markers in this report are broadly within the listed laboratory ranges. The lipid profile and eosinophil count deserve follow-up.</p></div><div class="health-privacy">Private: stored with your vault and synced through your configured Google Drive backup.</div></div>'+
+    '<div class="health-metrics">'+healthMetric("LDL cholesterol",last.ldl||145.4,"mg/dL","warn","Borderline high on the report")+healthMetric("Triglycerides",last.triglycerides||193,"mg/dL","warn","Borderline high on the report")+healthMetric("HDL cholesterol",last.hdl||27,"mg/dL","danger","Below the report reference of 40")+healthMetric("HbA1c",last.hba1c||5.3,"%","good","Within the non-diabetic range")+'</div>'+
+    '<div class="health-layout"><section class="health-panel"><div class="health-section-head"><div><span>THIS WEEK</span><h3>Food balance</h3></div><button class="btn" data-act="health-open-food">Log today</button></div><div class="health-versus"><div><strong>'+s.plantMeals+'</strong><span>Vegetarian meals</span></div><b>vs</b><div><strong>'+s.nonVegMeals+'</strong><span>Non-veg meals</span></div></div>'+healthProgress("Plant-based meals",s.plantMeals,t.plantMeals,false)+healthProgress("Fish meals",s.fishMeals,t.fishMeals,false)+healthProgress("Red / processed meat",s.redMeatMeals,t.redMeatMeals,true)+healthProgress("Fried / takeaway",s.friedMeals,t.friedMeals,true)+'</section>'+
+    '<section class="health-panel"><div class="health-section-head"><div><span>WEEKLY MOVEMENT</span><h3>Activity & recovery</h3></div></div>'+healthProgress("Moderate activity",s.activityMinutes,t.activityMinutes,false)+healthProgress("Strength days",s.strengthDays,t.strengthDays,false)+'<div class="health-callout"><strong>'+(s.sleepAverage?s.sleepAverage.toFixed(1)+" h":"Not logged")+'</strong><span>Average sleep on logged days</span></div></section></div>'+
+    '<section class="health-panel health-review"><div><span>CLINICIAN REVIEW</span><h3>Do not manage the eosinophil result with food changes alone</h3><p>Absolute eosinophils were <b>912 cells/µL</b> (11.4%). Discuss allergies, asthma, skin symptoms, medicines and infection or travel history with a qualified clinician, who can decide whether repeat testing or evaluation is needed.</p></div><button class="btn" data-act="health-open-labs">View report values</button></section>'+healthDisclaimer();
+}
+function healthCounter(field,label,hint){
+  var d=healthDay(localISO(today()),false),value=Number(d[field])||0;
+  return '<div class="health-counter"><div><strong>'+esc(label)+'</strong><span>'+esc(hint)+'</span></div><div class="health-stepper"><button type="button" data-act="health-adjust" data-field="'+field+'" data-delta="-1" aria-label="Remove one '+esc(label)+'">−</button><output>'+value+'</output><button type="button" data-act="health-adjust" data-field="'+field+'" data-delta="1" aria-label="Add one '+esc(label)+'">+</button></div></div>';
+}
+function renderHealthFood(){
+  var d=healthDay(localISO(today()),false),days=healthWeekEntries(),s=healthWeekSummary(),t=data.health.targets;
+  var rows=days.map(function(x){var e=healthDay(x.date,false),nv=(Number(e.fishMeals)||0)+(Number(e.poultryMeals)||0)+(Number(e.redMeatMeals)||0);return '<tr class="'+(x.date===localISO(today())?'today':'')+'"><td>'+x.day.toLocaleDateString("en-GB",{weekday:"short",day:"numeric"})+'</td><td>'+((Number(e.plantMeals)||0))+'</td><td>'+nv+'</td><td>'+((Number(e.activityMinutes)||0))+' min</td><td>'+(Number(e.sleepHours)?Number(e.sleepHours).toFixed(1)+" h":"-")+'</td></tr>';}).join("");
+  return '<div class="health-weekbar"><button class="btn" data-act="health-week" data-delta="-1">&#8592; Previous</button><strong>'+healthRangeLabel()+'</strong><button class="btn" data-act="health-week" data-delta="1"'+(healthWeekOffset>=0?' disabled':'')+'>Next &#8594;</button></div>'+
+    (healthWeekOffset===0?'<section class="health-panel"><div class="health-section-head"><div><span>TODAY · '+esc(fmt(localISO(today())))+'</span><h3>Quick food log</h3></div></div><div class="health-counter-grid">'+healthCounter("plantMeals","Vegetarian meal","Vegetables, beans, dal or other plant-focused meal")+healthCounter("fishMeals","Fish meal","Prefer non-fried fish")+healthCounter("poultryMeals","Poultry / egg meal","Lean, minimally processed choice")+healthCounter("redMeatMeals","Red / processed meat","Beef, mutton, pork or processed meat")+healthCounter("friedMeals","Fried / takeaway","Deep-fried or fast-food meal")+healthCounter("sugaryItems","Sugary item","Sweetened drink or dessert")+healthCounter("fruitServings","Fruit serving","Whole fruit rather than juice")+healthCounter("vegetableServings","Vegetable serving","One portion with a meal")+healthCounter("wholeGrainMeals","Whole grain / legume","Oats, brown rice, beans or lentils")+'</div><div class="health-daily-fields"><label>Activity minutes<input id="healthActivity" type="number" min="0" max="600" value="'+(Number(d.activityMinutes)||0)+'"></label><label>Water cups<input id="healthWater" type="number" min="0" max="30" value="'+(Number(d.waterCups)||0)+'"></label><label>Sleep hours<input id="healthSleep" type="number" min="0" max="24" step="0.5" value="'+(Number(d.sleepHours)||0)+'"></label><label class="health-check"><input id="healthStrength" type="checkbox"'+(d.strength?' checked':'')+'> Strength training today</label><label class="wide">Notes<textarea id="healthNotes" rows="2" placeholder="Meal details, cravings or symptoms">'+esc(d.notes||"")+'</textarea></label><button class="btn blue" data-act="health-save-day">Save today</button></div></section>':'')+
+    '<div class="health-layout"><section class="health-panel"><div class="health-section-head"><div><span>WEEK TOTAL</span><h3>'+s.plantMeals+' veg · '+s.nonVegMeals+' non-veg meals</h3></div></div>'+healthProgress("Plant-based meals",s.plantMeals,t.plantMeals,false)+healthProgress("Fish meals",s.fishMeals,t.fishMeals,false)+healthProgress("Vegetable servings",s.vegetableServings,t.vegetableServings,false)+healthProgress("Fruit servings",s.fruitServings,t.fruitServings,false)+healthProgress("Whole grains / legumes",s.wholeGrainMeals,t.wholeGrainMeals,false)+'</section><section class="health-panel health-table-wrap"><table class="health-table"><thead><tr><th>Day</th><th>Veg</th><th>Non-veg</th><th>Activity</th><th>Sleep</th></tr></thead><tbody>'+rows+'</tbody></table></section></div>'+
+    '<details class="health-panel health-targets"><summary>Adjust weekly starter targets</summary><div class="health-target-grid">'+Object.keys(t).map(function(k){var labels={plantMeals:"Plant meals",fishMeals:"Fish meals",redMeatMeals:"Max red meat",friedMeals:"Max fried meals",sugaryItems:"Max sugary items",fruitServings:"Fruit servings",vegetableServings:"Vegetable servings",wholeGrainMeals:"Whole grain meals",activityMinutes:"Activity minutes",strengthDays:"Strength days"};return '<label>'+labels[k]+'<input type="number" min="0" data-health-target="'+k+'" value="'+Number(t[k])+'"></label>';}).join("")+'</div><button class="btn blue" data-act="health-save-targets">Save targets</button></details>'+healthDisclaimer();
+}
+function renderHealthLabs(){
+  var labs=data.health.labs.slice().sort(function(a,b){return (b.date||"").localeCompare(a.date||"");});
+  var rows=labs.map(function(x){var baseline=x.date==="2026-07-11";return '<tr><td>'+fmt(x.date)+'</td><td>'+healthLabValue(x.totalCholesterol)+'</td><td>'+healthLabValue(x.ldl)+'</td><td>'+healthLabValue(x.hdl)+'</td><td>'+healthLabValue(x.triglycerides)+'</td><td>'+healthLabValue(x.hba1c)+'</td><td>'+healthLabValue(x.eosinophilsAbs)+'</td><td>'+(baseline?'<span class="health-baseline">Baseline</span>':'<button class="iconbtn health-delete-lab" data-act="health-delete-lab" data-date="'+esc(x.date)+'" aria-label="Delete lab entry">&times;</button>')+'</td></tr>';}).join("");
+  return '<section class="health-panel"><div class="health-section-head"><div><span>FOLLOW-UP RESULTS</span><h3>Add a new blood test</h3></div></div><div class="health-lab-form"><label>Date<input id="healthLabDate" type="date" value="'+localISO(today())+'"></label><label>Total cholesterol<input id="healthLabTotal" type="number" step="0.1" placeholder="mg/dL"></label><label>LDL<input id="healthLabLdl" type="number" step="0.1" placeholder="mg/dL"></label><label>HDL<input id="healthLabHdl" type="number" step="0.1" placeholder="mg/dL"></label><label>Triglycerides<input id="healthLabTg" type="number" step="0.1" placeholder="mg/dL"></label><label>HbA1c<input id="healthLabA1c" type="number" step="0.1" placeholder="%"></label><label>Fasting glucose<input id="healthLabGlucose" type="number" step="0.1" placeholder="mg/dL"></label><label>Absolute eosinophils<input id="healthLabEos" type="number" step="1" placeholder="cells/µL"></label><button class="btn blue" data-act="health-save-lab">Add result</button></div></section><section class="health-panel health-table-wrap"><table class="health-table health-lab-table"><thead><tr><th>Date</th><th>Total</th><th>LDL</th><th>HDL</th><th>TG</th><th>HbA1c</th><th>Eosinophils</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></section><div class="health-note"><strong>July 2026 baseline:</strong> fasting glucose 86.8 mg/dL; HbA1c 5.3%; total cholesterol 211; LDL 145.4; HDL 27; triglycerides 193; absolute eosinophils 912 cells/µL. Post-meal glucose was pending in the supplied report.</div>'+healthDisclaimer();
+}
+function healthLabValue(v){return v==null||v===""?"-":esc(String(v));}
+function healthDisclaimer(){return '<p class="health-disclaimer">This tracker supports habit tracking and is not a diagnosis or treatment plan. Review abnormal results and personal targets with a doctor or registered dietitian.</p>';}
+function renderHealth(){data.health=normalizeHealth(data.health);return healthTab==="healthfood"?renderHealthFood():healthTab==="healthlabs"?renderHealthLabs():renderHealthOverview();}
+function healthCaptureDayForm(d){
+  var activity=document.getElementById("healthActivity"),water=document.getElementById("healthWater"),sleep=document.getElementById("healthSleep"),strength=document.getElementById("healthStrength"),notes=document.getElementById("healthNotes");
+  if(activity)d.activityMinutes=Math.max(0,Number(activity.value)||0);if(water)d.waterCups=Math.max(0,Number(water.value)||0);if(sleep)d.sleepHours=Math.max(0,Number(sleep.value)||0);if(strength)d.strength=!!strength.checked;if(notes)d.notes=(notes.value||"").trim();
+  return d;
+}
+function healthSaveDay(){var d=healthCaptureDayForm(healthDay(localISO(today()),true));save();flash("Today's health log saved");}
+function healthSaveLab(){
+  function value(id){var el=document.getElementById(id),n=el&&el.value!==""?Number(el.value):null;return Number.isFinite(n)?n:null;}
+  var date=(document.getElementById("healthLabDate")||{}).value||localISO(today());
+  var item={date:date,totalCholesterol:value("healthLabTotal"),ldl:value("healthLabLdl"),hdl:value("healthLabHdl"),triglycerides:value("healthLabTg"),hba1c:value("healthLabA1c"),fastingGlucose:value("healthLabGlucose"),eosinophilsAbs:value("healthLabEos")};
+  if(Object.keys(item).filter(function(k){return k!=="date"&&item[k]!=null;}).length===0){flash("Enter at least one lab value");return;}
+  data.health.labs=data.health.labs.filter(function(x){return x.date!==date;});data.health.labs.push(item);save();flash("Lab results added");
 }
 
 /* ---------- dedicated Android TV application ----------
@@ -3509,6 +3620,13 @@ function render(){
   renderRecentStrip();
   var statsEl=document.getElementById("stats");
   document.body.classList.toggle("bigly-active",section==="biglybt");
+  if(section==="health"){
+    statsEl.style.display="none";
+    renderTabs();
+    document.getElementById("content").innerHTML=renderHealth();
+    applyBackground();
+    return;
+  }
   if(section==="biglybt"){
     statsEl.style.display="none";
     renderTabs();
@@ -3564,8 +3682,13 @@ function render(){
    (filtered to exact IMDb >= 7.0 via OMDb), and weekly Malayalam OTT. */
 var TMDB_KEY_STORE="ps5-tmdb-key", OMDB_KEY_STORE="ps5-omdb-key";
 var SECTION_KEY="ps5-section", FILMTAB_KEY="ps5-filmtab", FILM_CACHE_KEY="ps5-films-cache", MEDIA_CACHE_VERSION_KEY="gamevault-media-cache-version";
-var section="games", filmTab="watchlist";
+var section="games", filmTab="watchlist", healthTab="healthoverview", healthWeekOffset=0;
 try{ section=localStorage.getItem(SECTION_KEY)||"games"; }catch(e){}
+var requestedSection=new URLSearchParams(location.search).get("section");
+if(["games","films","series","plex","biglybt","health"].indexOf(requestedSection)>=0)section=requestedSection;
+if(["games","films","series","plex","biglybt","health"].indexOf(section)<0)section="games";
+var requestedHealthTab=new URLSearchParams(location.search).get("healthTab");
+if(["healthoverview","healthfood","healthlabs"].indexOf(requestedHealthTab)>=0)healthTab=requestedHealthTab;
 try{ filmTab=localStorage.getItem(FILMTAB_KEY)||"watchlist"; }catch(e){}
 function tmdbKey(){ try{ return localStorage.getItem(TMDB_KEY_STORE)||""; }catch(e){ return ""; } }
 function omdbKey(){ try{ return localStorage.getItem(OMDB_KEY_STORE)||""; }catch(e){ return ""; } }
@@ -4844,6 +4967,7 @@ function switchSection(s){
   else if(section==="series") tabScroll["series:"+seriesTab]=window.scrollY;
   else if(section==="plex") tabScroll["plex:"+plexTab]=window.scrollY;
   else if(section==="biglybt") tabScroll.biglybt=window.scrollY;
+  else if(section==="health") tabScroll["health:"+healthTab]=window.scrollY;
   else tabScroll[tab]=window.scrollY;
   section=s; try{ localStorage.setItem(SECTION_KEY,s); }catch(e){}
   expandedId=null; filmExpanded=null; seriesExpanded=null;
@@ -4853,7 +4977,7 @@ function switchSection(s){
     if(active) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current");
   });
   render();
-  window.scrollTo(0, section==="films" ? (tabScroll["film:"+filmTab]||0) : section==="series" ? (tabScroll["series:"+seriesTab]||0) : section==="plex" ? (tabScroll["plex:"+plexTab]||0) : section==="biglybt" ? (tabScroll.biglybt||0) : (tabScroll[tab]||0));
+  window.scrollTo(0, section==="films" ? (tabScroll["film:"+filmTab]||0) : section==="series" ? (tabScroll["series:"+seriesTab]||0) : section==="plex" ? (tabScroll["plex:"+plexTab]||0) : section==="biglybt" ? (tabScroll.biglybt||0) : section==="health" ? (tabScroll["health:"+healthTab]||0) : (tabScroll[tab]||0));
   if(section==="films") ensureFilms(filmTab);
   if(section==="series") ensureSeries(seriesTab);
   if(section==="plex" && plexServerUrl() && plexToken() && !plexItems.length) plexRefresh();
@@ -4880,7 +5004,7 @@ function commandCandidates(){
   var list=[],seen={};
   [
     ["games","🎮","Games"],["films","🎬","Movies"],["series","📺","TV Shows"],
-    ["plex","▶","Plex Library"],["biglybt","⇩","BiglyBT"]
+    ["plex","▶","Plex Library"],["biglybt","⇩","BiglyBT"],["health","♥","Health"]
   ].forEach(function(x){commandPush(list,seen,{kind:"section",section:x[0],icon:x[1],title:x[2],meta:"Main section",label:"Page"});});
   var pages=[
     ["games","rentals","Rentals"],["games","playing","Now Playing"],["games","queue","Rental Queue"],
@@ -4893,7 +5017,8 @@ function commandCandidates(){
     ["series","taseries","Tamil TV Shows"],["series","hiseries","Hindi TV Shows"],
     ["series","serieswatched","Watched TV Shows"],
     ["plex","home","Plex Home"],["plex","continue","Plex Continue Watching"],["plex","movies","Plex Movies"],
-    ["plex","shows","Plex TV Shows"],["plex","recent","Recently Added to Plex"]
+    ["plex","shows","Plex TV Shows"],["plex","recent","Recently Added to Plex"],
+    ["health","healthoverview","Health Overview"],["health","healthfood","Food and Activity"],["health","healthlabs","Lab Trends"]
   ];
   pages.forEach(function(x){commandPush(list,seen,{kind:"page",section:x[0],tab:x[1],icon:"↗",title:x[2],meta:"Open page",label:"Page"});});
   [
@@ -4943,6 +5068,7 @@ function openCommandItem(item){
     else if(item.section==="films")switchFilmTab(item.tab);
     else if(item.section==="series")switchSeriesTab(item.tab);
     else if(item.section==="plex")switchPlexTab(item.tab);
+    else if(item.section==="health"){healthTab=item.tab;render();}
     return;
   }
   if(item.kind==="game"){
@@ -4961,7 +5087,7 @@ function openCommandItem(item){
     if(section!=="plex")switchSection("plex");plexSearch=item.title;switchPlexTab(item.tab);return;
   }
 }
-function desktopTabs(){return section==="films"?FILM_ORDER:section==="series"?SERIES_ORDER:section==="plex"?PLEX_ORDER:section==="biglybt"?[]:TAB_ORDER;}
+function desktopTabs(){return section==="films"?FILM_ORDER:section==="series"?SERIES_ORDER:section==="plex"?PLEX_ORDER:section==="health"?["healthoverview","healthfood","healthlabs"]:section==="biglybt"?[]:TAB_ORDER;}
 function desktopOpenTabByIndex(index){
   var order=desktopTabs(),next=order[index];if(!next)return;
   if(section==="films")switchFilmTab(next);else if(section==="series")switchSeriesTab(next);else if(section==="plex")switchPlexTab(next);else switchTab(next);
@@ -5009,7 +5135,7 @@ document.addEventListener("keydown",function(e){
   if(e.key==="/"&&!e.ctrlKey&&!e.altKey&&!e.metaKey){var search=[].filter.call(document.querySelectorAll(".searchwrap input"),function(x){return x.offsetParent!==null;})[0];if(search){e.preventDefault();search.focus();search.select();}return;}
   if(e.altKey&&!e.ctrlKey&&/^[1-6]$/.test(e.key)){
     e.preventDefault();var n=Number(e.key)-1;
-    if(e.shiftKey)desktopOpenTabByIndex(n);else{var sections=["games","films","series","plex","biglybt"];if(sections[n])switchSection(sections[n]);}
+    if(e.shiftKey)desktopOpenTabByIndex(n);else{var sections=["games","films","series","plex","biglybt","health"];if(sections[n])switchSection(sections[n]);}
   }
 });
 
@@ -5072,6 +5198,8 @@ if(menuCloseBtn) menuCloseBtn.addEventListener("click",function(){setMenuOpen(fa
 var settingsCloseBtn=document.getElementById("settingsCloseBtn");
 if(settingsCloseBtn) settingsCloseBtn.addEventListener("click",function(){toggleSettings(false);});
 document.getElementById("tabs").addEventListener("click",function(e){
+  var hb=e.target.closest("[data-htab]");
+  if(hb){tabScroll["health:"+healthTab]=window.scrollY;healthTab=hb.getAttribute("data-htab");render();window.scrollTo(0,tabScroll["health:"+healthTab]||0);return;}
   var pb=e.target.closest("[data-ptab]");
   if(pb){ switchPlexTab(pb.getAttribute("data-ptab")); return; }
   var sb=e.target.closest("[data-stab]");
@@ -5194,6 +5322,24 @@ document.getElementById("content").addEventListener("click",function(e){
   if(gc){ sugGenre=gc.getAttribute("data-genre"); render(); return; }
   var b=e.target.closest("[data-act]"); if(!b) return;
   var act=b.getAttribute("data-act"), id=b.getAttribute("data-id"), nm=b.getAttribute("data-name");
+  if(act==="health-open-food"){healthTab="healthfood";render();window.scrollTo(0,0);return;}
+  if(act==="health-open-labs"){healthTab="healthlabs";render();window.scrollTo(0,0);return;}
+  if(act==="health-week"){healthWeekOffset=Math.min(0,Math.max(-52,healthWeekOffset+(Number(b.getAttribute("data-delta"))||0)));render();return;}
+  if(act==="health-adjust"){
+    var day=healthDay(localISO(today()),true),field=b.getAttribute("data-field");
+    healthCaptureDayForm(day);
+    if(field in day){day[field]=Math.max(0,(Number(day[field])||0)+(Number(b.getAttribute("data-delta"))||0));save();}
+    return;
+  }
+  if(act==="health-save-day"){healthSaveDay();return;}
+  if(act==="health-save-lab"){healthSaveLab();return;}
+  if(act==="health-delete-lab"){
+    var labDate=b.getAttribute("data-date");if(labDate==="2026-07-11"){flash("The report baseline is protected");return;}data.health.labs=data.health.labs.filter(function(x){return x.date!==labDate;});save();flash("Lab entry removed");return;
+  }
+  if(act==="health-save-targets"){
+    [].forEach.call(document.querySelectorAll("[data-health-target]"),function(el){data.health.targets[el.getAttribute("data-health-target")]=Math.max(0,Number(el.value)||0);});
+    save();flash("Weekly targets updated");return;
+  }
   if(act==="recent-open"){
     openRecent(b.getAttribute("data-kind"),id,b.getAttribute("data-subtab")||""); return;
   }

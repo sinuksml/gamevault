@@ -1,4 +1,4 @@
-const CACHE_NAME = "gamevault-shell-v32";
+const CACHE_NAME = "gamevault-shell-v33";
 const APP_SHELL = [
   "./",
   "./index.html",
