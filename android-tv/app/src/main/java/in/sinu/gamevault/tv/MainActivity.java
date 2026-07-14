@@ -28,7 +28,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
-    private static final String GAMEVAULT_URL = "https://sinuksml.github.io/gamevault/?tv=1&appv=1.5.0";
+    private static final String GAMEVAULT_URL = "https://sinuksml.github.io/gamevault/?tv=1&appv=1.6.0";
     private static final int EXTERNAL_BAR_HEIGHT_DP = 64;
     private static final long REMOTE_REPEAT_INTERVAL_MS = 180;
 
@@ -89,7 +89,7 @@ public class MainActivity extends Activity {
         settings.setAllowContentAccess(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        settings.setUserAgentString(settings.getUserAgentString() + " GameVaultTV/1.5.0");
+        settings.setUserAgentString(settings.getUserAgentString() + " GameVaultTV/1.6.0");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             settings.setSafeBrowsingEnabled(true);
         }

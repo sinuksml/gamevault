@@ -1,8 +1,12 @@
 ﻿"use strict";
-var APP_VERSION = "1.8.0";
-var APP_BUILD_DATE = "2026-07-13";
+var APP_VERSION = "1.9.0";
+var APP_BUILD_DATE = "2026-07-14";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Replaced the Shield layout with a dedicated view-only TV interface",
+  "Added YouTube-style navigation, horizontal shelves and cinematic title details",
+  "Removed editing, search, backup and advanced settings from the normal TV experience",
+  "Added deterministic rail, shelf and card navigation for the NVIDIA Shield remote",
   "Rebuilt Android TV focus navigation for predictable one-step D-pad movement",
   "Made all TV menus, settings groups, dropdowns, dialogs and detail actions reachable",
   "Removed TV focus jumps caused by page recentering and card scaling",
@@ -60,6 +64,7 @@ function applyTvZoom(){
   if(!TV_MODE) return;
   var z=tvZoomValue();
   document.documentElement.style.setProperty("--tv-zoom", String(z));
+  document.documentElement.style.setProperty("--tv-zoom-size", (100/z).toFixed(3)+"%");
   var btn=document.getElementById("tvZoomResetBtn");
   if(btn) btn.textContent=Math.round(z*100)+"%";
   var settingsBtn=document.getElementById("tvSettingsZoomResetBtn");
@@ -3182,7 +3187,289 @@ function openRecent(kind,id,subtab){
   render(); window.scrollTo(0,0);
 }
 
+/* ---------- dedicated Android TV application ----------
+   The Shield is a view-only, 10-foot experience. It deliberately does not
+   reuse desktop forms, filters or settings so every D-pad move is predictable. */
+var TV_HOME_KEY="gamevault-tv-home-section";
+var TV_SECTIONS=["home","games","films","series","plex","biglybt","system"];
+var tvSection="home",tvDetail=null,tvItemRegistry={},tvLastCardBySection={},tvLastRowBySection={};
+try{tvSection=localStorage.getItem(TV_HOME_KEY)||"home";}catch(e){}
+if(TV_SECTIONS.indexOf(tvSection)<0)tvSection="home";
+
+function tvSectionDefs(){
+  return [
+    ["home","⌂","Home"],["games","▣","Games"],["films","●","Movies"],
+    ["series","▤","TV Shows"],["plex","▶","Plex"],["biglybt","⇩","BiglyBT"],
+    ["system","⚙","System"]
+  ];
+}
+function tvSectionLabel(name){
+  var labels={home:"Home",games:"Games",films:"Movies",series:"TV Shows",plex:"Plex",biglybt:"BiglyBT",system:"System"};
+  return labels[name]||"GameVault";
+}
+function tvStableId(x){
+  if(x&&x.id!=null)return String(x.id);
+  if(x&&x.ratingKey!=null)return String(x.ratingKey);
+  return "name:"+norm((x&&(x.name||x.title))||"item");
+}
+function tvDedupe(items){
+  var seen={};return (items||[]).filter(function(item){
+    if(!item||!item.title)return false;
+    var key=item.kind+":"+norm(item.title);
+    if(seen[key])return false;seen[key]=1;return true;
+  });
+}
+function tvRegister(item){
+  if(!item)return null;
+  item.key=item.kind+":"+item.source+":"+item.id;
+  tvItemRegistry[item.key]=item;
+  return item;
+}
+function tvRentalDue(r){
+  var due=parseD(r.end||"");
+  if(!due&&r.start){due=parseD(r.start);if(due)due.setDate(due.getDate()+(Number(r.days)||0));}
+  return due?daysBetween(today(),due):null;
+}
+function tvGameItem(x,source,label,options){
+  options=options||{};
+  var due=source==="rental"?tvRentalDue(x):null;
+  var status=label||x.status||tierFor(x.name)||"PS5";
+  if(due!=null)status=due<0?"Return overdue":due===0?"Return today":due+" days left";
+  var score=x.score?("Critic "+x.score):(x.rrating?x.rrating+"★":(x.rating?x.rating+"★":"PS5"));
+  return tvRegister({kind:"game",source:source,id:tvStableId(x),title:x.name||"Untitled game",art:coverUrl(x),backdrop:coverUrl(x),
+    eyebrow:status,meta:[score,x.genre||tierFor(x.name)||"Game"].filter(Boolean).join(" · "),raw:x,due:due,plot:!!options.plot});
+}
+function tvFilmItem(m,source,label){
+  var date=m.ottDate||m.date||"",countdown="";
+  if(date){var left=daysBetween(today(),parseD(date));if(left>=0)countdown=left===0?"Today":left+" days";}
+  return tvRegister({kind:"film",source:source,id:tvStableId(m),title:m.title||"Untitled movie",art:m.poster||"",backdrop:m.backdrop||m.poster||"",
+    eyebrow:label||(countdown?countdown:(m.year||"Movie")),meta:[mediaRatingLabel(m),genreLabel(m.genres,MOVIE_GENRES)].filter(Boolean).join(" · "),raw:m});
+}
+function tvSeriesItem(s,source,label){
+  var date=s.latestDate||s.date||"";
+  return tvRegister({kind:"series",source:source,id:tvStableId(s),title:s.title||"Untitled series",art:s.poster||"",backdrop:s.backdrop||s.poster||"",
+    eyebrow:label||(date?fmt(date):(s.year||"TV Series")),meta:[mediaRatingLabel(s),genreLabel(s.genres,SERIES_GENRES)].filter(Boolean).join(" · "),raw:s});
+}
+function tvPlexItem(x,source,label){
+  var pct=Math.max(0,Math.min(100,plexProgress(x)));
+  return tvRegister({kind:"plex",source:source,id:tvStableId(x),title:x.title||"Untitled",art:plexMediaUrl(x.thumb),backdrop:plexMediaUrl(x.art||x.thumb),
+    eyebrow:label||(x.type==="show"?"TV Series":"Movie"),meta:(x.year?x.year+" · ":"")+(pct?pct+"% watched":"Unwatched"),progress:pct,raw:x});
+}
+function tvGameExistingNames(){
+  var out={};[data.rentals,data.playing,data.queue,data.played].forEach(function(list){(list||[]).forEach(function(x){out[norm(x.name)]=1;});});return out;
+}
+function tvRowsForSection(name){
+  var rows=[],items=[],existing;
+  if(name==="home"){
+    items=[];
+    (data.rentals||[]).forEach(function(x){items.push(tvGameItem(x,"rental","Active rental",{plot:true}));});
+    (data.playing||[]).forEach(function(x){items.push(tvGameItem(x,"playing",x.status==="Dropped"?"On hold":"Now playing",{plot:true}));});
+    (data.played||[]).filter(function(x){return x.status==="Playing"||x.status==="Dropped";}).forEach(function(x){items.push(tvGameItem(x,"playing",x.status==="Dropped"?"On hold":"Resume later",{plot:true}));});
+    if(items.length)rows.push({id:"continue-games",title:"Continue Playing",items:tvDedupe(items)});
+    items=(data.rentals||[]).slice().sort(function(a,b){return (tvRentalDue(a)||9999)-(tvRentalDue(b)||9999);}).map(function(x){return tvGameItem(x,"rental","Active rental",{plot:true});});
+    if(items.length)rows.push({id:"rentals-due",title:"Rentals Due Soon",items:items});
+    items=(data.movieWatchlist||[]).map(function(x){return tvFilmItem(x,"watchlist","Watchlist");});
+    if(items.length)rows.push({id:"movie-watchlist",title:"Movie Watchlist",items:items});
+    items=(data.watchingSeries||[]).map(function(x){return tvSeriesItem(x,"serieswatching","Watching");});
+    if(!items.length)items=(data.seriesWatchlist||[]).map(function(x){return tvSeriesItem(x,"serieswatchlist","Watchlist");});
+    if(items.length)rows.push({id:"series-continue",title:"Continue Watching",items:items});
+    items=(plexItems||[]).filter(function(x){var p=plexProgress(x);return p>0&&p<100;}).sort(function(a,b){return (b.lastViewedAt||0)-(a.lastViewedAt||0);}).map(function(x){return tvPlexItem(x,"continue","Continue watching");});
+    if(items.length)rows.push({id:"plex-continue",title:"Continue on Plex",items:items.slice(0,20)});
+    items=(((filmCache.uphw||{}).items)||[]).slice().sort(function(a,b){return String(a.date||"").localeCompare(String(b.date||""));}).map(function(x){return tvFilmItem(x,"uphw","Coming soon");});
+    if(items.length)rows.push({id:"coming-soon",title:"Coming Soon",items:items.slice(0,20)});
+    return rows;
+  }
+  if(name==="games"){
+    items=[];
+    (data.rentals||[]).forEach(function(x){items.push(tvGameItem(x,"rental","Active rental",{plot:true}));});
+    (data.playing||[]).forEach(function(x){items.push(tvGameItem(x,"playing",x.status==="Dropped"?"On hold":"Now playing",{plot:true}));});
+    (data.played||[]).filter(function(x){return x.status==="Playing"||x.status==="Dropped";}).forEach(function(x){items.push(tvGameItem(x,"playing",x.status==="Dropped"?"On hold":"Resume later",{plot:true}));});
+    if(items.length)rows.push({id:"games-playing",title:"Now Playing",items:tvDedupe(items)});
+    items=(data.rentals||[]).map(function(x){return tvGameItem(x,"rental","Active rental",{plot:true});});if(items.length)rows.push({id:"games-rentals",title:"Active Rentals",items:items});
+    items=(data.queue||[]).map(function(x){return tvGameItem(x,"queue","Rental queue");});if(items.length)rows.push({id:"games-queue",title:"Rental Queue",items:items});
+    items=(data.upcoming||[]).slice().sort(function(a,b){return String(a.date||"9999").localeCompare(String(b.date||"9999"));}).map(function(x){return tvGameItem(x,"upcoming",x.date?fmt(x.date):"Date TBC");});if(items.length)rows.push({id:"games-upcoming",title:"Upcoming Releases",items:items.slice(0,30)});
+    items=(data.played||[]).filter(function(x){return x.status!=="Playing"&&x.status!=="Dropped";}).map(function(x){return tvGameItem(x,"completed",x.status||"Completed");});if(items.length)rows.push({id:"games-completed",title:"Completed",items:items});
+    existing=tvGameExistingNames();items=fullCatalog().filter(function(x){return !existing[norm(x.name)]&&!data.dismissedNames[norm(x.name)];}).slice(0,30).map(function(x){return tvGameItem(x,"discover",tierFor(x.name)||"Recommended");});if(items.length)rows.push({id:"games-discover",title:"Recommended",items:items});
+    return rows;
+  }
+  if(name==="films"){
+    items=(data.movieWatchlist||[]).map(function(x){return tvFilmItem(x,"watchlist","Watchlist");});if(items.length)rows.push({id:"films-watchlist",title:"My Watchlist",items:items});
+    items=(((filmCache.uphw||{}).items)||[]).slice().sort(function(a,b){return String(a.date||"").localeCompare(String(b.date||""));}).map(function(x){return tvFilmItem(x,"uphw","Coming soon");});if(items.length)rows.push({id:"films-coming",title:"Coming Soon",items:items});
+    items=(((filmCache.bluray||{}).items)||[]).map(function(x){return tvFilmItem(x,"bluray","Blu-ray");});if(items.length)rows.push({id:"films-bluray",title:"New on Blu-ray",items:items});
+    items=(((filmCache.mlott||{}).items)||[]).map(function(x){return tvFilmItem(x,"mlott","Malayalam OTT");});if(items.length)rows.push({id:"films-mlott",title:"Malayalam OTT",items:items});
+    items=(((filmCache.relhw||{}).items)||[]).map(function(x){return tvFilmItem(x,"relhw","Recommended");});if(items.length)rows.push({id:"films-discover",title:"Discover",items:items});
+    items=(data.watchedMovies||[]).map(function(x){return tvFilmItem(x,"watched","Watched");});if(items.length)rows.push({id:"films-watched",title:"Watched",items:items});
+    return rows;
+  }
+  if(name==="series"){
+    items=(data.seriesWatchlist||[]).map(function(x){return tvSeriesItem(x,"serieswatchlist","Watchlist");});if(items.length)rows.push({id:"series-watchlist",title:"My Watchlist",items:items});
+    items=(data.watchingSeries||[]).map(function(x){return tvSeriesItem(x,"serieswatching","Watching");});if(items.length)rows.push({id:"series-watching",title:"Watching",items:items});
+    [["seriesnew","New Episodes"],["seriesupcoming","Upcoming"],["enseries","English"],["mlseries","Malayalam"],["taseries","Tamil"],["hiseries","Hindi"]].forEach(function(def){
+      var list=(((seriesCache[def[0]]||{}).items)||[]).map(function(x){return tvSeriesItem(x,def[0],def[1]);});if(list.length)rows.push({id:"series-"+def[0],title:def[1],items:list});
+    });
+    items=(data.watchedSeries||[]).map(function(x){return tvSeriesItem(x,"serieswatched","Watched");});if(items.length)rows.push({id:"series-watched",title:"Watched",items:items});
+    return rows;
+  }
+  if(name==="plex"){
+    items=(plexItems||[]).filter(function(x){var p=plexProgress(x);return p>0&&p<100;}).sort(function(a,b){return (b.lastViewedAt||0)-(a.lastViewedAt||0);}).map(function(x){return tvPlexItem(x,"continue","Continue watching");});if(items.length)rows.push({id:"plex-continue",title:"Continue Watching",items:items});
+    items=(plexItems||[]).slice().sort(function(a,b){return (b.addedAt||0)-(a.addedAt||0);}).slice(0,30).map(function(x){return tvPlexItem(x,"recent","Recently added");});if(items.length)rows.push({id:"plex-recent",title:"Recently Added",items:items});
+    items=(plexItems||[]).filter(function(x){return x.type==="movie";}).map(function(x){return tvPlexItem(x,"movies","Movie");});if(items.length)rows.push({id:"plex-movies",title:"Movies",items:items});
+    items=(plexItems||[]).filter(function(x){return x.type==="show";}).map(function(x){return tvPlexItem(x,"shows","TV Series");});if(items.length)rows.push({id:"plex-shows",title:"TV Series",items:items});
+    return rows;
+  }
+  return rows;
+}
+function tvCardHtml(item,rowIndex,colIndex){
+  var portrait=item.kind==="film"||item.kind==="series"||item.kind==="plex";
+  return '<button class="tv-title-card '+(portrait?'portrait':'landscape')+'" type="button" data-tv-card="1" data-tv-row="'+rowIndex+'" data-tv-col="'+colIndex+'" data-tv-item="'+esc(item.key)+'" data-tv-key="card:'+esc(item.key)+'">'+
+    '<span class="tv-card-art">'+(item.art?'<img src="'+esc(item.art)+'" alt="" loading="lazy">':'<span class="tv-art-placeholder">'+(portrait?'GV':'PS5')+'</span>')+(item.progress!=null?'<span class="tv-card-progress"><i style="width:'+item.progress+'%"></i></span>':'')+'</span>'+
+    '<span class="tv-card-copy"><strong>'+esc(item.title)+'</strong><span>'+esc(item.eyebrow||item.meta||"")+'</span></span></button>';
+}
+function tvRowsHtml(rows){
+  if(!rows.length)return '<div class="tv-empty-state"><strong>Nothing to show yet</strong><span>Your synced library will appear here automatically.</span></div>';
+  return rows.map(function(row,ri){
+    return '<section class="tv-shelf" data-tv-shelf="'+ri+'" data-tv-row-id="'+esc(row.id)+'"><div class="tv-shelf-head"><h2>'+esc(row.title)+'</h2><span>'+row.items.length+'</span></div><div class="tv-card-row">'+row.items.slice(0,40).map(function(item,ci){return tvCardHtml(item,ri,ci);}).join("")+'</div></section>';
+  }).join("");
+}
+function tvRailHtml(){
+  return '<aside class="tv-rail" aria-label="GameVault TV navigation"><div class="tv-rail-brand">GV</div><nav>'+tvSectionDefs().map(function(def){
+    return '<button type="button" class="tv-nav-item '+(tvSection===def[0]?'on':'')+'" data-tv-nav="'+def[0]+'" data-tv-key="nav:'+def[0]+'"><span>'+def[1]+'</span><b>'+def[2]+'</b></button>';
+  }).join("")+'</nav></aside>';
+}
+function tvSyncLabel(){
+  if(cloudMode()==="drive")return gdTok()?"Google Drive connected":"Drive sign-in required";
+  if(cloudMode()==="jsonbin")return "JSONBin fallback";
+  return "Local data";
+}
+function tvHeaderHtml(){
+  return '<header class="tv-page-head"><div><span class="tv-breadcrumb">SINU GAME VAULT</span><h1>'+esc(tvSectionLabel(tvSection))+'</h1></div><div class="tv-head-status"><span class="tv-status-dot '+(navigator.onLine?'online':'')+'"></span>'+esc(tvSyncLabel())+'<b>v'+APP_VERSION+'</b></div></header>';
+}
+function tvSystemHtml(){
+  var syncTime=lastSyncedAt?new Date(lastSyncedAt).toLocaleString():"Not synced in this session";
+  return '<div class="tv-system-grid"><div class="tv-system-card"><span>Cloud</span><strong>'+esc(tvSyncLabel())+'</strong><small>'+esc(syncTime)+'</small></div>'+
+    '<div class="tv-system-card"><span>Library</span><strong>'+vaultSize(data)+' saved items</strong><small>View-only on this TV</small></div>'+
+    '<div class="tv-system-card"><span>Display</span><strong>'+Math.round(tvZoomValue()*100)+'%</strong><small>Optimized for 4K television</small></div></div>'+
+    '<div class="tv-system-actions"><button type="button" data-tv-system="sync" data-tv-key="system:sync">↻ Sync now</button><button type="button" data-tv-system="zoom-out" data-tv-key="system:zoom-out">− Smaller</button><button type="button" data-tv-system="zoom-reset" data-tv-key="system:zoom-reset">Reset size</button><button type="button" data-tv-system="zoom-in" data-tv-key="system:zoom-in">+ Larger</button><button type="button" data-tv-system="reload" data-tv-key="system:reload">Reload app</button></div><p class="tv-system-note">Library editing, API keys, backup and advanced settings remain available on your phone and PC.</p>';
+}
+function tvBiglyHtml(){
+  if(!biglyProxyUrl())return '<div class="tv-empty-state"><strong>BiglyBT is not configured</strong><span>Configure the secure gateway on your phone or PC. TV access is view-only.</span></div>';
+  if(!biglyToken)return '<div class="tv-empty-state"><strong>Native BiglyBT status is not connected</strong><span>Sign in to the native dashboard once on this device, or use GameVault on your phone or PC.</span></div>';
+  if(biglyErr)return '<div class="tv-empty-state"><strong>BiglyBT is unavailable</strong><span>'+esc(biglyErr)+'</span><button type="button" data-tv-system="bigly-refresh" data-tv-key="bigly:refresh">Try again</button></div>';
+  if(!biglyItems.length)return '<div class="tv-empty-state"><strong>'+(biglyBusy?'Refreshing BiglyBT…':'No active torrents')+'</strong><span>Downloads will appear here automatically.</span>'+(biglyBusy?'':'<button type="button" data-tv-system="bigly-refresh" data-tv-key="bigly:refresh">Refresh</button>')+'</div>';
+  return '<div class="tv-download-list">'+biglyItems.map(function(t,i){
+    var pct=biglyPct(t.progress!=null?t.progress:t.percentDone),total=Number(t.totalSize||t.size||0),downloaded=Number(t.downloaded||t.haveValid||t.downloadedEver||0);if(!downloaded&&total)downloaded=total*pct/100;
+    return '<div class="tv-download-card"><div><strong>'+esc(t.name||"Untitled torrent")+'</strong><span>'+esc(t.status||t.state||"Unknown")+' · '+biglyBytes(downloaded)+' / '+biglyBytes(total)+'</span></div><b>'+pct.toFixed(1)+'%</b><div class="tv-download-meter"><i style="width:'+pct+'%"></i></div><small>↓ '+biglySpeed(t.downloadSpeed||t.downSpeed||0)+' · ↑ '+biglySpeed(t.uploadSpeed||t.upSpeed||0)+' · ETA '+esc(t.eta||t.remaining||"TBC")+'</small></div>';
+  }).join("")+'</div>';
+}
+function tvDetailLinks(item){
+  var x=item.raw||{},q=item.title+" "+(x.year||"");
+  if(item.kind==="game"){
+    var out='<a href="https://www.youtube.com/results?search_query='+encodeURIComponent(item.title+' PS5 trailer')+'">▶ Trailer</a><a href="https://www.youtube.com/results?search_query='+encodeURIComponent(item.title+' review IGN')+'">★ IGN Review</a><a href="https://www.google.com/search?q='+encodeURIComponent(item.title+' PS5')+'">Google</a>';
+    if(item.plot)out+=fandomBtn(item.title);return out;
+  }
+  if(item.kind==="film")return '<a href="https://www.youtube.com/results?search_query='+encodeURIComponent(q+' trailer')+'">▶ Trailer</a>'+reeloadReviewLink(item.title,x.year,"movie")+imdbLink(x)+'<a href="https://en.wikipedia.org/wiki/Special:Search?search='+encodeURIComponent(q+' film')+'">Wikipedia</a>';
+  if(item.kind==="series")return '<a href="https://www.youtube.com/results?search_query='+encodeURIComponent(q+' trailer')+'">▶ Trailer</a>'+reeloadReviewLink(item.title,x.year,"series")+seriesImdbLink(x)+'<a href="https://en.wikipedia.org/wiki/Special:Search?search='+encodeURIComponent(q+' TV series')+'">Wikipedia</a>';
+  return "";
+}
+function tvDetailFacts(item){
+  var x=item.raw||{},facts=[];
+  if(item.kind==="game"){
+    if(x.genre)facts.push(x.genre);if(x.score)facts.push("Critic "+x.score);if(x.rating)facts.push(x.rating+"★");if(tierFor(item.title))facts.push(tierFor(item.title));
+    if(item.source==="rental"){var due=tvRentalDue(x);facts.push(due==null?"Return date TBC":due<0?"Return overdue":due===0?"Return today":due+" days remaining");if(x.vendor)facts.push(x.vendor);}
+  }else if(item.kind==="plex"){
+    if(x.year)facts.push(String(x.year));facts.push(x.type==="show"?"TV Series":"Movie");facts.push(Math.round(plexProgress(x))+"% watched");
+  }else{
+    if(x.year)facts.push(String(x.year));facts.push(mediaRatingLabel(x));facts.push(genreLabel(x.genres,item.kind==="film"?MOVIE_GENRES:SERIES_GENRES));
+  }
+  return facts.filter(Boolean).map(function(f){return '<span>'+esc(f)+'</span>';}).join("");
+}
+function tvDetailPlot(item){
+  var x=item.raw||{};
+  if(item.kind==="game"&&item.plot)return plotBlock(item.title,"video game");
+  if(item.kind==="film")return plotBlock(moviePlotName(x),"film");
+  if(item.kind==="series")return plotBlock(seriesPlotName(x),"TV series");
+  return x.summary?'<div class="tv-detail-overview">'+esc(x.summary)+'</div>':"";
+}
+function tvDetailHtml(item){
+  var x=item.raw||{},overview=x.overview||x.note||"";
+  return '<div class="tv-detail" data-tv-detail="1"><div class="tv-detail-backdrop" style="background-image:url(&quot;'+esc(item.backdrop||item.art||"")+'&quot;)"></div><div class="tv-detail-shade"></div><button class="tv-detail-close" type="button" data-tv-close="1" data-tv-key="detail:close" aria-label="Close">×</button><div class="tv-detail-content">'+
+    '<div class="tv-detail-poster '+((item.kind==="game")?'landscape':'portrait')+'">'+(item.art?'<img src="'+esc(item.art)+'" alt="">':'<span>GV</span>')+'</div><div class="tv-detail-copy"><span class="tv-detail-kicker">'+esc(item.eyebrow||tvSectionLabel(tvSection))+'</span><h1>'+esc(item.title)+'</h1><div class="tv-detail-facts">'+tvDetailFacts(item)+'</div>'+(overview?'<p>'+esc(overview)+'</p>':'')+'<div class="tv-detail-actions">'+tvDetailLinks(item)+'</div></div></div><div class="tv-detail-story">'+tvDetailPlot(item)+'</div></div>';
+}
+function tvEnsureShell(){
+  var shell=document.getElementById("tvShell");if(shell)return shell;
+  shell=document.createElement("div");shell.id="tvShell";shell.className="tv-shell";document.body.appendChild(shell);document.body.classList.add("tv-shell-ready");
+  shell.addEventListener("click",function(e){
+    var nav=e.target.closest("[data-tv-nav]");if(nav){tvOpenSection(nav.getAttribute("data-tv-nav"));return;}
+    var card=e.target.closest("[data-tv-item]");if(card){tvOpenDetail(card.getAttribute("data-tv-item"));return;}
+    if(e.target.closest("[data-tv-close]")){tvCloseDetail();return;}
+    var action=e.target.closest("[data-tv-system]");if(action)tvSystemAction(action.getAttribute("data-tv-system"));
+  });
+  shell.addEventListener("focusin",function(e){
+    var card=e.target.closest&&e.target.closest("[data-tv-item]");if(card){
+      var item=tvItemRegistry[card.getAttribute("data-tv-item")];if(item)tvSetAmbient(item);
+      tvLastCardBySection[tvSection]=card.getAttribute("data-tv-key")||"";tvLastRowBySection[tvSection]=Number(card.getAttribute("data-tv-row"))||0;
+    }
+  });
+  return shell;
+}
+function tvSetAmbient(item){
+  var ambient=document.getElementById("tvAmbient");if(!ambient)return;
+  ambient.style.backgroundImage=item&&item.backdrop?'url("'+String(item.backdrop).replace(/"/g,"%22")+'")':"";
+}
+function tvOpenSection(name){
+  if(TV_SECTIONS.indexOf(name)<0)return;
+  tvSection=name;tvDetail=null;try{localStorage.setItem(TV_HOME_KEY,name);}catch(e){}
+  if(["games","films","series","plex","biglybt"].indexOf(name)>-1)section=name;
+  renderTvApp();tvPrimeSection(name);
+}
+function tvPrimeSection(name){
+  if(name==="home"||name==="films"){
+    ["uphw","bluray","relhw","mlott"].forEach(function(k){ensureFilms(k);});
+  }
+  if(name==="home"||name==="series"){
+    ["seriesnew","seriesupcoming","enseries","mlseries","taseries","hiseries"].forEach(function(k){ensureSeries(k);});
+  }
+  if((name==="home"||name==="plex")&&plexServerUrl()&&plexToken()&&!plexItems.length)plexRefresh();
+  if(name==="biglybt"&&biglyToken&&!biglyBusy)biglyRefresh();
+}
+function tvOpenDetail(key){
+  var item=tvItemRegistry[key];if(!item)return;tvDetail=item;
+  if(item.kind==="game"&&item.plot)ensurePlot(item.title,"video game");
+  if(item.kind==="film")ensurePlot(moviePlotName(item.raw),"film");
+  if(item.kind==="series")ensurePlot(seriesPlotName(item.raw),"TV series");
+  renderTvApp("detail:close");
+}
+function tvCloseDetail(){tvDetail=null;renderTvApp(tvLastCardBySection[tvSection]||("nav:"+tvSection));}
+function tvSystemAction(action){
+  if(action==="sync"){silentPullOnLoad();flash("Checking Google Drive…");}
+  else if(action==="reload")location.reload();
+  else if(action==="zoom-out"){setTvZoom(tvZoomValue()-.05);renderTvApp("system:zoom-out");}
+  else if(action==="zoom-reset"){setTvZoom(.90);renderTvApp("system:zoom-reset");}
+  else if(action==="zoom-in"){setTvZoom(tvZoomValue()+.05);renderTvApp("system:zoom-in");}
+  else if(action==="bigly-refresh")biglyRefresh();
+}
+function tvFocusShell(el){
+  if(!el)return false;try{el.focus({preventScroll:true});}catch(e){el.focus();}
+  var row=el.closest&&el.closest(".tv-card-row");if(row){var er=el.getBoundingClientRect(),rr=row.getBoundingClientRect();if(er.left<rr.left+18)row.scrollLeft-=rr.left+18-er.left;else if(er.right>rr.right-24)row.scrollLeft+=er.right-(rr.right-24);}
+  var shelf=el.closest&&el.closest(".tv-shelf");if(shelf){var main=document.getElementById("tvMainScroll"),sr=shelf.getBoundingClientRect(),mr=main&&main.getBoundingClientRect();if(main&&mr){if(sr.top<mr.top+100)main.scrollTop-=mr.top+100-sr.top;else if(sr.bottom>mr.bottom-30)main.scrollTop+=sr.bottom-(mr.bottom-30);}}
+  return true;
+}
+function renderTvApp(preferredKey){
+  if(!TV_MODE)return;
+  var shell=tvEnsureShell(),active=document.activeElement,remember=preferredKey||(active&&active.getAttribute&&active.getAttribute("data-tv-key"))||tvLastCardBySection[tvSection]||("nav:"+tvSection);
+  tvItemRegistry={};document.body.classList.toggle("detail-open",!!tvDetail);
+  if(tvDetail){shell.innerHTML=tvDetailHtml(tvDetail);setTimeout(function(){tvFocusShell(shell.querySelector('[data-tv-key="'+remember+'"]')||shell.querySelector('[data-tv-key="detail:close"]'));},0);return;}
+  var rows=tvRowsForSection(tvSection),first=rows[0]&&rows[0].items[0];
+  shell.innerHTML='<div class="tv-ambient" id="tvAmbient"></div><div class="tv-ambient-shade"></div>'+tvRailHtml()+'<main class="tv-main" id="tvMainScroll">'+tvHeaderHtml()+'<div class="tv-view">'+(tvSection==="system"?tvSystemHtml():tvSection==="biglybt"?tvBiglyHtml():tvRowsHtml(rows))+'</div></main>';
+  tvSetAmbient(first);
+  setTimeout(function(){var target=shell.querySelector('[data-tv-key="'+remember.replace(/"/g,"\\\"")+'"]')||shell.querySelector('[data-tv-key="nav:'+tvSection+'"]')||shell.querySelector('[data-tv-card]');tvFocusShell(target);},0);
+}
+
 function render(){
+  if(TV_MODE){
+    renderTvApp();
+    return;
+  }
   var detailOpen=!!((section==="games"&&gameView==="grid"&&expandedId)||(section==="films"&&filmExpanded)||(section==="series"&&seriesExpanded));
   document.body.classList.toggle("detail-open",detailOpen);
   renderPageContext();
@@ -3664,6 +3951,7 @@ function ensureFilms(key, force){
   }).catch(function(e){ reportError("films:"+key,e); delete filmBusy[key]; filmErr[key]=1; filmsMaybeRender(); });
 }
 function filmsMaybeRender(){
+  if(TV_MODE){ if(tvSection==="home"||tvSection==="films") renderTvApp(); return; }
   if(section!=="films") return;
   var ae=document.activeElement;
   if(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
@@ -3771,6 +4059,7 @@ function searchMovies(qs){
 }
 function renderFilmsKeepSearch(){
   if(section!=="films") return;
+  if(TV_MODE){ renderTvApp(); return; }
   var el=document.getElementById("mwSearch");
   var had=el && document.activeElement===el, pos=had?el.selectionStart:0;
   document.getElementById("content").innerHTML=renderFilms();
@@ -4141,6 +4430,7 @@ function ensureSeries(key, force){
   }).catch(function(e){ reportError("series:"+key,e); delete seriesBusy[key]; seriesErr[key]=1; seriesMaybeRender(); });
 }
 function seriesMaybeRender(){
+  if(TV_MODE){ if(tvSection==="home"||tvSection==="series") renderTvApp(); return; }
   if(section!=="series") return;
   var ae=document.activeElement;
   if(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
@@ -4353,6 +4643,7 @@ function searchSeries(qs){
 }
 function renderSeriesKeepSearch(){
   if(section!=="series") return;
+  if(TV_MODE){ renderTvApp(); return; }
   var el=document.getElementById("swSearch");
   var had=el && document.activeElement===el, pos=had?el.selectionStart:0;
   document.getElementById("content").innerHTML=renderSeries();
@@ -5918,6 +6209,11 @@ function tvConfirm(message,confirmLabel,callback){
 }
 function gameVaultTvBack(){
   if(!TV_MODE) return "clear";
+  if(document.getElementById("tvShell")){
+    if(tvDetail){tvCloseDetail();return "handled";}
+    if(tvSection!=="home"){tvOpenSection("home");return "handled";}
+    return "clear";
+  }
   if(document.getElementById("tvConfirmMenu")){
     tvCloseConfirm(false);
     return "handled";
@@ -5998,8 +6294,52 @@ document.addEventListener("focusout",function(e){
   }
   e.target.classList.remove("tv-focus");
 },true);
+function tvShellFocusables(){
+  var shell=document.getElementById("tvShell");if(!shell)return [];
+  return [].filter.call(shell.querySelectorAll("button,a[href]"),function(el){
+    var r=el.getBoundingClientRect(),s=getComputedStyle(el);return !el.disabled&&s.display!=="none"&&s.visibility!=="hidden"&&r.width>0&&r.height>0;
+  });
+}
+function tvShellMove(dir){
+  var list=tvShellFocusables();if(!list.length)return true;
+  var cur=document.activeElement;if(list.indexOf(cur)<0){tvFocusShell(list[0]);return true;}
+  var nav=cur.closest&&cur.closest("[data-tv-nav]");
+  if(nav){
+    var navs=[].slice.call(document.querySelectorAll("#tvShell [data-tv-nav]")),ni=navs.indexOf(nav);
+    if(dir==="up"&&ni>0)tvFocusShell(navs[ni-1]);
+    else if(dir==="down"&&ni<navs.length-1)tvFocusShell(navs[ni+1]);
+    else if(dir==="right"){
+      var remembered=document.querySelector('#tvShell [data-tv-key="'+String(tvLastCardBySection[tvSection]||"").replace(/"/g,'\\"')+'"]');
+      var rowIndex=tvLastRowBySection[tvSection]||0;
+      tvFocusShell(remembered||document.querySelector('#tvShell [data-tv-row="'+rowIndex+'"][data-tv-card]')||document.querySelector("#tvShell [data-tv-card],#tvShell [data-tv-system]"));
+    }
+    return true;
+  }
+  var card=cur.closest&&cur.closest("[data-tv-card]");
+  if(card){
+    var row=Number(card.getAttribute("data-tv-row"))||0,col=Number(card.getAttribute("data-tv-col"))||0,target=null;
+    if(dir==="left")target=col>0?document.querySelector('#tvShell [data-tv-row="'+row+'"][data-tv-col="'+(col-1)+'"]'):document.querySelector('#tvShell [data-tv-nav="'+tvSection+'"]');
+    else if(dir==="right")target=document.querySelector('#tvShell [data-tv-row="'+row+'"][data-tv-col="'+(col+1)+'"]');
+    else if(dir==="up"&&row>0){
+      var prev=[].slice.call(document.querySelectorAll('#tvShell [data-tv-row="'+(row-1)+'"][data-tv-card]'));target=prev[Math.min(col,prev.length-1)]||null;
+    }else if(dir==="down"){
+      var next=[].slice.call(document.querySelectorAll('#tvShell [data-tv-row="'+(row+1)+'"][data-tv-card]'));target=next[Math.min(col,next.length-1)]||null;
+    }
+    if(target)tvFocusShell(target);return true;
+  }
+  var best=tvBestDirectional(cur,list,dir);
+  if(!best&&dir==="left")best=document.querySelector('#tvShell [data-tv-nav="'+tvSection+'"]');
+  if(best)tvFocusShell(best);return true;
+}
+function tvHandleShellKey(key){
+  if(!document.getElementById("tvShell"))return false;
+  if(key.indexOf("Arrow")===0)return tvShellMove(key.replace("Arrow","").toLowerCase());
+  if((key==="Enter"||key===" ")&&document.activeElement&&document.activeElement.matches("button,a[href]")){document.activeElement.click();return true;}
+  return false;
+}
 function tvHandleTvKey(key){
   if(!TV_MODE) return false;
+  if(document.getElementById("tvShell")) return tvHandleShellKey(key);
   var tag=(document.activeElement&&document.activeElement.tagName)||"";
   var editingText=tvEditingInput&&document.activeElement===tvEditingInput;
   var editing=/^(INPUT|TEXTAREA|SELECT)$/i.test(tag);
@@ -6339,6 +6679,7 @@ setTimeout(function(){
 });
 render();
 refreshRecoveryUi();
+if(TV_MODE) setTimeout(function(){tvPrimeSection(tvSection);},80);
 if(section==="films") ensureFilms(filmTab);
 if(section==="series") ensureSeries(seriesTab);
 if(section==="plex" && plexServerUrl() && plexToken()) plexRefresh();
