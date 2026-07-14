@@ -1,8 +1,9 @@
 ﻿"use strict";
-var APP_VERSION = "1.9.1";
+var APP_VERSION = "1.9.2";
 var APP_BUILD_DATE = "2026-07-14";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Added remote-friendly one-time TV OAuth setup before Google Drive QR login",
   "Restored phone QR login for Google Drive inside the TV System page",
   "Replaced the Shield layout with a dedicated view-only TV interface",
   "Added YouTube-style navigation, horizontal shelves and cinematic title details",
@@ -3357,7 +3358,7 @@ function tvSystemHtml(){
   var syncTime=lastSyncedAt?new Date(lastSyncedAt).toLocaleString():"Not synced in this session";
   var connected=gdConnected(),tvReady=!!gdTvClientId();
   var drivePanel='<section class="tv-drive-login"><div class="tv-drive-copy"><span>Google Drive</span><strong>'+(connected?'Connected':'Connect this TV')+'</strong><small id="tvGdStatus">'+esc(connected?'Your library syncs automatically.':(tvReady?'Scan a QR code with your phone to restore your library.':'TV OAuth login is not configured on this device.'))+'</small></div><div class="tv-drive-actions">'+
-    (connected?'<button type="button" data-tv-system="drive-disconnect" data-tv-key="system:drive-disconnect">Disconnect Drive</button>':(tvReady?'<button type="button" data-tv-system="drive-login" data-tv-key="system:drive-login">Login with phone QR</button>':'<span>Use the existing Settings page once to save the TV OAuth Client ID.</span>'))+
+    (connected?'<button type="button" data-tv-system="drive-disconnect" data-tv-key="system:drive-disconnect">Disconnect Drive</button>':(tvReady?'<button type="button" data-tv-system="drive-login" data-tv-key="system:drive-login">Login with phone QR</button>':'<div class="tv-drive-setup"><input id="tvGdClientInput" type="text" placeholder="TV OAuth Client ID" autocomplete="off" data-tv-key="system:drive-client"><input id="tvGdSecretInput" type="password" placeholder="Client Secret (optional)" autocomplete="off" data-tv-key="system:drive-secret"><button type="button" data-tv-system="drive-save" data-tv-key="system:drive-save">Save and show QR</button></div>'))+
     '<button type="button" id="tvGdCancelBtn" data-tv-system="drive-cancel" data-tv-key="system:drive-cancel" style="display:none">Cancel QR login</button></div><div class="tv-drive-qr" id="tvGdQrBox" style="display:none"></div></section>';
   return '<div class="tv-system-grid"><div class="tv-system-card"><span>Cloud</span><strong>'+esc(tvSyncLabel())+'</strong><small>'+esc(syncTime)+'</small></div>'+
     '<div class="tv-system-card"><span>Library</span><strong>'+vaultSize(data)+' saved items</strong><small>View-only on this TV</small></div>'+
@@ -3455,6 +3456,13 @@ function tvOpenDetail(key){
 function tvCloseDetail(){tvDetail=null;renderTvApp(tvLastCardBySection[tvSection]||("nav:"+tvSection));}
 function tvSystemAction(action){
   if(action==="sync"){silentPullOnLoad();flash("Checking Google Drive…");}
+  else if(action==="drive-save"){
+    var client=document.getElementById("tvGdClientInput"),secret=document.getElementById("tvGdSecretInput");
+    var cid=client?client.value.trim():"",sec=secret?secret.value.trim():"";
+    if(!cid){gdTvSetStatus("Enter the TV OAuth Client ID first.");if(client)tvFocusShell(client);return;}
+    try{localStorage.setItem(GD_TV_CLIENT_STORE,cid);if(sec)localStorage.setItem(GD_TV_SECRET_STORE,sec);else localStorage.removeItem(GD_TV_SECRET_STORE);}catch(e){}
+    renderTvApp("system:drive-login");setTimeout(gdTvStart,100);
+  }
   else if(action==="drive-login")gdTvStart();
   else if(action==="drive-cancel"){
     gdTvStop();gdTvSetStatus("QR login cancelled");
@@ -6229,6 +6237,12 @@ function tvConfirm(message,confirmLabel,callback){
 function gameVaultTvBack(){
   if(!TV_MODE) return "clear";
   if(document.getElementById("tvShell")){
+    var shellActive=document.activeElement;
+    if(tvIsTextInput(shellActive)){
+      if(tvEditingInput===shellActive)tvStopInputEdit(shellActive);
+      tvFocusShell(shellActive);
+      return "handled";
+    }
     if(tvDetail){tvCloseDetail();return "handled";}
     if(tvSection!=="home"){tvOpenSection("home");return "handled";}
     return "clear";
@@ -6315,7 +6329,7 @@ document.addEventListener("focusout",function(e){
 },true);
 function tvShellFocusables(){
   var shell=document.getElementById("tvShell");if(!shell)return [];
-  return [].filter.call(shell.querySelectorAll("button,a[href]"),function(el){
+  return [].filter.call(shell.querySelectorAll("button,a[href],input"),function(el){
     var r=el.getBoundingClientRect(),s=getComputedStyle(el);return !el.disabled&&s.display!=="none"&&s.visibility!=="hidden"&&r.width>0&&r.height>0;
   });
 }
@@ -6352,8 +6366,17 @@ function tvShellMove(dir){
 }
 function tvHandleShellKey(key){
   if(!document.getElementById("tvShell"))return false;
+  var active=document.activeElement;
+  if(tvIsTextInput(active)){
+    if((key==="Enter"||key===" ")&&active!==tvEditingInput){tvStartInputEdit(active);return true;}
+    if(active===tvEditingInput&&key.indexOf("Arrow")===0){
+      if(key==="ArrowLeft"||key==="ArrowRight")tvMoveTextCursor(active,key==="ArrowLeft"?"left":"right");
+      else{tvStopInputEdit(active);tvFocusShell(active);tvShellMove(key.replace("Arrow","").toLowerCase());}
+      return true;
+    }
+  }
   if(key.indexOf("Arrow")===0)return tvShellMove(key.replace("Arrow","").toLowerCase());
-  if((key==="Enter"||key===" ")&&document.activeElement&&document.activeElement.matches("button,a[href]")){document.activeElement.click();return true;}
+  if((key==="Enter"||key===" ")&&active&&active.matches("button,a[href]")){active.click();return true;}
   return false;
 }
 function tvHandleTvKey(key){
