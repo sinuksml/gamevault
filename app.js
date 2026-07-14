@@ -1,8 +1,9 @@
 ﻿"use strict";
-var APP_VERSION = "1.9.3";
+var APP_VERSION = "1.9.4";
 var APP_BUILD_DATE = "2026-07-14";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Moved the TV login QR into a fully visible fixed overlay",
   "Fixed the TV OAuth Save button being pushed beyond the right edge",
   "Added remote-friendly one-time TV OAuth setup before Google Drive QR login",
   "Restored phone QR login for Google Drive inside the TV System page",
@@ -847,7 +848,11 @@ function gdTvRenderCode(info){
     '<div class="meta">Waiting for approval on your phone...</div>';
   if(box){ box.style.display="block"; box.innerHTML=markup; }
   var tvBox=document.getElementById("tvGdQrBox");
-  if(tvBox){ tvBox.style.display="grid"; tvBox.innerHTML=markup; }
+  if(tvBox){
+    tvBox.style.display="grid";
+    tvBox.innerHTML='<div class="tv-qr-head"><b>Scan with your phone</b><button type="button" data-tv-system="drive-cancel" data-tv-key="qr:cancel" aria-label="Cancel QR login">×</button></div><img src="'+gdTvQrUrl(url)+'" alt="Google TV login QR"><div class="tv-qr-copy"><div class="meta">Open <b>'+esc(base)+'</b> on your phone if scanning does not work, then enter:</div><div class="tv-code">'+esc(info.user_code||"")+'</div><div class="meta">Waiting for approval on your phone...</div></div>';
+    setTimeout(function(){var close=tvBox.querySelector("button");if(close)tvFocusShell(close);},0);
+  }
 }
 function gdTvPoll(deviceCode, interval, expiresAt){
   if(Date.now()>expiresAt){ gdTvStop(); gdTvSetStatus("QR login expired - start again."); return; }
@@ -6238,6 +6243,12 @@ function tvConfirm(message,confirmLabel,callback){
 function gameVaultTvBack(){
   if(!TV_MODE) return "clear";
   if(document.getElementById("tvShell")){
+    var qrOverlay=document.getElementById("tvGdQrBox");
+    if(qrOverlay&&qrOverlay.style.display!=="none"){
+      gdTvStop();gdTvSetStatus("QR login cancelled");qrOverlay.style.display="none";
+      tvFocusShell(document.querySelector('[data-tv-key="system:drive-login"]'));
+      return "handled";
+    }
     var shellActive=document.activeElement;
     if(tvIsTextInput(shellActive)){
       if(tvEditingInput===shellActive)tvStopInputEdit(shellActive);
@@ -6330,7 +6341,8 @@ document.addEventListener("focusout",function(e){
 },true);
 function tvShellFocusables(){
   var shell=document.getElementById("tvShell");if(!shell)return [];
-  return [].filter.call(shell.querySelectorAll("button,a[href],input"),function(el){
+  var qr=document.getElementById("tvGdQrBox"),root=(qr&&qr.style.display!=="none")?qr:shell;
+  return [].filter.call(root.querySelectorAll("button,a[href],input"),function(el){
     var r=el.getBoundingClientRect(),s=getComputedStyle(el);return !el.disabled&&s.display!=="none"&&s.visibility!=="hidden"&&r.width>0&&r.height>0;
   });
 }
