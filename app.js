@@ -1,8 +1,9 @@
 ﻿"use strict";
-var APP_VERSION = "1.9.2";
+var APP_VERSION = "1.9.3";
 var APP_BUILD_DATE = "2026-07-14";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Fixed the TV OAuth Save button being pushed beyond the right edge",
   "Added remote-friendly one-time TV OAuth setup before Google Drive QR login",
   "Restored phone QR login for Google Drive inside the TV System page",
   "Replaced the Shield layout with a dedicated view-only TV interface",
