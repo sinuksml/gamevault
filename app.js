@@ -1,8 +1,11 @@
 ﻿"use strict";
-var APP_VERSION = "1.13.0";
+var APP_VERSION = "1.13.1";
 var APP_BUILD_DATE = "2026-07-16";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Made cover artwork mandatory with automatic TMDB recovery and a visible branded fallback",
+  "Curated Malayalam, Tamil and Hindi tabs to premium or highly rated scripted TV series only",
+  "Removed films, serials and YouTube programmes from regional TV series results",
   "Made cached game, movie and TV title lists open instantly while updates run silently",
   "Added filter-specific media caches, early idle refresh and stale-request protection",
   "Reduced TMDB and OMDb wait time with controlled parallel metadata enrichment",
@@ -1195,12 +1198,14 @@ function thumb(u){ return u ? u.replace("/media/","/media/resize/200/-/") : u; }
 function coverUrl(x){ return (x&&x.img) || data.covers[norm(x.name)] || ""; }
 function coverImg(x,cls){
   var u=coverUrl(x);
-  if(u) return '<img class="cover'+(cls?" "+cls:"")+'" src="'+esc(thumb(u))+'" onerror="this.onerror=null;this.src=\''+esc(u)+'\'" alt="'+esc((x&&x.name)||"Game")+' cover" loading="lazy">';
-  return '<div class="cover ph'+(cls?" "+cls:"")+'">□</div>';
+  var name=(x&&x.name)||"Game";
+  if(u) return '<img class="cover'+(cls?" "+cls:"")+'" src="'+esc(thumb(u))+'" onerror="this.onerror=null;this.src=\'icon.png\';this.classList.add(\'fallback-art\')" alt="'+esc(name)+' cover" loading="lazy">';
+  return '<img class="cover fallback-art'+(cls?" "+cls:"")+'" src="icon.png" alt="Cover unavailable for '+esc(name)+'" loading="lazy">';
 }
 function gameCoverHero(x){
   var u=coverUrl(x);
-  return u?'<img src="'+esc(thumb(u))+'" onerror="this.onerror=null;this.src=\''+esc(u)+'\'" alt="'+esc((x&&x.name)||"Game")+' cover" loading="lazy">':'<div class="game-cover-ph">□</div>';
+  var name=(x&&x.name)||"Game";
+  return u?'<img src="'+esc(thumb(u))+'" onerror="this.onerror=null;this.src=\'icon.png\';this.classList.add(\'fallback-art\')" alt="'+esc(name)+' cover" loading="lazy">':'<img class="fallback-art" src="icon.png" alt="Cover unavailable for '+esc(name)+'" loading="lazy">';
 }
 function gameViewToggle(){
   return '<div class="viewbar"><span class="viewlbl">View</span>'+
@@ -3294,8 +3299,9 @@ function plexSeriesState(s){
 }
 function plexHero(item,m){
   var list=item.type==="show"?SERIES_GENRES:MOVIE_GENRES;
+  ensureMediaArtwork(m,item.type==="show"?"series":"movie");
   return '<div class="media-closebar detail-toolbar">'+mediaClose("plex")+'</div><div class="media-page-head">'+
-    '<div class="media-page-poster">'+(m.poster?'<img src="'+esc(m.poster)+'" alt="'+esc(m.title)+' poster" loading="lazy">':'<div class="poster-ph">'+(item.type==="show"?'TV':'FILM')+'</div>')+'</div><div><div class="media-page-title">'+esc(m.title)+'</div><div class="media-page-sub"><span class="media-pill imdb">'+esc(mediaRatingLabel(m))+'</span><span class="media-pill">'+esc(genreLabel(m.genres,list))+'</span>'+(m.year?'<span class="media-pill">'+esc(m.year)+'</span>':'')+'</div>'+(m.overview?'<div class="media-page-overview">'+esc(m.overview)+'</div>':'')+'</div></div>';
+    '<div class="media-page-poster">'+mediaImage(m.poster,m.title,(m.poster?"":"fallback-art"))+'</div><div><div class="media-page-title">'+esc(m.title)+'</div><div class="media-page-sub"><span class="media-pill imdb">'+esc(mediaRatingLabel(m))+'</span><span class="media-pill">'+esc(genreLabel(m.genres,list))+'</span>'+(m.year?'<span class="media-pill">'+esc(m.year)+'</span>':'')+'</div>'+(m.overview?'<div class="media-page-overview">'+esc(m.overview)+'</div>':'')+'</div></div>';
 }
 function plexDetailPage(item){
   var m=plexAsMedia(item), actions='<div class="actions detail-actionbar">';
@@ -3548,12 +3554,14 @@ function tvGameItem(x,source,label,options){
     eyebrow:status,meta:[score,x.genre||tierFor(x.name)||"Game"].filter(Boolean).join(" · "),raw:x,due:due,plot:!!options.plot});
 }
 function tvFilmItem(m,source,label){
+  ensureMediaArtwork(m,"movie");
   var date=m.ottDate||m.date||"",countdown="";
   if(date){var left=daysBetween(today(),parseD(date));if(left>=0)countdown=left===0?"Today":left+" days";}
   return tvRegister({kind:"film",source:source,id:tvStableId(m),title:m.title||"Untitled movie",art:m.poster||"",backdrop:m.backdrop||m.poster||"",
     eyebrow:label||(countdown?countdown:(m.year||"Movie")),meta:[mediaRatingLabel(m),genreLabel(m.genres,MOVIE_GENRES)].filter(Boolean).join(" · "),raw:m});
 }
 function tvSeriesItem(s,source,label){
+  ensureMediaArtwork(s,"series");
   var date=s.latestDate||s.date||"";
   return tvRegister({kind:"series",source:source,id:tvStableId(s),title:s.title||"Untitled series",art:s.poster||"",backdrop:s.backdrop||s.poster||"",
     eyebrow:label||(date?fmt(date):(s.year||"TV Series")),meta:[mediaRatingLabel(s),genreLabel(s.genres,SERIES_GENRES)].filter(Boolean).join(" · "),raw:s});
@@ -3631,7 +3639,7 @@ function tvRowsForSection(name){
 function tvCardHtml(item,rowIndex,colIndex){
   var portrait=item.kind==="film"||item.kind==="series"||item.kind==="plex";
   return '<button class="tv-title-card '+(portrait?'portrait':'landscape')+'" type="button" data-tv-card="1" data-tv-row="'+rowIndex+'" data-tv-col="'+colIndex+'" data-tv-item="'+esc(item.key)+'" data-tv-key="card:'+esc(item.key)+'">'+
-    '<span class="tv-card-art">'+(item.art?'<img src="'+esc(item.art)+'" alt="" loading="lazy">':'<span class="tv-art-placeholder">'+(portrait?'GV':'PS5')+'</span>')+(item.progress!=null?'<span class="tv-card-progress"><i style="width:'+item.progress+'%"></i></span>':'')+'</span>'+
+    '<span class="tv-card-art">'+mediaImage(item.art,item.title,(item.art?"":"fallback-art"))+(item.progress!=null?'<span class="tv-card-progress"><i style="width:'+item.progress+'%"></i></span>':'')+'</span>'+
     '<span class="tv-card-copy"><strong>'+esc(item.title)+'</strong><span>'+esc(item.eyebrow||item.meta||"")+'</span></span></button>';
 }
 function tvRowsHtml(rows){
@@ -3706,7 +3714,7 @@ function tvDetailPlot(item){
 function tvDetailHtml(item){
   var x=item.raw||{},overview=x.overview||x.note||"";
   return '<div class="tv-detail" data-tv-detail="1"><div class="tv-detail-backdrop" style="background-image:url(&quot;'+esc(item.backdrop||item.art||"")+'&quot;)"></div><div class="tv-detail-shade"></div><button class="tv-detail-close" type="button" data-tv-close="1" data-tv-key="detail:close" aria-label="Close">×</button><div class="tv-detail-content">'+
-    '<div class="tv-detail-poster '+((item.kind==="game")?'landscape':'portrait')+'">'+(item.art?'<img src="'+esc(item.art)+'" alt="">':'<span>GV</span>')+'</div><div class="tv-detail-copy"><span class="tv-detail-kicker">'+esc(item.eyebrow||tvSectionLabel(tvSection))+'</span><h1>'+esc(item.title)+'</h1><div class="tv-detail-facts">'+tvDetailFacts(item)+'</div>'+(overview?'<p>'+esc(overview)+'</p>':'')+'<div class="tv-detail-actions">'+tvDetailLinks(item)+'</div></div></div><div class="tv-detail-story">'+tvDetailPlot(item)+'</div></div>';
+    '<div class="tv-detail-poster '+((item.kind==="game")?'landscape':'portrait')+'">'+mediaImage(item.art,item.title,(item.art?"":"fallback-art"))+'</div><div class="tv-detail-copy"><span class="tv-detail-kicker">'+esc(item.eyebrow||tvSectionLabel(tvSection))+'</span><h1>'+esc(item.title)+'</h1><div class="tv-detail-facts">'+tvDetailFacts(item)+'</div>'+(overview?'<p>'+esc(overview)+'</p>':'')+'<div class="tv-detail-actions">'+tvDetailLinks(item)+'</div></div></div><div class="tv-detail-story">'+tvDetailPlot(item)+'</div></div>';
 }
 function tvEnsureShell(){
   var shell=document.getElementById("tvShell");if(shell)return shell;
@@ -4010,8 +4018,55 @@ function genreLabel(ids, list){
 function mediaRatingLabel(x){
   return typeof x.imdb==="number" ? ("IMDb "+x.imdb.toFixed(1)) : "IMDb -";
 }
+var mediaArtworkQueue=[],mediaArtworkPending={},mediaArtworkActive=0,mediaArtworkRenderTimer=null;
+function tmdbPoster(path){ return path?("https://image.tmdb.org/t/p/w342"+path):""; }
+function tmdbBackdrop(path){ return path?("https://image.tmdb.org/t/p/w1280"+path):""; }
+function mediaArtworkKey(x,kind){ return kind+":"+String((x&&x.id)||norm(x&&x.title||"")); }
+function scheduleArtworkRender(){
+  clearTimeout(mediaArtworkRenderTimer);
+  mediaArtworkRenderTimer=setTimeout(function(){
+    if(TV_MODE){ scheduleTvMediaRender(); return; }
+    if(section==="films") filmMaybeRender(filmTab,true);
+    else if(section==="series") seriesMaybeRender(seriesTab,true);
+    else if(section==="plex") render();
+  },180);
+}
+function fetchMediaArtwork(job){
+  var x=job.x,kind=job.kind,path=kind==="series"?"tv":"movie";
+  var request;
+  if(/^\d+$/.test(String(x.id||""))) request=tmdbGet("/"+path+"/"+x.id,{});
+  else{
+    var params={query:x.title||"",page:1};
+    if(x.year) params[kind==="series"?"first_air_date_year":"year"]=x.year;
+    request=tmdbGet("/search/"+path,params).then(function(j){return (j.results||[])[0]||{};});
+  }
+  return request.then(function(d){
+    x.poster=x.poster||tmdbPoster(d.poster_path);
+    x.backdrop=x.backdrop||tmdbBackdrop(d.backdrop_path);
+    if(!x.poster&&x.backdrop)x.poster=x.backdrop;
+    x._artCheckedAt=Date.now();
+    saveFilmCache();saveSeriesCache();persistSilent();
+    scheduleArtworkRender();
+  }).catch(function(){ x._artCheckedAt=Date.now(); });
+}
+function pumpMediaArtwork(){
+  while(mediaArtworkActive<2&&mediaArtworkQueue.length){
+    var job=mediaArtworkQueue.shift();mediaArtworkActive++;
+    (function(j){fetchMediaArtwork(j).then(function(){
+      mediaArtworkActive--;delete mediaArtworkPending[j.key];pumpMediaArtwork();
+    });})(job);
+  }
+}
+function ensureMediaArtwork(x,kind){
+  if(!x||x.poster||!x.title||!tmdbKey()||(x._artCheckedAt&&Date.now()-x._artCheckedAt<86400000)) return;
+  var key=mediaArtworkKey(x,kind);if(mediaArtworkPending[key])return;
+  mediaArtworkPending[key]=1;mediaArtworkQueue.push({key:key,x:x,kind:kind});pumpMediaArtwork();
+}
+function mediaImage(src,label,cls){
+  return '<img'+(cls?' class="'+cls+'"':'')+' src="'+esc(src||"icon.png")+'" onerror="this.onerror=null;this.src=\'icon.png\';this.classList.add(\'fallback-art\')" alt="'+esc((src?"":"Cover unavailable for ")+(label||"Media"))+'" loading="lazy">';
+}
 function mediaPoster(src, label){
-  return '<div class="poster-wrap">'+(src?'<img class="poster-img" src="'+esc(src)+'" alt="'+esc(label||"Media")+' poster" loading="lazy">':'<div class="poster-ph">'+esc(label||"")+'</div>')+'</div>';
+  return '<div class="poster-wrap">'+mediaImage(src,label,"poster-img"+(src?"":" fallback-art"))+'</div>';
 }
 function mediaSummary(title, rating, genre, extra){
   return '<div class="media-info"><div class="media-title">'+esc(title)+'</div><div class="media-meta">'+
@@ -4070,7 +4125,7 @@ function mapMovie(m){
     overview:m.overview||"", tmdb:Math.round((m.vote_average||0)*10)/10,
     genres:m.genre_ids||[],
     votes:m.vote_count||0, popularity:m.popularity||0,
-    poster:m.poster_path?("https://image.tmdb.org/t/p/w185"+m.poster_path):"",
+    poster:tmdbPoster(m.poster_path),
     backdrop:m.backdrop_path?("https://image.tmdb.org/t/p/w1280"+m.backdrop_path):"" };
 }
 /* OMDb exact IMDb rating by title + year */
@@ -4411,7 +4466,8 @@ function mlReviewLinks(title){
          '<a class="btn" href="https://www.youtube.com/results?search_query='+encodeURIComponent(title+" Malayalam review Aswanth Kok")+'" target="_blank" rel="noopener">★ Aswanth Kok</a>';
 }
 function moviePoster(m){
-  return m.poster ? '<img class="cover" src="'+esc(m.poster)+'" alt="" loading="lazy">' : '<div class="cover ph">🎬</div>';
+  ensureMediaArtwork(m,"movie");
+  return mediaImage(m.poster,m.title,"cover"+(m.poster?"":" fallback-art"));
 }
 function mediaDate(x){ return (x&&(x.ottDate||x.date||(x.year?x.year+"-12-31":"")))||""; }
 function newerFirst(a,b){ var aa=mediaDate(a), bb=mediaDate(b); return aa<bb?1:aa>bb?-1:0; }
@@ -4581,13 +4637,15 @@ function filmReleaseMeta(m,key){
   return "";
 }
 function movieMain(m,key){
+  ensureMediaArtwork(m,"movie");
   var details=genreLabel(m.genres,MOVIE_GENRES);
   if(m.originalLanguage&&m.originalLanguage!=="en") details+=(details?" · ":"")+m.originalLanguage.toUpperCase();
   return mediaPoster(m.poster,m.title)+mediaSummary(m.title,mediaRatingLabel(m),details,filmReleaseMeta(m,key));
 }
 function mediaPageHero(kind,x,genreList){
+  ensureMediaArtwork(x,kind==="film"?"movie":"series");
   return detailToolbar(kind,x)+'<div class="media-page-head">'+
-    '<div class="media-page-poster">'+(x.poster?'<img src="'+esc(x.poster)+'" alt="'+esc(x.title||kind)+' poster" loading="lazy">':'<div class="poster-ph">'+(kind==="film"?"FILM":"TV")+'</div>')+'</div>'+
+    '<div class="media-page-poster">'+mediaImage(x.poster,x.title||kind,(x.poster?"":"fallback-art"))+'</div>'+
     '<div><div class="media-page-title">'+esc(x.title)+'</div>'+
     '<div class="media-page-sub"><span class="media-pill imdb">'+esc(mediaRatingLabel(x))+'</span><span class="media-pill">'+esc(genreLabel(x.genres,genreList))+'</span>'+(x.year?'<span class="media-pill">'+esc(x.year)+'</span>':'')+'</div>'+
     (x.overview?'<div class="media-page-overview">'+esc(x.overview)+'</div>':'')+
@@ -4738,7 +4796,7 @@ function renderFilms(){
 /* ================= TV SERIES SECTION (TMDB + OMDb) =================
    Public lists cache locally; personal watchlist, watched state and ratings
    live in the synced vault beside the game and film data. */
-var SERIESTAB_KEY="ps5-seriestab", SERIES_CACHE_KEY="ps5-series-cache-v2";
+var SERIESTAB_KEY="ps5-seriestab", SERIES_CACHE_KEY="ps5-series-cache-v3";
 var seriesTab="serieswatchlist";
 try{ seriesTab=localStorage.getItem(SERIESTAB_KEY)||"serieswatchlist"; }catch(e){}
 var SERIES_ORDER=["serieswatchlist","serieswatching","seriesnew","seriesupcoming","enseries","mlseries","taseries","hiseries","serieswatched"];
@@ -4768,8 +4826,8 @@ function mapSeries(s){
   return { id:s.id, title:s.name||s.original_name||"Untitled",
     date:s.first_air_date||"", firstAirDate:s.first_air_date||"", latestDate:s.last_air_date||"", year:(s.first_air_date||"").slice(0,4),
     overview:s.overview||"", tmdb:Math.round((s.vote_average||0)*10)/10,
-    votes:s.vote_count||0, popularity:s.popularity||0, genres:s.genre_ids||[],
-    poster:s.poster_path?("https://image.tmdb.org/t/p/w185"+s.poster_path):"",
+    votes:s.vote_count||0, popularity:s.popularity||0, genres:s.genre_ids||[], originalLanguage:s.original_language||"",
+    poster:tmdbPoster(s.poster_path),
     backdrop:s.backdrop_path?("https://image.tmdb.org/t/p/w1280"+s.backdrop_path):"" };
 }
 function enrichSeriesIds(s){
@@ -4777,6 +4835,9 @@ function enrichSeriesIds(s){
     if(d&&d.external_ids&&d.external_ids.imdb_id) s.imdbId=d.external_ids.imdb_id;
     if(d&&d.number_of_seasons) s.seasons=d.number_of_seasons;
     s.seriesType=d.type||"";
+    s.originalLanguage=d.original_language||s.originalLanguage||"";
+    s.poster=s.poster||tmdbPoster(d.poster_path);
+    s.backdrop=s.backdrop||tmdbBackdrop(d.backdrop_path);
     s.episodeCount=d.number_of_episodes||0;
     s.networks=(d.networks||[]).map(function(n){ return n.name||""; }).filter(Boolean);
     s.latestDate=(d.next_episode_to_air&&d.next_episode_to_air.air_date)||(d.last_episode_to_air&&d.last_episode_to_air.air_date)||d.last_air_date||s.latestDate||s.date;
@@ -4788,14 +4849,26 @@ function enrichSeriesIds(s){
     return omdbRatingById(s.imdbId).then(function(rt){ if(typeof rt==="number"){ s.imdb=rt; s.imdbAt=Date.now(); } });
   }).catch(function(){});
 }
-function regionalTvSeriesOnly(s){
+function regionalTvSeriesOnly(s,lang){
   var text=(s.title+" "+(s.overview||"")).toLowerCase();
   var networks=(s.networks||[]).join(" ").toLowerCase();
   if(networks.indexOf("youtube")>-1 || /\byou\s*tube\b/.test(text)) return false;
   if(/\b(daily soap|soap opera|television serial|tv serial|mega serial|daily serial)\b/.test(text)) return false;
   if(s.seriesType && s.seriesType!=="Scripted" && s.seriesType!=="Miniseries") return false;
+  if(lang&&s.originalLanguage&&s.originalLanguage!==lang) return false;
+  if((s.episodeCount||0)<2) return false;
   if((s.episodeCount||0)>120) return false;
   return true;
+}
+function regionalPrestigeSeries(s){
+  var rating=Number(typeof s.imdb==="number"?s.imdb:s.tmdb)||0;
+  var votes=Number(s.votes)||0,pop=Number(s.popularity)||0;
+  var outlets=((s.networks||[]).concat(s.providers||[])).join(" ").toLowerCase();
+  var premium=/netflix|amazon|prime video|disney|hotstar|jiohotstar|jio cinema|jiocinema|sony\s*liv|zee5|aha|sun nxt|manorama|max|hoichoi|hbo|apple tv|peacock|paramount/.test(outlets);
+  var highlyRated=rating>=7.2&&(votes>=5||typeof s.imdb==="number");
+  var established=rating>=6.8&&votes>=15;
+  var highProduction=premium&&rating>=6.3&&(votes>=3||pop>=2.5)&&!!(s.poster||s.backdrop);
+  return highlyRated||established||highProduction;
 }
 function fetchSeriesLang(lang, minVotes, minRating, sortBy, pages, regionalOnly){
   pages=pages||1;
@@ -4819,7 +4892,7 @@ function fetchSeriesLang(lang, minVotes, minRating, sortBy, pages, regionalOnly)
     all.forEach(function(j){
       (j.results||[]).forEach(function(s){
         if(!s.name || !s.first_air_date || seen[s.id]) return;
-        seen[s.id]=1; var mapped=mapSeries(s); mapped.providerRegion=regionalOnly?"IN":"US"; cands.push(mapped);
+        seen[s.id]=1; var mapped=mapSeries(s); mapped.providerRegion=regionalOnly?"IN":"US"; mapped.requestedLanguage=lang;cands.push(mapped);
       });
     });
     if(regionalOnly) cands.sort(newerFirst);
@@ -4830,7 +4903,7 @@ function fetchSeriesLang(lang, minVotes, minRating, sortBy, pages, regionalOnly)
     cands=cands.slice(0,45);
     var enrichList=regionalOnly?cands:cands.slice(0,24);
     return serialEach(enrichList, 120, enrichSeriesIds).then(function(){
-      return regionalOnly ? cands.filter(regionalTvSeriesOnly).sort(function(a,b){return (b.latestDate||b.date||"").localeCompare(a.latestDate||a.date||"");}) : cands;
+      return regionalOnly ? cands.filter(function(s){return regionalTvSeriesOnly(s,lang)&&regionalPrestigeSeries(s);}).sort(function(a,b){return (b.latestDate||b.date||"").localeCompare(a.latestDate||a.date||"");}) : cands;
     });
   });
 }
@@ -4855,9 +4928,9 @@ function gdMaybeHistory(tok,body){
   }).catch(function(){});
 }
 function fetchEnSeries(){ return fetchSeriesLang("en", 350, 7.2, "vote_average.desc", 2).then(rankEnglishSeries); }
-function fetchMlSeries(){ return fetchSeriesLang("ml", 1, 0, "first_air_date.desc", 6, true); }
-function fetchTaSeries(){ return fetchSeriesLang("ta", 1, 0, "first_air_date.desc", 8, true); }
-function fetchHiSeries(){ return fetchSeriesLang("hi", 1, 0, "first_air_date.desc", 8, true); }
+function fetchMlSeries(){ return fetchSeriesLang("ml", 2, 6.0, "first_air_date.desc", 6, true); }
+function fetchTaSeries(){ return fetchSeriesLang("ta", 3, 6.0, "first_air_date.desc", 8, true); }
+function fetchHiSeries(){ return fetchSeriesLang("hi", 5, 6.0, "first_air_date.desc", 8, true); }
 function fetchSeriesDiscover(){
   if(seriesLanguage==="ml") return fetchMlSeries();
   if(seriesLanguage==="ta") return fetchTaSeries();
@@ -4865,9 +4938,9 @@ function fetchSeriesDiscover(){
   if(seriesLanguage==="en") return fetchEnSeries();
   return Promise.all([
     fetchSeriesLang("en",350,7.2,"vote_average.desc",1),
-    fetchSeriesLang("ml",1,0,"first_air_date.desc",1,true),
-    fetchSeriesLang("ta",1,0,"first_air_date.desc",1,true),
-    fetchSeriesLang("hi",20,6.5,"popularity.desc",1)
+    fetchMlSeries(),
+    fetchTaSeries(),
+    fetchHiSeries()
   ]).then(function(groups){
     var seen={},out=[]; groups.forEach(function(list){(list||[]).forEach(function(s){if(!seen[s.id]){seen[s.id]=1;out.push(s);}});});
     return rankEnglishSeries(out).slice(0,70);
@@ -4955,7 +5028,8 @@ function scheduleMediaWarmup(kind,current){
   mediaIdle(next,1200);
 }
 function seriesPoster(s){
-  return s.poster ? '<img class="cover" src="'+esc(s.poster)+'" alt="" loading="lazy">' : '<div class="cover ph">TV</div>';
+  ensureMediaArtwork(s,"series");
+  return mediaImage(s.poster,s.title,"cover"+(s.poster?"":" fallback-art"));
 }
 function seriesKey(s){ return "tmdbtv:"+(s.id!=null?s.id:norm(s.title)); }
 function watchedSeriesKeys(){ var out={}; (data.watchedSeries||[]).forEach(function(s){ out[s.key]=1; }); return out; }
@@ -5146,6 +5220,7 @@ function seriesReleaseMeta(s){
   return '<div class="media-release">'+label+': '+esc(fmt(date))+' · '+esc(day)+'</div>';
 }
 function seriesMain(s){
+  ensureMediaArtwork(s,"series");
   return mediaPoster(s.poster,s.title)+mediaSummary(s.title,mediaRatingLabel(s),genreLabel(s.genres,SERIES_GENRES),seriesReleaseMeta(s));
 }
 var seriesSearchQ="", seriesSearchItems=[], seriesSearchBusy=false, seriesSearchSeq=0, seriesSearchTimer=null;
@@ -5208,9 +5283,9 @@ function renderSeries(){
   var key=seriesTab;
   var blurbs={
     enseries:"Highly rated and critically acclaimed English TV series. Your ratings push better matches to the top.",
-    mlseries:"Malayalam TV series only, newest first. Television serials and YouTube series are excluded.",
-    taseries:"Tamil TV series only, newest first. Television serials and YouTube series are excluded.",
-    hiseries:"Hindi TV series and streaming originals only, newest first. Television serials and YouTube series are excluded.",
+    mlseries:"Curated high-production or highly rated Malayalam TV series, newest first. Films, television serials and YouTube programmes are excluded.",
+    taseries:"Curated high-production or highly rated Tamil TV series, newest first. Films, television serials and YouTube programmes are excluded.",
+    hiseries:"Curated high-production or highly rated Hindi TV series, newest first. Films, television serials and YouTube programmes are excluded.",
     serieswatchlist:"Search any TV show on the internet and save it for later.",
     serieswatching:"TV shows you are currently watching. Move a show here from its action menu.",
     seriesnew:"Recent episodes from TV shows in your Watching list.",
@@ -5287,7 +5362,9 @@ function renderSeries(){
   var hset2=hiddenSeriesKeys();
   var items=((last&&last.items)||[]).filter(function(s){
     var sk=seriesKey(s);
-    return matchMediaYear(s, seriesYear) && !wset[sk] && !wlset[sk] && !wingSet[sk] && !hset2[sk];
+    var regionalOk=(key!=="mlseries"&&key!=="taseries"&&key!=="hiseries")||
+      (regionalTvSeriesOnly(s,key==="mlseries"?"ml":key==="taseries"?"ta":"hi")&&regionalPrestigeSeries(s));
+    return regionalOk && matchMediaYear(s, seriesYear) && !wset[sk] && !wlset[sk] && !wingSet[sk] && !hset2[sk];
   });
   if(key==="seriesupcoming") items.sort(function(a,b){return (a.date||"").localeCompare(b.date||"");});
   else if(key==="mlseries"||key==="taseries"||key==="hiseries") items.sort(function(a,b){return (b.latestDate||b.date||"").localeCompare(a.latestDate||a.date||"");});
