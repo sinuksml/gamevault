@@ -80,9 +80,17 @@ assert.match(js,/var SERIES_ORDER=\["serieswatchlist","serieswatching","seriesne
 assert.match(js,/window\.gameVaultTvKey=tvHandleTvKey/);
 assert.match(js,/function renderTvApp\(/);
 assert.match(js,/function tvRowsForSection\(/);
+assert.match(js,/function tvHeroHtml\(/);
+assert.match(js,/function tvHomeSummaryHtml\(/);
+assert.match(js,/function tvRowLayout\(/);
 assert.match(js,/function tvHandleShellKey\(/);
 assert.match(css,/\.tv-shell/);
 assert.match(css,/\.tv-card-row/);
+assert.match(css,/\.tv-feature-hero/);
+assert.match(css,/\.tv-home-summary/);
+assert.match(css,/\.tv-rail:focus-within/);
+assert.match(js,/\["biglybt","⇩","Downloads"\]/);
+assert.match(js,/if\(TV_MODE\)\{worker\.postMessage\(\{type:"SKIP_WAITING"\}\);return;\}/);
 assert.match(js,/summary,\[role="button"\]/);
 assert.doesNotMatch(js,/window\.innerHeight\*\.48/);
 assert.match(js,/id=\"tvGdQrBox\"/);

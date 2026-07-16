@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.16.0 - 2026-07-17
+
+- Redesigned only the Android TV experience as a cinematic command center.
+- Added a featured-title hero, continuation summary and wider content shelves.
+- Replaced the permanently wide TV sidebar with a compact rail that expands on focus.
+- Renamed BiglyBT and System to Downloads and Settings in TV navigation.
+- Reworked TV detail pages for a larger, artwork-led ten-foot presentation.
+- Made TV shell updates activate automatically because the remote cannot select browser update toasts.
+- Preserved the existing Shield remote controls, view-only behavior and desktop/mobile interfaces.
+
 ## v1.15.0 - 2026-07-16
 
 - Made RAWG, TMDB and OMDb keys device-only and excluded them from cloud and portable backups.
