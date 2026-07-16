@@ -1,8 +1,11 @@
 ﻿"use strict";
-var APP_VERSION = "1.12.0";
-var APP_BUILD_DATE = "2026-07-15";
+var APP_VERSION = "1.13.0";
+var APP_BUILD_DATE = "2026-07-16";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Made cached game, movie and TV title lists open instantly while updates run silently",
+  "Added filter-specific media caches, early idle refresh and stale-request protection",
+  "Reduced TMDB and OMDb wait time with controlled parallel metadata enrichment",
   "Synced Plex playback progress into Movie and TV Watching and Watched lists",
   "Added a Drive-synced BiglyBT completion and removal history report",
   "Added Google Drive storage usage for GameVault backup and recovery files",
@@ -1061,15 +1064,15 @@ function pullCloud(confirmed){
 }
 
 /* ---------- RAWG live updates ---------- */
-function refreshUpcoming(){
+function refreshUpcoming(silent){
   var key=getKey();
-  if(!key){ flash("Add your free RAWG API key in Settings first"); toggleSettings(true); return; }
-  if(busy) return; busy=true; render();
+  if(!key){ if(!silent){flash("Add your free RAWG API key in Settings first");toggleSettings(true);} return Promise.resolve(false); }
+  if(busy) return Promise.resolve(false); busy=true; if(!silent)render();
   var t=today(); var end=new Date(t); end.setFullYear(end.getFullYear()+1);
   var url="https://api.rawg.io/api/games?key="+encodeURIComponent(key)+
     "&platforms=187&dates="+localISO(t)+","+localISO(end)+
     "&ordering=-added&page_size=30";
-  rawgFetch(url).then(function(json){
+  return rawgFetch(url).then(function(json){
     var fetched=(json.results||[]).filter(function(g){ return g && g.name; }).map(function(g){
       return {
         id:uid(), name:g.name, date:g.released||null,
@@ -1089,22 +1092,26 @@ function refreshUpcoming(){
     });
     data.upcoming=kept;
     data.lastUpcomingSync=new Date().toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
-    busy=false; save();
-    flash("Watchlist updated — "+added+" new release"+(added===1?"":"s")+" from the internet");
+    data.lastUpcomingSyncAt=Date.now();
+    busy=false; persist();
+    if(section==="games"&&tab==="upcoming")render();
+    if(!silent)flash("Watchlist updated — "+added+" new release"+(added===1?"":"s")+" from the internet");
+    return true;
   }).catch(function(err){
-    busy=false; render();
-    flash("Update failed — check internet connection and API key");
+    busy=false;if(section==="games"&&tab==="upcoming")render();
+    if(!silent)flash("Update failed — check internet connection and API key");
+    return false;
   });
 }
 
-function refreshCatalog(){
+function refreshCatalog(silent){
   var key=getKey();
-  if(!key){ flash("Add your free RAWG API key in Settings first"); toggleSettings(true); return; }
-  if(busy) return; busy=true; render();
+  if(!key){ if(!silent){flash("Add your free RAWG API key in Settings first");toggleSettings(true);} return Promise.resolve(false); }
+  if(busy) return Promise.resolve(false); busy=true; if(!silent)render();
   var url="https://api.rawg.io/api/games?key="+encodeURIComponent(key)+
     "&platforms=187&dates="+PS5_LAUNCH+","+localISO(today())+
     "&ordering=-metacritic&metacritic=80,100&page_size=40";
-  rawgFetch(url).then(function(json){
+  return rawgFetch(url).then(function(json){
     var have={}; BUILTIN_CATALOG.forEach(function(g){ have[norm(g.name)]=1; });
     var extra=[]; var added=0;
     (json.results||[]).forEach(function(g){
@@ -1125,12 +1132,31 @@ function refreshCatalog(){
     });
     data.catalogExtra=extra;
     data.lastCatalogSync=new Date().toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
-    busy=false; save();
-    flash("Suggestions catalog updated — "+added+" extra top-rated games added");
+    data.lastCatalogSyncAt=Date.now();
+    busy=false; persist();
+    if(section==="games"&&tab==="suggest")render();
+    if(!silent)flash("Suggestions catalog updated — "+added+" extra top-rated games added");
+    return true;
   }).catch(function(err){
-    busy=false; render();
-    flash("Update failed — check internet connection and API key");
+    busy=false;if(section==="games"&&tab==="suggest")render();
+    if(!silent)flash("Update failed — check internet connection and API key");
+    return false;
   });
+}
+function scheduleGameWarmup(currentTab){
+  if(!getKey()||navigator.onLine===false||document.visibilityState==="hidden") return;
+  if(navigator.connection&&navigator.connection.saveData) return;
+  mediaIdle(function(){
+    var first=currentTab==="suggest"?"catalog":"upcoming";
+    var tasks=first==="catalog"?[
+      function(){return Date.now()-Number(data.lastCatalogSyncAt||0)>12*3600*1000?refreshCatalog(true):false;},
+      function(){return Date.now()-Number(data.lastUpcomingSyncAt||0)>6*3600*1000?refreshUpcoming(true):false;}
+    ]:[
+      function(){return Date.now()-Number(data.lastUpcomingSyncAt||0)>6*3600*1000?refreshUpcoming(true):false;},
+      function(){return Date.now()-Number(data.lastCatalogSyncAt||0)>12*3600*1000?refreshCatalog(true):false;}
+    ];
+    Promise.resolve(tasks[0]()).then(function(){mediaIdle(function(){tasks[1]();},2200);});
+  },1500);
 }
 
 /* ---------- expenses & score enrichment ---------- */
@@ -1460,7 +1486,8 @@ function nextBigFilm(){
 function featuredSeries(){
   var pool=[];
   function add(list){ (list||[]).forEach(function(s){ if(s&&mediaBgUrl(s)) pool.push(s); }); }
-  add(seriesCache[seriesTab]&&seriesCache[seriesTab].items);
+  var currentSeriesCache=seriesCacheEntry(seriesTab);
+  add(currentSeriesCache&&currentSeriesCache.items);
   if(!pool.length&&(seriesTab==="serieswatching"||seriesTab==="seriesnew")) add(data.watchingSeries);
   if(!pool.length) add(seriesCache.seriesdiscover&&seriesCache.seriesdiscover.items);
   if(!pool.length) add(seriesCache.enseries&&seriesCache.enseries.items);
@@ -1881,6 +1908,7 @@ function switchTab(next){
   tab=next; expandedId=null;
   render();
   window.scrollTo(0, tabScroll[next]||0);
+  scheduleGameWarmup(next);
 }
 
 function centerActiveTab(){
@@ -1911,13 +1939,13 @@ function tabCount(kind,key){
     if(key==="watchlist") return (data.movieWatchlist||[]).length;
     if(key==="watching") return (data.watchingMovies||[]).length;
     if(key==="watched") return (data.watchedMovies||[]).length;
-    return ((filmCache[key]||{}).items||[]).length;
+    return ((filmCacheEntry(key)||{}).items||[]).length;
   }
   if(kind==="series"){
     if(key==="serieswatchlist") return (data.seriesWatchlist||[]).length;
     if(key==="serieswatching") return (data.watchingSeries||[]).length;
     if(key==="serieswatched") return (data.watchedSeries||[]).length;
-    return ((seriesCache[key]||{}).items||[]).length;
+    return ((seriesCacheEntry(key)||{}).items||[]).length;
   }
   return 0;
 }
@@ -3709,10 +3737,12 @@ function tvOpenSection(name){
 }
 function tvPrimeSection(name){
   if(name==="home"||name==="films"){
-    ["uphw","bluray","relhw","mlott"].forEach(function(k){ensureFilms(k);});
+    ensureFilms("uphw");
+    scheduleMediaWarmup("films","uphw");
   }
   if(name==="home"||name==="series"){
-    ["seriesnew","seriesupcoming","enseries","mlseries","taseries","hiseries"].forEach(function(k){ensureSeries(k);});
+    ensureSeries("seriesnew");
+    scheduleMediaWarmup("series","seriesnew");
   }
   if((name==="home"||name==="plex")&&plexServerUrl()&&plexToken()&&!plexItems.length)plexRefresh();
   if(name==="biglybt"&&biglyToken&&!biglyBusy)biglyRefresh();
@@ -3849,15 +3879,20 @@ function omdbKey(){ try{ return localStorage.getItem(OMDB_KEY_STORE)||""; }catch
 var FILM_ORDER=["watchlist","watching","uphw","bluray","relhw","mlott","watched"];
 if(filmTab==="mlup") filmTab="mlott";
 if(FILM_ORDER.indexOf(filmTab)<0) filmTab="watchlist";
-var FILM_TTL={bluray:24*3600*1000, uphw:24*3600*1000, relhw:24*3600*1000, mlott:6*3600*1000, mlup:6*3600*1000};
-var filmCache={}, filmBusy={}, filmErr={};
+var FILM_TTL={bluray:12*3600*1000, uphw:6*3600*1000, relhw:18*3600*1000, mlott:4*3600*1000, mlup:4*3600*1000};
+var filmCache={}, filmBusy={}, filmErr={}, filmRequestVersion={};
 try{ filmCache=JSON.parse(localStorage.getItem(FILM_CACHE_KEY)||"{}")||{}; }catch(e){ filmCache={}; }
 try{
   if(localStorage.getItem(MEDIA_CACHE_VERSION_KEY)!=="4"){
     filmCache={}; localStorage.setItem(MEDIA_CACHE_VERSION_KEY,"4");
   }
 }catch(e){}
-function saveFilmCache(){ try{ localStorage.setItem(FILM_CACHE_KEY, JSON.stringify(filmCache)); }catch(e){} }
+function pruneMediaCache(cache,limit){
+  var queryKeys=Object.keys(cache||{}).filter(function(k){return k.indexOf("|")>-1;});
+  queryKeys.sort(function(a,b){return Number((cache[b]||{}).t||0)-Number((cache[a]||{}).t||0);});
+  queryKeys.slice(limit).forEach(function(k){delete cache[k];});
+}
+function saveFilmCache(){ try{ pruneMediaCache(filmCache,24);localStorage.setItem(FILM_CACHE_KEY, JSON.stringify(filmCache)); }catch(e){} }
 var FILM_GENRE_KEY="ps5-film-genre", SERIES_GENRE_KEY="ps5-series-genre";
 var FILM_YEAR_KEY="ps5-film-year", SERIES_YEAR_KEY="ps5-series-year";
 var filmGenre="", seriesGenre="";
@@ -3878,6 +3913,19 @@ var SERIES_PROVIDER_KEY="ps5-series-provider", SERIES_LANGUAGE_KEY="ps5-series-l
 var seriesProvider="",seriesLanguage="";
 try{ seriesProvider=localStorage.getItem(SERIES_PROVIDER_KEY)||""; }catch(e){}
 try{ seriesLanguage=localStorage.getItem(SERIES_LANGUAGE_KEY)||""; }catch(e){}
+function mediaCachePart(value){ return encodeURIComponent(String(value||"all")); }
+function filmCacheKey(key){
+  return key+"|genre="+mediaCachePart(filmGenre)+"|year="+mediaCachePart(filmYear);
+}
+function filmCacheEntry(key){
+  var exact=filmCache[filmCacheKey(key)];
+  if(exact) return exact;
+  return !filmGenre&&!filmYear?(filmCache[key]||null):null;
+}
+function filmCacheAge(key){
+  var entry=filmCacheEntry(key);
+  return entry&&entry.t?Date.now()-entry.t:Infinity;
+}
 var US_STREAMERS=[
   ["","All streamers"],
   ["8","Netflix"],
@@ -3987,8 +4035,8 @@ function seriesLanguageOptions(selected){
 }
 function detailNeighbors(kind,current){
   var list=[];
-  if(kind==="film") list=filmTab==="watchlist"?(data.movieWatchlist||[]):filmTab==="watching"?(data.watchingMovies||[]):filmTab==="watched"?(data.watchedMovies||[]):((filmCache[filmTab]||{}).items||[]);
-  else if(kind==="series") list=seriesTab==="serieswatchlist"?(data.seriesWatchlist||[]):seriesTab==="serieswatching"||seriesTab==="seriesnew"?(data.watchingSeries||[]):seriesTab==="serieswatched"?(data.watchedSeries||[]):((seriesCache[seriesTab]||{}).items||[]);
+  if(kind==="film") list=filmTab==="watchlist"?(data.movieWatchlist||[]):filmTab==="watching"?(data.watchingMovies||[]):filmTab==="watched"?(data.watchedMovies||[]):((filmCacheEntry(filmTab)||{}).items||[]);
+  else if(kind==="series") list=seriesTab==="serieswatchlist"?(data.seriesWatchlist||[]):seriesTab==="serieswatching"||seriesTab==="seriesnew"?(data.watchingSeries||[]):seriesTab==="serieswatched"?(data.watchedSeries||[]):((seriesCacheEntry(seriesTab)||{}).items||[]);
   else if(tab==="rentals") list=data.rentals.concat(data.rentalHistory);
   else if(tab==="playing") list=data.rentals.concat(data.playing,data.played.filter(function(x){return x.status==="Playing"||x.status==="Dropped";}));
   else if(tab==="queue") list=data.queue;
@@ -4033,35 +4081,87 @@ function omdbRating(title, year){
     .then(function(j){ return (j&&j.imdbRating&&j.imdbRating!=="N/A") ? parseFloat(j.imdbRating) : null; })
     .catch(function(){ return null; });
 }
+var IMDB_CACHE_KEY="gamevault-imdb-cache-v1",imdbCache={},imdbPending={};
+try{imdbCache=JSON.parse(localStorage.getItem(IMDB_CACHE_KEY)||"{}")||{};}catch(e){imdbCache={};}
+function imdbCacheGet(key){
+  var row=imdbCache[key];
+  return row&&Date.now()-Number(row.t||0)<30*60*1000?row:null;
+}
+function imdbCacheSet(key,value){
+  imdbCache[key]={t:Date.now(),value:value};
+  var keys=Object.keys(imdbCache).sort(function(a,b){return imdbCache[b].t-imdbCache[a].t;});
+  keys.slice(500).forEach(function(k){delete imdbCache[k];});
+  try{localStorage.setItem(IMDB_CACHE_KEY,JSON.stringify(imdbCache));}catch(e){}
+}
 /* OMDb rating by IMDb id (exact match — used for regional films where title lookup is unreliable) */
 function omdbRatingById(imdbId){
   var k=omdbKey(); if(!k||!imdbId) return Promise.resolve(null);
-  return fetchWithPolicy("https://www.omdbapi.com/?apikey="+encodeURIComponent(k)+"&i="+encodeURIComponent(imdbId),{},{timeout:12000,retries:1})
+  var cacheKey="id:"+imdbId,cached=imdbCacheGet(cacheKey);
+  if(cached)return Promise.resolve(cached.value);
+  if(imdbPending[cacheKey])return imdbPending[cacheKey];
+  imdbPending[cacheKey]=fetchWithPolicy("https://www.omdbapi.com/?apikey="+encodeURIComponent(k)+"&i="+encodeURIComponent(imdbId),{},{timeout:12000,retries:1})
     .then(function(r){ return r.json(); })
-    .then(function(j){ return (j&&j.imdbRating&&j.imdbRating!=="N/A") ? parseFloat(j.imdbRating) : null; })
-    .catch(function(){ return null; });
+    .then(function(j){var value=(j&&j.imdbRating&&j.imdbRating!=="N/A")?parseFloat(j.imdbRating):null;imdbCacheSet(cacheKey,value);return value;})
+    .catch(function(){ return null; }).then(function(value){delete imdbPending[cacheKey];return value;});
+  return imdbPending[cacheKey];
 }
 function refreshImdbIfStale(x){
   if(!x || !x.imdbId || !omdbKey()) return;
   if(x.imdbAt && (Date.now()-x.imdbAt)<30*60*1000) return;
-  x.imdbAt=Date.now();
   omdbRatingById(x.imdbId).then(function(rt){
     if(typeof rt==="number"){
       x.imdb=rt;
       x.imdbAt=Date.now();
-      saveFilmCache(); saveSeriesCache(); persistSilent();
-      if(section==="films"||section==="series") render();
-    }
-  });
+      schedulePublicCacheSave();
+      scheduleMediaRender();
+    }else x.imdbAt=Date.now()-25*60*1000;
+  }).catch(function(){ x.imdbAt=Date.now()-25*60*1000; });
+}
+var publicCacheSaveTimer=null, mediaRenderTimer=null;
+function schedulePublicCacheSave(){
+  clearTimeout(publicCacheSaveTimer);
+  publicCacheSaveTimer=setTimeout(function(){ saveFilmCache(); saveSeriesCache(); },350);
+}
+function scheduleMediaRender(){
+  clearTimeout(mediaRenderTimer);
+  mediaRenderTimer=setTimeout(function(){
+    if(section==="films") filmsMaybeRender(filmTab,true);
+    else if(section==="series") seriesMaybeRender(seriesTab,true);
+  },500);
+}
+function mediaItemsFingerprint(items){
+  return (items||[]).map(function(x){
+    return [x.id||x.title,x.date||x.ottDate||x.latestDate||"",x.imdb||"",x.providers&&x.providers.join(",")||""].join(":");
+  }).join("|");
+}
+function mediaIdle(callback, timeout){
+  if(typeof requestIdleCallback==="function") return requestIdleCallback(callback,{timeout:timeout||2500});
+  return setTimeout(callback,Math.min(timeout||1200,1200));
+}
+function pooledEach(list, concurrency, gap, fn){
+  var next=0, workers=[], count=Math.max(1,Math.min(Number(concurrency)||1,(list||[]).length||1));
+  function worker(){
+    if(next>=list.length) return Promise.resolve();
+    var item=list[next++];
+    return Promise.resolve(fn(item)).catch(function(){}).then(function(){
+      return gap?new Promise(function(resolve){setTimeout(resolve,gap);}):null;
+    }).then(worker);
+  }
+  for(var i=0;i<count;i++) workers.push(worker());
+  return Promise.all(workers).then(function(){return list;});
 }
 function imdbBadge(m){ return (typeof m.imdb==="number") ? '<span class="prov imdb">IMDb '+m.imdb.toFixed(1)+'</span> ' : ''; }
 /* OMDb lookup returning both rating and the IMDb id (for a direct IMDb link) */
 function omdbLookup(title, year){
   var k=omdbKey(); if(!k) return Promise.resolve(null);
-  return fetchWithPolicy("https://www.omdbapi.com/?apikey="+encodeURIComponent(k)+"&t="+encodeURIComponent(title)+(year?"&y="+year:""),{},{timeout:12000,retries:1})
+  var cacheKey="title:"+norm(title)+":"+(year||""),cached=imdbCacheGet(cacheKey);
+  if(cached)return Promise.resolve(cached.value);
+  if(imdbPending[cacheKey])return imdbPending[cacheKey];
+  imdbPending[cacheKey]=fetchWithPolicy("https://www.omdbapi.com/?apikey="+encodeURIComponent(k)+"&t="+encodeURIComponent(title)+(year?"&y="+year:""),{},{timeout:12000,retries:1})
     .then(function(r){ return r.json(); })
-    .then(function(j){ return j ? { rating:(j.imdbRating&&j.imdbRating!=="N/A")?parseFloat(j.imdbRating):null, imdbId:j.imdbID||null } : null; })
-    .catch(function(){ return null; });
+    .then(function(j){var value=j?{rating:(j.imdbRating&&j.imdbRating!=="N/A")?parseFloat(j.imdbRating):null,imdbId:j.imdbID||null}:null;imdbCacheSet(cacheKey,value);return value;})
+    .catch(function(){ return null; }).then(function(value){delete imdbPending[cacheKey];return value;});
+  return imdbPending[cacheKey];
 }
 /* Direct IMDb link when we know the title id, else an IMDb title search */
 function imdbLink(m){
@@ -4073,15 +4173,10 @@ function tmdbMovieLink(m){
   if(typeof m.id==="number") return '<a class="btn" href="https://www.themoviedb.org/movie/'+m.id+'" target="_blank" rel="noopener">TMDB</a>';
   return '<a class="btn" href="https://www.google.com/search?q='+encodeURIComponent(m.title+" movie")+'" target="_blank" rel="noopener">Search</a>';
 }
-/* run an async step over a list one at a time, with a small gap (rate-limit safe) */
+/* Enrich with bounded concurrency so a large list does not wait for every
+   detail request serially before it can be cached and displayed. */
 function serialEach(list, gap, fn){
-  var i=0;
-  return (function step(){
-    if(i>=list.length) return Promise.resolve(list);
-    return Promise.resolve(fn(list[i++])).then(function(){
-      return new Promise(function(res){ setTimeout(res, gap); });
-    }).then(step);
-  })();
+  return pooledEach(list,4,gap,fn);
 }
 function fetchUpHw(){
   var from=filmYear ? yearStart(filmYear) : localISO();
@@ -4248,25 +4343,57 @@ function mergeManualMlOtt(list){
   return list;
 }
 var FILM_FETCH={bluray:fetchBluRayHw, uphw:fetchUpHw, relhw:fetchRelHw, mlott:fetchMlOtt, mlup:fetchMlUp};
-function ensureFilms(key, force){
-  if(!FILM_FETCH[key]) return; // e.g. the Watched tab renders from the vault, no fetch
-  if(filmBusy[key]) return;
-  if(!tmdbKey()) return;
-  var c=filmCache[key];
-  if(!force && c && (Date.now()-c.t)<FILM_TTL[key]) return;
-  filmErr[key]=0; filmBusy[key]=1; filmsMaybeRender();
-  FILM_FETCH[key]().then(function(items){
-    filmCache[key]={t:Date.now(), items:items};
-    saveFilmCache(); delete filmBusy[key]; filmsMaybeRender();
-  }).catch(function(e){ reportError("films:"+key,e); delete filmBusy[key]; filmErr[key]=1; filmsMaybeRender(); });
+function setMediaRefreshStatus(kind,key,message){
+  if(kind==="film" && (section!=="films"||filmTab!==key)) return;
+  if(kind==="series" && (section!=="series"||seriesTab!==key)) return;
+  var el=document.querySelector('[data-media-refresh="'+kind+'"]');
+  if(el) el.textContent=message||"";
 }
-function filmsMaybeRender(){
-  if(TV_MODE){ if(tvSection==="home"||tvSection==="films") renderTvApp(); return; }
+function ensureFilms(key, force, early){
+  if(!FILM_FETCH[key]||!tmdbKey()) return Promise.resolve(false);
+  var cacheKey=filmCacheKey(key), c=filmCacheEntry(key), ttl=FILM_TTL[key]||24*3600*1000;
+  var maxAge=early?ttl*.75:ttl;
+  if(!force && c && (Date.now()-c.t)<maxAge) return Promise.resolve(false);
+  if(filmBusy[key]&&!force) return Promise.resolve(false);
+  var requestId=(filmRequestVersion[key]||0)+1;
+  filmRequestVersion[key]=requestId; filmErr[key]=0; filmBusy[key]=1;
+  if(!c) filmsMaybeRender(key,true);
+  else setMediaRefreshStatus("film",key,"Refreshing silently...");
+  return FILM_FETCH[key]().then(function(items){
+    if(filmRequestVersion[key]!==requestId) return false;
+    var old=filmCacheEntry(key), changed=!old||mediaItemsFingerprint(old.items)!==mediaItemsFingerprint(items);
+    var entry={t:Date.now(),items:items};
+    filmCache[cacheKey]=entry;
+    if(!filmGenre&&!filmYear) filmCache[key]=entry;
+    saveFilmCache(); delete filmBusy[key];
+    if(changed) filmsMaybeRender(key,true);
+    else setMediaRefreshStatus("film",key,"Updated just now");
+    return changed;
+  }).catch(function(e){
+    if(filmRequestVersion[key]!==requestId) return false;
+    reportError("films:"+key,e); delete filmBusy[key]; filmErr[key]=1;
+    if(!c) filmsMaybeRender(key,true);
+    else setMediaRefreshStatus("film",key,"Offline cache - refresh will retry later");
+    return false;
+  });
+}
+var tvMediaRenderTimer=null;
+function scheduleTvMediaRender(){
+  clearTimeout(tvMediaRenderTimer);
+  tvMediaRenderTimer=setTimeout(function(){
+    if(TV_MODE&&(tvSection==="home"||tvSection==="films"||tvSection==="series")) renderTvApp();
+  },400);
+}
+function filmsMaybeRender(key){
+  if(TV_MODE){ scheduleTvMediaRender(); return; }
+  if(key&&filmTab!==key) return;
   if(section!=="films") return;
   var ae=document.activeElement;
   if(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+  var y=window.scrollY;
   document.getElementById("content").innerHTML=renderFilms();
   applyBackground();
+  if(y) window.scrollTo(0,y);
 }
 function movieLinks(title,year){
   var q=title+" "+(year||"");
@@ -4555,15 +4682,15 @@ function renderFilms(){
     return wh+'</div>';
   }
 
-  var last=filmCache[key];
-  var mlUpcoming=key==="mlott"?filmCache.mlup:null;
+  var last=filmCacheEntry(key);
+  var mlUpcoming=key==="mlott"?filmCacheEntry("mlup"):null;
   var html=
     '<div class="toolbar" style="margin-top:14px">'+
     '<select class="selectmini film-genre" title="Filter by genre">'+genreOptions(MOVIE_GENRES, filmGenre)+'</select>'+
     '<select class="selectmini film-year" title="Filter by year">'+yearOptions(filmYear)+'</select>'+
     mediaSortSelect("film")+
     '<button class="btn blue" data-act="film-refresh"'+((filmBusy[key]||(key==="mlott"&&filmBusy.mlup))?' disabled':'')+'>'+((filmBusy[key]||(key==="mlott"&&filmBusy.mlup))?"Updating…":"↻ Refresh from internet")+'</button>'+
-    '<span class="syncnote" style="align-self:center">'+(last?("Updated "+new Date(last.t).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})):"")+'</span>'+
+    '<span class="syncnote" data-media-refresh="film" style="align-self:center">'+(last?("Updated "+new Date(last.t).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})):"")+'</span>'+
     '</div>'+
     mediaViewToggle("film")+
     '<div class="meta" style="margin-bottom:10px">'+blurbs[key]+'</div>';
@@ -4597,11 +4724,8 @@ function renderFilms(){
   }).sort(function(a,b){return (a.ottDate||a.date||"").localeCompare(b.ottDate||b.date||"");});
   upcomingItems=applyMediaSort(upcomingItems,"film");
   if(!items.length && !upcomingItems.length){
-    setTimeout(function(){ ensureFilms(key); },60);
     return html+'<div class="empty">'+(filmBusy[key]?"Loading…":(last?"Nothing left here — everything shown is marked Watched.":"Nothing to show yet — tap ↻ Refresh."))+'</div>';
   }
-  setTimeout(function(){ ensureFilms(key); },60); // refresh silently if stale
-  if(key==="mlott") setTimeout(function(){ensureFilms("mlup");},120);
   if(key==="mlott") html+='<div class="sechead">Now Streaming · '+items.length+'</div>';
   if(items.length){ html+='<div class="'+mediaWrapClass("film")+'">'; items.forEach(function(m){ html+=movieCard(m,key); }); html+='</div>'; }
   if(key==="mlott"){
@@ -4609,7 +4733,6 @@ function renderFilms(){
     if(upcomingItems.length){ html+='<div class="'+mediaWrapClass("film")+'">'; upcomingItems.forEach(function(m){ html+=movieCard(m,"mlup"); }); html+='</div>'; }
     else html+='<div class="empty">No confirmed upcoming Malayalam OTT dates are available yet.</div>';
   }
-  if(filmBusy[key]) html+='<div class="meta" style="margin-top:8px">Refreshing…</div>';
   return html;
 }
 /* ================= TV SERIES SECTION (TMDB + OMDb) =================
@@ -4621,10 +4744,25 @@ try{ seriesTab=localStorage.getItem(SERIESTAB_KEY)||"serieswatchlist"; }catch(e)
 var SERIES_ORDER=["serieswatchlist","serieswatching","seriesnew","seriesupcoming","enseries","mlseries","taseries","hiseries","serieswatched"];
 if(seriesTab==="seriesdiscover") seriesTab="enseries";
 if(SERIES_ORDER.indexOf(seriesTab)<0) seriesTab="serieswatchlist";
-var SERIES_TTL={enseries:24*3600*1000,mlseries:24*3600*1000,taseries:24*3600*1000,hiseries:24*3600*1000,seriesdiscover:24*3600*1000,seriesupcoming:12*3600*1000};
-var seriesCache={}, seriesBusy={}, seriesErr={};
+var SERIES_TTL={enseries:18*3600*1000,mlseries:12*3600*1000,taseries:12*3600*1000,hiseries:12*3600*1000,seriesdiscover:18*3600*1000,seriesupcoming:6*3600*1000};
+var seriesCache={}, seriesBusy={}, seriesErr={}, seriesRequestVersion={};
 try{ seriesCache=JSON.parse(localStorage.getItem(SERIES_CACHE_KEY)||"{}")||{}; }catch(e){ seriesCache={}; }
-function saveSeriesCache(){ try{ localStorage.setItem(SERIES_CACHE_KEY, JSON.stringify(seriesCache)); }catch(e){} }
+function saveSeriesCache(){ try{ pruneMediaCache(seriesCache,36);localStorage.setItem(SERIES_CACHE_KEY, JSON.stringify(seriesCache)); }catch(e){} }
+function seriesCacheKey(key){
+  var language=(key==="seriesupcoming"||key==="seriesdiscover")?seriesLanguage:"";
+  return key+"|genre="+mediaCachePart(seriesGenre)+"|year="+mediaCachePart(seriesYear)+
+    "|provider="+mediaCachePart(seriesProvider)+"|language="+mediaCachePart(language);
+}
+function seriesCacheEntry(key){
+  var exact=seriesCache[seriesCacheKey(key)];
+  if(exact) return exact;
+  var languageRelevant=key==="seriesupcoming"||key==="seriesdiscover";
+  return !seriesGenre&&!seriesYear&&!seriesProvider&&(!languageRelevant||!seriesLanguage)?(seriesCache[key]||null):null;
+}
+function seriesCacheAge(key){
+  var entry=seriesCacheEntry(key);
+  return entry&&entry.t?Date.now()-entry.t:Infinity;
+}
 var seriesEpisodeCache={}, seriesSeasonSel={}, seriesEpisodeSel={}, seriesEpisodeBusy={};
 function mapSeries(s){
   return { id:s.id, title:s.name||s.original_name||"Untitled",
@@ -4744,35 +4882,77 @@ function fetchUpcomingSeries(){
   });
 }
 var SERIES_FETCH={enseries:fetchEnSeries,mlseries:fetchMlSeries,taseries:fetchTaSeries,hiseries:fetchHiSeries,seriesdiscover:fetchSeriesDiscover,seriesupcoming:fetchUpcomingSeries};
-var seriesPersonalRefreshAt=0;
+var seriesPersonalRefreshAt=0,seriesPersonalPromise=null;
 function ensureSeries(key, force){
   if(key==="serieswatching"||key==="seriesnew"){
-    if(!tmdbKey()||seriesBusy[key]) return;
-    if(!force&&Date.now()-seriesPersonalRefreshAt<6*3600*1000) return;
+    if(seriesPersonalPromise)return seriesPersonalPromise;
+    if(!tmdbKey()||seriesBusy[key]) return Promise.resolve(false);
+    if(!force&&Date.now()-seriesPersonalRefreshAt<3*3600*1000) return Promise.resolve(false);
     var personal=(data.watchingSeries||[]).slice(0,30);
-    if(!personal.length) return;
+    if(!personal.length) return Promise.resolve(false);
     seriesBusy[key]=1;
-    serialEach(personal,120,enrichSeriesIds).then(function(){seriesPersonalRefreshAt=Date.now();delete seriesBusy[key];persistSilent();seriesMaybeRender();}).catch(function(e){delete seriesBusy[key];reportError("series:"+key,e);seriesMaybeRender();});
-    return;
+    setMediaRefreshStatus("series",key,"Checking for new episodes...");
+    seriesPersonalPromise=serialEach(personal,80,enrichSeriesIds).then(function(){
+      seriesPersonalRefreshAt=Date.now();delete seriesBusy[key];seriesPersonalPromise=null;persistSilent();seriesMaybeRender(key,true);return true;
+    }).catch(function(e){
+      delete seriesBusy[key];seriesPersonalPromise=null;reportError("series:"+key,e);setMediaRefreshStatus("series",key,"Could not refresh episodes");return false;
+    });
+    return seriesPersonalPromise;
   }
-  if(!SERIES_FETCH[key]) return;
-  if(seriesBusy[key]) return;
-  if(!tmdbKey()) return;
-  var c=seriesCache[key];
-  if(!force && c && (Date.now()-c.t)<SERIES_TTL[key]) return;
-  seriesErr[key]=0; seriesBusy[key]=1; seriesMaybeRender();
-  SERIES_FETCH[key]().then(function(items){
-    seriesCache[key]={t:Date.now(), items:items};
-    saveSeriesCache(); delete seriesBusy[key]; seriesMaybeRender();
-  }).catch(function(e){ reportError("series:"+key,e); delete seriesBusy[key]; seriesErr[key]=1; seriesMaybeRender(); });
+  if(!SERIES_FETCH[key]||!tmdbKey()) return Promise.resolve(false);
+  var cacheKey=seriesCacheKey(key), c=seriesCacheEntry(key), ttl=SERIES_TTL[key]||18*3600*1000;
+  var early=arguments.length>2&&arguments[2], maxAge=early?ttl*.75:ttl;
+  if(!force && c && (Date.now()-c.t)<maxAge) return Promise.resolve(false);
+  if(seriesBusy[key]&&!force) return Promise.resolve(false);
+  var requestId=(seriesRequestVersion[key]||0)+1;
+  seriesRequestVersion[key]=requestId;seriesErr[key]=0;seriesBusy[key]=1;
+  if(!c) seriesMaybeRender(key,true);
+  else setMediaRefreshStatus("series",key,"Refreshing silently...");
+  return SERIES_FETCH[key]().then(function(items){
+    if(seriesRequestVersion[key]!==requestId) return false;
+    var old=seriesCacheEntry(key), changed=!old||mediaItemsFingerprint(old.items)!==mediaItemsFingerprint(items);
+    var entry={t:Date.now(),items:items};
+    seriesCache[cacheKey]=entry;
+    if(!seriesGenre&&!seriesYear&&!seriesProvider&&!seriesLanguage) seriesCache[key]=entry;
+    saveSeriesCache();delete seriesBusy[key];
+    if(changed) seriesMaybeRender(key,true);
+    else setMediaRefreshStatus("series",key,"Updated just now");
+    return changed;
+  }).catch(function(e){
+    if(seriesRequestVersion[key]!==requestId) return false;
+    reportError("series:"+key,e);delete seriesBusy[key];seriesErr[key]=1;
+    if(!c) seriesMaybeRender(key,true);
+    else setMediaRefreshStatus("series",key,"Offline cache - refresh will retry later");
+    return false;
+  });
 }
-function seriesMaybeRender(){
-  if(TV_MODE){ if(tvSection==="home"||tvSection==="series") renderTvApp(); return; }
+function seriesMaybeRender(key){
+  if(TV_MODE){ scheduleTvMediaRender(); return; }
+  if(key&&seriesTab!==key) return;
   if(section!=="series") return;
   var ae=document.activeElement;
   if(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+  var y=window.scrollY;
   document.getElementById("content").innerHTML=renderSeries();
   applyBackground();
+  if(y) window.scrollTo(0,y);
+}
+var mediaWarmupVersion={films:0,series:0};
+function scheduleMediaWarmup(kind,current){
+  if(!tmdbKey()||document.visibilityState==="hidden"||navigator.onLine===false) return;
+  if(navigator.connection&&navigator.connection.saveData) return;
+  var version=++mediaWarmupVersion[kind];
+  var order=kind==="films"?["uphw","mlott","mlup","bluray","relhw"]:
+    ["seriesnew","seriesupcoming","enseries","mlseries","taseries","hiseries"];
+  if(current&&order.indexOf(current)>-1) order=[current].concat(order.filter(function(k){return k!==current;}));
+  var index=0;
+  function next(){
+    if(version!==mediaWarmupVersion[kind]||document.visibilityState==="hidden"||index>=order.length) return;
+    var key=order[index++];
+    var task=kind==="films"?ensureFilms(key,false,true):ensureSeries(key,false,true);
+    Promise.resolve(task).then(function(){ mediaIdle(next,1800); });
+  }
+  mediaIdle(next,1200);
 }
 function seriesPoster(s){
   return s.poster ? '<img class="cover" src="'+esc(s.poster)+'" alt="" loading="lazy">' : '<div class="cover ph">TV</div>';
@@ -5088,7 +5268,7 @@ function renderSeries(){
     if(!ws.length) return out+'<div class="empty">No watched series yet. Pick <b>✓ Watched</b> from any series dropdown to file it here.</div>';
     out+='<div class="'+mediaWrapClass("series")+'">'; ws.forEach(function(s){ out+=seriesCard(s,"serieswatched"); }); return out+'</div>';
   }
-  var last=seriesCache[key];
+  var last=seriesCacheEntry(key);
   var html='<div class="toolbar" style="margin-top:14px">'+
     (key==="seriesupcoming"?'<select class="selectmini series-language" title="Filter by language">'+seriesLanguageOptions(seriesLanguage)+'</select>':'')+
     '<select class="selectmini series-genre" title="Filter by genre">'+genreOptions(SERIES_GENRES, seriesGenre)+'</select>'+
@@ -5096,7 +5276,7 @@ function renderSeries(){
     '<select class="selectmini series-provider" title="Filter by streaming platform">'+providerOptions(seriesProvider)+'</select>'+
     mediaSortSelect("series")+
     '<button class="btn blue" data-act="series-refresh"'+(seriesBusy[key]?' disabled':'')+'>'+(seriesBusy[key]?"Updating...":"↻ Refresh from internet")+'</button>'+
-    '<span class="syncnote" style="align-self:center">'+(last?("Updated "+new Date(last.t).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})):"")+'</span>'+
+    '<span class="syncnote" data-media-refresh="series" style="align-self:center">'+(last?("Updated "+new Date(last.t).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})):"")+'</span>'+
     '</div>'+mediaViewToggle("series")+'<div class="meta" style="margin-bottom:10px">'+blurbs[key]+'</div>';
   if(!tmdbKey()) return html+'<div class="empty">Add your free <b>TMDB API key</b> in Settings to load TV series.</div>';
   if(seriesBusy[key] && !last) return html+loadingSkeletons("media",8);
@@ -5114,12 +5294,9 @@ function renderSeries(){
   else items.sort(function(a,b){ return (b.imdb||b.tmdb||0)-(a.imdb||a.tmdb||0); });
   items=applyMediaSort(items,"series");
   if(!items.length){
-    setTimeout(function(){ ensureSeries(key); },60);
     return html+'<div class="empty">'+(seriesBusy[key]?"Loading...":(last?"Nothing left here - everything shown is marked Watched.":"Nothing to show yet - tap Refresh."))+'</div>';
   }
-  setTimeout(function(){ ensureSeries(key); },60);
   html+='<div class="'+mediaWrapClass("series")+'">'; items.forEach(function(s){ html+=seriesCard(s,key); }); html+='</div>';
-  if(seriesBusy[key]) html+='<div class="meta" style="margin-top:8px">Refreshing...</div>';
   return html;
 }
 function switchSeriesTab(next){
@@ -5128,6 +5305,7 @@ function switchSeriesTab(next){
   render();
   window.scrollTo(0, tabScroll["series:"+next]||0);
   ensureSeries(next);
+  scheduleMediaWarmup("series",next);
 }
 function switchFilmTab(next){
   tabScroll["film:"+filmTab]=window.scrollY;
@@ -5136,6 +5314,7 @@ function switchFilmTab(next){
   window.scrollTo(0, tabScroll["film:"+next]||0);
   ensureFilms(next);
   if(next==="mlott") ensureFilms("mlup");
+  scheduleMediaWarmup("films",next);
 }
 function switchPlexTab(next){
   tabScroll["plex:"+plexTab]=window.scrollY;
@@ -5161,7 +5340,9 @@ function switchSection(s){
   render();
   window.scrollTo(0, section==="films" ? (tabScroll["film:"+filmTab]||0) : section==="series" ? (tabScroll["series:"+seriesTab]||0) : section==="plex" ? (tabScroll["plex:"+plexTab]||0) : section==="biglybt" ? (tabScroll.biglybt||0) : section==="health" ? (tabScroll["health:"+healthTab]||0) : (tabScroll[tab]||0));
   if(section==="films") ensureFilms(filmTab);
-  if(section==="series") ensureSeries(seriesTab);
+  if(section==="films") scheduleMediaWarmup("films",filmTab);
+  if(section==="series"){ ensureSeries(seriesTab); scheduleMediaWarmup("series",seriesTab); }
+  if(section==="games") scheduleGameWarmup(tab);
   if(section==="plex" && plexServerUrl() && plexToken() && !plexItems.length) plexRefresh();
   if(section==="biglybt" && biglyToken) biglyRefresh();
 }
@@ -5209,9 +5390,9 @@ function commandCandidates(){
     [data.played||[],"played","Completed Game"]
   ].forEach(function(group){group[0].forEach(function(x){commandPush(list,seen,{kind:"game",id:String(x.id||""),tab:group[1],icon:"🎮",title:x.name,meta:group[2],label:"Game"});});});
   [data.movieWatchlist||[],data.watchingMovies||[],data.watchedMovies||[]].forEach(function(items,idx){var tabs=["watchlist","watching","watched"],meta=["Movie watchlist","Watching movie","Watched movie"];items.forEach(function(x){commandPush(list,seen,{kind:"film",id:String(x.id||""),tab:tabs[idx],icon:"🎬",title:x.title,meta:meta[idx],label:"Movie"});});});
-  Object.keys(filmCache||{}).forEach(function(key){var destination=key==="mlup"?"mlott":key;if(FILM_ORDER.indexOf(destination)<0)destination="relhw";((filmCache[key]&&filmCache[key].items)||[]).slice(0,180).forEach(function(x){commandPush(list,seen,{kind:"film",id:String(x.id||""),tab:destination,icon:"🎬",title:x.title,meta:"Movies · "+(key==="uphw"?"Coming Soon":key==="bluray"?"Blu-ray":key==="mlott"||key==="mlup"?"Malayalam OTT":"Discover"),label:"Movie"});});});
+  Object.keys(filmCache||{}).forEach(function(cacheKey){var key=cacheKey.split("|")[0],destination=key==="mlup"?"mlott":key;if(FILM_ORDER.indexOf(destination)<0)destination="relhw";((filmCache[cacheKey]&&filmCache[cacheKey].items)||[]).slice(0,180).forEach(function(x){commandPush(list,seen,{kind:"film",id:String(x.id||""),tab:destination,icon:"🎬",title:x.title,meta:"Movies · "+(key==="uphw"?"Coming Soon":key==="bluray"?"Blu-ray":key==="mlott"||key==="mlup"?"Malayalam OTT":"Discover"),label:"Movie"});});});
   [data.seriesWatchlist||[],data.watchingSeries||[],data.watchedSeries||[]].forEach(function(items,idx){var tabs=["serieswatchlist","serieswatching","serieswatched"];items.forEach(function(x){commandPush(list,seen,{kind:"series",id:String(x.id||""),tab:tabs[idx],icon:"📺",title:x.title,meta:idx===0?"TV watchlist":idx===1?"Watching":"Watched TV show",label:"TV"});});});
-  Object.keys(seriesCache||{}).forEach(function(key){var destination=SERIES_ORDER.indexOf(key)>=0?key:"enseries";((seriesCache[key]&&seriesCache[key].items)||[]).slice(0,180).forEach(function(x){commandPush(list,seen,{kind:"series",id:String(x.id||""),tab:destination,icon:"📺",title:x.title,meta:"TV Shows · Discover",label:"TV"});});});
+  Object.keys(seriesCache||{}).forEach(function(cacheKey){var key=cacheKey.split("|")[0],destination=SERIES_ORDER.indexOf(key)>=0?key:"enseries";((seriesCache[cacheKey]&&seriesCache[cacheKey].items)||[]).slice(0,180).forEach(function(x){commandPush(list,seen,{kind:"series",id:String(x.id||""),tab:destination,icon:"📺",title:x.title,meta:"TV Shows · Discover",label:"TV"});});});
   (plexItems||[]).forEach(function(x){commandPush(list,seen,{kind:"plex",id:String(x.ratingKey||""),tab:x.type==="show"?"shows":"movies",icon:"▶",title:x.title,meta:"Plex "+(x.type==="show"?"TV Show":"Movie"),label:"Plex"});});
   return list;
 }
@@ -6000,48 +6181,42 @@ document.getElementById("content").addEventListener("change",function(e){
   if(fg){
     filmGenre=fg.value;
     try{ localStorage.setItem(FILM_GENRE_KEY,filmGenre); }catch(err){}
-    filmCache={}; filmBusy={}; filmErr={}; saveFilmCache();
-    render(); ensureFilms(filmTab,true);
+    render(); ensureFilms(filmTab);
     return;
   }
   var fy=e.target.closest(".film-year");
   if(fy){
     filmYear=fy.value;
     try{ localStorage.setItem(FILM_YEAR_KEY,filmYear); }catch(err){}
-    filmCache={}; filmBusy={}; filmErr={}; saveFilmCache();
-    render(); ensureFilms(filmTab,true);
+    render(); ensureFilms(filmTab);
     return;
   }
   var sg=e.target.closest(".series-genre");
   if(sg){
     seriesGenre=sg.value;
     try{ localStorage.setItem(SERIES_GENRE_KEY,seriesGenre); }catch(err){}
-    seriesCache={}; seriesBusy={}; seriesErr={}; saveSeriesCache();
-    render(); ensureSeries(seriesTab,true);
+    render(); ensureSeries(seriesTab);
     return;
   }
   var sy=e.target.closest(".series-year");
   if(sy){
     seriesYear=sy.value;
     try{ localStorage.setItem(SERIES_YEAR_KEY,seriesYear); }catch(err){}
-    seriesCache={}; seriesBusy={}; seriesErr={}; saveSeriesCache();
-    render(); ensureSeries(seriesTab,true);
+    render(); ensureSeries(seriesTab);
     return;
   }
   var sp=e.target.closest(".series-provider");
   if(sp){
     seriesProvider=sp.value;
     try{ localStorage.setItem(SERIES_PROVIDER_KEY,seriesProvider); }catch(err){}
-    seriesCache={}; seriesBusy={}; seriesErr={}; saveSeriesCache();
-    render(); ensureSeries(seriesTab,true);
+    render(); ensureSeries(seriesTab);
     return;
   }
   var sl=e.target.closest(".series-language");
   if(sl){
     seriesLanguage=sl.value;
     try{localStorage.setItem(SERIES_LANGUAGE_KEY,seriesLanguage);}catch(err){}
-    delete seriesCache.seriesdiscover; delete seriesCache.seriesupcoming; saveSeriesCache();
-    render(); ensureSeries(seriesTab,true);
+    render(); ensureSeries(seriesTab);
     return;
   }
   var srs=e.target.closest(".sr-season");
@@ -6965,16 +7140,22 @@ document.getElementById("themeBtn").addEventListener("click",function(){
 
 /* ---------- global refresh ---------- */
 function globalRefresh(){
-  flash("Refreshing GameVault data...");
+  flash("Refreshing the current section...");
   plotPending={}; plotErr={};
   triedCovers={};
   silentPullOnLoad();
-  if(tmdbKey()){
+  if(section==="films"&&tmdbKey()){
     ensureFilms(filmTab,true);
     if(filmTab==="mlott") ensureFilms("mlup",true);
+    scheduleMediaWarmup("films",filmTab);
+  }else if(section==="series"&&tmdbKey()){
     ensureSeries(seriesTab,true);
+    scheduleMediaWarmup("series",seriesTab);
+  }else if(section==="games"){
+    if(tab==="upcoming") refreshUpcoming();
+    else if(tab==="suggest") refreshCatalog();
   }
-  if(plexServerUrl() && plexToken()) plexRefresh();
+  if(section==="plex"&&plexServerUrl() && plexToken()) plexRefresh();
   if(section==="biglybt"){
     var biglyFrame=document.getElementById("biglyFrame");
     if(biglyMode()==="api") biglyRefresh();
@@ -6984,9 +7165,27 @@ function globalRefresh(){
   render();
   setTimeout(backfillImages,600);
 }
+function refreshAllData(){
+  flash("Refreshing all GameVault data in the background...");
+  silentPullOnLoad();
+  var tasks=[];
+  if(getKey()){
+    tasks.push(function(){return refreshUpcoming(true);});
+    tasks.push(function(){return refreshCatalog(true);});
+  }
+  if(tmdbKey()){
+    ["uphw","mlott","mlup","bluray","relhw"].forEach(function(key){tasks.push(function(){return ensureFilms(key,true);});});
+    ["seriesnew","seriesupcoming","enseries","mlseries","taseries","hiseries"].forEach(function(key){tasks.push(function(){return ensureSeries(key,true);});});
+  }
+  var chain=Promise.resolve();
+  tasks.forEach(function(task){chain=chain.then(task);});
+  chain.then(function(){flash("All title lists are up to date");});
+  if(plexServerUrl()&&plexToken())plexRefresh();
+  setTimeout(backfillImages,600);
+}
 document.getElementById("refreshBtn").addEventListener("click",globalRefresh);
 var menuRefreshBtn=document.getElementById("menuRefreshBtn");
-if(menuRefreshBtn) menuRefreshBtn.addEventListener("click",function(){ setMenuOpen(false); globalRefresh(); });
+if(menuRefreshBtn) menuRefreshBtn.addEventListener("click",function(){ setMenuOpen(false); refreshAllData(); });
 
 /* ---------- swipe between tabs (phone) ---------- */
 var TAB_ORDER=["rentals","playing","queue","upcoming","suggest","played"];
@@ -7029,10 +7228,17 @@ function flushPendingPush(){
   if(!cloudMode()) return;
   if(data.updatedAt>lastSyncedAt){ clearTimeout(autoPushTimer); silentPush(true); }
 }
+function warmVisibleContent(){
+  if(document.visibilityState==="hidden") return;
+  if(section==="films"){ensureFilms(filmTab);scheduleMediaWarmup("films",filmTab);}
+  else if(section==="series"){ensureSeries(seriesTab);scheduleMediaWarmup("series",seriesTab);}
+  else if(section==="games")scheduleGameWarmup(tab);
+}
 document.addEventListener("visibilitychange",function(){
-  if(document.visibilityState==="visible") silentPullOnLoad();
+  if(document.visibilityState==="visible"){silentPullOnLoad();warmVisibleContent();}
   else flushPendingPush();
 });
+window.addEventListener("online",warmVisibleContent);
 window.addEventListener("pagehide",flushPendingPush);
 /* iOS restores pages from the back-forward cache with in-flight fetches dead —
    clear the pending flags so plot loads restart instead of spinning forever */
@@ -7078,8 +7284,9 @@ setTimeout(function(){
 render();
 refreshRecoveryUi();
 if(TV_MODE) setTimeout(function(){tvPrimeSection(tvSection);},80);
-if(section==="films") ensureFilms(filmTab);
-if(section==="series") ensureSeries(seriesTab);
+if(section==="films"){ ensureFilms(filmTab); scheduleMediaWarmup("films",filmTab); }
+if(section==="series"){ ensureSeries(seriesTab); scheduleMediaWarmup("series",seriesTab); }
+if(section==="games") scheduleGameWarmup(tab);
 if(plexServerUrl() && plexToken()) setTimeout(plexRefresh,500);
 silentPullOnLoad();
 setTimeout(backfillImages,1500);

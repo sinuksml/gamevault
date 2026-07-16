@@ -1,4 +1,5 @@
-const CACHE_NAME = "gamevault-shell-v35";
+const CACHE_NAME = "gamevault-shell-v36";
+const IMAGE_CACHE = "gamevault-images-v1";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -16,7 +17,7 @@ self.addEventListener("install", event => {
 
 self.addEventListener("activate", event => {
   event.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))))
+    caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME && key !== IMAGE_CACHE).map(key => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
@@ -29,15 +30,38 @@ self.addEventListener("fetch", event => {
   const req = event.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
+  const cacheableImage = req.destination === "image" &&
+    (url.hostname === "image.tmdb.org" || url.hostname.endsWith("rawg.io"));
+  if (cacheableImage) {
+    const networkImage = fetch(req).then(res => {
+      if (res.ok || res.type === "opaque") {
+        const copy = res.clone();
+        return caches.open(IMAGE_CACHE).then(async cache => {
+          await cache.put(req, copy);
+          const keys = await cache.keys();
+          await Promise.all(keys.slice(0, Math.max(0, keys.length - 220)).map(key => cache.delete(key)));
+          return res;
+        });
+      }
+      return res;
+    });
+    event.respondWith(caches.match(req).then(cached => cached || networkImage));
+    event.waitUntil(networkImage.catch(() => undefined));
+    return;
+  }
   if (url.origin === location.origin) {
-    event.respondWith(
-      fetch(req).then(res => {
-        if (res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
-        }
-        return res;
-      }).catch(() => caches.match(req, { ignoreSearch:true }).then(cached => cached || (req.mode === "navigate" ? caches.match("./index.html") : Response.error())))
-    );
+    const cachedPromise = caches.match(req, { ignoreSearch:true });
+    const networkPromise = fetch(req).then(res => {
+      if (res.ok) {
+        const copy = res.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
+      }
+      return res;
+    });
+    event.respondWith(cachedPromise.then(cached => {
+      if (cached) return cached;
+      return networkPromise.catch(() => req.mode === "navigate" ? caches.match("./index.html") : Response.error());
+    }));
+    event.waitUntil(networkPromise.catch(() => undefined));
   }
 });
