@@ -1,8 +1,10 @@
 ﻿"use strict";
-var APP_VERSION = "1.13.2";
+var APP_VERSION = "1.14.0";
 var APP_BUILD_DATE = "2026-07-16";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Added an iPhone Home dashboard and Library hub while keeping Health in the bottom navigation",
+  "Moved Plex and BiglyBT into the iPhone Library hub without changing their PC or TV pages",
   "Fixed iPhone updates being held on an older versioned app file by the service-worker cache",
   "Made online launches check the current GameVault shell before using the offline copy",
   "Made cover artwork mandatory with automatic TMDB recovery and a visible branded fallback",
@@ -564,7 +566,7 @@ function jbPullCloud(confirmed){
   if(!jb.key||!jb.bin){ flash("Enter Master Key and Bin ID in Settings first"); toggleSettings(true); return; }
   if(busy) return;
   if(!confirmed){
-    if(TV_MODE){tvConfirm("Replace the data on this device with the JSONBin cloud copy?","Replace local data",function(){jbPullCloud(true);});return;}
+    if(TV_MODE||phoneUi()){tvConfirm("Replace the data on this device with the JSONBin cloud copy?","Replace local data",function(){jbPullCloud(true);});return;}
     if(!confirm("Replace the data on THIS device with the cloud copy?")) return;
   }
   busy=true;
@@ -1034,7 +1036,7 @@ function silentPullOnLoad(){
 function pushCloud(confirmed){
   if(vaultSize(data)===0&&!confirmed){
     var emptyWarning="This device's vault is empty. Pushing now would overwrite the cloud backup with nothing. Pull from cloud instead unless this is intentional.";
-    if(TV_MODE){tvConfirm(emptyWarning,"Push empty vault",function(){pushCloud(true);});return;}
+    if(TV_MODE||phoneUi()){tvConfirm(emptyWarning,"Push empty vault",function(){pushCloud(true);});return;}
     if(!confirm(emptyWarning)) return;
   }
   if(cloudMode()==="drive"){
@@ -1053,7 +1055,7 @@ function pushCloud(confirmed){
 function pullCloud(confirmed){
   if(cloudMode()==="drive"){
     if(!confirmed){
-      if(TV_MODE){tvConfirm("Replace the data on this device with the Google Drive copy?","Replace local data",function(){pullCloud(true);});return;}
+      if(TV_MODE||phoneUi()){tvConfirm("Replace the data on this device with the Google Drive copy?","Replace local data",function(){pullCloud(true);});return;}
       if(!confirm("Replace the data on THIS device with the Google Drive copy?")) return;
     }
     gdDownload().then(function(d){
@@ -1272,12 +1274,14 @@ function gameFindById(id){
   return null;
 }
 function gamePage(x,actionsHtml,extraHtml){
-  return '<div class="game-page">'+detailToolbar("game",x)+
+  var cinematic=coverUrl(x);
+  return '<div class="game-page">'+detailToolbar("game",x)+(cinematic?'<div class="phone-detail-backdrop landscape" style="background-image:url(&quot;'+esc(cinematic)+'&quot;)"></div>':'')+
     '<div class="game-page-head"><div class="game-page-cover">'+gameCoverHero(x)+'</div>'+
     '<div><div class="game-page-title">'+esc(x.name)+'</div>'+
     '<div class="game-page-sub">'+badges(x.name)+'<span class="game-pill">'+esc(x.genre||tierFor(x.name)||"PS5")+'</span>'+(x.score?'<span class="game-pill">Critic '+x.score+'</span>':'')+(x.rrating?'<span class="game-pill">'+x.rrating+'★ users</span>':'')+'</div>'+
     (x.note?'<div class="media-page-overview">'+esc(x.note)+'</div>':'')+'</div></div>'+
-    (tab==="playing"?plotBlock(x.name):"")+(extraHtml||"")+'<div class="actions">'+(actionsHtml||"")+linkBtns(x.name)+'</div></div>';
+    '<div class="actions detail-actionbar">'+(actionsHtml||"")+linkBtns(x.name)+'</div>'+
+    (tab==="playing"?plotBlock(x.name):"")+(extraHtml||"")+'</div>';
 }
 function gameDetailActions(x){
   var id=String(expandedId||x.id||("name:"+norm(x.name)));
@@ -1548,7 +1552,10 @@ function applyBackground(){
   el.setAttribute("data-section",section);
   var hero=document.getElementById("hero");
   var g=null, u="", label="Coming up next", title="", detail="", extra="";
-  if(section==="films"){
+  if(section==="home"||section==="library"){
+    g=nextBigFilm()||featuredSeries()||nextBigGame();
+    u=g?(g.title?mediaBgUrl(g):coverUrl(g)):"";
+  } else if(section==="films"){
     g=nextBigFilm(); u=mediaBgUrl(g); title=(g&&g.title)||"";
     label=(g&&g.date&&g.date>=localISO(today()))?"Next big movie":"Featured movie";
     detail=g?(g.date?fmt(g.date):(g.year||"Date TBA")):"";
@@ -1575,6 +1582,7 @@ function applyBackground(){
   }
   setAppBackground(el,u);
   if(!hero) return;
+  if(section==="home"||section==="library"){hero.className="";hero.innerHTML="";return;}
   if(section==="biglybt"){
     var biglyHead=document.querySelector("#content .sechead");
     if(biglyHead) biglyHead.innerHTML='BiglyBT'+(title?' <span style="color:var(--muted);font-weight:600">· Blu-ray backdrop: '+esc(title)+'</span>':'');
@@ -1962,7 +1970,7 @@ function tabCountHtml(kind,key){
 }
 
 function renderTabs(){
-  if(section==="biglybt"){
+  if(section==="biglybt"||section==="home"||section==="library"){
     document.getElementById("tabs").innerHTML="";
     return;
   }
@@ -1981,6 +1989,14 @@ function renderTabs(){
   }
   if(section==="series"){
     var sd=[["serieswatchlist","♡","My Watchlist"],["serieswatching","▶","Watching"],["seriesnew","!","New Episodes"],["seriesupcoming","△","Upcoming"],["enseries","EN","English"],["mlseries","ML","Malayalam"],["taseries","TA","Tamil"],["hiseries","HI","Hindi"],["serieswatched","✓","Watched"]];
+    if(phoneUi()){
+      var primary=sd.slice(0,4),active=sd.filter(function(d){return d[0]===seriesTab;})[0];
+      if(active&&!primary.some(function(d){return d[0]===active[0];}))primary.push(active);
+      document.getElementById("tabs").innerHTML=primary.map(function(d){
+        return '<button class="tab '+(seriesTab===d[0]?"on":"")+'" data-stab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+tabCountHtml("series",d[0])+'</button>';
+      }).join("")+'<button class="tab phone-tabs-more" data-phone-series-tabs="1"><span class="shp">&#8943;</span>More</button>';
+      finishTabRender();return;
+    }
     document.getElementById("tabs").innerHTML = sd.map(function(d){
       return '<button class="tab '+(seriesTab===d[0]?"on":"")+'" data-stab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+tabCountHtml("series",d[0])+'</button>';
     }).join("");
@@ -3010,7 +3026,7 @@ function biglyAction(id, action, extra){
   var confirmed=extra&&extra.__confirmed;
   if((action==="remove"||action==="remove-data")&&!confirmed){
     var warning=action==="remove-data"?"Delete this torrent and all of its downloaded files? This cannot be undone.":"Remove this torrent from BiglyBT? Downloaded files will be kept.";
-    if(TV_MODE){tvConfirm(warning,action==="remove-data"?"Delete files":"Remove torrent",function(){biglyAction(id,action,{__confirmed:true});});return Promise.resolve();}
+    if(TV_MODE||phoneUi()){tvConfirm(warning,action==="remove-data"?"Delete files":"Remove torrent",function(){biglyAction(id,action,{__confirmed:true});});return Promise.resolve();}
     if(!confirm(warning)) return Promise.resolve();
   }
   var payload=Object.assign({action:action},extra||{});delete payload.__confirmed;
@@ -3359,7 +3375,7 @@ function plexDeleteItem(id,confirmed){
   var progress=item.watched?"watched":plexProgress(item)>0?"partially watched":"unwatched";
   var warning='Permanently delete "'+item.title+'"? This item is '+progress+'. Plex will remove '+what+' from the Shield storage. This cannot be undone in GameVault.';
   if(!confirmed){
-    if(TV_MODE){tvConfirm(warning,"Delete from Plex",function(){plexDeleteItem(id,true);});return;}
+    if(TV_MODE||phoneUi()){tvConfirm(warning,"Delete from Plex",function(){plexDeleteItem(id,true);});return;}
     if(!confirm(warning)) return;
   }
   plexBusy=true; render();
@@ -3378,8 +3394,14 @@ function renderPageContext(){
   else if(section==="plex"){ parent="Plex Library"; key=plexTab; }
   else if(section==="biglybt"){ parent="BiglyBT"; key="biglybt"; }
   else if(section==="health"){ parent="Health"; key=healthTab; }
+  else if(section==="home"){ parent="GameVault";key="phonehome"; }
+  else if(section==="library"){ parent="GameVault";key="phonelibrary"; }
+  if(key==="phonehome"){title="Home";desc="Continue where you stopped and see what needs attention next";}
+  else if(key==="phonelibrary"){title="Library";desc="Plex, BiglyBT, sync, backup and application tools";}
+  else{
   title=labels[key]||(section==="biglybt"?"BiglyBT":"Library");
   desc=descriptions[key]||(section==="biglybt"?"Downloads, progress, speed and torrent controls":"Your personal media library");
+  }
   if(section==="games"){
     var counts={rentals:data.rentals.length,playing:data.playing.length+data.rentals.length,queue:data.queue.length,upcoming:data.upcoming.length,suggest:fullCatalog().length,played:data.played.length};
     count=(counts[key]!=null?counts[key]:"")+" "+(counts[key]===1?"item":"items");
@@ -3406,7 +3428,7 @@ function rememberViewed(kind,id,title,subtab){
 function renderRecentStrip(){
   var el=document.getElementById("recentStrip"); if(!el) return;
   var list=recentViewed();
-  if(!list.length || filmExpanded || seriesExpanded || plexExpanded || expandedId || section==="biglybt"){ el.innerHTML=""; el.style.display="none"; return; }
+  if(!list.length || filmExpanded || seriesExpanded || plexExpanded || expandedId || section==="biglybt" || section==="home" || section==="library"){ el.innerHTML=""; el.style.display="none"; return; }
   el.style.display="flex";
   el.innerHTML='<span class="recent-label">Recent</span>'+list.map(function(x){return '<button class="recent-item" data-act="recent-open" data-kind="'+esc(x.kind)+'" data-id="'+esc(x.id)+'" data-subtab="'+esc(x.tab)+'">'+esc(x.title)+'</button>';}).join("");
 }
@@ -3419,6 +3441,48 @@ function openRecent(kind,id,subtab){
     switchSection("games"); tab=subtab||"played"; expandedId=id;
   }
   render(); window.scrollTo(0,0);
+}
+
+function phoneHomeArt(item,kind){
+  if(kind==="game")return gameCoverHero(item);
+  return mediaImage(item.poster,item.title,"");
+}
+function phoneHomeCard(item,kind,subtab,eyebrow){
+  var title=kind==="game"?item.name:item.title;
+  return '<button class="phone-home-card" type="button" data-act="phone-home-title" data-kind="'+kind+'" data-id="'+esc(String(item.id||("name:"+norm(title))))+'" data-subtab="'+esc(subtab||"")+'">'+
+    '<span class="phone-home-art '+(kind==="game"?"landscape":"portrait")+'">'+phoneHomeArt(item,kind)+'</span>'+
+    '<span class="phone-home-copy"><strong>'+esc(title)+'</strong><small>'+esc(eyebrow||"")+'</small></span></button>';
+}
+function phoneShelf(title,items,kind,subtab,metaFn,empty){
+  return '<section class="phone-shelf"><div class="phone-shelf-head"><h3>'+esc(title)+'</h3><span>'+items.length+'</span></div>'+
+    (items.length?'<div class="phone-shelf-row">'+items.slice(0,12).map(function(x){return phoneHomeCard(x,kind,subtab,metaFn?metaFn(x):"");}).join("")+'</div>':'<div class="phone-shelf-empty">'+esc(empty||"Nothing here yet")+'</div>')+'</section>';
+}
+function renderPhoneHome(){
+  var now=today();
+  var due=(data.rentals||[]).slice().map(function(r){var end=parseD(r.start);end.setDate(end.getDate()+Number(r.days||0));return Object.assign({},r,{left:daysBetween(now,end)});}).sort(function(a,b){return a.left-b.left;});
+  var games=(data.playing||[]).concat((data.played||[]).filter(function(x){return x.status==="Playing"||x.status==="Dropped";}));
+  var movies=(data.watchingMovies||[]).slice().sort(newerFirst);
+  var shows=(data.watchingSeries||[]).slice().sort(newerFirst);
+  var upcomingMovies=(((filmCacheEntry("uphw")||{}).items)||[]).slice().sort(function(a,b){return String(a.date||"").localeCompare(String(b.date||""));});
+  var upcomingGames=(data.upcoming||[]).filter(function(x){return x.date&&x.date>=localISO(now);}).sort(function(a,b){return String(a.date).localeCompare(String(b.date));});
+  var sync=cloudMode()==="drive"?(busy?"Syncing":"Drive synced"):cloudMode()==="jsonbin"?"JSONBin sync":"Local only";
+  return '<div class="phone-home"><section class="phone-home-hero"><div><span>GOOD '+(now.getHours()<12?"MORNING":now.getHours()<18?"AFTERNOON":"EVENING")+'</span><h2>Your next titles are ready</h2><p>'+esc(sync)+' · '+vaultSize(data)+' saved items</p></div><button type="button" data-act="phone-sync">&#8635;</button></section>'+
+    phoneShelf("Rentals due soon",due,"game","rentals",function(x){return x.left<0?"Overdue":x.left===0?"Return today":x.left+" days remaining";},"No active rentals")+
+    phoneShelf("Continue playing",games,"game","playing",function(x){return x.status==="Dropped"?"On hold":"In progress";},"No games in progress")+
+    phoneShelf("Continue watching movies",movies,"film","watching",function(x){return mediaRatingLabel(x);},"No movies in progress")+
+    phoneShelf("Continue watching TV",shows,"series","serieswatching",function(x){return x.latestDate?("Latest "+fmt(x.latestDate)):"Watching";},"No TV shows in progress")+
+    phoneShelf("Upcoming movies",upcomingMovies,"film","uphw",function(x){return x.date?fmt(x.date):"Date TBC";},"Refresh Movies to load upcoming releases")+
+    phoneShelf("Upcoming games",upcomingGames,"game","upcoming",function(x){return x.date?fmt(x.date):"Date TBC";},"No upcoming games saved")+'</div>';
+}
+function libraryStatus(ok){return '<span class="phone-library-status '+(ok?"ok":"")+'">'+(ok?"Connected":"Setup needed")+'</span>';}
+function renderPhoneLibrary(){
+  return '<div class="phone-library-grid">'+
+    '<button type="button" data-act="phone-library-open" data-section="plex"><span class="phone-library-icon">&#9654;</span><strong>Plex Library</strong><small>Movies, TV shows and playback progress</small>'+libraryStatus(!!(plexServerUrl()&&plexToken()))+'</button>'+
+    '<button type="button" data-act="phone-library-open" data-section="biglybt"><span class="phone-library-icon">&#8681;</span><strong>BiglyBT</strong><small>Downloads, history and torrent controls</small>'+libraryStatus(!!biglyProxyUrl())+'</button>'+
+    '<button type="button" data-act="phone-sync"><span class="phone-library-icon">&#8635;</span><strong>Sync now</strong><small>Check Google Drive for the newest vault</small>'+libraryStatus(!!cloudMode())+'</button>'+
+    '<button type="button" data-act="phone-settings"><span class="phone-library-icon">&#9881;</span><strong>Settings</strong><small>Services, appearance and recovery</small></button>'+
+    '<button type="button" data-act="phone-export"><span class="phone-library-icon">&#8659;</span><strong>Export backup</strong><small>Download a manual JSON backup</small></button>'+
+    '<button type="button" data-act="phone-restore"><span class="phone-library-icon">&#8657;</span><strong>Restore backup</strong><small>Restore an existing GameVault backup</small></button></div>';
 }
 
 /* ---------- personal health monitor (PC/mobile only) ---------- */
@@ -3808,12 +3872,21 @@ function render(){
     renderTvApp();
     return;
   }
+  phoneMenuRegistry={};phoneMenuCounter=0;closePhoneSheet();
+  document.body.classList.toggle("phone-root-section",section==="home"||section==="library");
   var detailOpen=!!((section==="games"&&gameView==="grid"&&expandedId)||(section==="films"&&filmExpanded)||(section==="series"&&seriesExpanded)||(section==="plex"&&plexExpanded));
   document.body.classList.toggle("detail-open",detailOpen);
   renderPageContext();
   renderRecentStrip();
   var statsEl=document.getElementById("stats");
   document.body.classList.toggle("bigly-active",section==="biglybt");
+  if(section==="home"||section==="library"){
+    statsEl.style.display="none";
+    renderTabs();
+    document.getElementById("content").innerHTML=section==="home"?renderPhoneHome():renderPhoneLibrary();
+    applyBackground();
+    return;
+  }
   if(section==="health"){
     statsEl.style.display="none";
     renderTabs();
@@ -3877,10 +3950,12 @@ function render(){
 var TMDB_KEY_STORE="ps5-tmdb-key", OMDB_KEY_STORE="ps5-omdb-key";
 var SECTION_KEY="ps5-section", FILMTAB_KEY="ps5-filmtab", FILM_CACHE_KEY="ps5-films-cache", MEDIA_CACHE_VERSION_KEY="gamevault-media-cache-version";
 var section="games", filmTab="watchlist", healthTab="healthoverview", healthWeekOffset=0;
+function phoneUi(){ return !TV_MODE&&window.matchMedia&&window.matchMedia("(max-width:720px)").matches; }
 try{ section=localStorage.getItem(SECTION_KEY)||"games"; }catch(e){}
 var requestedSection=new URLSearchParams(location.search).get("section");
-if(["games","films","series","plex","biglybt","health"].indexOf(requestedSection)>=0)section=requestedSection;
-if(["games","films","series","plex","biglybt","health"].indexOf(section)<0)section="games";
+if(["home","games","films","series","plex","biglybt","health","library"].indexOf(requestedSection)>=0)section=requestedSection;
+if(["home","games","films","series","plex","biglybt","health","library"].indexOf(section)<0)section="games";
+if(!phoneUi()&&(section==="home"||section==="library"))section="games";
 var requestedHealthTab=new URLSearchParams(location.search).get("healthTab");
 if(["healthoverview","healthfood","healthlabs"].indexOf(requestedHealthTab)>=0)healthTab=requestedHealthTab;
 try{ filmTab=localStorage.getItem(FILMTAB_KEY)||"watchlist"; }catch(e){}
@@ -3989,7 +4064,32 @@ function mediaViewToggle(kind){
   return '<div class="viewbar"><span class="viewlbl">View</span>'+
     '<button class="gchip '+(v==="grid"?"on":"")+'" data-act="media-view" data-kind="'+kind+'" data-view="grid">Grid View</button>'+
     '<button class="gchip '+(v==="list"?"on":"")+'" data-act="media-view" data-kind="'+kind+'" data-view="list">List View</button>'+
-  '</div>';
+  '</div>'+phoneMediaFilterBar(kind);
+}
+function filterLabel(type,kind){
+  if(type==="genre"){
+    var list=kind==="series"?SERIES_GENRES:MOVIE_GENRES,value=kind==="series"?seriesGenre:filmGenre;
+    return (list.filter(function(x){return String(x[0])===String(value);})[0]||[])[1]||"Genre";
+  }
+  if(type==="year")return (kind==="series"?seriesYear:filmYear)||"Year";
+  if(type==="provider"){
+    var p=US_STREAMERS.filter(function(x){return String(x[0])===String(seriesProvider);})[0];
+    return (p&&p[1])||"Streamer";
+  }
+  if(type==="language"){
+    var names={en:"English",ml:"Malayalam",ta:"Tamil",hi:"Hindi"};return names[seriesLanguage]||"Language";
+  }
+  var sort=kind==="series"?seriesSort:filmSort;
+  return ({smart:"Recommended",added:"Recently added",newest:"Newest",oldest:"Oldest",rating:"Highest rated",title:"A-Z"})[sort]||"Sort";
+}
+function phoneMediaFilterBar(kind){
+  var active=kind==="series"?!!(seriesGenre||seriesYear||seriesProvider||seriesLanguage||seriesSort!=="smart"):!!(filmGenre||filmYear||filmSort!=="smart");
+  return '<div class="phone-filter-bar" aria-label="'+kind+' filters">'+
+    '<button type="button" class="'+((kind==="series"?seriesGenre:filmGenre)?"on":"")+'" data-phone-filter="genre" data-kind="'+kind+'">'+esc(filterLabel("genre",kind))+'</button>'+
+    '<button type="button" class="'+((kind==="series"?seriesYear:filmYear)?"on":"")+'" data-phone-filter="year" data-kind="'+kind+'">'+esc(filterLabel("year",kind))+'</button>'+
+    (kind==="series"?'<button type="button" class="'+(seriesProvider?"on":"")+'" data-phone-filter="provider" data-kind="series">'+esc(filterLabel("provider","series"))+'</button><button type="button" class="'+(seriesLanguage?"on":"")+'" data-phone-filter="language" data-kind="series">'+esc(filterLabel("language","series"))+'</button>':'')+
+    '<button type="button" class="'+((kind==="series"?seriesSort:filmSort)!=="smart"?"on":"")+'" data-phone-filter="sort" data-kind="'+kind+'">'+esc(filterLabel("sort",kind))+'</button>'+
+    (active?'<button type="button" class="clear" data-act="phone-filter-clear" data-kind="'+kind+'">Clear all</button>':'')+'</div>';
 }
 function mediaSortSelect(kind){
   var value=kind==="series"?seriesSort:filmSort;
@@ -4594,7 +4694,31 @@ function removeFromWatchlist(id){
   data.movieWatchlist=(data.movieWatchlist||[]).filter(function(x){ return String(x.id)!==String(id); });
   commitVaultUndo(undo,"Removed from watchlist");
 }
+var phoneMenuRegistry={},phoneMenuCounter=0;
+function closePhoneSheet(){
+  var old=document.getElementById("phoneActionSheet");if(old)old.remove();
+  document.body.classList.remove("phone-sheet-open");
+}
+function openPhoneSheet(title,body){
+  closePhoneSheet();
+  var host=document.getElementById("content");if(!host)return;
+  host.insertAdjacentHTML("beforeend",'<div class="phone-sheet" id="phoneActionSheet"><button class="phone-sheet-backdrop" type="button" aria-label="Close"></button><section role="dialog" aria-modal="true" aria-label="'+esc(title)+'"><div class="phone-sheet-handle"></div><header><strong>'+esc(title)+'</strong><button type="button" class="phone-sheet-done">Done</button></header><div class="phone-sheet-body">'+body+'</div></section></div>');
+  document.body.classList.add("phone-sheet-open");
+}
+function phoneFilterItems(type,kind){
+  var items=[],current="";
+  if(type==="genre"){items=[["","All genres"]].concat(kind==="series"?SERIES_GENRES:MOVIE_GENRES);current=kind==="series"?seriesGenre:filmGenre;}
+  else if(type==="year"){items=[["","All years"]];var y=new Date().getFullYear();for(var n=y+2;n>=1990;n--)items.push([String(n),String(n)]);current=kind==="series"?seriesYear:filmYear;}
+  else if(type==="provider"){items=US_STREAMERS;current=seriesProvider;}
+  else if(type==="language"){items=[["","All languages"],["en","English"],["ml","Malayalam"],["ta","Tamil"],["hi","Hindi"]];current=seriesLanguage;}
+  else{items=[["smart","Recommended order"],["added","Recently added"],["newest","Newest release"],["oldest","Oldest release"],["rating","Highest rated"],["title","Title A-Z"]];current=kind==="series"?seriesSort:filmSort;}
+  return items.map(function(x){return '<button type="button" class="'+(String(x[0])===String(current)?"on":"")+'" data-act="phone-filter-set" data-filter="'+type+'" data-kind="'+kind+'" data-value="'+esc(x[0])+'"><span>'+esc(x[1])+'</span>'+(String(x[0])===String(current)?'<b>&#10003;</b>':'')+'</button>';}).join("");
+}
 function titleOverflow(label,items){
+  if(phoneUi()){
+    var menuId="pm"+(++phoneMenuCounter);phoneMenuRegistry[menuId]={title:label,body:items.join("")};
+    return '<button type="button" class="phone-more-button" data-phone-menu="'+menuId+'" aria-label="More actions for '+esc(label)+'">&#8943;</button>';
+  }
   return '<details class="title-menu"><summary aria-label="More actions for '+esc(label)+'" title="More actions">&#8943;<span>More</span></summary><div class="title-menu-pop">'+items.join("")+'</div></details>';
 }
 function moviePrimaryAction(m,key,compact){
@@ -4646,7 +4770,8 @@ function movieMain(m,key){
 }
 function mediaPageHero(kind,x,genreList){
   ensureMediaArtwork(x,kind==="film"?"movie":"series");
-  return detailToolbar(kind,x)+'<div class="media-page-head">'+
+  var cinematic=mediaBgUrl(x);
+  return detailToolbar(kind,x)+(cinematic?'<div class="phone-detail-backdrop" style="background-image:url(&quot;'+esc(cinematic)+'&quot;)"></div>':'')+'<div class="media-page-head">'+
     '<div class="media-page-poster">'+mediaImage(x.poster,x.title||kind,(x.poster?"":"fallback-art"))+'</div>'+
     '<div><div class="media-page-title">'+esc(x.title)+'</div>'+
     '<div class="media-page-sub"><span class="media-pill imdb">'+esc(mediaRatingLabel(x))+'</span><span class="media-pill">'+esc(genreLabel(x.genres,genreList))+'</span>'+(x.year?'<span class="media-pill">'+esc(x.year)+'</span>':'')+'</div>'+
@@ -5408,6 +5533,7 @@ function switchSection(s){
   else if(section==="plex") tabScroll["plex:"+plexTab]=window.scrollY;
   else if(section==="biglybt") tabScroll.biglybt=window.scrollY;
   else if(section==="health") tabScroll["health:"+healthTab]=window.scrollY;
+  else if(section==="home"||section==="library") tabScroll[section]=window.scrollY;
   else tabScroll[tab]=window.scrollY;
   section=s; try{ localStorage.setItem(SECTION_KEY,s); }catch(e){}
   expandedId=null; filmExpanded=null; seriesExpanded=null; plexExpanded=null;
@@ -5417,7 +5543,7 @@ function switchSection(s){
     if(active) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current");
   });
   render();
-  window.scrollTo(0, section==="films" ? (tabScroll["film:"+filmTab]||0) : section==="series" ? (tabScroll["series:"+seriesTab]||0) : section==="plex" ? (tabScroll["plex:"+plexTab]||0) : section==="biglybt" ? (tabScroll.biglybt||0) : section==="health" ? (tabScroll["health:"+healthTab]||0) : (tabScroll[tab]||0));
+  window.scrollTo(0, section==="films" ? (tabScroll["film:"+filmTab]||0) : section==="series" ? (tabScroll["series:"+seriesTab]||0) : section==="plex" ? (tabScroll["plex:"+plexTab]||0) : section==="biglybt" ? (tabScroll.biglybt||0) : section==="health" ? (tabScroll["health:"+healthTab]||0) : section==="home"||section==="library" ? (tabScroll[section]||0) : (tabScroll[tab]||0));
   if(section==="films") ensureFilms(filmTab);
   if(section==="films") scheduleMediaWarmup("films",filmTab);
   if(section==="series"){ ensureSeries(seriesTab); scheduleMediaWarmup("series",seriesTab); }
@@ -5640,6 +5766,12 @@ if(menuCloseBtn) menuCloseBtn.addEventListener("click",function(){setMenuOpen(fa
 var settingsCloseBtn=document.getElementById("settingsCloseBtn");
 if(settingsCloseBtn) settingsCloseBtn.addEventListener("click",function(){toggleSettings(false);});
 document.getElementById("tabs").addEventListener("click",function(e){
+  var more=e.target.closest("[data-phone-series-tabs]");
+  if(more){
+    var all=[["serieswatchlist","My Watchlist"],["serieswatching","Watching"],["seriesnew","New Episodes"],["seriesupcoming","Upcoming"],["enseries","English"],["mlseries","Malayalam"],["taseries","Tamil"],["hiseries","Hindi"],["serieswatched","Watched"]];
+    openPhoneSheet("TV Show sections",all.map(function(x){return '<button type="button" class="'+(seriesTab===x[0]?"on":"")+'" data-stab="'+x[0]+'"><span>'+x[1]+'</span>'+(seriesTab===x[0]?'<b>&#10003;</b>':'')+'</button>';}).join(""));
+    return;
+  }
   var hb=e.target.closest("[data-htab]");
   if(hb){tabScroll["health:"+healthTab]=window.scrollY;healthTab=hb.getAttribute("data-htab");render();window.scrollTo(0,tabScroll["health:"+healthTab]||0);return;}
   var pb=e.target.closest("[data-ptab]");
@@ -5732,6 +5864,24 @@ if(saveBiglyProxyBtn) saveBiglyProxyBtn.addEventListener("click",function(){
   toggleSettings(false);
   flash(biglyProxyUrl()?"BiglyBT proxy saved":"BiglyBT proxy cleared");
 });
+document.addEventListener("click",function(e){
+  if(!phoneUi())return;
+  var menu=e.target.closest&&e.target.closest("[data-phone-menu]");
+  if(menu){var def=phoneMenuRegistry[menu.getAttribute("data-phone-menu")];if(def)openPhoneSheet(def.title,def.body);return;}
+  var filter=e.target.closest&&e.target.closest("[data-phone-filter]");
+  if(filter){openPhoneSheet(filterLabel(filter.getAttribute("data-phone-filter"),filter.getAttribute("data-kind")),phoneFilterItems(filter.getAttribute("data-phone-filter"),filter.getAttribute("data-kind")));return;}
+  var sheet=e.target.closest&&e.target.closest("#phoneActionSheet");
+  if(!sheet)return;
+  var confirmChoice=e.target.closest("[data-phone-confirm]");
+  if(confirmChoice){
+    var approved=confirmChoice.getAttribute("data-phone-confirm")==="yes",callback=phoneConfirmCallback;
+    phoneConfirmCallback=null;closePhoneSheet();if(approved&&callback)callback();return;
+  }
+  if(e.target.closest(".phone-sheet-backdrop,.phone-sheet-done")){closePhoneSheet();return;}
+  var stab=e.target.closest("[data-stab]");
+  if(stab){closePhoneSheet();switchSeriesTab(stab.getAttribute("data-stab"));return;}
+  if(e.target.closest("a[href],button[data-act]"))setTimeout(closePhoneSheet,0);
+});
 document.addEventListener("keydown",function(e){
   if((e.key!=="Enter"&&e.key!==" ") || !e.target || e.target.tagName==="BUTTON" || e.target.tagName==="A") return;
   if(e.target.matches('[role="button"]')){ e.preventDefault(); e.target.click(); }
@@ -5764,6 +5914,46 @@ document.getElementById("content").addEventListener("click",function(e){
   if(gc){ sugGenre=gc.getAttribute("data-genre"); render(); return; }
   var b=e.target.closest("[data-act]"); if(!b) return;
   var act=b.getAttribute("data-act"), id=b.getAttribute("data-id"), nm=b.getAttribute("data-name");
+  if(act==="phone-home-title"){
+    var kind=b.getAttribute("data-kind"),sub=b.getAttribute("data-subtab")||"";
+    if(kind==="film"){
+      switchSection("films");filmTab=sub||"watchlist";filmExpanded=id;try{localStorage.setItem(FILMTAB_KEY,filmTab);}catch(err){}
+      var hm=findMovieAny(id);if(hm)ensurePlot(moviePlotName(hm),"film");
+    }else if(kind==="series"){
+      switchSection("series");seriesTab=sub||"serieswatchlist";seriesExpanded=id;try{localStorage.setItem(SERIESTAB_KEY,seriesTab);}catch(err){}
+    }else{
+      switchSection("games");tab=sub||"playing";expandedId=id;
+    }
+    render();window.scrollTo(0,0);return;
+  }
+  if(act==="phone-library-open"){switchSection(b.getAttribute("data-section"));return;}
+  if(act==="phone-sync"){setPhoneRefreshing(true);refreshAllData();setTimeout(function(){setPhoneRefreshing(false);},1500);return;}
+  if(act==="phone-settings"){toggleSettings(true);return;}
+  if(act==="phone-export"){document.getElementById("exportBtn").click();return;}
+  if(act==="phone-restore"){document.getElementById("importBtn").click();return;}
+  if(act==="phone-filter-set"){
+    var ftype=b.getAttribute("data-filter"),fkind=b.getAttribute("data-kind"),fvalue=b.getAttribute("data-value")||"";
+    if(fkind==="film"){
+      if(ftype==="genre"){filmGenre=fvalue;try{localStorage.setItem(FILM_GENRE_KEY,filmGenre);}catch(err){}}
+      else if(ftype==="year"){filmYear=fvalue;try{localStorage.setItem(FILM_YEAR_KEY,filmYear);}catch(err){}}
+      else if(ftype==="sort"){filmSort=fvalue;try{localStorage.setItem(FILM_SORT_KEY,filmSort);}catch(err){}}
+      closePhoneSheet();render();ensureFilms(filmTab);
+    }else{
+      if(ftype==="genre"){seriesGenre=fvalue;try{localStorage.setItem(SERIES_GENRE_KEY,seriesGenre);}catch(err){}}
+      else if(ftype==="year"){seriesYear=fvalue;try{localStorage.setItem(SERIES_YEAR_KEY,seriesYear);}catch(err){}}
+      else if(ftype==="provider"){seriesProvider=fvalue;try{localStorage.setItem(SERIES_PROVIDER_KEY,seriesProvider);}catch(err){}}
+      else if(ftype==="language"){seriesLanguage=fvalue;try{localStorage.setItem(SERIES_LANGUAGE_KEY,seriesLanguage);}catch(err){}}
+      else if(ftype==="sort"){seriesSort=fvalue;try{localStorage.setItem(SERIES_SORT_KEY,seriesSort);}catch(err){}}
+      closePhoneSheet();render();ensureSeries(seriesTab);
+    }
+    return;
+  }
+  if(act==="phone-filter-clear"){
+    var clearKind=b.getAttribute("data-kind");
+    if(clearKind==="film"){filmGenre="";filmYear="";filmSort="smart";try{localStorage.removeItem(FILM_GENRE_KEY);localStorage.removeItem(FILM_YEAR_KEY);localStorage.setItem(FILM_SORT_KEY,filmSort);}catch(err){}render();ensureFilms(filmTab);}
+    else{seriesGenre="";seriesYear="";seriesProvider="";seriesLanguage="";seriesSort="smart";try{localStorage.removeItem(SERIES_GENRE_KEY);localStorage.removeItem(SERIES_YEAR_KEY);localStorage.removeItem(SERIES_PROVIDER_KEY);localStorage.removeItem(SERIES_LANGUAGE_KEY);localStorage.setItem(SERIES_SORT_KEY,seriesSort);}catch(err){}render();ensureSeries(seriesTab);}
+    return;
+  }
   if(act==="health-open-food"){healthTab="healthfood";render();window.scrollTo(0,0);return;}
   if(act==="health-open-labs"){healthTab="healthlabs";render();window.scrollTo(0,0);return;}
   if(act==="health-week"){healthWeekOffset=Math.min(0,Math.max(-52,healthWeekOffset+(Number(b.getAttribute("data-delta"))||0)));render();return;}
@@ -5985,6 +6175,7 @@ document.getElementById("content").addEventListener("click",function(e){
   else if(act==="return-played"){ endRental(id,true); }
   else if(act==="return-only"){ endRental(id,false); }
   else if(act==="remove-rental"){
+    if(phoneUi()){tvConfirm("Delete this rental without saving it to history?","Delete rental",function(){data.rentals=data.rentals.filter(function(x){return x.id!==id;});save();flash("Rental deleted");});return;}
     if(!confirm("Delete this rental without saving it to history?")) return;
     data.rentals=data.rentals.filter(function(x){return x.id!==id;}); save(); flash("Rental deleted");
   }
@@ -5999,6 +6190,7 @@ document.getElementById("content").addEventListener("click",function(e){
     }
   }
   else if(act==="hist-del"){
+    if(phoneUi()){tvConfirm("Delete this history record?","Delete record",function(){data.rentalHistory=data.rentalHistory.filter(function(x){return x.id!==id;});save();});return;}
     if(!confirm("Delete this history record?")) return;
     data.rentalHistory=data.rentalHistory.filter(function(x){return x.id!==id;}); save();
   }
@@ -6816,7 +7008,13 @@ function tvCloseConfirm(result){
   if(result&&callback) callback();
   setTimeout(function(){var target=tvFindByKey(returnKey);if(target)tvFocus(target);else tvEnsureFocus();},0);
 }
+var phoneConfirmCallback=null;
 function tvConfirm(message,confirmLabel,callback){
+  if(phoneUi()){
+    phoneConfirmCallback=callback;
+    openPhoneSheet("Confirm action",'<p class="phone-confirm-copy">'+esc(message)+'</p><div class="phone-confirm-actions"><button type="button" data-phone-confirm="no">Cancel</button><button type="button" class="danger" data-phone-confirm="yes">'+esc(confirmLabel||"Confirm")+'</button></div>');
+    return;
+  }
   if(!TV_MODE){if(window.confirm(message))callback();return;}
   tvCloseConfirm(false);
   var overlay=document.createElement("div");
@@ -7184,7 +7382,7 @@ document.getElementById("restoreSnapshotBtn").addEventListener("click",function(
   var sel=document.getElementById("snapshotSelect"); if(!sel.value && sel.value!=="0"){ flash("No recovery point selected"); return; }
   function restoreSelected(){try{restoreRecoverySnapshot(sel.value);refreshRecoveryUi();flash("Recovery point restored");}catch(e){flash(e.message);}}
   var warning="Replace the current vault with this recovery point? A copy of the current vault will be kept first.";
-  if(TV_MODE){tvConfirm(warning,"Restore recovery point",restoreSelected);return;}
+  if(TV_MODE||phoneUi()){tvConfirm(warning,"Restore recovery point",restoreSelected);return;}
   if(confirm(warning)) restoreSelected();
 });
 document.getElementById("encryptedExportBtn").addEventListener("click",function(){
@@ -7219,7 +7417,10 @@ document.getElementById("themeBtn").addEventListener("click",function(){
 
 /* ---------- global refresh ---------- */
 function globalRefresh(){
-  flash("Refreshing the current section...");
+  if(phoneUi()&&(section==="home"||section==="library")){
+    setPhoneRefreshing(true);refreshAllData();setTimeout(function(){setPhoneRefreshing(false);},1500);return;
+  }
+  if(phoneUi())setPhoneRefreshing(true);else flash("Refreshing the current section...");
   plotPending={}; plotErr={};
   triedCovers={};
   silentPullOnLoad();
@@ -7241,8 +7442,9 @@ function globalRefresh(){
     else if(biglyFrame) biglyFrame.src=biglyFrame.src;
   }
   applyBackground();
-  render();
+  if(!phoneUi())render();
   setTimeout(backfillImages,600);
+  if(phoneUi())setTimeout(function(){setPhoneRefreshing(false);},1400);
 }
 function refreshAllData(){
   flash("Refreshing all GameVault data in the background...");
@@ -7274,9 +7476,140 @@ document.addEventListener("touchstart",function(e){
   var startX=e.touches[0].clientX;
   if(startX<24 || startX>window.innerWidth-24 || document.body.classList.contains("detail-open") || document.body.classList.contains("settings-open")){ swX=null; return; }
   // don't hijack horizontal gestures on inputs or scrollable strips
-  if(e.target && e.target.closest && e.target.closest("input,textarea,select,.chipbar,#tabs,.sectionsw,.recent-strip,.viewbar,.actions,.ac-drop")){ swX=null; return; }
+  if(e.target && e.target.closest && e.target.closest("input,textarea,select,.chipbar,#tabs,.sectionsw,.recent-strip,.viewbar,.actions,.ac-drop,.media-card,.game-tile,.plex-card,.phone-shelf-row,.phone-filter-bar")){ swX=null; return; }
   swX=startX; swY=e.touches[0].clientY; swT=Date.now();
 },{passive:true});
+
+var phoneGesture=null,phoneLongTimer=null,phoneSuppressClick=false;
+function openPhoneCardActions(card){
+  if(!card)return;
+  var menu=card.querySelector("[data-phone-menu]");
+  if(menu){menu.click();return;}
+  var opener=card.querySelector('[data-act="game-open"],[data-act="plex-open"]');
+  if(!opener)return;
+  var id=opener.getAttribute("data-id"),act=opener.getAttribute("data-act");
+  var title=(card.querySelector(".game-tile-title,.media-title")||{}).textContent||"Title";
+  var body='<button type="button" data-act="'+act+'" data-id="'+esc(id)+'">Open details</button>';
+  if(act==="game-open"){
+    var game=gameFindById(id);if(game)body+=gameTilePrimary(game,id);
+  }
+  openPhoneSheet(title,body);
+}
+document.addEventListener("touchstart",function(e){
+  if(!phoneUi()||e.touches.length!==1)return;
+  var t=e.target,detail=t.closest&&t.closest(".media-page,.game-page");
+  phoneGesture={x:e.touches[0].clientX,y:e.touches[0].clientY,at:Date.now(),card:t.closest&&t.closest(".media-card,.game-tile,.plex-card"),detail:detail,moved:false};
+  if(phoneGesture.card){
+    clearTimeout(phoneLongTimer);
+    phoneLongTimer=setTimeout(function(){if(phoneGesture&&!phoneGesture.moved){phoneSuppressClick=true;openPhoneCardActions(phoneGesture.card);}},520);
+  }
+},{passive:true});
+document.addEventListener("touchmove",function(e){
+  if(!phoneGesture||!e.touches.length)return;
+  var dx=e.touches[0].clientX-phoneGesture.x,dy=e.touches[0].clientY-phoneGesture.y;
+  if(Math.abs(dx)>10||Math.abs(dy)>10){phoneGesture.moved=true;clearTimeout(phoneLongTimer);}
+},{passive:true});
+document.addEventListener("touchend",function(e){
+  clearTimeout(phoneLongTimer);if(!phoneGesture)return;
+  var g=phoneGesture;phoneGesture=null;
+  var dx=e.changedTouches[0].clientX-g.x,dy=e.changedTouches[0].clientY-g.y;
+  if(g.detail&&!e.target.closest("input,textarea,select,.actions,.detail-actionbar,.plot")){
+    if(dy>110&&Math.abs(dy)>Math.abs(dx)*1.25){var close=g.detail.querySelector('[data-act="media-close"]');if(close)close.click();return;}
+    if(Math.abs(dx)>90&&Math.abs(dx)>Math.abs(dy)*1.4){
+      var neighbors=g.detail.querySelectorAll('[data-act="detail-neighbor"]');
+      if(neighbors.length)(dx<0?neighbors[neighbors.length-1]:neighbors[0]).click();
+      return;
+    }
+  }
+  if(g.card&&Math.abs(dx)>65&&Math.abs(dx)>Math.abs(dy)*1.5)openPhoneCardActions(g.card);
+},{passive:true});
+document.addEventListener("click",function(e){
+  if(phoneSuppressClick){phoneSuppressClick=false;e.preventDefault();e.stopPropagation();}
+},true);
+
+function decoratePhonePlots(){
+  if(!phoneUi())return;
+  [].forEach.call(document.querySelectorAll("#content .plot"),function(plot){
+    if(plot.dataset.phonePlot)return;plot.dataset.phonePlot="1";
+    requestAnimationFrame(function(){
+      if(!plot.isConnected||plot.scrollHeight<=plot.clientHeight+18)return;
+      var button=document.createElement("button");button.type="button";button.className="phone-plot-toggle";button.textContent="Read more";
+      button.addEventListener("click",function(){var open=plot.classList.toggle("expanded");button.textContent=open?"Show less":"Read more";});
+      plot.insertAdjacentElement("afterend",button);
+    });
+  });
+}
+var phoneContentObserver=new MutationObserver(function(){decoratePhonePlots();});
+phoneContentObserver.observe(document.getElementById("content"),{childList:true,subtree:true});
+
+var pullStartY=null,pullDistance=0;
+function setPhoneRefreshing(active){
+  var el=document.getElementById("phoneRefreshIndicator");if(!el)return;
+  el.classList.toggle("show",!!active);if(!active)el.style.setProperty("--pull","0px");
+}
+document.addEventListener("touchstart",function(e){
+  if(!phoneUi()||window.scrollY>1||document.body.classList.contains("detail-open")||document.body.classList.contains("phone-sheet-open")||e.touches.length!==1){pullStartY=null;return;}
+  if(e.target.closest("input,textarea,select,.tabs,.phone-shelf-row")){pullStartY=null;return;}
+  pullStartY=e.touches[0].clientY;pullDistance=0;
+},{passive:true});
+document.addEventListener("touchmove",function(e){
+  if(pullStartY===null||!e.touches.length)return;
+  pullDistance=Math.max(0,Math.min(110,e.touches[0].clientY-pullStartY));
+  var el=document.getElementById("phoneRefreshIndicator");if(el){el.classList.toggle("show",pullDistance>12);el.style.setProperty("--pull",pullDistance+"px");}
+},{passive:true});
+document.addEventListener("touchend",function(){
+  if(pullStartY===null)return;pullStartY=null;
+  if(pullDistance>=78){setPhoneRefreshing(true);globalRefresh();setTimeout(function(){setPhoneRefreshing(false);},1400);}
+  else setPhoneRefreshing(false);
+},{passive:true});
+
+var phoneLastScroll=0,phoneScrollTick=false;
+window.addEventListener("scroll",function(){
+  if(!phoneUi()||phoneScrollTick)return;phoneScrollTick=true;
+  requestAnimationFrame(function(){
+    var y=window.scrollY,down=y>phoneLastScroll&&y>70;
+    document.body.classList.toggle("phone-header-compact",down&&!document.body.classList.contains("detail-open"));
+    phoneLastScroll=y;phoneScrollTick=false;
+  });
+},{passive:true});
+
+function phoneFocusableFields(){
+  return [].slice.call(document.querySelectorAll('input:not([disabled]):not([type="hidden"]),textarea:not([disabled]),select:not([disabled])')).filter(function(x){return x.offsetParent!==null;});
+}
+document.addEventListener("focusin",function(e){
+  if(!phoneUi()||!e.target.matches("input,textarea,select"))return;
+  var bar=document.getElementById("phoneKeyboardBar");if(bar)bar.hidden=false;
+  setTimeout(function(){e.target.scrollIntoView({block:"center",behavior:"smooth"});},220);
+});
+document.addEventListener("focusout",function(){
+  if(!phoneUi())return;
+  setTimeout(function(){if(!document.activeElement.matches||!document.activeElement.matches("input,textarea,select"))document.getElementById("phoneKeyboardBar").hidden=true;},120);
+});
+document.getElementById("phoneKeyboardBar").addEventListener("click",function(e){
+  var b=e.target.closest("[data-keyboard]");if(!b)return;
+  var fields=phoneFocusableFields(),current=fields.indexOf(document.activeElement),action=b.getAttribute("data-keyboard");
+  if(action==="done"){document.activeElement.blur();return;}
+  var next=action==="previous"?Math.max(0,current-1):Math.min(fields.length-1,current+1);if(fields[next])fields[next].focus();
+});
+
+var pendingPhoneWorker=null;
+function setPhoneStatus(message,tone,action){
+  var el=document.getElementById("phoneStatusBanner");if(!el)return;
+  if(!message){el.hidden=true;el.innerHTML="";return;}
+  el.hidden=false;el.className="phone-status-banner "+(tone||"");el.innerHTML='<span>'+esc(message)+'</span>'+(action?'<button type="button" data-phone-status-action="'+action+'">'+(action==="update"?"Install":"Retry")+'</button>':'');
+}
+function updatePhoneConnectionStatus(){
+  if(!phoneUi())return;
+  if(!navigator.onLine)setPhoneStatus("Offline - showing saved GameVault data","offline","retry");
+  else if(!pendingPhoneWorker)setPhoneStatus("");
+}
+document.getElementById("phoneStatusBanner").addEventListener("click",function(e){
+  var b=e.target.closest("[data-phone-status-action]");if(!b)return;
+  if(b.getAttribute("data-phone-status-action")==="update"&&pendingPhoneWorker)pendingPhoneWorker.postMessage({type:"SKIP_WAITING"});
+  else{setPhoneStatus("Checking connection...","");globalRefresh();setTimeout(updatePhoneConnectionStatus,1200);}
+});
+window.addEventListener("online",updatePhoneConnectionStatus);
+window.addEventListener("offline",updatePhoneConnectionStatus);
 document.addEventListener("touchend",function(e){
   if(swX===null) return;
   var dx=e.changedTouches[0].clientX-swX;
@@ -7331,6 +7664,7 @@ if("serviceWorker" in navigator && location.protocol.indexOf("http")===0){
   navigator.serviceWorker.register("sw.js?v="+APP_VERSION,{updateViaCache:"none"}).then(function(reg){
     function offerUpdate(worker){
       if(!worker) return;
+      if(phoneUi()){pendingPhoneWorker=worker;setPhoneStatus("GameVault "+APP_VERSION+" is ready to install","update","update");return;}
       flash("A GameVault update is ready - tap here to install",function(){ worker.postMessage({type:"SKIP_WAITING"}); });
     }
     if(reg.waiting) offerUpdate(reg.waiting);
@@ -7340,7 +7674,7 @@ if("serviceWorker" in navigator && location.protocol.indexOf("http")===0){
       if(worker) worker.addEventListener("statechange",function(){ if(worker.state==="installed" && navigator.serviceWorker.controller) offerUpdate(worker); });
     });
     var reloading=false;
-    navigator.serviceWorker.addEventListener("controllerchange",function(){ if(!reloading){ reloading=true; location.reload(); } });
+    navigator.serviceWorker.addEventListener("controllerchange",function(){ if(!reloading){ reloading=true;pendingPhoneWorker=null;location.reload(); } });
   }).catch(function(){});
 }
 document.addEventListener("error",function(e){
@@ -7362,6 +7696,8 @@ setTimeout(function(){
   if(active) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current");
 });
 render();
+decoratePhonePlots();
+updatePhoneConnectionStatus();
 refreshRecoveryUi();
 if(TV_MODE) setTimeout(function(){tvPrimeSection(tvSection);},80);
 if(section==="films"){ ensureFilms(filmTab); scheduleMediaWarmup("films",filmTab); }
