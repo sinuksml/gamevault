@@ -1,8 +1,13 @@
 ﻿"use strict";
-var APP_VERSION = "1.14.1";
+var APP_VERSION = "1.15.0";
 var APP_BUILD_DATE = "2026-07-16";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Kept RAWG, TMDB and OMDb keys on each device and out of cloud backups",
+  "Made health-record cloud sync explicit opt-in with local data preservation",
+  "Removed personal lab values from the public application source",
+  "Added native sharing, improved page metadata and automated quality checks",
+  "Restored approval-based service-worker updates before a new version activates",
   "Updated iPhone navigation with Plex and BiglyBT on the bottom bar and Health inside Library",
   "Fixed iPhone updates being held on an older versioned app file by the service-worker cache",
   "Made online launches check the current GameVault shell before using the offline copy",
@@ -233,23 +238,36 @@ var BUILTIN_CATALOG = [
 /* ---------- storage ---------- */
 var VAULT_ARRAY_FIELDS = ["rentals","upcoming","played","dismissed","catalogExtra","vendors","queue","rentalHistory","playing","upcomingRemoved","watchedMovies","movieWatchlist","watchingMovies","hiddenMovies","watchedSeries","seriesWatchlist","watchingSeries","hiddenSeries","biglyHistory"];
 var VAULT_OBJECT_FIELDS = ["covers","dismissedNames","fandom","hubkeys","keys","seriesRatings","aiChats","health"];
+var HEALTH_SYNC_STORE="gamevault-sync-health-v1";
 function healthDefaults(){
   return {
     foodLog:[],
-    labs:[{date:"2026-07-11",totalCholesterol:211,ldl:145.4,hdl:27,triglycerides:193,hba1c:5.3,fastingGlucose:86.8,eosinophilsAbs:912}],
+    labs:[],
     targets:{plantMeals:10,fishMeals:2,redMeatMeals:1,friedMeals:1,sugaryItems:2,fruitServings:14,vegetableServings:21,wholeGrainMeals:7,activityMinutes:150,strengthDays:2},
-    doctorNotes:"Review the lipid profile and eosinophilia with a qualified clinician."
+    doctorNotes:""
   };
 }
 function normalizeHealth(h){
   var base=healthDefaults();
   h=(h&&typeof h==="object"&&!Array.isArray(h))?h:{};
   if(!Array.isArray(h.foodLog))h.foodLog=[];
-  if(!Array.isArray(h.labs)||!h.labs.length)h.labs=base.labs;
+  if(!Array.isArray(h.labs))h.labs=base.labs;
   if(!h.targets||typeof h.targets!=="object"||Array.isArray(h.targets))h.targets={};
   Object.keys(base.targets).forEach(function(k){if(!Number.isFinite(Number(h.targets[k])))h.targets[k]=base.targets[k];});
   if(typeof h.doctorNotes!=="string")h.doctorNotes=base.doctorNotes;
   return h;
+}
+function healthCloudSyncEnabled(){
+  try{return localStorage.getItem(HEALTH_SYNC_STORE)==="1";}catch(e){return false;}
+}
+function setHealthCloudSyncEnabled(enabled){
+  try{localStorage.setItem(HEALTH_SYNC_STORE,enabled?"1":"0");}catch(e){}
+}
+function healthHasUserData(h){
+  if(!h||typeof h!=="object")return false;
+  if((h.foodLog||[]).length||(h.labs||[]).length||(h.doctorNotes||"").trim())return true;
+  var defaults=healthDefaults().targets,targets=h.targets||{};
+  return Object.keys(defaults).some(function(k){return Number(targets[k])!==Number(defaults[k]);});
 }
 function deviceId(){
   try{
@@ -291,11 +309,13 @@ function addAudit(action,detail){
   data.audit.unshift({at:Date.now(),action:String(action||"change"),detail:String(detail||""),device:deviceId()});
   data.audit=data.audit.slice(0,200);
 }
-function adoptVault(incoming,reason){
+function adoptVault(incoming,reason,options){
   var checked=validateVault(incoming);
   if(!checked.ok) throw new Error("Backup rejected: "+checked.errors.join(" "));
+  var previousHealth=data&&data.health?JSON.parse(JSON.stringify(data.health)):null;
   if(data && vaultSize(data)) createRecoverySnapshot("Before "+(reason||"data restore"),data);
   data=migrate(incoming);
+  if(options&&options.preserveLocalHealth&&healthHasUserData(previousHealth)) data.health=normalizeHealth(previousHealth);
   applyKeysFromData();
   addAudit("vault-restored",reason||"Cloud/import restore");
   persistSilent();
@@ -405,6 +425,23 @@ function dedupeList(arr){
   return out;
 }
 var data = load();
+function vaultCopyForExport(){
+  var copy=JSON.parse(JSON.stringify(data));
+  delete copy.keys;
+  return copy;
+}
+function vaultCopyForCloud(){
+  var copy=vaultCopyForExport();
+  if(!healthCloudSyncEnabled()) delete copy.health;
+  copy.cloudPrivacy={apiKeysExcluded:true,healthIncluded:healthCloudSyncEnabled()};
+  return copy;
+}
+function cloudVaultJson(){return JSON.stringify(vaultCopyForCloud());}
+function cloudNeedsPrivacyScrub(incoming){
+  if(!incoming||typeof incoming!=="object")return false;
+  if(incoming.keys&&Object.keys(incoming.keys).length)return true;
+  return !healthCloudSyncEnabled()&&Object.prototype.hasOwnProperty.call(incoming,"health");
+}
 function vaultFingerprint(d){
   return ["rentals","rentalHistory","playing","queue","played","movieWatchlist","watchingMovies","watchedMovies","seriesWatchlist","watchingSeries","watchedSeries","biglyHistory"].map(function(k){ return k+":"+((d[k]||[]).length); }).join(", ")+", health:"+((((d.health||{}).foodLog)||[]).length);
 }
@@ -429,58 +466,42 @@ function persistSilent(){
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
 }
 
-/* ---------- synced API keys (RAWG / TMDB / OMDb) ----------
-   Keys live in data.keys and ride the cloud backup to every device, so after a
-   Google sign-in (or a cache wipe + re-sign-in) they restore automatically.
-   The device-local getKey()/tmdbKey()/omdbKey() still read localStorage; these
-   helpers keep localStorage and data.keys in step. JSONBin's Master Key is
-   deliberately NOT synced (it's the one sensitive credential). */
+/* ---------- device-local API keys (RAWG / TMDB / OMDb) ----------
+   API keys stay in localStorage and are excluded from Drive, JSONBin and
+   portable backups. Legacy cloud backups may still contain data.keys; the
+   helpers below import those values once on the current device, then scrub
+   them from the next cloud upload. */
 var SYNCED_KEYS={rawg:KEY_STORE, tmdb:"ps5-tmdb-key", omdb:"ps5-omdb-key"};
 function setSyncedKey(which, val){
   var s=SYNCED_KEYS[which]; if(!s) return;
   try{ localStorage.setItem(s, val); }catch(e){}
-  if(!data.keys) data.keys={};
-  data.keys[which]=val;
-  persist(); // a real change → pushes to the cloud with the rest of the vault
+  data.keys={};
+  persistSilent();
 }
-/* cloud → local: write synced keys into localStorage (after a pull / on load) */
+/* legacy cloud/local vault → device-local storage */
 function applyKeysFromData(){
   var k=data.keys; if(!k) return;
+  var hadLegacyKeys=Object.keys(k).length>0;
   for(var w in SYNCED_KEYS){
-    if(typeof k[w]==="string" && k[w]){ try{ localStorage.setItem(SYNCED_KEYS[w], k[w]); }catch(e){} }
+    var local="";try{local=localStorage.getItem(SYNCED_KEYS[w])||"";}catch(e){}
+    if(!local&&typeof k[w]==="string"&&k[w]){try{localStorage.setItem(SYNCED_KEYS[w],k[w]);}catch(e){}}
   }
+  data.keys={};
+  if(hadLegacyKeys)persistSilent();
 }
-/* local → cloud: fold any pre-existing local keys into data.keys (no timestamp
-   bump) so they ride along on the next normal sync push */
 function backfillKeysToData(){
-  if(!data.keys) data.keys={};
-  var changed=false;
-  for(var w in SYNCED_KEYS){
-    var local=""; try{ local=localStorage.getItem(SYNCED_KEYS[w])||""; }catch(e){}
-    if(local && !data.keys[w]){ data.keys[w]=local; changed=true; }
-  }
-  if(changed) persistSilent();
+  if(data.keys&&Object.keys(data.keys).length){data.keys={};persistSilent();}
 }
-/* Bidirectional key merge run on every cloud sync — self-healing:
-   this device adopts any key the cloud has that it lacks, and flags a push
-   for any key it holds that the cloud is missing. Returns {changed, push}. */
+/* Import keys from a legacy cloud backup once, then request a sanitized push. */
 function reconcileKeys(cloudData){
   var ck=(cloudData&&cloudData.keys)||{};
-  if(!data.keys) data.keys={};
-  var res={changed:false, push:false};
+  var res={changed:false,push:false};
   for(var w in SYNCED_KEYS){
     var local=""; try{ local=localStorage.getItem(SYNCED_KEYS[w])||""; }catch(e){}
-    var mine=data.keys[w]||local||"";
     var cloud=ck[w]||"";
-    if(!mine && cloud){                       // cloud has it, we don't → adopt
-      try{ localStorage.setItem(SYNCED_KEYS[w], cloud); }catch(e){}
-      data.keys[w]=cloud; res.changed=true;
-    } else if(mine){                          // we have it → keep, and push if cloud lacks/differs
-      if(local!==mine){ try{ localStorage.setItem(SYNCED_KEYS[w], mine); }catch(e){} res.changed=true; }
-      data.keys[w]=mine;
-      if(mine!==cloud) res.push=true;
-    }
+    if(cloud){res.push=true;if(!local){try{localStorage.setItem(SYNCED_KEYS[w],cloud);}catch(e){}res.changed=true;}}
   }
+  data.keys={};
   return res;
 }
 
@@ -545,7 +566,7 @@ function jbPushCloud(){
   var url=isNew?"https://api.jsonbin.io/v3/b":"https://api.jsonbin.io/v3/b/"+jb.bin;
   var headers={ "Content-Type":"application/json", "X-Master-Key":jb.key };
   if(isNew){ headers["X-Bin-Private"]="true"; headers["X-Bin-Name"]="game-vault"; }
-  fetch(url,{ method:isNew?"POST":"PUT", headers:headers, body:JSON.stringify(data) })
+  fetch(url,{ method:isNew?"POST":"PUT", headers:headers, body:cloudVaultJson() })
   .then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return res.json(); })
   .then(function(json){
     if(isNew && json.metadata && json.metadata.id){
@@ -574,7 +595,10 @@ function jbPullCloud(confirmed){
   .then(function(json){
     var d=json.record;
     if(d&&d.rentals&&d.upcoming&&d.played){
-      adoptVault(d,"JSONBin manual pull"); busy=false; lastSyncedAt=data.updatedAt; render(); flash("Pulled from cloud - this device is up to date");
+      var scrub=cloudNeedsPrivacyScrub(d);
+      adoptVault(d,"JSONBin manual pull",{preserveLocalHealth:!healthCloudSyncEnabled()}); busy=false; lastSyncedAt=data.updatedAt; render();
+      if(scrub)persist();
+      flash("Pulled from cloud - this device is up to date");
     } else { busy=false; flash("Cloud data doesn't look like a Game Vault backup"); }
   })
   .catch(function(err){ busy=false; flash("Pull failed — check internet, Master Key and Bin ID"); });
@@ -620,7 +644,7 @@ function jbSilentPush(keepalive){
   var url=isNew?"https://api.jsonbin.io/v3/b":"https://api.jsonbin.io/v3/b/"+jb.bin;
   var headers={ "Content-Type":"application/json", "X-Master-Key":jb.key };
   if(isNew){ headers["X-Bin-Private"]="true"; headers["X-Bin-Name"]="game-vault"; }
-  var snapshot=JSON.stringify(data);
+  var snapshot=cloudVaultJson();
   fetch(url,{ method:isNew?"POST":"PUT", headers:headers, body:snapshot, keepalive:!!keepalive })
   .then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return res.json(); })
   .then(function(json){
@@ -643,17 +667,21 @@ function jbSilentPullOnLoad(){
     var d=json.record;
     cloudChecked=true;
     if(!d||!d.rentals||!d.upcoming||!d.played){ setSyncStatus(""); return; }
-    var cloudTime=d.updatedAt||0, localTime=data.updatedAt||0;
+    var cloudTime=d.updatedAt||0, localTime=data.updatedAt||0,privacyScrub=cloudNeedsPrivacyScrub(d);
     if(cloudTime>localTime || (vaultSize(data)===0 && vaultSize(d)>0)){
-      adoptVault(d,"JSONBin automatic pull");
+      adoptVault(d,"JSONBin automatic pull",{preserveLocalHealth:!healthCloudSyncEnabled()});
       lastSyncedAt=data.updatedAt;
       render();
       setSyncStatus("Synced from your other device");
       flash("Pulled the newer data from your other device");
       setTimeout(backfillImages,800);
+      if(privacyScrub)persist();
     } else if(localTime>cloudTime){
       lastSyncedAt=cloudTime;
       silentPush(); // this device is ahead, push it up
+    } else if(privacyScrub){
+      lastSyncedAt=cloudTime;
+      silentPush();
     } else {
       lastSyncedAt=cloudTime;
       setSyncStatus("Up to date");
@@ -800,7 +828,7 @@ function gdFind(tok){
 var gdUploadQueue=Promise.resolve();
 function gdUpload(keepalive){
   function runUpload(){
-    var body=JSON.stringify(data),uploadedAt=Number(data.updatedAt)||0;
+    var body=cloudVaultJson(),uploadedAt=Number(data.updatedAt)||0;
     return gdToken().then(function(tok){
       return gdFind(tok).then(function(fid){
         if(fid){
@@ -842,7 +870,7 @@ function gdSetStatus(){
   var t=gdTok();
   if(!t){ el.textContent="Not connected."; if(usage)usage.textContent="GameVault Drive storage: not connected."; out.style.display="none"; inn.style.display=""; return; }
   el.textContent = Date.now()<(t.exp||0)-60000 ? "✓ Connected — auto-sync to Drive is on." : "✓ Connected — session renews on your next tap.";
-  if(usage)usage.textContent="GameVault Drive storage: "+formatStorageBytes(gdStoredBytes||new Blob([JSON.stringify(data)]).size)+(gdStoredFiles?" across "+gdStoredFiles+" backup file"+(gdStoredFiles===1?"":"s"):" estimated current backup");
+  if(usage)usage.textContent="GameVault Drive storage: "+formatStorageBytes(gdStoredBytes||new Blob([cloudVaultJson()]).size)+(gdStoredFiles?" across "+gdStoredFiles+" backup file"+(gdStoredFiles===1?"":"s"):" estimated current backup");
   out.style.display=""; inn.style.display="none";
 }
 function formatStorageBytes(n){n=Math.max(0,Number(n)||0);if(n<1024)return n+" B";if(n<1048576)return (n/1024).toFixed(n<10240?1:0)+" KB";return (n/1048576).toFixed(n<10485760?2:1)+" MB";}
@@ -1004,18 +1032,18 @@ function silentPullOnLoad(){
       cloudChecked=true;
       if(!d){ silentPush(); return; } // no backup file yet — seed Drive from this device
       if(!d.rentals||!d.upcoming||!d.played){ setSyncStatus(""); return; }
-      var cloudTime=d.updatedAt||0, localTime=data.updatedAt||0;
+      var cloudTime=d.updatedAt||0, localTime=data.updatedAt||0,privacyScrub=cloudNeedsPrivacyScrub(d);
       // empty-vault guard: whatever the timestamps say, a device holding no
       // games must adopt a cloud copy that has them — never the reverse
       var mustAdopt = vaultSize(data)===0 && vaultSize(d)>0;
       if(cloudTime>localTime || mustAdopt){
-        adoptVault(d,"Google Drive automatic pull"); var rkA=reconcileKeys(d);
+        adoptVault(d,"Google Drive automatic pull",{preserveLocalHealth:!healthCloudSyncEnabled()}); var rkA=reconcileKeys(d);
         lastSyncedAt=data.updatedAt;
         render();
         setSyncStatus("Synced from Google Drive");
         flash("Pulled the newer data from Google Drive");
         setTimeout(backfillImages,800);
-        if(rkA.push) persist(); // we hold keys the cloud lacked → push them up
+        if(rkA.push||privacyScrub) persist(); // scrub legacy sensitive fields from the cloud copy
       } else if(localTime>cloudTime){
         lastSyncedAt=cloudTime;
         reconcileKeys(d);
@@ -1024,7 +1052,7 @@ function silentPullOnLoad(){
         lastSyncedAt=cloudTime;
         var rkC=reconcileKeys(d);
         if(rkC.changed) render();           // a key arrived from the cloud → reflect it
-        if(rkC.push){ persist(); setSyncStatus("Synced keys to Drive"); }
+        if(rkC.push||privacyScrub){ persist(); setSyncStatus("Refreshing private Drive backup"); }
         else setSyncStatus("Up to date");
       }
     }).catch(function(){ setSyncStatus("Drive check failed — tap ↻ to retry"); });
@@ -1059,7 +1087,9 @@ function pullCloud(confirmed){
     }
     gdDownload().then(function(d){
       if(d && d.rentals && d.upcoming && d.played){
-        adoptVault(d,"Google Drive manual pull"); lastSyncedAt=data.updatedAt; render();
+        var scrub=cloudNeedsPrivacyScrub(d);
+        adoptVault(d,"Google Drive manual pull",{preserveLocalHealth:!healthCloudSyncEnabled()}); lastSyncedAt=data.updatedAt; render();
+        if(scrub)persist();
         flash("Pulled from Google Drive — this device is up to date");
       } else flash(d ? "Drive data doesn't look like a Game Vault backup" : "No backup in Drive yet — push first");
     }).catch(function(e){ flash("Drive pull failed — "+e.message); });
@@ -3490,13 +3520,26 @@ function healthProgress(label,value,target,lowerIsBetter){
   return '<div class="health-progress '+(ok?'good':'pending')+'"><div><strong>'+esc(label)+'</strong><span>'+value+' / '+target+(lowerIsBetter?' max':'')+'</span></div><div class="health-track"><i style="width:'+Math.round(pct)+'%"></i></div></div>';
 }
 function healthMetric(label,value,unit,tone,detail){return '<div class="health-metric '+tone+'"><span>'+esc(label)+'</span><strong>'+esc(String(value))+' <small>'+esc(unit||"")+'</small></strong><p>'+esc(detail||"")+'</p></div>';}
+function healthMetricValue(value,decimals){return value==null||value===""?"-":Number(value).toFixed(decimals||0).replace(/\.0$/,"");}
+function healthMetricTone(kind,value){
+  if(value==null||value===""||!Number.isFinite(Number(value)))return "pending";
+  return "pending";
+}
+function healthMetricDetail(kind,value){
+  if(value==null||value==="")return "No result saved yet";
+  return "Compare with the reference range on your lab report";
+}
 function renderHealthOverview(){
   var s=healthWeekSummary(),t=data.health.targets,last=data.health.labs.slice().sort(function(a,b){return (b.date||"").localeCompare(a.date||"");})[0]||{};
-  return '<div class="health-intro"><div><span class="health-eyebrow">REPORT BASELINE · 11 JUL 2026</span><h3>Heart health is the current priority</h3><p>Your glucose, liver, kidney and thyroid markers in this report are broadly within the listed laboratory ranges. The lipid profile and eosinophil count deserve follow-up.</p></div><div class="health-privacy">Private: stored with your vault and synced through your configured Google Drive backup.</div></div>'+
-    '<div class="health-metrics">'+healthMetric("LDL cholesterol",last.ldl||145.4,"mg/dL","warn","Borderline high on the report")+healthMetric("Triglycerides",last.triglycerides||193,"mg/dL","warn","Borderline high on the report")+healthMetric("HDL cholesterol",last.hdl||27,"mg/dL","danger","Below the report reference of 40")+healthMetric("HbA1c",last.hba1c||5.3,"%","good","Within the non-diabetic range")+'</div>'+
+  var hasLabs=!!last.date;
+  var privacy=healthCloudSyncEnabled()?"Health cloud sync is enabled. Use an encrypted export for password-protected sharing.":"Health records are local-only on this device. Cloud health sync is off.";
+  var review=data.health.doctorNotes||"Review personal targets and any abnormal or changing results with a qualified clinician.";
+  if(last.eosinophilsAbs!=null)review+=" Latest absolute eosinophils: "+last.eosinophilsAbs+" cells/µL.";
+  return '<div class="health-intro"><div><span class="health-eyebrow">'+(hasLabs?("LATEST LABS · "+esc(fmt(last.date)).toUpperCase()):"PRIVATE HEALTH TRACKER")+'</span><h3>'+(hasLabs?"Health overview":"Add your first lab baseline")+'</h3><p>'+(hasLabs?"Your latest saved lab values and weekly habits are shown below. Trends are more useful than a single result.":"Add results in Lab Trends to create a private baseline, then compare future reports over time.")+'</p></div><div class="health-privacy">'+esc(privacy)+'</div></div>'+
+    '<div class="health-metrics">'+healthMetric("LDL cholesterol",healthMetricValue(last.ldl,1),"mg/dL",healthMetricTone("ldl",last.ldl),healthMetricDetail("ldl",last.ldl))+healthMetric("Triglycerides",healthMetricValue(last.triglycerides,1),"mg/dL",healthMetricTone("triglycerides",last.triglycerides),healthMetricDetail("triglycerides",last.triglycerides))+healthMetric("HDL cholesterol",healthMetricValue(last.hdl,1),"mg/dL",healthMetricTone("hdl",last.hdl),healthMetricDetail("hdl",last.hdl))+healthMetric("HbA1c",healthMetricValue(last.hba1c,1),"%",healthMetricTone("hba1c",last.hba1c),healthMetricDetail("hba1c",last.hba1c))+'</div>'+
     '<div class="health-layout"><section class="health-panel"><div class="health-section-head"><div><span>THIS WEEK</span><h3>Food balance</h3></div><button class="btn" data-act="health-open-food">Log today</button></div><div class="health-versus"><div><strong>'+s.plantMeals+'</strong><span>Vegetarian meals</span></div><b>vs</b><div><strong>'+s.nonVegMeals+'</strong><span>Non-veg meals</span></div></div>'+healthProgress("Plant-based meals",s.plantMeals,t.plantMeals,false)+healthProgress("Fish meals",s.fishMeals,t.fishMeals,false)+healthProgress("Red / processed meat",s.redMeatMeals,t.redMeatMeals,true)+healthProgress("Fried / takeaway",s.friedMeals,t.friedMeals,true)+'</section>'+
     '<section class="health-panel"><div class="health-section-head"><div><span>WEEKLY MOVEMENT</span><h3>Activity & recovery</h3></div></div>'+healthProgress("Moderate activity",s.activityMinutes,t.activityMinutes,false)+healthProgress("Strength days",s.strengthDays,t.strengthDays,false)+'<div class="health-callout"><strong>'+(s.sleepAverage?s.sleepAverage.toFixed(1)+" h":"Not logged")+'</strong><span>Average sleep on logged days</span></div></section></div>'+
-    '<section class="health-panel health-review"><div><span>CLINICIAN REVIEW</span><h3>Do not manage the eosinophil result with food changes alone</h3><p>Absolute eosinophils were <b>912 cells/µL</b> (11.4%). Discuss allergies, asthma, skin symptoms, medicines and infection or travel history with a qualified clinician, who can decide whether repeat testing or evaluation is needed.</p></div><button class="btn" data-act="health-open-labs">View report values</button></section>'+healthDisclaimer();
+    '<section class="health-panel health-review"><div><span>CLINICIAN REVIEW</span><h3>Use saved results as a discussion aid</h3><p>'+esc(review)+'</p></div><button class="btn" data-act="health-open-labs">'+(hasLabs?"View lab values":"Add lab values")+'</button></section>'+healthDisclaimer();
 }
 function healthCounter(field,label,hint){
   var d=healthDay(localISO(today()),false),value=Number(d[field])||0;
@@ -3512,8 +3555,13 @@ function renderHealthFood(){
 }
 function renderHealthLabs(){
   var labs=data.health.labs.slice().sort(function(a,b){return (b.date||"").localeCompare(a.date||"");});
-  var rows=labs.map(function(x){var baseline=x.date==="2026-07-11";return '<tr><td>'+fmt(x.date)+'</td><td>'+healthLabValue(x.totalCholesterol)+'</td><td>'+healthLabValue(x.ldl)+'</td><td>'+healthLabValue(x.hdl)+'</td><td>'+healthLabValue(x.triglycerides)+'</td><td>'+healthLabValue(x.hba1c)+'</td><td>'+healthLabValue(x.eosinophilsAbs)+'</td><td>'+(baseline?'<span class="health-baseline">Baseline</span>':'<button class="iconbtn health-delete-lab" data-act="health-delete-lab" data-date="'+esc(x.date)+'" aria-label="Delete lab entry">&times;</button>')+'</td></tr>';}).join("");
-  return '<section class="health-panel"><div class="health-section-head"><div><span>FOLLOW-UP RESULTS</span><h3>Add a new blood test</h3></div></div><div class="health-lab-form"><label>Date<input id="healthLabDate" type="date" value="'+localISO(today())+'"></label><label>Total cholesterol<input id="healthLabTotal" type="number" step="0.1" placeholder="mg/dL"></label><label>LDL<input id="healthLabLdl" type="number" step="0.1" placeholder="mg/dL"></label><label>HDL<input id="healthLabHdl" type="number" step="0.1" placeholder="mg/dL"></label><label>Triglycerides<input id="healthLabTg" type="number" step="0.1" placeholder="mg/dL"></label><label>HbA1c<input id="healthLabA1c" type="number" step="0.1" placeholder="%"></label><label>Fasting glucose<input id="healthLabGlucose" type="number" step="0.1" placeholder="mg/dL"></label><label>Absolute eosinophils<input id="healthLabEos" type="number" step="1" placeholder="cells/µL"></label><button class="btn blue" data-act="health-save-lab">Add result</button></div></section><section class="health-panel health-table-wrap"><table class="health-table health-lab-table"><thead><tr><th>Date</th><th>Total</th><th>LDL</th><th>HDL</th><th>TG</th><th>HbA1c</th><th>Eosinophils</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></section><div class="health-note"><strong>July 2026 baseline:</strong> fasting glucose 86.8 mg/dL; HbA1c 5.3%; total cholesterol 211; LDL 145.4; HDL 27; triglycerides 193; absolute eosinophils 912 cells/µL. Post-meal glucose was pending in the supplied report.</div>'+healthDisclaimer();
+  var oldest=labs.slice().sort(function(a,b){return (a.date||"").localeCompare(b.date||"");})[0]||{};
+  var rows=labs.map(function(x){var baseline=x.date===oldest.date;return '<tr><td>'+fmt(x.date)+'</td><td>'+healthLabValue(x.totalCholesterol)+'</td><td>'+healthLabValue(x.ldl)+'</td><td>'+healthLabValue(x.hdl)+'</td><td>'+healthLabValue(x.triglycerides)+'</td><td>'+healthLabValue(x.hba1c)+'</td><td>'+healthLabValue(x.eosinophilsAbs)+'</td><td>'+(baseline?'<span class="health-baseline">Baseline</span>':'')+'<button class="iconbtn health-delete-lab" data-act="health-delete-lab" data-date="'+esc(x.date)+'" aria-label="Delete lab entry">&times;</button></td></tr>';}).join("");
+  if(!rows)rows='<tr><td colspan="8">No lab results saved yet.</td></tr>';
+  var baselineParts=[];
+  [["Fasting glucose",oldest.fastingGlucose,"mg/dL"],["HbA1c",oldest.hba1c,"%"],["Total cholesterol",oldest.totalCholesterol,"mg/dL"],["LDL",oldest.ldl,"mg/dL"],["HDL",oldest.hdl,"mg/dL"],["Triglycerides",oldest.triglycerides,"mg/dL"],["Absolute eosinophils",oldest.eosinophilsAbs,"cells/µL"]].forEach(function(x){if(x[1]!=null&&x[1]!=="")baselineParts.push(x[0]+" "+x[1]+" "+x[2]);});
+  var baselineNote=oldest.date?'<div class="health-note"><strong>Baseline · '+esc(fmt(oldest.date))+':</strong> '+esc(baselineParts.join("; ")||"No numeric values saved.")+'</div>':'<div class="health-note">Add the first result to establish a private baseline for future comparisons.</div>';
+  return '<section class="health-panel"><div class="health-section-head"><div><span>FOLLOW-UP RESULTS</span><h3>Add a new blood test</h3></div></div><div class="health-lab-form"><label>Date<input id="healthLabDate" type="date" value="'+localISO(today())+'"></label><label>Total cholesterol<input id="healthLabTotal" type="number" step="0.1" placeholder="mg/dL"></label><label>LDL<input id="healthLabLdl" type="number" step="0.1" placeholder="mg/dL"></label><label>HDL<input id="healthLabHdl" type="number" step="0.1" placeholder="mg/dL"></label><label>Triglycerides<input id="healthLabTg" type="number" step="0.1" placeholder="mg/dL"></label><label>HbA1c<input id="healthLabA1c" type="number" step="0.1" placeholder="%"></label><label>Fasting glucose<input id="healthLabGlucose" type="number" step="0.1" placeholder="mg/dL"></label><label>Absolute eosinophils<input id="healthLabEos" type="number" step="1" placeholder="cells/µL"></label><button class="btn blue" data-act="health-save-lab">Add result</button></div></section><section class="health-panel health-table-wrap"><table class="health-table health-lab-table"><thead><tr><th>Date</th><th>Total</th><th>LDL</th><th>HDL</th><th>TG</th><th>HbA1c</th><th>Eosinophils</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></section>'+baselineNote+healthDisclaimer();
 }
 function healthLabValue(v){return v==null||v===""?"-":esc(String(v));}
 function healthDisclaimer(){return '<p class="health-disclaimer">This tracker supports habit tracking and is not a diagnosis or treatment plan. Review abnormal results and personal targets with a doctor or registered dietitian.</p>';}
@@ -5701,6 +5749,7 @@ function toggleSettings(force){
     document.getElementById("jbKeyInput").value=jb.key;
     document.getElementById("jbBinInput").value=jb.bin;
     var densityInput=document.getElementById("densityInput"); if(densityInput) densityInput.value=uiDensity;
+    var healthCloudInput=document.getElementById("healthCloudInput"); if(healthCloudInput) healthCloudInput.checked=healthCloudSyncEnabled();
     refreshRecoveryUi();
   }
   if(desktopMode()){
@@ -5770,7 +5819,7 @@ document.getElementById("saveKeyBtn").addEventListener("click",function(){
   var v=document.getElementById("apiKeyInput").value.trim();
   setSyncedKey("rawg", v);
   toggleSettings(false);
-  flash(v?"API key saved & synced — covers, scores and refresh are live now":"API key cleared");
+  flash(v?"API key saved on this device — covers, scores and refresh are live now":"API key cleared");
   render();
   if(v) setTimeout(backfillImages,600);
 });
@@ -5816,7 +5865,7 @@ document.getElementById("saveFilmKeysBtn").addEventListener("click",function(){
   filmCache={}; saveFilmCache(); // force a fresh pull with the new keys
   seriesCache={}; saveSeriesCache();
   toggleSettings(false);
-  flash(tmdbKey()?"Film keys saved & synced — open the Films section":"Film keys cleared");
+  flash(tmdbKey()?"Film keys saved on this device — open Movies or TV Shows":"Film keys cleared");
   if(section==="films"){ render(); ensureFilms(filmTab); }
   if(section==="series"){ render(); ensureSeries(seriesTab); }
 });
@@ -5869,6 +5918,14 @@ if(densityInput) densityInput.addEventListener("change",function(){
   try{ localStorage.setItem(DENSITY_KEY,uiDensity); }catch(e){}
   applyDensity(); render(); flash(uiDensity==="compact"?"Compact layout enabled":"Comfortable layout enabled");
 });
+var healthCloudInput=document.getElementById("healthCloudInput");
+if(healthCloudInput) healthCloudInput.addEventListener("change",function(){
+  setHealthCloudSyncEnabled(this.checked);
+  if(cloudMode()) silentPush();
+  refreshRecoveryUi();
+  render();
+  flash(this.checked?"Health records will be included in cloud sync":"Health records are now local-only; the next sync removes them from the cloud backup");
+});
 
 document.getElementById("content").addEventListener("click",function(e){
   var vc=e.target.closest("[data-vendor]");
@@ -5919,7 +5976,7 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="health-save-day"){healthSaveDay();return;}
   if(act==="health-save-lab"){healthSaveLab();return;}
   if(act==="health-delete-lab"){
-    var labDate=b.getAttribute("data-date");if(labDate==="2026-07-11"){flash("The report baseline is protected");return;}data.health.labs=data.health.labs.filter(function(x){return x.date!==labDate;});save();flash("Lab entry removed");return;
+    var labDate=b.getAttribute("data-date");data.health.labs=data.health.labs.filter(function(x){return x.date!==labDate;});save();flash("Lab entry removed");return;
   }
   if(act==="health-save-targets"){
     [].forEach.call(document.querySelectorAll("[data-health-target]"),function(el){data.health.targets[el.getAttribute("data-health-target")]=Math.max(0,Number(el.value)||0);});
@@ -7270,7 +7327,7 @@ function backupKey(password,salt){
 function encryptVault(password){
   var salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
   return backupKey(password,salt).then(function(key){
-    return crypto.subtle.encrypt({name:"AES-GCM",iv:iv},key,new TextEncoder().encode(JSON.stringify(data)));
+    return crypto.subtle.encrypt({name:"AES-GCM",iv:iv},key,new TextEncoder().encode(JSON.stringify(vaultCopyForExport())));
   }).then(function(cipher){ return {format:"gamevault-encrypted-v1",createdAt:new Date().toISOString(),salt:bytesToB64(salt),iv:bytesToB64(iv),data:bytesToB64(new Uint8Array(cipher))}; });
 }
 function decryptVault(envelope,password){
@@ -7306,10 +7363,24 @@ function exportDiagnostics(){
 }
 document.getElementById("exportBtn").addEventListener("click",function(){
   createRecoverySnapshot("Before manual export",data);
-  downloadBlob(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),"game-vault-backup-"+localISO()+".json");
+  downloadBlob(new Blob([JSON.stringify(vaultCopyForExport(),null,2)],{type:"application/json"}),"game-vault-backup-"+localISO()+".json");
   if(cloudMode()==="drive"){ silentPush(); flash("Backup downloaded — Google Drive copy refreshed too"); }
   flash("Backup downloaded");
 });
+function shareGameVault(){
+  var payload={title:"Sinu Game Vault",text:"My private dashboard for games, movies, TV shows, Plex and personal tracking.",url:"https://sinuksml.github.io/gamevault/"};
+  setMenuOpen(false);
+  if(navigator.share){
+    navigator.share(payload).catch(function(e){if(e&&e.name!=="AbortError")flash("Could not open the share menu");});
+    return;
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(payload.url).then(function(){flash("GameVault link copied");}).catch(function(){flash("Share link: "+payload.url);});
+    return;
+  }
+  flash("Share link: "+payload.url);
+}
+document.getElementById("shareBtn").addEventListener("click",shareGameVault);
 document.getElementById("importBtn").addEventListener("click",function(){ document.getElementById("importFile").click(); });
 document.getElementById("importFile").addEventListener("change",function(e){
   var f=e.target.files[0]; if(!f) return;
@@ -7611,8 +7682,8 @@ window.addEventListener("pageshow",function(e){
   if(e.persisted){ plotPending={}; render(); }
 });
 
-applyKeysFromData();     // synced keys (from the cached vault) → localStorage
-backfillKeysToData();    // any pre-existing local keys → data.keys for future sync
+applyKeysFromData();     // migrate legacy cached keys into device-local storage
+backfillKeysToData();    // scrub any remaining key material from the vault object
 if("serviceWorker" in navigator && location.protocol.indexOf("http")===0){
   navigator.serviceWorker.register("sw.js?v="+APP_VERSION,{updateViaCache:"none"}).then(function(reg){
     function offerUpdate(worker){

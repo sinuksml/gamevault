@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.15.0 - 2026-07-16
+
+- Made RAWG, TMDB and OMDb keys device-only and excluded them from cloud and portable backups.
+- Made health-record cloud sync explicit opt-in while preserving local health data during cloud pulls.
+- Removed personal lab values from the application source and made the Health dashboard data-driven.
+- Added native sharing with a clipboard fallback and improved social/search metadata.
+- Restored the safe service-worker update flow so new versions wait for user approval.
+- Added version-aware smoke checks and an automated GitHub Actions quality workflow.
+
 ## v1.2.3 - 2026-07-13
 
 - Disabled accidental pinch, double-touch, and gesture zoom on iPhone.

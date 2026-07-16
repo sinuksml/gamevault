@@ -1,0 +1,9 @@
+{
+  "name": "sinu-game-vault",
+  "version": "1.15.0",
+  "private": true,
+  "scripts": {
+    "test": "node tests/smoke.mjs",
+    "test:smoke": "node tests/smoke.mjs"
+  }
+}

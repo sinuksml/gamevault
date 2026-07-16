@@ -8,10 +8,21 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Sinu Game Vault">
 <meta name="theme-color" content="#0A0D13">
+<meta name="color-scheme" content="dark light">
+<meta name="description" content="A private personal dashboard for games, movies, TV shows, Plex, BiglyBT, health tracking and cloud backup.">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Sinu Game Vault">
+<meta property="og:description" content="Games, movies, TV shows, Plex, downloads and personal tracking in one private dashboard.">
+<meta property="og:url" content="https://sinuksml.github.io/gamevault/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Sinu Game Vault">
+<meta name="twitter:description" content="Games, movies, TV shows, Plex, downloads and personal tracking in one private dashboard.">
+<link rel="canonical" href="https://sinuksml.github.io/gamevault/">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Sinu Game Vault — PS5 Tracker</title>
-<link rel="stylesheet" href="app.css?v=1.14.1">
+<link rel="stylesheet" href="app.css?v=1.15.0">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -61,6 +72,7 @@
     <button class="btn" id="pullBtn">&#8659; Pull from cloud</button>
     <button class="btn" id="exportBtn">Export backup</button>
     <button class="btn" id="importBtn">Restore backup</button>
+    <button class="btn" id="shareBtn">Share GameVault</button>
     <button class="btn" id="settingsBtn">Settings</button>
     <input type="file" id="importFile" accept=".json" style="display:none">
   </div>
@@ -68,7 +80,7 @@
     <div class="settings-mobile-head"><div><span>GAMEVAULT</span><h2>Settings</h2></div><button class="detail-close settings-close" id="settingsCloseBtn" aria-label="Close Settings" title="Close Settings">&times;</button></div>
     <details class="settings-group" open>
     <summary>Google Drive sync</summary>
-    <p><b style="color:var(--text)">Google Drive sync (primary).</b> For Google Drive backup, click <b>Sign in with Google</b> below. Your data syncs automatically to a file in your Drive called <b>game-vault-backup.json</b>. If you clear your browser cache, just sign back in with the same Google account and your data reappears. Every change uploads a couple of seconds after you make it, and the app pulls the newest copy whenever it opens. One-time setup: open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">console.cloud.google.com</a> &rarr; create a project &rarr; enable the <b>Google Drive API</b> &rarr; configure the OAuth consent screen (External, then <b>Publish</b>) &rarr; Create Credentials &rarr; <b>OAuth client ID</b> &rarr; Web application &rarr; add <b>https://sinuksml.github.io</b> under Authorized JavaScript origins &rarr; copy the Client ID below. Then press Sign in with Google on each device &mdash; same Google account, same data everywhere. If you ever clear the cache, just sign in again and the app finds your file.</p>
+    <p><b style="color:var(--text)">Google Drive sync (primary).</b> For Google Drive backup, click <b>Sign in with Google</b> below. Your library syncs automatically to <b>game-vault-backup.json</b>. API keys always stay on this device, and health records stay local unless you explicitly enable health sync under System, recovery &amp; diagnostics. One-time setup: open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">console.cloud.google.com</a> &rarr; create a project &rarr; enable the <b>Google Drive API</b> &rarr; configure the OAuth consent screen (External, then <b>Publish</b>) &rarr; Create Credentials &rarr; <b>OAuth client ID</b> &rarr; Web application &rarr; add <b>https://sinuksml.github.io</b> under Authorized JavaScript origins &rarr; copy the Client ID below.</p>
     <div class="fields">
       <input class="f-name" id="gdClientInput" placeholder="Google OAuth Client ID (…apps.googleusercontent.com)" autocomplete="off">
       <button class="btn blue" id="gdSaveBtn">Save Client ID</button>
@@ -147,6 +159,10 @@
         <label class="setting-control">Interface density
           <select class="f-sm" id="densityInput"><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select>
         </label>
+        <label class="setting-control privacy-control">
+          <input id="healthCloudInput" type="checkbox">
+          Sync health records to cloud
+        </label>
         <div class="tv-settings-zoom tv-only" aria-label="TV display size">
           <span>TV display size</span>
           <button class="btn" id="tvSettingsZoomOutBtn" type="button">Smaller</button>
@@ -159,6 +175,7 @@
         <button class="btn" id="encryptedExportBtn">Encrypted backup</button>
         <button class="btn" id="diagnosticsBtn">Export diagnostics</button>
       </div>
+      <p class="syncnote privacy-note">Health sync is off by default. If enabled, health records are included in your normal Drive or JSONBin backup. Use Encrypted backup for a password-protected portable copy.</p>
       <div class="recent-activity" id="recentActivity"></div>
       <p class="syncnote">GameVault keeps up to eight local recovery points and up to five daily Drive history copies. Diagnostics never include passwords, OAuth tokens, Plex tokens, or API keys.</p>
     </details>
@@ -189,5 +206,5 @@
   </div>
 </div>
 
-<script src="app.js?v=1.14.1"></script></body>
+<script src="app.js?v=1.15.0"></script></body>
 </html>

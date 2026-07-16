@@ -1,4 +1,4 @@
-const CACHE_NAME = "gamevault-shell-v40";
+const CACHE_NAME = "gamevault-shell-v41";
 const IMAGE_CACHE = "gamevault-images-v1";
 const APP_SHELL = [
   "./",
@@ -11,7 +11,7 @@ const APP_SHELL = [
 
 self.addEventListener("install", event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL))
   );
 });
 

@@ -498,6 +498,9 @@ html.light{
 .viewbar{margin:-2px 0 12px}
 .setting-control{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11px;font-weight:800}
 .setting-control select{min-width:130px}
+.privacy-control{min-height:38px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:var(--inset)}
+.privacy-control input{width:18px;height:18px;accent-color:var(--accent)}
+.privacy-note{flex-basis:100%;margin:8px 0 0}
 .torrent-grid{display:block;margin-top:10px}
 .torrent-card{display:grid;grid-template-columns:minmax(240px,1.6fr) minmax(280px,1fr) auto;align-items:center;gap:12px;margin-bottom:8px;padding:12px 14px}
 .torrent-card .torrent-head{min-width:0;grid-column:1;grid-row:1}.torrent-card .torrent-meter{grid-column:1;grid-row:2}.torrent-card .torrent-meta{grid-column:2;grid-row:1/3}.torrent-card .actions{grid-column:3;grid-row:1/3;border:0;padding:0;margin:0;justify-content:flex-end;max-width:270px}
