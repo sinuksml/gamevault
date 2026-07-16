@@ -1,8 +1,10 @@
 ﻿"use strict";
-var APP_VERSION = "1.13.1";
+var APP_VERSION = "1.13.2";
 var APP_BUILD_DATE = "2026-07-16";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Fixed iPhone updates being held on an older versioned app file by the service-worker cache",
+  "Made online launches check the current GameVault shell before using the offline copy",
   "Made cover artwork mandatory with automatic TMDB recovery and a visible branded fallback",
   "Curated Malayalam, Tamil and Hindi tabs to premium or highly rated scripted TV series only",
   "Removed films, serials and YouTube programmes from regional TV series results",
@@ -7326,12 +7328,13 @@ window.addEventListener("pageshow",function(e){
 applyKeysFromData();     // synced keys (from the cached vault) → localStorage
 backfillKeysToData();    // any pre-existing local keys → data.keys for future sync
 if("serviceWorker" in navigator && location.protocol.indexOf("http")===0){
-  navigator.serviceWorker.register("sw.js").then(function(reg){
+  navigator.serviceWorker.register("sw.js?v="+APP_VERSION,{updateViaCache:"none"}).then(function(reg){
     function offerUpdate(worker){
       if(!worker) return;
       flash("A GameVault update is ready - tap here to install",function(){ worker.postMessage({type:"SKIP_WAITING"}); });
     }
     if(reg.waiting) offerUpdate(reg.waiting);
+    reg.update().catch(function(){});
     reg.addEventListener("updatefound",function(){
       var worker=reg.installing;
       if(worker) worker.addEventListener("statechange",function(){ if(worker.state==="installed" && navigator.serviceWorker.controller) offerUpdate(worker); });

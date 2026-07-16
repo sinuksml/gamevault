@@ -1,4 +1,4 @@
-const CACHE_NAME = "gamevault-shell-v37";
+const CACHE_NAME = "gamevault-shell-v38";
 const IMAGE_CACHE = "gamevault-images-v1";
 const APP_SHELL = [
   "./",
@@ -11,7 +11,7 @@ const APP_SHELL = [
 
 self.addEventListener("install", event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL))
+    caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())
   );
 });
 
@@ -50,7 +50,17 @@ self.addEventListener("fetch", event => {
     return;
   }
   if (url.origin === location.origin) {
-    const cachedPromise = caches.match(req, { ignoreSearch:true });
+    if (req.mode === "navigate") {
+      event.respondWith(
+        fetch(req).then(res => {
+          if (!res.ok) return res;
+          const copy = res.clone();
+          return caches.open(CACHE_NAME).then(cache => cache.put("./index.html", copy)).then(() => res);
+        }).catch(() => caches.match("./index.html"))
+      );
+      return;
+    }
+    const cachedPromise = caches.match(req);
     const networkPromise = fetch(req).then(res => {
       if (res.ok) {
         const copy = res.clone();
