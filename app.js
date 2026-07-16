@@ -1,10 +1,9 @@
 ﻿"use strict";
-var APP_VERSION = "1.14.0";
+var APP_VERSION = "1.14.1";
 var APP_BUILD_DATE = "2026-07-16";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
-  "Added an iPhone Home dashboard and Library hub while keeping Health in the bottom navigation",
-  "Moved Plex and BiglyBT into the iPhone Library hub without changing their PC or TV pages",
+  "Updated iPhone navigation with Plex and BiglyBT on the bottom bar and Health inside Library",
   "Fixed iPhone updates being held on an older versioned app file by the service-worker cache",
   "Made online launches check the current GameVault shell before using the offline copy",
   "Made cover artwork mandatory with automatic TMDB recovery and a visible branded fallback",
@@ -1552,7 +1551,7 @@ function applyBackground(){
   el.setAttribute("data-section",section);
   var hero=document.getElementById("hero");
   var g=null, u="", label="Coming up next", title="", detail="", extra="";
-  if(section==="home"||section==="library"){
+  if(section==="library"){
     g=nextBigFilm()||featuredSeries()||nextBigGame();
     u=g?(g.title?mediaBgUrl(g):coverUrl(g)):"";
   } else if(section==="films"){
@@ -1582,7 +1581,7 @@ function applyBackground(){
   }
   setAppBackground(el,u);
   if(!hero) return;
-  if(section==="home"||section==="library"){hero.className="";hero.innerHTML="";return;}
+  if(section==="library"){hero.className="";hero.innerHTML="";return;}
   if(section==="biglybt"){
     var biglyHead=document.querySelector("#content .sechead");
     if(biglyHead) biglyHead.innerHTML='BiglyBT'+(title?' <span style="color:var(--muted);font-weight:600">· Blu-ray backdrop: '+esc(title)+'</span>':'');
@@ -1970,7 +1969,7 @@ function tabCountHtml(kind,key){
 }
 
 function renderTabs(){
-  if(section==="biglybt"||section==="home"||section==="library"){
+  if(section==="biglybt"||section==="library"){
     document.getElementById("tabs").innerHTML="";
     return;
   }
@@ -3394,10 +3393,8 @@ function renderPageContext(){
   else if(section==="plex"){ parent="Plex Library"; key=plexTab; }
   else if(section==="biglybt"){ parent="BiglyBT"; key="biglybt"; }
   else if(section==="health"){ parent="Health"; key=healthTab; }
-  else if(section==="home"){ parent="GameVault";key="phonehome"; }
   else if(section==="library"){ parent="GameVault";key="phonelibrary"; }
-  if(key==="phonehome"){title="Home";desc="Continue where you stopped and see what needs attention next";}
-  else if(key==="phonelibrary"){title="Library";desc="Plex, BiglyBT, sync, backup and application tools";}
+  if(key==="phonelibrary"){title="Library";desc="Health, sync, backup and application tools";}
   else{
   title=labels[key]||(section==="biglybt"?"BiglyBT":"Library");
   desc=descriptions[key]||(section==="biglybt"?"Downloads, progress, speed and torrent controls":"Your personal media library");
@@ -3428,7 +3425,7 @@ function rememberViewed(kind,id,title,subtab){
 function renderRecentStrip(){
   var el=document.getElementById("recentStrip"); if(!el) return;
   var list=recentViewed();
-  if(!list.length || filmExpanded || seriesExpanded || plexExpanded || expandedId || section==="biglybt" || section==="home" || section==="library"){ el.innerHTML=""; el.style.display="none"; return; }
+  if(!list.length || filmExpanded || seriesExpanded || plexExpanded || expandedId || section==="biglybt" || section==="library"){ el.innerHTML=""; el.style.display="none"; return; }
   el.style.display="flex";
   el.innerHTML='<span class="recent-label">Recent</span>'+list.map(function(x){return '<button class="recent-item" data-act="recent-open" data-kind="'+esc(x.kind)+'" data-id="'+esc(x.id)+'" data-subtab="'+esc(x.tab)+'">'+esc(x.title)+'</button>';}).join("");
 }
@@ -3443,42 +3440,10 @@ function openRecent(kind,id,subtab){
   render(); window.scrollTo(0,0);
 }
 
-function phoneHomeArt(item,kind){
-  if(kind==="game")return gameCoverHero(item);
-  return mediaImage(item.poster,item.title,"");
-}
-function phoneHomeCard(item,kind,subtab,eyebrow){
-  var title=kind==="game"?item.name:item.title;
-  return '<button class="phone-home-card" type="button" data-act="phone-home-title" data-kind="'+kind+'" data-id="'+esc(String(item.id||("name:"+norm(title))))+'" data-subtab="'+esc(subtab||"")+'">'+
-    '<span class="phone-home-art '+(kind==="game"?"landscape":"portrait")+'">'+phoneHomeArt(item,kind)+'</span>'+
-    '<span class="phone-home-copy"><strong>'+esc(title)+'</strong><small>'+esc(eyebrow||"")+'</small></span></button>';
-}
-function phoneShelf(title,items,kind,subtab,metaFn,empty){
-  return '<section class="phone-shelf"><div class="phone-shelf-head"><h3>'+esc(title)+'</h3><span>'+items.length+'</span></div>'+
-    (items.length?'<div class="phone-shelf-row">'+items.slice(0,12).map(function(x){return phoneHomeCard(x,kind,subtab,metaFn?metaFn(x):"");}).join("")+'</div>':'<div class="phone-shelf-empty">'+esc(empty||"Nothing here yet")+'</div>')+'</section>';
-}
-function renderPhoneHome(){
-  var now=today();
-  var due=(data.rentals||[]).slice().map(function(r){var end=parseD(r.start);end.setDate(end.getDate()+Number(r.days||0));return Object.assign({},r,{left:daysBetween(now,end)});}).sort(function(a,b){return a.left-b.left;});
-  var games=(data.playing||[]).concat((data.played||[]).filter(function(x){return x.status==="Playing"||x.status==="Dropped";}));
-  var movies=(data.watchingMovies||[]).slice().sort(newerFirst);
-  var shows=(data.watchingSeries||[]).slice().sort(newerFirst);
-  var upcomingMovies=(((filmCacheEntry("uphw")||{}).items)||[]).slice().sort(function(a,b){return String(a.date||"").localeCompare(String(b.date||""));});
-  var upcomingGames=(data.upcoming||[]).filter(function(x){return x.date&&x.date>=localISO(now);}).sort(function(a,b){return String(a.date).localeCompare(String(b.date));});
-  var sync=cloudMode()==="drive"?(busy?"Syncing":"Drive synced"):cloudMode()==="jsonbin"?"JSONBin sync":"Local only";
-  return '<div class="phone-home"><section class="phone-home-hero"><div><span>GOOD '+(now.getHours()<12?"MORNING":now.getHours()<18?"AFTERNOON":"EVENING")+'</span><h2>Your next titles are ready</h2><p>'+esc(sync)+' · '+vaultSize(data)+' saved items</p></div><button type="button" data-act="phone-sync">&#8635;</button></section>'+
-    phoneShelf("Rentals due soon",due,"game","rentals",function(x){return x.left<0?"Overdue":x.left===0?"Return today":x.left+" days remaining";},"No active rentals")+
-    phoneShelf("Continue playing",games,"game","playing",function(x){return x.status==="Dropped"?"On hold":"In progress";},"No games in progress")+
-    phoneShelf("Continue watching movies",movies,"film","watching",function(x){return mediaRatingLabel(x);},"No movies in progress")+
-    phoneShelf("Continue watching TV",shows,"series","serieswatching",function(x){return x.latestDate?("Latest "+fmt(x.latestDate)):"Watching";},"No TV shows in progress")+
-    phoneShelf("Upcoming movies",upcomingMovies,"film","uphw",function(x){return x.date?fmt(x.date):"Date TBC";},"Refresh Movies to load upcoming releases")+
-    phoneShelf("Upcoming games",upcomingGames,"game","upcoming",function(x){return x.date?fmt(x.date):"Date TBC";},"No upcoming games saved")+'</div>';
-}
 function libraryStatus(ok){return '<span class="phone-library-status '+(ok?"ok":"")+'">'+(ok?"Connected":"Setup needed")+'</span>';}
 function renderPhoneLibrary(){
   return '<div class="phone-library-grid">'+
-    '<button type="button" data-act="phone-library-open" data-section="plex"><span class="phone-library-icon">&#9654;</span><strong>Plex Library</strong><small>Movies, TV shows and playback progress</small>'+libraryStatus(!!(plexServerUrl()&&plexToken()))+'</button>'+
-    '<button type="button" data-act="phone-library-open" data-section="biglybt"><span class="phone-library-icon">&#8681;</span><strong>BiglyBT</strong><small>Downloads, history and torrent controls</small>'+libraryStatus(!!biglyProxyUrl())+'</button>'+
+    '<button type="button" data-act="phone-library-open" data-section="health"><span class="phone-library-icon">&#9829;</span><strong>Health</strong><small>Food, activity, lab trends and weekly progress</small></button>'+
     '<button type="button" data-act="phone-sync"><span class="phone-library-icon">&#8635;</span><strong>Sync now</strong><small>Check Google Drive for the newest vault</small>'+libraryStatus(!!cloudMode())+'</button>'+
     '<button type="button" data-act="phone-settings"><span class="phone-library-icon">&#9881;</span><strong>Settings</strong><small>Services, appearance and recovery</small></button>'+
     '<button type="button" data-act="phone-export"><span class="phone-library-icon">&#8659;</span><strong>Export backup</strong><small>Download a manual JSON backup</small></button>'+
@@ -3873,17 +3838,17 @@ function render(){
     return;
   }
   phoneMenuRegistry={};phoneMenuCounter=0;closePhoneSheet();
-  document.body.classList.toggle("phone-root-section",section==="home"||section==="library");
+  document.body.classList.toggle("phone-root-section",section==="library");
   var detailOpen=!!((section==="games"&&gameView==="grid"&&expandedId)||(section==="films"&&filmExpanded)||(section==="series"&&seriesExpanded)||(section==="plex"&&plexExpanded));
   document.body.classList.toggle("detail-open",detailOpen);
   renderPageContext();
   renderRecentStrip();
   var statsEl=document.getElementById("stats");
   document.body.classList.toggle("bigly-active",section==="biglybt");
-  if(section==="home"||section==="library"){
+  if(section==="library"){
     statsEl.style.display="none";
     renderTabs();
-    document.getElementById("content").innerHTML=section==="home"?renderPhoneHome():renderPhoneLibrary();
+    document.getElementById("content").innerHTML=renderPhoneLibrary();
     applyBackground();
     return;
   }
@@ -3953,9 +3918,9 @@ var section="games", filmTab="watchlist", healthTab="healthoverview", healthWeek
 function phoneUi(){ return !TV_MODE&&window.matchMedia&&window.matchMedia("(max-width:720px)").matches; }
 try{ section=localStorage.getItem(SECTION_KEY)||"games"; }catch(e){}
 var requestedSection=new URLSearchParams(location.search).get("section");
-if(["home","games","films","series","plex","biglybt","health","library"].indexOf(requestedSection)>=0)section=requestedSection;
-if(["home","games","films","series","plex","biglybt","health","library"].indexOf(section)<0)section="games";
-if(!phoneUi()&&(section==="home"||section==="library"))section="games";
+if(["games","films","series","plex","biglybt","health","library"].indexOf(requestedSection)>=0)section=requestedSection;
+if(["games","films","series","plex","biglybt","health","library"].indexOf(section)<0)section="games";
+if(!phoneUi()&&section==="library")section="games";
 var requestedHealthTab=new URLSearchParams(location.search).get("healthTab");
 if(["healthoverview","healthfood","healthlabs"].indexOf(requestedHealthTab)>=0)healthTab=requestedHealthTab;
 try{ filmTab=localStorage.getItem(FILMTAB_KEY)||"watchlist"; }catch(e){}
@@ -5533,7 +5498,7 @@ function switchSection(s){
   else if(section==="plex") tabScroll["plex:"+plexTab]=window.scrollY;
   else if(section==="biglybt") tabScroll.biglybt=window.scrollY;
   else if(section==="health") tabScroll["health:"+healthTab]=window.scrollY;
-  else if(section==="home"||section==="library") tabScroll[section]=window.scrollY;
+  else if(section==="library") tabScroll[section]=window.scrollY;
   else tabScroll[tab]=window.scrollY;
   section=s; try{ localStorage.setItem(SECTION_KEY,s); }catch(e){}
   expandedId=null; filmExpanded=null; seriesExpanded=null; plexExpanded=null;
@@ -5543,7 +5508,7 @@ function switchSection(s){
     if(active) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current");
   });
   render();
-  window.scrollTo(0, section==="films" ? (tabScroll["film:"+filmTab]||0) : section==="series" ? (tabScroll["series:"+seriesTab]||0) : section==="plex" ? (tabScroll["plex:"+plexTab]||0) : section==="biglybt" ? (tabScroll.biglybt||0) : section==="health" ? (tabScroll["health:"+healthTab]||0) : section==="home"||section==="library" ? (tabScroll[section]||0) : (tabScroll[tab]||0));
+  window.scrollTo(0, section==="films" ? (tabScroll["film:"+filmTab]||0) : section==="series" ? (tabScroll["series:"+seriesTab]||0) : section==="plex" ? (tabScroll["plex:"+plexTab]||0) : section==="biglybt" ? (tabScroll.biglybt||0) : section==="health" ? (tabScroll["health:"+healthTab]||0) : section==="library" ? (tabScroll[section]||0) : (tabScroll[tab]||0));
   if(section==="films") ensureFilms(filmTab);
   if(section==="films") scheduleMediaWarmup("films",filmTab);
   if(section==="series"){ ensureSeries(seriesTab); scheduleMediaWarmup("series",seriesTab); }
@@ -5914,18 +5879,6 @@ document.getElementById("content").addEventListener("click",function(e){
   if(gc){ sugGenre=gc.getAttribute("data-genre"); render(); return; }
   var b=e.target.closest("[data-act]"); if(!b) return;
   var act=b.getAttribute("data-act"), id=b.getAttribute("data-id"), nm=b.getAttribute("data-name");
-  if(act==="phone-home-title"){
-    var kind=b.getAttribute("data-kind"),sub=b.getAttribute("data-subtab")||"";
-    if(kind==="film"){
-      switchSection("films");filmTab=sub||"watchlist";filmExpanded=id;try{localStorage.setItem(FILMTAB_KEY,filmTab);}catch(err){}
-      var hm=findMovieAny(id);if(hm)ensurePlot(moviePlotName(hm),"film");
-    }else if(kind==="series"){
-      switchSection("series");seriesTab=sub||"serieswatchlist";seriesExpanded=id;try{localStorage.setItem(SERIESTAB_KEY,seriesTab);}catch(err){}
-    }else{
-      switchSection("games");tab=sub||"playing";expandedId=id;
-    }
-    render();window.scrollTo(0,0);return;
-  }
   if(act==="phone-library-open"){switchSection(b.getAttribute("data-section"));return;}
   if(act==="phone-sync"){setPhoneRefreshing(true);refreshAllData();setTimeout(function(){setPhoneRefreshing(false);},1500);return;}
   if(act==="phone-settings"){toggleSettings(true);return;}
@@ -7417,7 +7370,7 @@ document.getElementById("themeBtn").addEventListener("click",function(){
 
 /* ---------- global refresh ---------- */
 function globalRefresh(){
-  if(phoneUi()&&(section==="home"||section==="library")){
+  if(phoneUi()&&section==="library"){
     setPhoneRefreshing(true);refreshAllData();setTimeout(function(){setPhoneRefreshing(false);},1500);return;
   }
   if(phoneUi())setPhoneRefreshing(true);else flash("Refreshing the current section...");

@@ -1395,27 +1395,6 @@ html.tv body.tv-shell-ready>.toast{position:fixed;z-index:500;right:52px;top:34p
   html:not(.tv) body.phone-header-compact .version-badge-top{display:none}
   html:not(.tv) body.phone-header-compact .tabsticky{top:calc(43px + env(safe-area-inset-top))}
 
-  html:not(.tv) .phone-home{display:grid;gap:6px;padding-bottom:14px}
-  html:not(.tv) .phone-home-hero{min-height:132px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:4px 0 8px;padding:20px;border:1px solid var(--border2);border-radius:18px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 24%,var(--surface-raised)),color-mix(in srgb,var(--surface) 90%,transparent));box-shadow:0 16px 42px rgba(0,0,0,.22)}
-  html:not(.tv) .phone-home-hero span{display:block;color:var(--accent);font-size:9px;font-weight:900;letter-spacing:.14em}
-  html:not(.tv) .phone-home-hero h2{max-width:270px;margin:5px 0 4px;font-size:clamp(23px,7vw,30px);line-height:1.04;letter-spacing:0}
-  html:not(.tv) .phone-home-hero p{color:var(--muted);font-size:11px}
-  html:not(.tv) .phone-home-hero button{width:48px;height:48px;flex:0 0 auto;border:1px solid color-mix(in srgb,var(--accent) 62%,var(--border));border-radius:50%;background:var(--accentbg);color:var(--accenttext);font-size:23px}
-  html:not(.tv) .phone-shelf{min-width:0;margin:7px -12px 5px;padding:0 12px}
-  html:not(.tv) .phone-shelf-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-  html:not(.tv) .phone-shelf-head h3{font-size:17px;letter-spacing:0}
-  html:not(.tv) .phone-shelf-head span{color:var(--muted);font-size:11px}
-  html:not(.tv) .phone-shelf-row{display:flex;gap:11px;overflow-x:auto;padding:2px 2px 10px;scroll-snap-type:x mandatory;scroll-padding:0 12px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-  html:not(.tv) .phone-shelf-row::-webkit-scrollbar{display:none}
-  html:not(.tv) .phone-home-card{width:128px;flex:0 0 128px;scroll-snap-align:start;padding:0;border:0;background:transparent;color:var(--text);text-align:left}
-  html:not(.tv) .phone-home-art{height:192px;display:block;overflow:hidden;border:1px solid var(--border2);border-radius:11px;background:var(--surface);box-shadow:0 8px 22px rgba(0,0,0,.24)}
-  html:not(.tv) .phone-home-art.landscape{height:78px}
-  html:not(.tv) .phone-home-art img{width:100%;height:100%;display:block;object-fit:cover}
-  html:not(.tv) .phone-home-copy{display:block;padding:7px 2px 0}
-  html:not(.tv) .phone-home-copy strong{display:-webkit-box;overflow:hidden;font-size:12.5px;line-height:1.25;-webkit-box-orient:vertical;-webkit-line-clamp:2}
-  html:not(.tv) .phone-home-copy small{display:block;overflow:hidden;margin-top:3px;color:var(--muted);font-size:10px;text-overflow:ellipsis;white-space:nowrap}
-  html:not(.tv) .phone-shelf-empty{padding:18px;border:1px dashed var(--border);border-radius:11px;color:var(--muted);font-size:12px;text-align:center}
-
   html:not(.tv) .phone-library-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:4px 0 18px}
   html:not(.tv) .phone-library-grid>button{position:relative;min-height:160px;display:flex;min-width:0;flex-direction:column;align-items:flex-start;padding:15px;border:1px solid var(--border2);border-radius:15px;background:var(--surface);color:var(--text);text-align:left;box-shadow:0 8px 24px rgba(0,0,0,.16)}
   html:not(.tv) .phone-library-grid>button:active{transform:scale(.98);border-color:var(--accent)}
@@ -1495,14 +1474,11 @@ html.tv body.tv-shell-ready>.toast{position:fixed;z-index:500;right:52px;top:34p
   html:not(.tv) body.phone-root-section .tabsticky{display:none}
   @keyframes phone-spin{to{transform:rotate(360deg)}}
 
-  html.light:not(.tv) .phone-home-hero,html.light:not(.tv) .phone-library-grid>button,html.light:not(.tv) .phone-sheet>section,html.light:not(.tv) .detail-actionbar{border-color:#9fb1c8;box-shadow:0 10px 28px rgba(35,55,86,.14)}
+  html.light:not(.tv) .phone-library-grid>button,html.light:not(.tv) .phone-sheet>section,html.light:not(.tv) .detail-actionbar{border-color:#9fb1c8;box-shadow:0 10px 28px rgba(35,55,86,.14)}
   html.light:not(.tv) .phone-detail-backdrop::after{background:linear-gradient(180deg,rgba(235,241,248,.04),var(--surface-raised) 95%)}
 }
 
 @media (max-width:720px) and (orientation:landscape){
-  html:not(.tv) .phone-home-card{width:150px;flex-basis:150px}
-  html:not(.tv) .phone-home-art{height:225px}
-  html:not(.tv) .phone-home-art.landscape{height:92px}
   html:not(.tv) .phone-library-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
   html:not(.tv) .phone-detail-backdrop{height:62dvh;max-height:none}
 }
