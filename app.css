@@ -1518,3 +1518,13 @@ html.tv body.tv-shell-ready>.toast{position:fixed;z-index:500;right:52px;top:34p
 .shortcuts-head strong{font-size:15px;color:var(--text)}
 .shortcuts-grid{display:grid;grid-template-columns:auto 1fr;gap:9px 16px;align-items:center;font-size:12.5px;color:var(--text2)}
 .shortcuts-grid kbd{display:inline-block;min-width:20px;text-align:center;padding:2px 6px;margin-right:3px;font:600 11px "Segoe UI",system-ui;color:var(--text);background:var(--inset);border:1px solid var(--border2);border-bottom-width:2px;border-radius:5px}
+
+/* ---------- TV OLED protection: idle dim + ambient art ---------- */
+html.tv-dim{filter:brightness(.35);transition:filter 2.5s ease}
+#tvAmbient{position:fixed;inset:0;z-index:400;display:none;background:#000;overflow:hidden}
+#tvAmbient.on{display:block}
+#tvAmbient .amb-art{position:absolute;inset:-4%;background-size:cover;background-position:center 30%;filter:brightness(.5) saturate(1.1);animation:ambFade 1.2s ease, ambDrift 24s ease-in-out infinite alternate}
+#tvAmbient .amb-scrim{position:absolute;inset:0;background:radial-gradient(circle at 50% 55%, transparent 0%, rgba(0,0,0,.6) 100%)}
+#tvAmbient .amb-clock{position:absolute;right:4.5%;bottom:6%;font:600 34px "Segoe UI",system-ui;color:rgba(255,255,255,.45);letter-spacing:.04em}
+@keyframes ambFade{from{opacity:0}to{opacity:1}}
+@keyframes ambDrift{from{transform:scale(1) translate(0,0)}to{transform:scale(1.06) translate(1.4%,-1.4%)}}

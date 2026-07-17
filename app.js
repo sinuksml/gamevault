@@ -7310,6 +7310,7 @@ function tvHandleTvKey(key){
 window.gameVaultTvKey=tvHandleTvKey;
 document.addEventListener("keydown",function(e){
   if(!TV_MODE) return;
+  if(tvAmbientWake()){ e.preventDefault(); e.stopPropagation(); return; } // key only wakes the ambient screen
   if(tvHandleTvKey(e.key)){
     e.preventDefault();
     e.stopPropagation();
@@ -7318,6 +7319,68 @@ document.addEventListener("keydown",function(e){
 document.addEventListener("toggle",function(e){
   if(TV_MODE && e.target && e.target.tagName==="DETAILS") tvAfterRender();
 },true);
+
+/* ---------- OLED protection: idle dim + ambient art (TV only) ----------
+   A 55" OLED showing a static rail/hero for hours risks burn-in. After 3 min
+   without input the whole UI dims; after 6 min a slow poster slideshow with a
+   drifting pan takes over. Any remote key or pointer wakes it — the waking
+   key is swallowed only when the ambient screen was up. */
+var TV_DIM_MS=3*60000, TV_AMBIENT_MS=6*60000, TV_AMBIENT_CYCLE=12000;
+var tvLastInput=Date.now(), tvAmbientOn=false, tvAmbientTimer=null;
+function tvMarkInput(){
+  tvLastInput=Date.now();
+  if(!TV_MODE) return;
+  document.documentElement.classList.remove("tv-dim");
+  if(tvAmbientOn) tvAmbientStop();
+}
+function tvAmbientArt(){
+  var urls=[];
+  function push(u){ if(u && typeof u==="string" && urls.indexOf(u)<0) urls.push(u); }
+  try{
+    for(var k in filmCache){ (((filmCache[k]||{}).items)||[]).forEach(function(m){ push(m.poster); }); }
+    for(var s in seriesCache){ (((seriesCache[s]||{}).items)||[]).forEach(function(m){ push(m.poster); }); }
+    (data.upcoming||[]).forEach(function(g){ push(g.img||(data.covers||{})[norm(g.name)]); });
+    Object.keys(data.covers||{}).slice(0,120).forEach(function(n){ push(data.covers[n]); });
+  }catch(e){}
+  for(var i=urls.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=urls[i]; urls[i]=urls[j]; urls[j]=t; }
+  return urls.slice(0,40);
+}
+function tvAmbientStart(){
+  if(tvAmbientOn) return;
+  var art=tvAmbientArt();
+  var ov=document.getElementById("tvAmbient");
+  if(!ov){ ov=document.createElement("div"); ov.id="tvAmbient"; document.body.appendChild(ov); }
+  tvAmbientOn=true; ov.className="on";
+  var i=0;
+  (function cycle(){
+    if(!tvAmbientOn) return;
+    var u=art.length ? art[i++ % art.length] : "";
+    ov.innerHTML='<div class="amb-art" style="background-image:'+(u?"url('"+u+"')":"none")+'"></div>'+
+      '<div class="amb-scrim"></div>'+
+      '<div class="amb-clock">'+new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})+'</div>';
+    tvAmbientTimer=setTimeout(cycle,TV_AMBIENT_CYCLE);
+  })();
+}
+function tvAmbientStop(){
+  tvAmbientOn=false;
+  clearTimeout(tvAmbientTimer);
+  var ov=document.getElementById("tvAmbient");
+  if(ov){ ov.className=""; ov.innerHTML=""; }
+}
+/* called from the TV key handler: true = swallow this key (it only woke the screen) */
+function tvAmbientWake(){
+  var wasAmbient=tvAmbientOn;
+  tvMarkInput();
+  return wasAmbient;
+}
+if(TV_MODE){
+  ["pointerdown","mousemove","wheel"].forEach(function(ev){ document.addEventListener(ev,tvMarkInput,{passive:true}); });
+  setInterval(function(){
+    var idle=Date.now()-tvLastInput;
+    if(idle>=TV_AMBIENT_MS){ if(!tvAmbientOn) tvAmbientStart(); }
+    else if(idle>=TV_DIM_MS) document.documentElement.classList.add("tv-dim");
+  },15000);
+}
 
 /* ---------- autocomplete ---------- */
 var AC_LIMIT=7, acTimer=null, acSeq=0;
