@@ -1,0 +1,21 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "in.sinu.gamevault.nativetv"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "in.sinu.gamevault.nativetv"
+        minSdk 23
+        targetSdk 35
+        versionCode 3
+        versionName "2.2.0-native-tv"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

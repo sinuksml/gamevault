@@ -6,6 +6,9 @@ Thumbs.db
 android-tv/.gradle/
 android-tv/**/build/
 android-tv/local.properties
+android-tv-native/.gradle/
+android-tv-native/**/build/
+android-tv-native/local.properties
 node_modules/
 screenshots/
 test-results/

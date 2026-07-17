@@ -437,8 +437,40 @@ function vaultCopyForExport(){
 function vaultCopyForCloud(){
   var copy=vaultCopyForExport();
   if(!healthCloudSyncEnabled()) delete copy.health;
-  copy.cloudPrivacy={apiKeysExcluded:true,healthIncluded:healthCloudSyncEnabled()};
+  copy.nativeTvCatalog=nativeTvCatalogSnapshot();
+  copy.trustedDeviceConfig=trustedDeviceConfigSnapshot();
+  copy.cloudPrivacy={apiKeysExcluded:false,trustedDeviceConfig:true,healthIncluded:healthCloudSyncEnabled()};
   return copy;
+}
+function trustedDeviceConfigSnapshot(){
+  function local(key){try{return localStorage.getItem(key)||"";}catch(e){return "";}}
+  var plexUrl="",plexKey="",biglyUrl="",biglyToken="";
+  try{plexUrl=typeof plexServerUrl==="function"?plexServerUrl():local("gamevault-plex-url");}catch(e){}
+  try{plexKey=typeof plexToken==="function"?plexToken():local("gamevault-plex-token");}catch(e){}
+  try{biglyUrl=typeof biglyProxyUrl==="function"?biglyProxyUrl():local("gamevault-biglybt-proxy");}catch(e){}
+  try{biglyToken=local("gamevault-biglybt-native-token");}catch(e){}
+  return {
+    version:1,
+    updatedAt:Date.now(),
+    api:{rawg:getKey(),tmdb:local("ps5-tmdb-key"),omdb:local("ps5-omdb-key")},
+    plex:{url:plexUrl,token:plexKey},
+    bigly:{url:biglyUrl,token:biglyToken}
+  };
+}
+function nativeTvCatalogSnapshot(){
+  function snapshot(cache,keys){
+    var out={};
+    keys.forEach(function(key){
+      var items=cache&&cache[key]&&Array.isArray(cache[key].items)?cache[key].items:[];
+      out[key]=items.slice(0,80);
+    });
+    return out;
+  }
+  return {
+    generatedAt:Date.now(),
+    movies:snapshot(typeof filmCache!=="undefined"?filmCache:null,["uphw","bluray","mlott","relhw"]),
+    series:snapshot(typeof seriesCache!=="undefined"?seriesCache:null,["seriesnew","seriesupcoming","enseries","mlseries","taseries","hiseries"])
+  };
 }
 function cloudVaultJson(){return JSON.stringify(vaultCopyForCloud());}
 function cloudNeedsPrivacyScrub(incoming){
@@ -484,7 +516,7 @@ function setSyncedKey(which, val){
 }
 /* legacy cloud/local vault → device-local storage */
 function applyKeysFromData(){
-  var k=data.keys; if(!k) return;
+  var k=data.keys||{};
   var hadLegacyKeys=Object.keys(k).length>0;
   for(var w in SYNCED_KEYS){
     var local="";try{local=localStorage.getItem(SYNCED_KEYS[w])||"";}catch(e){}
@@ -492,6 +524,15 @@ function applyKeysFromData(){
   }
   data.keys={};
   if(hadLegacyKeys)persistSilent();
+  applyTrustedDeviceConfig();
+}
+function applyTrustedDeviceConfig(){
+  var cfg=data&&data.trustedDeviceConfig;if(!cfg||typeof cfg!=="object")return;
+  function put(key,value){if(!key||typeof value!=="string"||!value)return;try{localStorage.setItem(key,value);}catch(e){}}
+  var api=cfg.api||{},plex=cfg.plex||{},bigly=cfg.bigly||{};
+  put(KEY_STORE,api.rawg||"");put("ps5-tmdb-key",api.tmdb||"");put("ps5-omdb-key",api.omdb||"");
+  put("gamevault-plex-url",plex.url||"");put("gamevault-plex-token",plex.token||"");
+  put("gamevault-biglybt-proxy",bigly.url||"");put("gamevault-biglybt-native-token",bigly.token||"");
 }
 function backfillKeysToData(){
   if(data.keys&&Object.keys(data.keys).length){data.keys={};persistSilent();}
