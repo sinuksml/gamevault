@@ -2076,6 +2076,42 @@ function vendorStats(){
   data.played.forEach(function(p){ if(Number(p.cost)>0) addV(p); });
   return m;
 }
+/* Monthly spend bar chart (last 12 months) shown at the bottom of Rentals
+   in both grid and list view. Skipped on TV — too small at ten feet. */
+function spendChartHtml(){
+  if(TV_MODE) return "";
+  var mkeys=[], mtot={}, mnow=new Date();
+  for(var mi=11; mi>=0; mi--){
+    var md=new Date(mnow.getFullYear(), mnow.getMonth()-mi, 1);
+    var mk=md.getFullYear()+"-"+String(md.getMonth()+1).padStart(2,"0");
+    mkeys.push(mk); mtot[mk]=0;
+  }
+  var addSpend=function(dateStr,cost){
+    if(!dateStr||!Number(cost)) return;
+    var mk=String(dateStr).slice(0,7);
+    if(mk in mtot) mtot[mk]+=Number(cost)||0;
+  };
+  data.rentals.forEach(function(r){ addSpend(r.start,r.cost); });
+  data.rentalHistory.forEach(function(h){ addSpend(h.start,h.cost); });
+  data.played.forEach(function(p){ addSpend(p.added,p.cost); });
+  var mmax=0; mkeys.forEach(function(k){ if(mtot[k]>mmax) mmax=mtot[k]; });
+  if(!mmax) return "";
+  var CW=560, CH=150, PADB=6, bw=CW/12;
+  var bars=mkeys.map(function(k,ix){
+    var v=mtot[k], bh=Math.round((CH-38)*v/mmax);
+    var x=ix*bw, y=CH-20-bh;
+    var mlabel=new Date(Number(k.slice(0,4)), Number(k.slice(5,7))-1, 1).toLocaleDateString("en-GB",{month:"short"});
+    return '<rect x="'+(x+PADB).toFixed(1)+'" y="'+y+'" width="'+(bw-PADB*2).toFixed(1)+'" height="'+Math.max(bh,(v>0?3:0))+'" rx="4" fill="'+(v>0?"var(--accent)":"var(--inset)")+'" opacity="'+(v>0?"0.9":"0.55")+'"></rect>'+
+      (v>0?'<text x="'+(x+bw/2).toFixed(1)+'" y="'+(y-5)+'" text-anchor="middle" font-size="10" fill="var(--muted)">₹'+(v>=1000?((v/1000).toFixed(1)+"k"):v)+'</text>':'')+
+      '<text x="'+(x+bw/2).toFixed(1)+'" y="'+(CH-6)+'" text-anchor="middle" font-size="10" fill="var(--dim)">'+mlabel+'</text>';
+  }).join("");
+  var mtotal=mkeys.reduce(function(a,k){ return a+mtot[k]; },0);
+  return '<div class="sechead">Spend by month</div><div class="card spend-chart">'+
+    '<svg viewBox="0 0 '+CW+' '+CH+'" role="img" aria-label="Monthly rental spend for the last 12 months" preserveAspectRatio="xMidYMid meet">'+bars+'</svg>'+
+    '<div class="meta" style="margin-top:4px">Last 12 months · rentals, history &amp; library purchases · '+fmtMoney(mtotal)+'</div>'+
+  '</div>';
+}
+
 function renderRentals(){
   if(TV_MODE) formOpen[tab]=false;
   var t0=today();
@@ -2130,6 +2166,7 @@ function renderRentals(){
       });
       html+='</div>';
     }
+    html+=spendChartHtml();
     return html;
   }
   html+='<div class="cards">';
@@ -2229,6 +2266,8 @@ function renderRentals(){
       '</div>'+
     '</div>';
   }
+
+  html+=spendChartHtml();
   return html;
 }
 
