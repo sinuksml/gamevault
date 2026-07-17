@@ -5,6 +5,14 @@ Thumbs.db
 .gradle/
 android-tv/.gradle/
 android-tv/**/build/
+android-tv/local.properties
 node_modules/
 screenshots/
 test-results/
+# local-only working files — never publish to the public repo
+*.apk
+shield-termux*.png
+.tmp-*/
+tmp/
+.claude/
+.agents/
