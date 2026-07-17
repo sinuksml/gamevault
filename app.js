@@ -5861,6 +5861,7 @@ function toggleSettings(force){
     document.getElementById("jbBinInput").value=jb.bin;
     var densityInput=document.getElementById("densityInput"); if(densityInput) densityInput.value=uiDensity;
     var healthCloudInput=document.getElementById("healthCloudInput"); if(healthCloudInput) healthCloudInput.checked=healthCloudSyncEnabled();
+    var alertsChk=document.getElementById("alertsInput"); if(alertsChk) alertsChk.checked=alertsOn();
     refreshRecoveryUi();
   }
   if(desktopMode()){
@@ -6029,6 +6030,69 @@ if(densityInput) densityInput.addEventListener("change",function(){
   try{ localStorage.setItem(DENSITY_KEY,uiDensity); }catch(e){}
   applyDensity(); render(); flash(uiDensity==="compact"?"Compact layout enabled":"Comfortable layout enabled");
 });
+/* ---------- alerts: rentals due + imminent releases (device-local, no server) ----------
+   Checked at boot, hourly while open, and when alerts are switched on. Each
+   alert fires once (14-day dedupe ledger in localStorage). Browser
+   notifications are used when permitted; the toast always shows. TV skips. */
+var ALERTS_KEY="gamevault-alerts-on", ALERTS_SEEN_KEY="gamevault-alerts-seen";
+function alertsOn(){ try{ return localStorage.getItem(ALERTS_KEY)==="1"; }catch(e){ return false; } }
+function setAlertsOn(v){ try{ localStorage.setItem(ALERTS_KEY, v?"1":"0"); }catch(e){} }
+function alertsSeen(){ try{ return JSON.parse(localStorage.getItem(ALERTS_SEEN_KEY)||"{}")||{}; }catch(e){ return {}; } }
+function markAlertSeen(k){
+  var s=alertsSeen(); s[k]=Date.now();
+  var cut=Date.now()-14*86400000;
+  for(var x in s){ if(s[x]<cut) delete s[x]; }
+  try{ localStorage.setItem(ALERTS_SEEN_KEY,JSON.stringify(s)); }catch(e){}
+}
+function collectAlerts(){
+  var out=[], t0=today(), todayKey=localISO();
+  (data.rentals||[]).forEach(function(r){
+    var left=r.days-daysBetween(parseD(r.start),t0);
+    if(left>0&&left<=3) out.push({k:"rent:"+r.id+":"+todayKey, msg:"Rental due: "+r.name+" — "+left+" day"+(left===1?"":"s")+" left"});
+  });
+  (data.upcoming||[]).forEach(function(g){
+    if(!g.want||!g.date) return;
+    var dl=daysBetween(t0,parseD(g.date));
+    if(dl>=0&&dl<=7) out.push({k:"up:"+norm(g.name)+":"+g.date, msg:(dl===0?"Releasing today: ":"Releasing in "+dl+" day"+(dl===1?"":"s")+": ")+g.name});
+  });
+  (data.movieWatchlist||[]).forEach(function(m){
+    var d=m.ottDate||m.date||""; if(!d) return;
+    d=String(d).slice(0,10);
+    var dl=daysBetween(parseD(d),t0);
+    if(dl>=0&&dl<=7) out.push({k:"film:"+(m.id!=null?m.id:norm(m.title||""))+":"+d, msg:"Watchlist film is out: "+(m.title||"")});
+  });
+  var seen=alertsSeen();
+  return out.filter(function(a){ return !seen[a.k]; });
+}
+function runAlerts(){
+  if(TV_MODE || !alertsOn()) return;
+  var list=collectAlerts();
+  if(!list.length) return;
+  list.slice(0,4).forEach(function(a){
+    markAlertSeen(a.k);
+    if(("Notification" in window) && Notification.permission==="granted"){
+      try{ new Notification("GameVault",{body:a.msg,icon:"icon.png",tag:a.k}); }catch(e){}
+    }
+  });
+  list.slice(4).forEach(function(a){ markAlertSeen(a.k); });
+  var summary = list.length===1 ? list[0].msg
+    : list.length+" alerts · "+list.slice(0,2).map(function(a){ return a.msg; }).join(" · ")+(list.length>2?" …":"");
+  flash(summary);
+}
+var alertsInput=document.getElementById("alertsInput");
+if(alertsInput) alertsInput.addEventListener("change",function(){
+  setAlertsOn(this.checked);
+  if(this.checked){
+    if(("Notification" in window) && Notification.permission==="default") Notification.requestPermission();
+    flash("Alerts on — rentals due and releases will notify you");
+    setTimeout(runAlerts,400);
+  } else flash("Alerts off");
+});
+if(!TV_MODE){
+  setTimeout(runAlerts,2500);
+  setInterval(runAlerts,3600000);
+}
+
 var healthCloudInput=document.getElementById("healthCloudInput");
 if(healthCloudInput) healthCloudInput.addEventListener("change",function(){
   setHealthCloudSyncEnabled(this.checked);
