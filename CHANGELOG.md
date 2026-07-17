@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.17.0 - 2026-07-17
+
+- Added a desktop Home dashboard: rentals due soon, next queue pick, this week's game and movie releases, live download status, watchlist titles now streaming, and vault totals with one-tap navigation.
+- Added TV OLED protection: the interface dims after 3 idle minutes and switches to a slow ambient poster slideshow after 6; any remote key wakes it.
+- Added opt-in alerts for rentals due within 3 days, starred games releasing within a week, and watchlist movies that reached streaming, with browser notifications when permitted.
+- Added a monthly spend chart to Rentals covering the last 12 months in both grid and list view.
+- Added a desktop keyboard-shortcuts overlay on "?" documenting all existing shortcuts.
+- Completed deep-link support so ?section and ?tab can open any page for bookmarks and iOS Shortcuts.
+- Added proper iPhone 17 Pro PWA splash screens and fixed the stale desktop rail version badge.
+- Ignored local-only files (APKs, screenshots, temp clones) in the public repository and removed the superseded BiglyBT gateway folder.
+
 ## v1.16.0 - 2026-07-17
 
 - Redesigned only the Android TV experience as a cinematic command center.

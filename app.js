@@ -1,5 +1,5 @@
 ﻿"use strict";
-var APP_VERSION = "1.16.0";
+var APP_VERSION = "1.17.0";
 var APP_BUILD_DATE = "2026-07-17";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
@@ -2003,7 +2003,7 @@ function tabCountHtml(kind,key){
 }
 
 function renderTabs(){
-  if(section==="biglybt"||section==="library"){
+  if(section==="biglybt"||section==="library"||section==="home"){
     document.getElementById("tabs").innerHTML="";
     return;
   }
@@ -2076,6 +2076,90 @@ function vendorStats(){
   data.played.forEach(function(p){ if(Number(p.cost)>0) addV(p); });
   return m;
 }
+/* ---------- Home dashboard (desktop): today across the whole vault ---------- */
+function homeGoBtn(label,sec,tb){
+  return '<button class="btn" data-act="home-goto" data-sec="'+sec+'"'+(tb?' data-tab="'+tb+'"':'')+'>'+label+'</button>';
+}
+function renderHome(){
+  var t0=today();
+  var html='<div class="home-grid">';
+
+  // rentals expiring within 7 days
+  var due=(data.rentals||[]).map(function(r){
+    return {name:r.name, left:r.days-daysBetween(parseD(r.start),t0)};
+  }).filter(function(r){ return r.left>0 && r.left<=7; }).sort(function(a,b){ return a.left-b.left; });
+  html+='<div class="card home-card"><div class="home-title">⏳ Rentals due soon</div>';
+  if(due.length) due.slice(0,5).forEach(function(r){
+    html+='<div class="home-row"><span class="grow">'+esc(r.name)+'</span><b style="color:'+urgency(r.left)+'">'+r.left+'d</b></div>';
+  });
+  else html+='<div class="meta">Nothing due in the next 7 days.</div>';
+  html+='<div class="home-foot">'+homeGoBtn("Open Rentals","games","rentals")+'</div></div>';
+
+  // next in queue
+  var nq=(data.queue||[])[0];
+  html+='<div class="card home-card"><div class="home-title">◇ Next rental pick</div>';
+  html+= nq ? '<div class="home-row"><span class="grow" style="font-weight:700">'+esc(nq.name)+'</span></div><div class="meta">#1 of '+data.queue.length+' in your queue</div>'
+            : '<div class="meta">Your queue is empty.</div>';
+  html+='<div class="home-foot">'+homeGoBtn("Open Queue","games","queue")+'</div></div>';
+
+  // releases within 7 days (starred games + upcoming films cache)
+  var rel=[];
+  (data.upcoming||[]).forEach(function(g){
+    if(!g.date) return;
+    var dl=daysBetween(t0,parseD(g.date));
+    if(dl>=0&&dl<=7) rel.push({name:g.name, dl:dl, kind:"Game"});
+  });
+  try{
+    ((filmCache.uphw||{}).items||[]).forEach(function(m){
+      if(!m.date) return;
+      var dl=daysBetween(t0,parseD(String(m.date).slice(0,10)));
+      if(dl>=0&&dl<=7) rel.push({name:m.title, dl:dl, kind:"Film"});
+    });
+  }catch(e){}
+  rel.sort(function(a,b){ return a.dl-b.dl; });
+  html+='<div class="card home-card"><div class="home-title">△ Releasing this week</div>';
+  if(rel.length) rel.slice(0,6).forEach(function(x){
+    html+='<div class="home-row"><span class="grow">'+esc(x.name)+'</span><span class="meta" style="margin:0">'+x.kind+'</span><b style="color:#2D7FF9">'+(x.dl===0?"Today":x.dl+"d")+'</b></div>';
+  });
+  else html+='<div class="meta">No confirmed releases in the next 7 days.</div>';
+  html+='<div class="home-foot">'+homeGoBtn("Games","games","upcoming")+homeGoBtn("Movies","films","uphw")+'</div></div>';
+
+  // downloads
+  html+='<div class="card home-card"><div class="home-title">⇩ Downloads</div>';
+  if(typeof biglyItems!=="undefined" && biglyItems.length){
+    biglyItems.slice(0,5).forEach(function(t){
+      var pct=Math.round(((t.progress>1?t.progress:(t.progress||0)*100)));
+      html+='<div class="home-row"><span class="grow">'+esc(t.name||"")+'</span><b>'+Math.min(100,pct)+'%</b></div>';
+    });
+  } else html+='<div class="meta">Open the BiglyBT tab to load live torrent status.</div>';
+  html+='<div class="home-foot">'+homeGoBtn("Open BiglyBT","biglybt")+'</div></div>';
+
+  // watchlist films now streaming (last 14 days)
+  var outNow=(data.movieWatchlist||[]).map(function(m){
+    var d=String(m.ottDate||m.date||"").slice(0,10);
+    return d ? {title:m.title, dl:daysBetween(parseD(d),t0)} : null;
+  }).filter(function(x){ return x && x.dl>=0 && x.dl<=14; });
+  html+='<div class="card home-card"><div class="home-title">♥ Watchlist, out now</div>';
+  if(outNow.length) outNow.slice(0,5).forEach(function(x){
+    html+='<div class="home-row"><span class="grow">'+esc(x.title||"")+'</span><b style="color:#3ECF8E">Out</b></div>';
+  });
+  else html+='<div class="meta">Nothing from your watchlist released recently.</div>';
+  html+='<div class="home-foot">'+homeGoBtn("Movie Watchlist","films","watchlist")+homeGoBtn("TV Watchlist","series","serieswatchlist")+'</div></div>';
+
+  // vault at a glance
+  html+='<div class="card home-card"><div class="home-title">▦ Vault at a glance</div>'+
+    '<div class="home-row"><span class="grow">Active rentals</span><b>'+(data.rentals||[]).length+'</b></div>'+
+    '<div class="home-row"><span class="grow">Queue</span><b>'+(data.queue||[]).length+'</b></div>'+
+    '<div class="home-row"><span class="grow">Completed games</span><b>'+(data.played||[]).length+'</b></div>'+
+    '<div class="home-row"><span class="grow">Movie watchlist</span><b>'+(data.movieWatchlist||[]).length+'</b></div>'+
+    '<div class="home-row"><span class="grow">Total spent</span><b style="color:#F2B84B">'+fmtMoney(totalSpent())+'</b></div>'+
+    '<div class="home-foot">'+homeGoBtn("Completed","games","played")+homeGoBtn("Discover","games","suggest")+'</div></div>';
+
+  html+='</div>';
+  html+=spendChartHtml();
+  return html;
+}
+
 /* Monthly spend bar chart (last 12 months) shown at the bottom of Rentals
    in both grid and list view. Skipped on TV — too small at ten feet. */
 function spendChartHtml(){
@@ -3467,7 +3551,9 @@ function renderPageContext(){
   else if(section==="biglybt"){ parent="BiglyBT"; key="biglybt"; }
   else if(section==="health"){ parent="Health"; key=healthTab; }
   else if(section==="library"){ parent="GameVault";key="phonelibrary"; }
+  else if(section==="home"){ parent="GameVault";key="homedash"; }
   if(key==="phonelibrary"){title="Library";desc="Health, sync, backup and application tools";}
+  else if(key==="homedash"){title="Home";desc="Today across rentals, downloads, releases and your watchlists";}
   else{
   title=labels[key]||(section==="biglybt"?"BiglyBT":"Library");
   desc=descriptions[key]||(section==="biglybt"?"Downloads, progress, speed and torrent controls":"Your personal media library");
@@ -3965,6 +4051,13 @@ function render(){
   renderRecentStrip();
   var statsEl=document.getElementById("stats");
   document.body.classList.toggle("bigly-active",section==="biglybt");
+  if(section==="home"){
+    statsEl.style.display="none";
+    renderTabs();
+    document.getElementById("content").innerHTML=renderHome();
+    applyBackground();
+    return;
+  }
   if(section==="library"){
     statsEl.style.display="none";
     renderTabs();
@@ -4041,6 +4134,7 @@ var requestedSection=new URLSearchParams(location.search).get("section");
 if(["games","films","series","plex","biglybt","health","library"].indexOf(requestedSection)>=0)section=requestedSection;
 if(["games","films","series","plex","biglybt","health","library"].indexOf(section)<0)section="games";
 if(!phoneUi()&&section==="library")section="games";
+if((TV_MODE||phoneUi())&&section==="home")section="games"; // Home dashboard is desktop-only
 var requestedHealthTab=new URLSearchParams(location.search).get("healthTab");
 if(["healthoverview","healthfood","healthlabs"].indexOf(requestedHealthTab)>=0)healthTab=requestedHealthTab;
 try{ filmTab=localStorage.getItem(FILMTAB_KEY)||"watchlist"; }catch(e){}
@@ -5618,7 +5712,7 @@ function switchSection(s){
   else if(section==="plex") tabScroll["plex:"+plexTab]=window.scrollY;
   else if(section==="biglybt") tabScroll.biglybt=window.scrollY;
   else if(section==="health") tabScroll["health:"+healthTab]=window.scrollY;
-  else if(section==="library") tabScroll[section]=window.scrollY;
+  else if(section==="library"||section==="home") tabScroll[section]=window.scrollY;
   else tabScroll[tab]=window.scrollY;
   section=s; try{ localStorage.setItem(SECTION_KEY,s); }catch(e){}
   expandedId=null; filmExpanded=null; seriesExpanded=null; plexExpanded=null;
@@ -5628,7 +5722,7 @@ function switchSection(s){
     if(active) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current");
   });
   render();
-  window.scrollTo(0, section==="films" ? (tabScroll["film:"+filmTab]||0) : section==="series" ? (tabScroll["series:"+seriesTab]||0) : section==="plex" ? (tabScroll["plex:"+plexTab]||0) : section==="biglybt" ? (tabScroll.biglybt||0) : section==="health" ? (tabScroll["health:"+healthTab]||0) : section==="library" ? (tabScroll[section]||0) : (tabScroll[tab]||0));
+  window.scrollTo(0, section==="films" ? (tabScroll["film:"+filmTab]||0) : section==="series" ? (tabScroll["series:"+seriesTab]||0) : section==="plex" ? (tabScroll["plex:"+plexTab]||0) : section==="biglybt" ? (tabScroll.biglybt||0) : section==="health" ? (tabScroll["health:"+healthTab]||0) : (section==="library"||section==="home") ? (tabScroll[section]||0) : (tabScroll[tab]||0));
   if(section==="films") ensureFilms(filmTab);
   if(section==="films") scheduleMediaWarmup("films",filmTab);
   if(section==="series"){ ensureSeries(seriesTab); scheduleMediaWarmup("series",seriesTab); }
@@ -6192,6 +6286,17 @@ document.getElementById("content").addEventListener("click",function(e){
     return;
   }
 
+  if(act==="home-goto"){
+    var hs=b.getAttribute("data-sec")||"games", ht=b.getAttribute("data-tab")||"";
+    switchSection(hs);
+    if(ht){
+      if(hs==="games") switchTab(ht);
+      else if(hs==="films") switchFilmTab(ht);
+      else if(hs==="series") switchSeriesTab(ht);
+      else if(hs==="plex") switchPlexTab(ht);
+    }
+    return;
+  }
   if(act==="film-refresh"){ ensureFilms(filmTab,true); if(filmTab==="mlott") ensureFilms("mlup",true); return; }
   if(act==="clear-sug-filters"){ sugGenre="All"; sugTier="All"; render(); return; }
   if(act==="detail-neighbor"){
