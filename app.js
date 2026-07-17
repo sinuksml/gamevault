@@ -5732,12 +5732,15 @@ document.addEventListener("keydown",function(e){
   var editable=e.target&&/^(INPUT|TEXTAREA|SELECT)$/i.test(e.target.tagName);
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();openCommandPalette("");return;}
   if(e.key==="Escape"){
+    var helpOv=document.getElementById("shortcutsHelp");
+    if(helpOv && !helpOv.hidden){e.preventDefault();toggleShortcutsHelp(false);return;}
     if(!document.getElementById("commandPalette").hidden){e.preventDefault();closeCommandPalette(true);return;}
     if(document.body.classList.contains("settings-open")){e.preventDefault();toggleSettings(false);document.getElementById("menuBtn").focus();return;}
     if(document.body.classList.contains("menu-open")){e.preventDefault();setMenuOpen(false);document.getElementById("menuBtn").focus();return;}
     var close=document.querySelector('[data-act="media-close"]');if(close){e.preventDefault();close.click();return;}
   }
   if(editable)return;
+  if(e.key==="?"&&!e.ctrlKey&&!e.altKey&&!e.metaKey){e.preventDefault();toggleShortcutsHelp();return;}
   if(!e.ctrlKey&&!e.altKey&&!e.metaKey&&(e.key.toLowerCase()==="w"||e.key.toLowerCase()==="l")){
     if(section==="films"&&filmExpanded){
       var km=findMovieAny(filmExpanded);if(km){e.preventDefault();var kmi=filmExpanded;closeMediaStateDetail("film",kmi);if(e.key.toLowerCase()==="w")markMovieWatched(km);else addToWatchlist(km);restoreDetailScroll(filmDetailReturnY);return;}
@@ -5752,6 +5755,42 @@ document.addEventListener("keydown",function(e){
     if(e.shiftKey)desktopOpenTabByIndex(n);else{var sections=["games","films","series","plex","biglybt","health"];if(sections[n])switchSection(sections[n]);}
   }
 });
+
+/* ---------- keyboard shortcuts help overlay (desktop, "?") ---------- */
+function toggleShortcutsHelp(force){
+  var ov=document.getElementById("shortcutsHelp");
+  if(!ov){
+    ov=document.createElement("div");
+    ov.id="shortcutsHelp";
+    ov.className="shortcuts-help";
+    ov.hidden=true;
+    ov.setAttribute("role","dialog");
+    ov.setAttribute("aria-modal","true");
+    ov.setAttribute("aria-label","Keyboard shortcuts");
+    ov.innerHTML=
+      '<div class="shortcuts-panel">'+
+        '<div class="shortcuts-head"><strong>Keyboard shortcuts</strong><button class="iconbtn" data-shortcuts-close title="Close" aria-label="Close">&#10005;</button></div>'+
+        '<div class="shortcuts-grid">'+
+          '<span><kbd>Ctrl</kbd><kbd>K</kbd></span><span>Search everything</span>'+
+          '<span><kbd>/</kbd></span><span>Focus the page search box</span>'+
+          '<span><kbd>Alt</kbd><kbd>1</kbd>&#8211;<kbd>6</kbd></span><span>Switch section (Games &#8594; Health)</span>'+
+          '<span><kbd>Alt</kbd><kbd>Shift</kbd><kbd>1</kbd>&#8211;<kbd>6</kbd></span><span>Open the Nth tab in this section</span>'+
+          '<span><kbd>W</kbd></span><span>Mark open movie / show as Watched</span>'+
+          '<span><kbd>L</kbd></span><span>Add open movie / show to Watchlist</span>'+
+          '<span><kbd>Enter</kbd> / <kbd>Space</kbd></span><span>Activate the focused card</span>'+
+          '<span><kbd>Esc</kbd></span><span>Close dialogs, details and menus</span>'+
+          '<span><kbd>?</kbd></span><span>Show or hide this help</span>'+
+        '</div>'+
+      '</div>';
+    document.body.appendChild(ov);
+    ov.addEventListener("click",function(ev){
+      if(ev.target===ov || ev.target.closest("[data-shortcuts-close]")) toggleShortcutsHelp(false);
+    });
+  }
+  var show=(typeof force==="boolean")?force:ov.hidden;
+  ov.hidden=!show;
+  if(show){ var btn=ov.querySelector("[data-shortcuts-close]"); if(btn) btn.focus(); }
+}
 
 /* ---------- actions ---------- */
 function byId(arr,id){ for(var i=0;i<arr.length;i++) if(arr[i].id===id) return arr[i]; return null; }
@@ -7748,6 +7787,20 @@ setTimeout(function(){
   var token=gdTok();
   if(token && token.access_token && Date.now()<(token.exp||0)-60000) gdRefreshUsage(token.access_token);
 },1000);
+/* deep link: ?section=films&tab=mlott — completes the existing ?section support
+   so iOS Shortcuts / bookmarks can open any page directly (view-only; the
+   saved default tab is not overwritten until the user taps a tab) */
+(function(){
+  if(TV_MODE) return;
+  var wanted="";
+  try{ wanted=new URLSearchParams(location.search).get("tab")||""; }catch(e){}
+  if(!wanted) return;
+  if(section==="games" && TAB_ORDER.indexOf(wanted)>=0) tab=wanted;
+  else if(section==="films" && FILM_ORDER.indexOf(wanted)>=0) filmTab=wanted;
+  else if(section==="series" && SERIES_ORDER.indexOf(wanted)>=0) seriesTab=wanted;
+  else if(section==="plex" && PLEX_ORDER.indexOf(wanted)>=0) plexTab=wanted;
+  else if(section==="health" && ["healthoverview","healthfood","healthlabs"].indexOf(wanted)>=0) healthTab=wanted;
+})();
 [].forEach.call(document.querySelectorAll("#sectionSw button"),function(b){
   var active=b.getAttribute("data-section")===section;
   b.classList.toggle("on",active);
