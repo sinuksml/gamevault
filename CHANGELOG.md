@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.24.1 - 2026-07-19
+
+- Restricted Gmail Finance synchronization to attached credit-card and bank/debit-account statements only.
+- Removed individual transaction-alert emails from future Gmail imports and enforced a five-year statement search.
+- Added review warnings for statement attachments that cannot be read, including password-protected PDFs.
+
 ## v1.24.0 - 2026-07-19
 
 - Rebuilt Finance around a simple monthly summary with previous-month comparison, credits, spending, net cash flow, top categories and merchant insights.
