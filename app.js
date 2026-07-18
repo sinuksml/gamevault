@@ -1,8 +1,12 @@
 ﻿"use strict";
-var APP_VERSION = "1.20.0";
-var APP_BUILD_DATE = "2026-07-18";
+var APP_VERSION = "1.21.0";
+var APP_BUILD_DATE = "2026-07-19";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Added one-click Paste and Add for copied BiglyBT magnet links",
+  "Added consistent confirmation warnings before user-initiated removals and deletions",
+  "Added per-episode IMDb ratings through the existing OMDb season lookup",
+  "Improved Home with overdue rentals, continue-watching activity and clearer daily priorities",
   "Redesigned BiglyBT with a stable native download workspace and corrected Native/Web UI switching",
   "Added counted torrent filters, sorting, state-aware actions, expandable file details and speed-limit controls",
   "Added silent keyed progress updates, fixed notifications, offline and idle states, and safer removal confirmations",
@@ -2163,15 +2167,22 @@ function homeGoBtn(label,sec,tb){
 }
 function renderHome(){
   var t0=today();
-  var html='<div class="home-grid">';
+  var overdue=(data.rentals||[]).filter(function(r){return r.days-daysBetween(parseD(r.start),t0)<0;}).length;
+  var continuing=(data.playing||[]).length+(data.watchingMovies||[]).length+(data.watchingSeries||[]).length;
+  var activeDownloads=(typeof biglyItems!=="undefined"?biglyItems:[]).filter(function(t){var p=Number(t.progress)||0;return p<1&&p<100;}).length;
+  var html='<section class="home-overview" aria-label="Today at a glance"><div><span>Today</span><strong>'+t0.toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long"})+'</strong></div>'+
+    '<div class="home-overview-stat '+(overdue?'alert':'')+'"><b>'+overdue+'</b><span>overdue rental'+(overdue===1?'':'s')+'</span></div>'+
+    '<div class="home-overview-stat"><b>'+continuing+'</b><span>in progress</span></div>'+
+    '<div class="home-overview-stat"><b>'+activeDownloads+'</b><span>active downloads</span></div></section><div class="home-grid">';
 
   // rentals expiring within 7 days
   var due=(data.rentals||[]).map(function(r){
     return {name:r.name, left:r.days-daysBetween(parseD(r.start),t0)};
-  }).filter(function(r){ return r.left>0 && r.left<=7; }).sort(function(a,b){ return a.left-b.left; });
+  }).filter(function(r){ return r.left<=7; }).sort(function(a,b){ return a.left-b.left; });
   html+='<div class="card home-card"><div class="home-title">⏳ Rentals due soon</div>';
   if(due.length) due.slice(0,5).forEach(function(r){
-    html+='<div class="home-row"><span class="grow">'+esc(r.name)+'</span><b style="color:'+urgency(r.left)+'">'+r.left+'d</b></div>';
+    var dueText=r.left<0?Math.abs(r.left)+'d overdue':r.left===0?'Due today':r.left+'d';
+    html+='<div class="home-row"><span class="grow">'+esc(r.name)+'</span><b style="color:'+(r.left<=0?'var(--danger)':urgency(r.left))+'">'+dueText+'</b></div>';
   });
   else html+='<div class="meta">Nothing due in the next 7 days.</div>';
   html+='<div class="home-foot">'+homeGoBtn("Open Rentals","games","rentals")+'</div></div>';
@@ -2179,9 +2190,19 @@ function renderHome(){
   // next in queue
   var nq=(data.queue||[])[0];
   html+='<div class="card home-card"><div class="home-title">◇ Next rental pick</div>';
-  html+= nq ? '<div class="home-row"><span class="grow" style="font-weight:700">'+esc(nq.name)+'</span></div><div class="meta">#1 of '+data.queue.length+' in your queue</div>'
+  html+= nq ? '<div class="home-row"><span class="grow" style="font-weight:700">'+esc(nq.name)+'</span></div><div class="meta">#1 of '+data.queue.length+' in your queue'+(nq.availableFrom?' · Available '+fmt(nq.availableFrom):'')+'</div>'
             : '<div class="meta">Your queue is empty.</div>';
   html+='<div class="home-foot">'+homeGoBtn("Open Queue","games","queue")+'</div></div>';
+
+  // current games, films and series in one useful continuation list
+  var resume=[];
+  (data.playing||[]).forEach(function(x){resume.push({title:x.name,kind:"Game",sec:"games",tab:"playing"});});
+  (data.watchingMovies||[]).forEach(function(x){resume.push({title:x.title,kind:"Movie",sec:"films",tab:"watching"});});
+  (data.watchingSeries||[]).forEach(function(x){resume.push({title:x.title,kind:"Series",sec:"series",tab:"serieswatching"});});
+  html+='<div class="card home-card home-card-wide"><div class="home-title">▶ Continue</div>';
+  if(resume.length) resume.slice(0,6).forEach(function(x){html+='<button class="home-row home-row-link" data-act="home-goto" data-sec="'+x.sec+'" data-tab="'+x.tab+'"><span class="grow">'+esc(x.title)+'</span><span class="meta">'+x.kind+'</span><b>Open</b></button>';});
+  else html+='<div class="meta">Nothing is currently marked Playing or Watching.</div>';
+  html+='<div class="home-foot">'+homeGoBtn("Playing Games","games","playing")+homeGoBtn("Watching Movies","films","watching")+homeGoBtn("Watching TV","series","serieswatching")+'</div></div>';
 
   // releases within 7 days (starred games + upcoming films cache)
   var rel=[];
@@ -4915,6 +4936,10 @@ function captureVaultLists(keys){
   keys.forEach(function(key){ snapshot[key]=JSON.parse(JSON.stringify(data[key]||[])); });
   return snapshot;
 }
+function confirmDestructive(message,title,callback){
+  if(TV_MODE||phoneUi()){tvConfirm(message,title||"Confirm",callback);return;}
+  if(window.confirm(message))callback();
+}
 function commitVaultUndo(snapshot,message){
   save();
   flash(message,function(){
@@ -5650,6 +5675,30 @@ function seriesImdbLink(s){
                    : ("https://www.imdb.com/find/?q="+encodeURIComponent(s.title+" "+(s.year||""))+"&s=tt");
   return '<a class="btn imdbbtn" href="'+url+'" target="_blank" rel="noopener">IMDb ↗</a>';
 }
+var seriesEpisodeRatingBusy={};
+function applyEpisodeRatings(s,seasonNo,ratings){
+  var key=s.id+":"+seasonNo,eps=seriesEpisodeCache[key];
+  if(!eps||!ratings)return;
+  eps.forEach(function(ep){
+    var row=ratings[String(ep.n)];
+    ep.imdbChecked=true;
+    if(row){ep.imdb=row.rating;ep.imdbId=row.imdbId||"";}
+  });
+}
+function ensureSeriesEpisodeRatings(s,seasonNo){
+  if(!s||!s.imdbId||!seasonNo||!omdbKey())return;
+  var cacheKey="season:"+s.imdbId+":"+seasonNo,cached=imdbCacheGet(cacheKey);
+  if(cached){applyEpisodeRatings(s,seasonNo,cached.value);return;}
+  if(seriesEpisodeRatingBusy[cacheKey])return;
+  seriesEpisodeRatingBusy[cacheKey]=1;
+  fetchWithPolicy("https://www.omdbapi.com/?apikey="+encodeURIComponent(omdbKey())+"&i="+encodeURIComponent(s.imdbId)+"&Season="+encodeURIComponent(seasonNo),{},{timeout:12000,retries:1})
+    .then(function(r){return r.json();}).then(function(j){
+      var ratings={};(j&&j.Episodes||[]).forEach(function(ep){
+        ratings[String(ep.Episode)]={rating:ep.imdbRating&&ep.imdbRating!=="N/A"?parseFloat(ep.imdbRating):null,imdbId:ep.imdbID||""};
+      });
+      imdbCacheSet(cacheKey,ratings);applyEpisodeRatings(s,seasonNo,ratings);
+    }).catch(function(){}).then(function(){delete seriesEpisodeRatingBusy[cacheKey];if(section==="series"&&String(seriesExpanded)===String(s.id))render();});
+}
 function ensureSeriesEpisodes(s, seasonNo){
   var tmdbId=s&&(s.tmdbId||s.id);
   if(!s||!tmdbId||!seasonNo||!tmdbKey()||!/^\d+$/.test(String(tmdbId))) return;
@@ -5660,6 +5709,7 @@ function ensureSeriesEpisodes(s, seasonNo){
     seriesEpisodeCache[key]=(j.episodes||[]).map(function(e){
       return {n:e.episode_number, title:e.name||("Episode "+e.episode_number), overview:e.overview||"", air:e.air_date||""};
     });
+    ensureSeriesEpisodeRatings(s,seasonNo);
     delete seriesEpisodeBusy[key];
     if(section==="series" && String(seriesExpanded)===String(s.id)) render();
   }).catch(function(){ delete seriesEpisodeBusy[key]; });
@@ -5673,13 +5723,14 @@ function seriesEpisodeBlock(s){
   if(!seasons.length) return "";
   var sid=String(s.id), selected=seriesSeasonSel[sid]||String(seasons[0].n);
   ensureSeriesEpisodes(s, selected);
+  ensureSeriesEpisodeRatings(s,selected);
   var key=s.id+":"+selected, eps=seriesEpisodeCache[key]||[];
   var epSel=seriesEpisodeSel[sid]||((eps[0]&&String(eps[0].n))||"");
   var h='<section class="episode-browser"><div class="detail-section-label">Episodes</div><div class="season-chipbar">'+seasons.map(function(se){return '<button class="season-chip '+(String(se.n)===String(selected)?"on":"")+'" data-act="series-season-pick" data-id="'+esc(sid)+'" data-season="'+se.n+'">'+esc(se.name)+(se.episodes?'<small>'+se.episodes+' episodes</small>':'')+'</button>';}).join("")+'</div>'+
-    '<div class="episode-list">'+(eps.length?eps.map(function(ep){return '<button class="episode-row '+(String(ep.n)===String(epSel)?"on":"")+'" data-act="series-episode-pick" data-id="'+esc(sid)+'" data-episode="'+ep.n+'"><b>E'+ep.n+'</b><span>'+esc(ep.title)+'</span><small>'+(ep.air?esc(fmt(ep.air)):"Air date TBC")+'</small></button>';}).join(""):'<div class="episode-loading">Loading episodes…</div>')+'</div>';
+    '<div class="episode-list">'+(eps.length?eps.map(function(ep){var rating=!omdbKey()?"—":ep.imdbChecked?(typeof ep.imdb==="number"?ep.imdb.toFixed(1):"—"):"…";return '<button class="episode-row '+(String(ep.n)===String(epSel)?"on":"")+'" data-act="series-episode-pick" data-id="'+esc(sid)+'" data-episode="'+ep.n+'"><b>E'+ep.n+'</b><span>'+esc(ep.title)+'</span><small>'+(ep.air?esc(fmt(ep.air)):"Air date TBC")+'</small><em class="episode-rating">IMDb '+rating+'</em></button>';}).join(""):'<div class="episode-loading">Loading episodes…</div>')+'</div>';
   var ep=eps.filter(function(e){ return String(e.n)===String(epSel); })[0];
   if(ep){
-    h+='<div class="episode-summary"><div><b>S'+selected+' E'+ep.n+': '+esc(ep.title)+'</b>'+(ep.air?' <span>· '+fmt(ep.air)+'</span>':'')+'</div><p>'+
+    h+='<div class="episode-summary"><div><b>S'+selected+' E'+ep.n+': '+esc(ep.title)+'</b>'+(ep.air?' <span>· '+fmt(ep.air)+'</span>':'')+(typeof ep.imdb==="number"?' <span class="episode-summary-rating">IMDb '+ep.imdb.toFixed(1)+' / 10</span>':'')+'</div><p>'+
       (ep.overview?esc(ep.overview):'No episode overview available from TMDB.')+'</p></div></section>'+
       episodePlotBlock(s,selected,ep);
     return h;
@@ -6432,7 +6483,7 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="health-save-day"){healthSaveDay();return;}
   if(act==="health-save-lab"){healthSaveLab();return;}
   if(act==="health-delete-lab"){
-    var labDate=b.getAttribute("data-date");data.health.labs=data.health.labs.filter(function(x){return x.date!==labDate;});save();flash("Lab entry removed");return;
+    var labDate=b.getAttribute("data-date");confirmDestructive("Delete the lab entry dated "+fmt(labDate)+"? This cannot be undone.","Delete lab entry",function(){data.health.labs=data.health.labs.filter(function(x){return x.date!==labDate;});save();flash("Lab entry removed");});return;
   }
   if(act==="health-save-targets"){
     [].forEach.call(document.querySelectorAll("[data-health-target]"),function(el){data.health.targets[el.getAttribute("data-health-target")]=Math.max(0,Number(el.value)||0);});
@@ -6563,32 +6614,32 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="movie-primary"||act==="movie-state"){
     var ma=findMovieAny(id),ms=b.getAttribute("data-state");
     if(!ma) return;
+    if(ms==="remove"){confirmDestructive('Remove "'+ma.title+'" from your movie watchlist?',"Remove movie",function(){removeFromWatchlist(id);});return;}
+    if(ms==="unwatch"){confirmDestructive('Remove "'+ma.title+'" from Watched and allow it in suggestions again?',"Remove watched status",function(){unwatchMovie(ma.key||movieWatchKey(ma));});return;}
     var movieWasOpen=closeMediaStateDetail("film",id);
     if(ms==="watched") markMovieWatched(ma);
     else if(ms==="watching") markMovieWatching(ma);
     else if(ms==="watchlist") addToWatchlist(ma);
     else if(ms==="hide") hideMovie(ma);
-    else if(ms==="remove") removeFromWatchlist(id);
-    else if(ms==="unwatch") unwatchMovie(ma.key||movieWatchKey(ma));
     if(movieWasOpen) restoreDetailScroll(filmDetailReturnY);
     return;
   }
   if(act==="series-primary"||act==="series-state"){
     var sa=findSeriesAny(id),ssv=b.getAttribute("data-state");
     if(!sa) return;
+    if(ssv==="remove"){confirmDestructive('Remove "'+sa.title+'" from your TV watchlist?',"Remove TV show",function(){removeSeriesWatchlist(id);});return;}
+    if(ssv==="unwatch"){confirmDestructive('Remove "'+sa.title+'" from Watched and allow it in suggestions again?',"Remove watched status",function(){unwatchSeries(sa.key||seriesKey(sa));});return;}
     var seriesWasOpen=closeMediaStateDetail("series",id);
     if(ssv==="watching") markSeriesWatching(sa);
     else if(ssv==="watched") markSeriesWatched(sa);
     else if(ssv==="watchlist") addSeriesWatchlist(sa);
     else if(ssv==="hide") hideSeries(sa);
-    else if(ssv==="remove") removeSeriesWatchlist(id);
-    else if(ssv==="unwatch") unwatchSeries(sa.key||seriesKey(sa));
     if(seriesWasOpen) restoreDetailScroll(seriesDetailReturnY);
     return;
   }
-  if(act==="mv-unwatch"){ unwatchMovie(b.getAttribute("data-key")); return; }
+  if(act==="mv-unwatch"){ var muk=b.getAttribute("data-key"),muw=(data.watchedMovies||[]).filter(function(x){return x.key===muk;})[0];confirmDestructive('Remove "'+(muw?muw.title:"this movie")+'" from Watched?',"Remove watched status",function(){unwatchMovie(muk);});return; }
   if(act==="mw-add"){ addToWatchlist(findSearchMovie(id)); return; }
-  if(act==="mw-remove"){ removeFromWatchlist(id); return; }
+  if(act==="mw-remove"){ var mwr=findWatchlistMovie(id);confirmDestructive('Remove "'+(mwr?mwr.title:"this movie")+'" from your watchlist?',"Remove movie",function(){removeFromWatchlist(id);});return; }
   if(act==="mw-clear"){ movieSearchQ=""; movieSearchItems=[]; movieSearchSeq++; render(); return; }
   if(act==="mw-toggle"){
     if(String(filmExpanded)!==String(id)) filmDetailReturnY=window.scrollY;
@@ -6600,15 +6651,15 @@ document.getElementById("content").addEventListener("click",function(e){
   }
   if(act==="mw-watched"){
     var wmv=findWatchlistMovie(id);
-    if(wmv){ removeFromWatchlist(id); markMovieWatched(wmv); }  // → Watched tab, out of the watchlist
+    if(wmv) markMovieWatched(wmv); // marking Watched already moves it out of the watchlist
     return;
   }
   if(act==="mv-unhide"){ unhideMovie(b.getAttribute("data-key")); return; }
   if(act==="series-refresh"){ ensureSeries(seriesTab,true); return; }
   if(act==="sw-add"){ addSeriesWatchlist(findSearchSeries(id)); return; }
-  if(act==="sw-remove"){ removeSeriesWatchlist(id); return; }
+  if(act==="sw-remove"){ var swr=findWatchlistSeries(id);confirmDestructive('Remove "'+(swr?swr.title:"this TV show")+'" from your watchlist?',"Remove TV show",function(){removeSeriesWatchlist(id);});return; }
   if(act==="sw-clear"){ seriesSearchQ=""; seriesSearchItems=[]; seriesSearchSeq++; render(); return; }
-  if(act==="sr-unwatch"){ unwatchSeries(b.getAttribute("data-key")); return; }
+  if(act==="sr-unwatch"){ var suk=b.getAttribute("data-key"),suw=(data.watchedSeries||[]).filter(function(x){return x.key===suk;})[0];confirmDestructive('Remove "'+(suw?suw.title:"this TV show")+'" from Watched?',"Remove watched status",function(){unwatchSeries(suk);});return; }
   if(act==="sr-unhide"){ unhideSeries(b.getAttribute("data-key")); return; }
   if(act==="ai-open"){
     var at=b.getAttribute("data-ai-type");
@@ -6694,12 +6745,7 @@ document.getElementById("content").addEventListener("click",function(e){
   else if(act==="want"){ var g=byId(data.upcoming,id); if(g){ g.want=!g.want; save(); } }
   else if(act==="del-upcoming"){
     var gd=byId(data.upcoming,id);
-    data.upcoming=data.upcoming.filter(function(x){return x.id!==id;});
-    if(gd){
-      if(!data.upcomingRemoved) data.upcomingRemoved=[];
-      if(!data.upcomingRemoved.some(function(x){return norm(x.name)===norm(gd.name);})) data.upcomingRemoved.unshift(gd);
-    }
-    save(); flash("Removed — it won’t come back on refresh"+(gd?" (restore below)":""));
+    confirmDestructive('Remove "'+(gd?gd.name:"this game")+'" from Upcoming? It will move to Removed Games and stay hidden from refreshes.',"Remove upcoming game",function(){data.upcoming=data.upcoming.filter(function(x){return x.id!==id;});if(gd){if(!data.upcomingRemoved)data.upcomingRemoved=[];if(!data.upcomingRemoved.some(function(x){return norm(x.name)===norm(gd.name);}))data.upcomingRemoved.unshift(gd);}save();flash("Removed — it won’t come back on refresh"+(gd?" (restore below)":""));});
   }
   else if(act==="up-restore"){
     var gr=byId(data.upcomingRemoved,id);
@@ -6711,8 +6757,7 @@ document.getElementById("content").addEventListener("click",function(e){
   }
   else if(act==="up-purge"){
     var gp=byId(data.upcomingRemoved,id);
-    data.upcomingRemoved=(data.upcomingRemoved||[]).filter(function(x){return x.id!==id;});
-    save(); flash(gp?"Deleted for good — refresh may re-add it later":"Deleted");
+    confirmDestructive('Permanently delete "'+(gp?gp.name:"this game")+'" from Removed Games? Internet refresh may discover it again later.',"Delete game record",function(){data.upcomingRemoved=(data.upcomingRemoved||[]).filter(function(x){return x.id!==id;});save();flash(gp?"Deleted for good — refresh may re-add it later":"Deleted");});
   }
   else if(act==="to-played"){
     var g2=byId(data.upcoming,id);
@@ -6800,7 +6845,7 @@ document.getElementById("content").addEventListener("click",function(e){
       enrichScore("rentals",rid);
     }
   }
-  else if(act==="q-del"){ data.queue=data.queue.filter(function(x){return x.id!==id;}); save(); }
+  else if(act==="q-del"){ var qd=byId(data.queue,id);confirmDestructive('Remove "'+(qd?qd.name:"this game")+'" from the rental queue?',"Remove queued game",function(){data.queue=data.queue.filter(function(x){return x.id!==id;});save();flash("Removed from Queue");}); }
 
   else if(act==="add-playing"){
     var pln=document.getElementById("plName").value.trim(); if(!pln) return;
@@ -6868,7 +6913,7 @@ document.getElementById("content").addEventListener("click",function(e){
       save(); flash("↺ Moved down to Resume Later");
     }
   }
-  else if(act==="pl-del"){ data.playing=data.playing.filter(function(x){return x.id!==id;}); save(); }
+  else if(act==="pl-del"){ var pld=byId(data.playing,id);confirmDestructive('Remove "'+(pld?pld.name:"this game")+'" from Playing?',"Remove playing game",function(){data.playing=data.playing.filter(function(x){return x.id!==id;});save();flash("Removed from Playing");}); }
 
   else if(act==="add-played"){
     var pn=document.getElementById("pName").value.trim(); if(!pn) return;
@@ -6914,7 +6959,7 @@ document.getElementById("content").addEventListener("click",function(e){
     var p=byId(data.played,id);
     if(p){ var n=Number(b.getAttribute("data-n")); p.rating=(p.rating===n?0:n); save(); }
   }
-  else if(act==="del-played"){ data.played=data.played.filter(function(x){return x.id!==id;}); save(); }
+  else if(act==="del-played"){ var dp=byId(data.played,id);confirmDestructive('Delete "'+(dp?dp.name:"this game")+'" from your Played library? Its rating and notes will also be removed.',"Delete played game",function(){data.played=data.played.filter(function(x){return x.id!==id;});save();flash("Deleted from Played");}); }
 });
 
 function handleVendorNew(sel){

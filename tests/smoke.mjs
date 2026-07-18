@@ -39,9 +39,13 @@ const biglyScriptStart=biglyDashboardHtml.indexOf("<script>")+8;
 const biglyScriptEnd=biglyDashboardHtml.lastIndexOf("</script>");
 assert.ok(biglyScriptStart>=8&&biglyScriptEnd>biglyScriptStart,"BiglyBT dashboard script must be embedded");
 new vm.Script(biglyDashboardHtml.slice(biglyScriptStart,biglyScriptEnd),{filename:"biglybt-native-dashboard.js"});
-for(const marker of ["gvbt-switch-mode",'data-filter="error"',"historyExport",'id="sort"','id="autoRemove"']){
+for(const marker of ["gvbt-switch-mode",'data-filter="error"',"historyExport",'id="sort"','id="autoRemove"','id="pasteMagnet"',"navigator.clipboard.readText"]){
   assert.ok(biglyWorker.includes(marker),`BiglyBT dashboard must include ${marker}`);
 }
+assert.match(js,/function confirmDestructive\(/);
+assert.match(js,/function ensureSeriesEpisodeRatings\(/);
+assert.match(js,/episode-summary-rating/);
+assert.match(js,/home-overview/);
 for(const name of ["movieCard","watchlistCard","watchlistSearchCard","seriesCard","seriesSearchCard"]){
   const count=(js.match(new RegExp("function\\s+"+name+"\\s*\\(","g"))||[]).length;
   assert.equal(count,1,`${name} should have one canonical implementation`);

@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.21.0 - 2026-07-19
+
+- Added a one-click BiglyBT Paste & Add button that reads a copied magnet link and immediately submits it.
+- Added consistent confirmation warnings before removing games, watchlist titles, watched status, health records and upcoming records.
+- Added per-episode IMDb ratings from one cached OMDb season lookup, with clear pending and unavailable states.
+- Improved Home with an at-a-glance priority strip, overdue rental warnings, queue availability and a unified Continue section.
+
 ## v1.20.0 - 2026-07-18
 
 - Redesigned the BiglyBT native dashboard as a compact download workspace with a sticky connection and transfer summary.
