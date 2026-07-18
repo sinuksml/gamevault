@@ -1,8 +1,9 @@
 ﻿"use strict";
-var APP_VERSION = "1.18.1";
+var APP_VERSION = "1.18.2";
 var APP_BUILD_DATE = "2026-07-18";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Aligned title actions and upgraded game detail information",
   "Made title detail buttons wrap into visible rows instead of requiring sideways scrolling",
   "Polished PC and iPhone contrast, tap targets, focus states and light-mode surfaces",
   "Redesigned Android TV as a cinematic command center without changing phone or desktop",
@@ -1351,11 +1352,21 @@ function gameFindById(id){
 }
 function gamePage(x,actionsHtml,extraHtml){
   var cinematic=coverUrl(x);
+  var release=x.date?fmt(x.date):(x.year||"Not listed");
+  var community=x.rrating?(Math.round(Number(x.rrating)*10)/10+" / 5"):(x.rating?(Math.round(Number(x.rating)*10)/10+" / 5"):"Not rated");
+  var context={rentals:"RENTAL",playing:"NOW PLAYING",queue:"RENTAL QUEUE",upcoming:"UPCOMING RELEASE",suggest:"DISCOVER",played:"COMPLETED"}[tab]||"GAME";
   return '<div class="game-page">'+detailToolbar("game",x)+(cinematic?'<div class="phone-detail-backdrop landscape" style="background-image:url(&quot;'+esc(cinematic)+'&quot;)"></div>':'')+
     '<div class="game-page-head"><div class="game-page-cover">'+gameCoverHero(x)+'</div>'+
-    '<div><div class="game-page-title">'+esc(x.name)+'</div>'+
-    '<div class="game-page-sub">'+badges(x.name)+'<span class="game-pill">'+esc(x.genre||tierFor(x.name)||"PS5")+'</span>'+(x.score?'<span class="game-pill">Critic '+x.score+'</span>':'')+(x.rrating?'<span class="game-pill">'+x.rrating+'★ users</span>':'')+'</div>'+
-    (x.note?'<div class="media-page-overview">'+esc(x.note)+'</div>':'')+'</div></div>'+
+    '<div class="game-page-info"><div class="game-page-kicker"><span>PLAYSTATION 5</span><span>'+context+'</span></div>'+
+    '<div class="game-page-title">'+esc(x.name)+'</div>'+
+    '<div class="game-page-sub game-page-badges">'+badges(x.name)+(x.genre?'<span class="game-pill">'+esc(x.genre)+'</span>':'')+'</div>'+
+    '<div class="game-fact-grid">'+
+      '<div class="game-fact"><span>Release</span><b>'+esc(String(release))+'</b></div>'+
+      '<div class="game-fact"><span>Genre</span><b>'+esc(x.genre||"Not listed")+'</b></div>'+
+      '<div class="game-fact"><span>Critic score</span><b>'+(x.score?esc(String(x.score))+" / 100":"Not rated")+'</b></div>'+
+      '<div class="game-fact"><span>'+(x.rating?"Your rating":"Community")+'</span><b>'+esc(community)+'</b></div>'+
+    '</div>'+
+    (x.note?'<div class="game-page-overview"><span>Overview</span><p>'+esc(x.note)+'</p></div>':'')+'</div></div>'+
     '<div class="actions detail-actionbar">'+(actionsHtml||"")+linkBtns(x.name)+'</div>'+
     (tab==="playing"?plotBlock(x.name):"")+(extraHtml||"")+'</div>';
 }

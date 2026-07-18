@@ -1813,3 +1813,162 @@ html:not(.tv) .detail-actionbar>*{
     grid-column:1/-1;
   }
 }
+
+/* ---------- v1.18.2 aligned title actions and richer game details ---------- */
+html:not(.tv) .game-page-info{
+  min-width:0;
+  align-self:stretch;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  padding:4px 0;
+}
+html:not(.tv) .game-page-kicker{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:6px 12px;
+  margin-bottom:7px;
+  color:var(--accent);
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.08em;
+}
+html:not(.tv) .game-page-kicker span+span{
+  position:relative;
+  color:var(--dim);
+}
+html:not(.tv) .game-page-kicker span+span::before{
+  content:"";
+  position:absolute;
+  left:-7px;
+  top:50%;
+  width:3px;
+  height:3px;
+  border-radius:50%;
+  background:var(--faint);
+  transform:translateY(-50%);
+}
+html:not(.tv) .game-page-title{
+  max-width:24ch;
+  margin:0 0 10px;
+  text-wrap:balance;
+}
+html:not(.tv) .game-page-badges{
+  align-items:center;
+  margin:0 0 15px;
+}
+html:not(.tv) .game-fact-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+  margin:0 0 14px;
+}
+html:not(.tv) .game-fact{
+  min-width:0;
+  padding:10px 11px;
+  border:1px solid var(--border3);
+  border-radius:8px;
+  background:var(--surface-soft);
+}
+html:not(.tv) .game-fact span{
+  display:block;
+  margin-bottom:3px;
+  color:var(--dim);
+  font-size:11px;
+  font-weight:700;
+}
+html:not(.tv) .game-fact b{
+  display:block;
+  overflow:hidden;
+  color:var(--text);
+  font-size:13px;
+  font-weight:800;
+  line-height:1.25;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+html:not(.tv) .game-page-overview{
+  max-width:72ch;
+  padding:10px 12px;
+  border-left:3px solid var(--accent);
+  border-radius:0 8px 8px 0;
+  background:color-mix(in srgb,var(--surface-soft) 72%,transparent);
+}
+html:not(.tv) .game-page-overview>span{
+  display:block;
+  margin-bottom:4px;
+  color:var(--dim);
+  font-size:11px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+html:not(.tv) .game-page-overview p{
+  margin:0;
+  color:var(--text2);
+  font-size:13px;
+  line-height:1.5;
+}
+html:not(.tv) .media-closebar.detail-toolbar>.detail-close{
+  flex:0 0 44px!important;
+  width:44px!important;
+  min-width:44px!important;
+  height:44px!important;
+  min-height:44px!important;
+  margin:0!important;
+}
+
+@media (min-width:900px){
+  html:not(.tv) .detail-actionbar{
+    display:grid!important;
+    grid-template-columns:repeat(auto-fit,minmax(145px,1fr));
+    align-items:stretch;
+    gap:8px;
+  }
+  html:not(.tv) .detail-actionbar>*{
+    width:100%!important;
+    min-height:42px;
+    justify-content:center;
+  }
+  html:not(.tv) .detail-actionbar .dots{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+}
+
+@media (max-width:899px){
+  html:not(.tv) .game-page-info{padding:0}
+  html:not(.tv) .game-page-kicker{gap:5px 10px;margin-bottom:5px;font-size:10px}
+  html:not(.tv) .game-page-title{margin-bottom:7px}
+  html:not(.tv) .game-page-badges{gap:5px;margin-bottom:9px}
+  html:not(.tv) .game-fact-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin-bottom:9px}
+  html:not(.tv) .game-fact{padding:7px 8px}
+  html:not(.tv) .game-fact span{font-size:10px}
+  html:not(.tv) .game-fact b{font-size:12px}
+  html:not(.tv) .game-page-overview{grid-column:1/-1;padding:9px 10px}
+  html:not(.tv) .detail-actionbar>*{min-height:44px;align-items:center;justify-content:center}
+  html:not(.tv) .media-closebar.detail-toolbar>.detail-close{
+    flex-basis:46px!important;
+    width:46px!important;
+    min-width:46px!important;
+    height:46px!important;
+    min-height:46px!important;
+  }
+}
+
+@media (max-width:430px){
+  html:not(.tv) .game-page-head{
+    grid-template-columns:112px minmax(0,1fr);
+    align-items:start;
+    gap:12px;
+  }
+  html:not(.tv) .game-page-cover{width:112px}
+  html:not(.tv) .game-page-title{font-size:23px;line-height:1.08}
+  html:not(.tv) .game-fact-grid{grid-template-columns:1fr}
+  html:not(.tv) .game-fact{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  html:not(.tv) .game-fact span{margin:0}
+  html:not(.tv) .game-fact b{text-align:right}
+  html:not(.tv) .game-page-overview{display:none}
+}
