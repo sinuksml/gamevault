@@ -1764,3 +1764,52 @@ html:not(.tv) .media-pill.imdb{font-variant-numeric:tabular-nums}
   html:not(.tv) .phone-sheet{z-index:220}
   html:not(.tv) .shortcuts-help{z-index:230}
 }
+
+/* ---------- v1.18.1 PC + iPhone detail actions: show every button without sideways scrolling ---------- */
+html:not(.tv) .detail-actionbar{
+  flex-wrap:wrap!important;
+  overflow-x:visible!important;
+  mask-image:none!important;
+  -webkit-mask-image:none!important;
+}
+html:not(.tv) .detail-actionbar::after{display:none!important}
+html:not(.tv) .detail-actionbar>*{
+  white-space:normal;
+  min-width:0!important;
+}
+@media (min-width:900px){
+  html:not(.tv) .detail-actionbar{
+    display:flex!important;
+    gap:8px;
+    align-items:flex-start;
+  }
+  html:not(.tv) .detail-actionbar>*{
+    flex:0 1 auto;
+    max-width:100%;
+  }
+}
+@media (max-width:899px){
+  html:not(.tv) .detail-actionbar{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+    margin:12px 0 15px;
+    padding:8px;
+    scroll-snap-type:none;
+  }
+  html:not(.tv) .detail-actionbar>*{
+    width:100%!important;
+    max-width:none!important;
+    flex:none!important;
+    scroll-snap-align:none;
+  }
+  html:not(.tv) .detail-actionbar .title-primary,
+  html:not(.tv) .detail-actionbar>.btn.blue{
+    position:static;
+    min-width:0!important;
+  }
+  html:not(.tv) .detail-actionbar .dots,
+  html:not(.tv) .detail-actionbar details{
+    grid-column:1/-1;
+  }
+}
