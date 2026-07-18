@@ -7,13 +7,14 @@ var financeTab="financeoverview";
 var financeState=null,financeKey=null,financeBusy=false,financePendingImport=null;
 var financeSearch="",financeAccountFilter="",financeMerchantFilter="",financeCategoryFilter="",financeKindFilter="",financeMonthFilter="",financeYearFilter="",financeDetailGroup="",financeShowAll=false,financeLockTimer=null;
 var FINANCE_FACE_STORE="gamevault-finance-face-v1";
-var FINANCE_IDLE_MS=5*60*1000;
+var FINANCE_LOCK_PREF="gamevault-finance-lock-minutes";
+var financePinFallback=false,financePinAttempts=0,financePinBlockedUntil=0,financeHiddenAt=0;
 var FINANCE_GMAIL_SCOPE="https://www.googleapis.com/auth/gmail.readonly";
-var FINANCE_GMAIL_DEFAULT_QUERY='newer_than:5y has:attachment {filename:pdf filename:csv filename:txt} {subject:"credit card statement" subject:"debit card statement" subject:"bank statement" subject:"account statement" subject:"monthly statement" subject:"e-statement" subject:estatement} -subject:demat -subject:"mutual fund"';
+var FINANCE_GMAIL_DEFAULT_QUERY='newer_than:5y has:attachment {filename:pdf filename:csv filename:txt} {subject:"credit card statement" subject:"debit card statement" subject:"bank statement" subject:"account statement" subject:"monthly statement" subject:"e-statement" subject:estatement subject:"card bill" subject:"statement ready" subject:"your statement" subject:"monthly bill"} -subject:demat -subject:"mutual fund"';
 var financeGmailToken=null,financeGmailTokenClient=null,financeGmailCandidates=[],financeAutoSyncQueued=false,financeGmailAutoBlocked=false,financeGmailSetupRequired=false;
-var financeGmailStatus="";
+var financeGmailStatus="",financeGmailProgress=null;
 
-function financeDefaults(){return {version:1,transactions:[],loans:[],statements:[],gmail:{query:FINANCE_GMAIL_DEFAULT_QUERY,importedMessageIds:[],lastSyncAt:0,email:"",authorized:false},updatedAt:Date.now()};}
+function financeDefaults(){return {version:1,transactions:[],loans:[],statements:[],gmail:{query:FINANCE_GMAIL_DEFAULT_QUERY,importedMessageIds:[],importedStatementKeys:[],retryMessageIds:[],lastSyncAt:0,lastSuccessfulSyncAt:0,lastAttemptAt:0,lastResult:"",email:"",authorized:false},updatedAt:Date.now()};}
 function financeNormalize(value){
   var f=value&&typeof value==="object"&&!Array.isArray(value)?value:financeDefaults();
   if(!Array.isArray(f.transactions))f.transactions=[];
@@ -22,20 +23,27 @@ function financeNormalize(value){
   if(!f.gmail||typeof f.gmail!=="object"||Array.isArray(f.gmail))f.gmail={};
   f.gmail.query=FINANCE_GMAIL_DEFAULT_QUERY;
   if(!Array.isArray(f.gmail.importedMessageIds))f.gmail.importedMessageIds=[];
+  if(!Array.isArray(f.gmail.importedStatementKeys))f.gmail.importedStatementKeys=[];
+  if(!Array.isArray(f.gmail.retryMessageIds))f.gmail.retryMessageIds=[];
   if(!Number.isFinite(Number(f.gmail.lastSyncAt)))f.gmail.lastSyncAt=0;
+  if(!Number.isFinite(Number(f.gmail.lastSuccessfulSyncAt)))f.gmail.lastSuccessfulSyncAt=Number(f.gmail.lastSyncAt)||0;
+  if(!Number.isFinite(Number(f.gmail.lastAttemptAt)))f.gmail.lastAttemptAt=0;
+  if(typeof f.gmail.lastResult!=="string")f.gmail.lastResult="";
   if(typeof f.gmail.email!=="string")f.gmail.email="";
   f.gmail.authorized=!!f.gmail.authorized;
   f.version=1;return f;
 }
 function financeConfigured(){return !!(data&&data.finance&&data.finance.format==="gamevault-finance-v1"&&data.finance.cipher);}
 function financeUnlocked(){return !!(financeState&&financeKey);}
+function financeLockMinutes(){var value=Number(localStorage.getItem(FINANCE_LOCK_PREF)||5);return [2,5,15].indexOf(value)>-1?value:5;}
 function financeTouch(){
   if(!financeUnlocked())return;
   clearTimeout(financeLockTimer);
-  financeLockTimer=setTimeout(function(){financeLock();if(section==="finance")render();flash("Finance locked after 5 minutes of inactivity");},FINANCE_IDLE_MS);
+  var minutes=financeLockMinutes();
+  financeLockTimer=setTimeout(function(){financeLock();if(section==="finance")render();flash("Finance locked after "+minutes+" minutes of inactivity");},minutes*60*1000);
 }
 function financeLock(silent){
-  clearTimeout(financeLockTimer);financeLockTimer=null;financeState=null;financeKey=null;financePendingImport=null;financeGmailCandidates=[];financeGmailToken=null;
+  clearTimeout(financeLockTimer);financeLockTimer=null;financeState=null;financeKey=null;financePendingImport=null;financeGmailCandidates=[];financeGmailToken=null;financePinFallback=false;
   if(!silent&&typeof flash==="function")flash("Finance locked");
 }
 function financeRandom(n){var out=new Uint8Array(n);crypto.getRandomValues(out);return out;}
@@ -65,12 +73,13 @@ function financeSetup(){
   }).catch(function(){financeBusy=false;financeLock(true);render();flash("Could not create the Finance vault");});
 }
 function financeUnlockPin(){
+  if(Date.now()<financePinBlockedUntil){flash("Wait "+Math.ceil((financePinBlockedUntil-Date.now())/1000)+" seconds before trying again");return;}
   var pin=(document.getElementById("financePin")||{}).value||"";
   if(!/^\d{6}$/.test(pin)){flash("Enter your 6-digit Finance PIN");return;}
   financeBusy=true;render();var envelope=data.finance;
   financeKeyFromPin(pin,b64ToBytes(envelope.salt)).then(function(key){return financeDecrypt(envelope,key).then(function(state){financeKey=key;financeState=state;});}).then(function(){
-    financeBusy=false;financeTouch();render();flash("Finance unlocked");
-  }).catch(function(){financeBusy=false;financeLock(true);render();flash("Incorrect Finance PIN");});
+    financeBusy=false;financePinAttempts=0;financePinBlockedUntil=0;financeTouch();render();flash("Finance unlocked");
+  }).catch(function(){financeBusy=false;financeLock(true);financePinFallback=true;financePinAttempts++;if(financePinAttempts>=3)financePinBlockedUntil=Date.now()+Math.min(30000,(financePinAttempts-2)*5000);render();flash(financePinBlockedUntil>Date.now()?"Incorrect PIN. Try again in "+Math.ceil((financePinBlockedUntil-Date.now())/1000)+" seconds":"Incorrect Finance PIN");});
 }
 function financeSave(message){
   if(!financeUnlocked())return Promise.reject(new Error("Finance is locked"));
@@ -83,6 +92,8 @@ function financeSave(message){
 function financeB64Url(bytes){return bytesToB64(bytes).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"");}
 function financeFromB64Url(value){var s=value.replace(/-/g,"+").replace(/_/g,"/");while(s.length%4)s+="=";return b64ToBytes(s);}
 function financeFaceConfig(){try{return JSON.parse(localStorage.getItem(FINANCE_FACE_STORE)||"null");}catch(e){return null;}}
+function financeFaceAvailable(){return !!(window.PublicKeyCredential&&navigator.credentials);}
+function financeShouldAutoUnlock(){return financeConfigured()&&!financeUnlocked()&&!financeBusy&&!!financeFaceConfig()&&financeFaceAvailable();}
 function financePrfOutput(credential){
   try{var ext=credential.getClientExtensionResults(),out=ext&&ext.prf&&ext.prf.results&&ext.prf.results.first;return out?new Uint8Array(out):null;}catch(e){return null;}
 }
@@ -95,25 +106,27 @@ function financeEnableFace(){
   if(!financeUnlocked()){flash("Unlock with your PIN first");return;}
   if(!window.PublicKeyCredential||!navigator.credentials){flash("Face ID unlock is not supported by this browser");return;}
   financeBusy=true;render();var prfSalt=financeRandom(32),userId=financeRandom(16),created;
-  navigator.credentials.create({publicKey:{challenge:financeRandom(32),rp:{name:"Sinu Game Vault"},user:{id:userId,name:"sinu-finance",displayName:"Sinu Finance"},pubKeyCredParams:[{type:"public-key",alg:-7},{type:"public-key",alg:-257}],authenticatorSelection:{authenticatorAttachment:"platform",residentKey:"preferred",userVerification:"required"},timeout:60000,attestation:"none",extensions:{prf:{eval:{first:prfSalt}}}}}).then(function(credential){
+  var capability=PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable?PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable():Promise.resolve(true);
+  capability.then(function(available){if(!available)throw new Error("No device biometric authenticator is available");return navigator.credentials.create({publicKey:{challenge:financeRandom(32),rp:{name:"Sinu Game Vault"},user:{id:userId,name:"sinu-finance",displayName:"Sinu Finance"},pubKeyCredParams:[{type:"public-key",alg:-7},{type:"public-key",alg:-257}],authenticatorSelection:{authenticatorAttachment:"platform",residentKey:"preferred",userVerification:"required"},timeout:60000,attestation:"none",extensions:{prf:{eval:{first:prfSalt}}}}});}).then(function(credential){
     created=credential;var direct=financePrfOutput(credential);return direct||financeGetPrf(financeB64Url(new Uint8Array(credential.rawId)),prfSalt);
   }).then(function(prf){
     return Promise.all([crypto.subtle.importKey("raw",prf,{name:"AES-GCM"},false,["encrypt"]),crypto.subtle.exportKey("raw",financeKey)]);
   }).then(function(parts){
     var iv=financeRandom(12);return crypto.subtle.encrypt({name:"AES-GCM",iv:iv},parts[0],parts[1]).then(function(wrapped){
-      var cfg={credentialId:financeB64Url(new Uint8Array(created.rawId)),salt:bytesToB64(prfSalt),iv:bytesToB64(iv),wrappedKey:bytesToB64(new Uint8Array(wrapped))};
+      var cfg={credentialId:financeB64Url(new Uint8Array(created.rawId)),salt:bytesToB64(prfSalt),iv:bytesToB64(iv),wrappedKey:bytesToB64(new Uint8Array(wrapped)),vaultSalt:data.finance.salt,enabledAt:Date.now()};
       localStorage.setItem(FINANCE_FACE_STORE,JSON.stringify(cfg));financeBusy=false;financeTouch();render();flash("Face ID unlock enabled on this device");
     });
   }).catch(function(err){financeBusy=false;render();flash(err&&err.name==="NotAllowedError"?"Face ID setup was cancelled":"Face ID secure unlock is unavailable here; use the PIN");});
 }
 function financeUnlockFace(){
   var cfg=financeFaceConfig();if(!cfg){flash("Unlock with PIN, then enable Face ID on this device");return;}
+  if(cfg.vaultSalt&&cfg.vaultSalt!==data.finance.salt){localStorage.removeItem(FINANCE_FACE_STORE);financePinFallback=true;render();flash("Finance vault changed. Unlock with PIN and enable Face ID again");return;}
   financeBusy=true;render();var prfSalt=b64ToBytes(cfg.salt);
   financeGetPrf(cfg.credentialId,prfSalt).then(function(prf){return crypto.subtle.importKey("raw",prf,{name:"AES-GCM"},false,["decrypt"]);}).then(function(wrapKey){
     return crypto.subtle.decrypt({name:"AES-GCM",iv:b64ToBytes(cfg.iv)},wrapKey,b64ToBytes(cfg.wrappedKey));
   }).then(function(rawKey){return crypto.subtle.importKey("raw",rawKey,{name:"AES-GCM"},true,["encrypt","decrypt"]);}).then(function(key){
     return financeDecrypt(data.finance,key).then(function(state){financeKey=key;financeState=state;});
-  }).then(function(){financeBusy=false;financeTouch();render();flash("Finance unlocked with Face ID");}).catch(function(){financeBusy=false;financeLock(true);render();flash("Face ID unlock failed; use your PIN");});
+  }).then(function(){financeBusy=false;financePinFallback=false;financePinAttempts=0;financeTouch();render();flash("Finance unlocked with Face ID");}).catch(function(err){financeBusy=false;financeLock(true);financePinFallback=true;render();if(err&&err.name==="NotAllowedError")flash("Face ID was cancelled. Use Face ID again or unlock with PIN");else if(err&&(/not supported|unavailable|extension/i.test(String(err.message||""))||err.name==="NotSupportedError"))flash("Secure Face ID unlock is unavailable in this browser. Use your PIN");else flash("This Face ID credential could not unlock the vault. Use your PIN");});
 }
 function financeDisableFace(){try{localStorage.removeItem(FINANCE_FACE_STORE);}catch(e){}render();flash("Face ID unlock removed from this device");}
 
@@ -174,9 +187,9 @@ function financeRecurring(){
 }
 function financeUnusual(month){var items=(financeState.transactions||[]).map(financeNormalizeTransaction).filter(function(t){return financeMonthKey(t.date)===month&&t.kind==="expense";}),avg=items.length?items.reduce(function(a,t){return a+t.amount;},0)/items.length:0;return items.filter(function(t){return t.amount>=Math.max(avg*2.5,10000);}).sort(function(a,b){return b.amount-a.amount;}).slice(0,5);}
 function financeLockScreen(){
-  var configured=financeConfigured(),face=financeFaceConfig(),phone=phoneUi();
+  var configured=financeConfigured(),face=financeFaceConfig(),showPin=!face||financePinFallback;
   if(!configured)return '<section class="finance-auth"><span class="finance-lock-icon">&#8377;</span><h2>Create private Finance vault</h2><p>Your statements, transactions and loans are encrypted before they enter local storage or Google Drive. Create a six-digit recovery PIN.</p><div class="finance-pin-row"><input id="financePinNew" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="6-digit PIN"><input id="financePinAgain" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="Confirm PIN"><button class="btn blue" data-act="finance-setup"'+(financeBusy?' disabled':'')+'>'+(financeBusy?'Creating...':'Create vault')+'</button></div><small>Do not forget this PIN. GameVault cannot recover encrypted finance data without it.</small></section>';
-  return '<section class="finance-auth"><span class="finance-lock-icon">&#128274;</span><h2>Finance is locked</h2><p>Unlock the encrypted vault to view statements, expenses and loans.</p>'+(phone&&face?'<button class="btn blue finance-face-btn" data-act="finance-face-unlock"'+(financeBusy?' disabled':'')+'>Unlock with Face ID</button><div class="finance-or">or use recovery PIN</div>':'')+'<div class="finance-pin-row"><input id="financePin" type="password" inputmode="numeric" maxlength="6" autocomplete="current-password" placeholder="6-digit PIN"><button class="btn blue" data-act="finance-unlock"'+(financeBusy?' disabled':'')+'>'+(financeBusy?'Unlocking...':'Unlock')+'</button></div><small>Encrypted finance data is synced with your normal GameVault backup. The PIN is never stored or uploaded.</small></section>';
+  return '<section class="finance-auth"><span class="finance-lock-icon">&#128274;</span><h2>Finance is locked</h2><p>Unlock the encrypted vault to view statements, expenses and loans.</p>'+(face?'<button class="btn blue finance-face-btn" data-act="finance-face-unlock"'+(financeBusy?' disabled':'')+'>'+(financeBusy?'Checking Face ID...':'Unlock with Face ID')+'</button>':'')+(face&&!showPin?'<button class="btn finance-pin-fallback" data-act="finance-pin-show">Use recovery PIN instead</button>':'')+(showPin?'<div class="finance-pin-row"><input id="financePin" type="password" inputmode="numeric" maxlength="6" autocomplete="current-password" placeholder="6-digit PIN"><button class="btn blue" data-act="finance-unlock"'+(financeBusy?' disabled':'')+'>'+(financeBusy?'Unlocking...':'Unlock')+'</button></div>':'')+'<small>Encrypted finance data is synced with your normal GameVault backup. The PIN and biometric data are never stored or uploaded.</small></section>';
 }
 function financeOverview(){
   var s=financeSummary(),month=financeSelectedMonth(),change=(s.change>0?"+":"")+s.change.toFixed(1)+"%",frequent=financeTop(s.merchantCount),unusual=financeUnusual(month),recurring=financeRecurring().slice(0,4),last=(financeState.gmail&&financeState.gmail.lastSyncAt)?new Date(financeState.gmail.lastSyncAt).toLocaleString("en-IN"):"Never";
@@ -211,13 +224,14 @@ function financeLoans(){
 function financeGmailConnected(){return !!(financeGmailToken&&financeGmailToken.access_token&&Date.now()<financeGmailToken.expiresAt-60000);}
 function financeGmailSetupUrl(){var project=String(gdClientId()||"").split("-")[0];return "https://console.cloud.google.com/apis/library/gmail.googleapis.com"+(project?"?project="+encodeURIComponent(project):"");}
 function financeGmailPanel(){
-  var g=financeState.gmail||{},connected=financeGmailConnected(),last=g.lastSyncAt?new Date(g.lastSyncAt).toLocaleString("en-IN"):"Never";
+  var g=financeState.gmail||{},connected=financeGmailConnected(),last=g.lastSuccessfulSyncAt?new Date(g.lastSuccessfulSyncAt).toLocaleString("en-IN"):"Never",attempt=g.lastAttemptAt?new Date(g.lastAttemptAt).toLocaleString("en-IN"):"Never";
   var state=connected?"Connected for this browser session":(g.authorized?"Previously authorized - tap Sync Gmail to reconnect":"Not connected");
-  return '<section class="finance-panel finance-gmail"><div class="finance-panel-head"><div><span>STATEMENT-ONLY DATA SOURCE</span><h3>Gmail statement synchronization</h3></div><span class="finance-gmail-state '+(connected?'on':'')+'">'+esc(state)+'</span></div><p>GameVault imports only attached credit-card statements and bank/debit-account statements. Individual debit, UPI, wallet, shopping and transaction-alert emails are ignored.</p>'+(financeGmailSetupRequired?'<div class="finance-gmail-setup"><div><strong>Gmail API setup required</strong><span>Enable Gmail API for Google Cloud project 898110284062, wait a few minutes, then refresh statements.</span></div><a class="btn blue" href="'+esc(financeGmailSetupUrl())+'" target="_blank" rel="noopener">Enable Gmail API</a></div>':'')+'<div class="finance-gmail-query"><span>Automatic statement search</span><strong>PDF, CSV and TXT statements from the last five years</strong></div><div class="finance-actions"><button class="btn blue" data-act="finance-gmail-sync"'+(financeBusy?' disabled':'')+'>'+(financeBusy?'Checking statements...':(connected?'Refresh statements now':'Connect Gmail & scan statements'))+'</button>'+(connected?'<button class="btn" data-act="finance-gmail-disconnect">Disconnect Gmail</button>':'')+'</div><div class="finance-gmail-meta"><span>Account: '+esc(g.email||"shown after connection")+'</span><span>Latest synchronization: '+esc(last)+'</span></div>'+(financeGmailStatus?'<div class="finance-gmail-result">'+esc(financeGmailStatus)+'</div>':'')+'<details><summary>Privacy and one-time Google setup</summary><p>Enable the Gmail API in the same Google Cloud project used by GameVault. Add the Gmail read-only scope to the OAuth consent screen and, while the app is in Testing, add your Google account as a test user.</p><p>Access tokens stay only in memory and expire quickly. Raw emails and statement attachments are never saved to local storage or Drive. Only transactions extracted from statements, EMI details and Gmail message IDs enter your encrypted Finance vault.</p><p>Password-protected PDF statements cannot be read in the browser and will be reported for review.</p></details></section>';
+  var progress=financeGmailProgress?'<div class="finance-gmail-progress" role="status"><div><span>'+esc(financeGmailProgress.stage)+'</span><b>'+financeGmailProgress.done+' / '+financeGmailProgress.total+'</b></div><i><span style="width:'+Math.round(financeGmailProgress.done/Math.max(1,financeGmailProgress.total)*100)+'%"></span></i></div>':'';
+  return '<section class="finance-panel finance-gmail"><div class="finance-panel-head"><div><span>STATEMENT-ONLY DATA SOURCE</span><h3>Gmail statement synchronization</h3></div><span class="finance-gmail-state '+(connected?'on':'')+'">'+esc(state)+'</span></div><p>GameVault imports only attached credit-card statements and bank/debit-account statements. Individual debit, UPI, wallet, shopping and transaction-alert emails are ignored.</p>'+(financeGmailSetupRequired?'<div class="finance-gmail-setup"><div><strong>Gmail API setup required</strong><span>Enable Gmail API for Google Cloud project 898110284062, wait a few minutes, then refresh statements.</span></div><a class="btn blue" href="'+esc(financeGmailSetupUrl())+'" target="_blank" rel="noopener">Enable Gmail API</a></div>':'')+'<div class="finance-gmail-query"><span>Automatic statement search</span><strong>'+(g.lastSuccessfulSyncAt?'Incremental scan with a seven-day safety overlap':'Initial PDF, CSV and TXT scan from the last five years')+'</strong></div><div class="finance-actions"><button class="btn blue" data-act="finance-gmail-sync"'+(financeBusy?' disabled':'')+'>'+(financeBusy?'Checking statements...':(connected?'Refresh statements now':'Connect Gmail & scan statements'))+'</button>'+(connected?'<button class="btn" data-act="finance-gmail-disconnect">Disconnect Gmail</button>':'')+'</div>'+progress+'<div class="finance-gmail-meta"><span>Account: '+esc(g.email||"shown after connection")+'</span><span>Last successful sync: '+esc(last)+'</span><span>Last attempt: '+esc(attempt)+'</span></div>'+(financeGmailStatus?'<div class="finance-gmail-result">'+esc(financeGmailStatus)+'</div>':'')+'<details><summary>Privacy and one-time Google setup</summary><p>Enable the Gmail API in the same Google Cloud project used by GameVault. Add the Gmail read-only scope to the OAuth consent screen and, while the app is in Testing, add your Google account as a test user.</p><p>Access tokens stay only in memory and expire quickly. Raw emails and statement attachments are never saved to local storage or Drive. Only transactions extracted from statements, EMI details and Gmail message IDs enter your encrypted Finance vault.</p><p>Password-protected PDF statements cannot be read in the browser and remain available for a later retry.</p></details></section>';
 }
 function financeStatements(){
   var pending="";
-  if(financePendingImport){var emiCount=(financePendingImport.emis||[]).length,unreadable=Number(financePendingImport.unreadableCount||0);pending='<section class="finance-panel"><div class="finance-panel-head"><div><span>REVIEW BEFORE IMPORT</span><h3>'+esc(financePendingImport.name)+'</h3></div><b>'+financePendingImport.items.length+' transactions'+(emiCount?' · '+emiCount+' EMI updates':'')+'</b></div>'+(unreadable?'<div class="finance-gmail-result">'+unreadable+' statement attachment'+(unreadable===1?' could':'s could')+' not be read. Password-protected PDFs must be replaced with an unlocked PDF, CSV or TXT statement.</div>':'')+'<div class="finance-import-preview">'+financePendingImport.items.slice(0,20).map(function(t){var kind=financeKind(t),positive=kind==="income"||kind==="refund"||kind==="reversal";return '<div><span>'+esc(t.date)+'</span><strong>'+esc(t.description)+'<small>'+esc(kind.replace(/_/g," "))+'</small></strong><b class="'+(positive?'income':'expense')+'">'+(positive?'+':'-')+financeMoney(t.amount)+'</b></div>';}).join("")+(emiCount?'<div class="finance-import-emi">'+emiCount+' EMI schedule update'+(emiCount===1?'':'s')+' will be merged automatically.</div>':'')+'</div><div class="finance-actions"><button class="btn blue" data-act="finance-import-confirm">Approve and update dashboard</button><button class="btn" data-act="finance-import-cancel">Cancel</button></div></section>';}
+  if(financePendingImport){var emiCount=(financePendingImport.emis||[]).length,unreadable=Number(financePendingImport.unreadableCount||0),meta=(financePendingImport.metadata||[]).map(function(m){return '<span>'+esc(m.subject)+(m.account?' · '+esc(m.account):'')+(m.period?' · '+esc(m.period):'')+(m.dueDate?' · due '+esc(m.dueDate):'')+(m.readable?'':' · retry needed')+'</span>';}).join("");pending='<section class="finance-panel"><div class="finance-panel-head"><div><span>REVIEW BEFORE IMPORT</span><h3>'+esc(financePendingImport.name)+'</h3></div><b>'+financePendingImport.items.length+' transactions'+(emiCount?' · '+emiCount+' EMI updates':'')+'</b></div>'+(meta?'<div class="finance-statement-meta">'+meta+'</div>':'')+(unreadable?'<div class="finance-gmail-result">'+unreadable+' statement attachment'+(unreadable===1?' could':'s could')+' not be read and will remain in the encrypted retry queue. Password-protected PDFs must be replaced with an unlocked PDF, CSV or TXT statement.</div>':'')+'<div class="finance-import-preview">'+financePendingImport.items.slice(0,20).map(function(t){var kind=financeKind(t),positive=kind==="income"||kind==="refund"||kind==="reversal";return '<div><span>'+esc(t.date)+'</span><strong>'+esc(t.description)+'<small>'+esc(kind.replace(/_/g," "))+'</small></strong><b class="'+(positive?'income':'expense')+'">'+(positive?'+':'-')+financeMoney(t.amount)+'</b></div>';}).join("")+(emiCount?'<div class="finance-import-emi">'+emiCount+' EMI schedule update'+(emiCount===1?'':'s')+' will be merged automatically.</div>':'')+'</div><div class="finance-actions"><button class="btn blue" data-act="finance-import-confirm">Approve and update dashboard</button><button class="btn" data-act="finance-import-cancel">Review later</button></div></section>';}
   var history=financeState.statements.slice().sort(function(a,b){return b.importedAt-a.importedAt;}).map(function(s){return '<div class="finance-statement"><div><strong>'+esc(s.name)+'</strong><span>'+new Date(s.importedAt).toLocaleString("en-IN")+' - '+s.count+' imported'+(s.skipped?' - '+s.skipped+' duplicates skipped':'')+'</span></div><button class="iconbtn finance-delete" data-act="finance-delete-statement" data-id="'+esc(s.id)+'" aria-label="Delete statement record">&times;</button></div>';}).join("");
   return financeGmailPanel()+pending+'<section class="finance-panel"><div class="finance-panel-head"><div><span>SECURE IMPORT LOG</span><h3>Statement synchronizations</h3></div></div>'+(history||'<div class="finance-empty">No Gmail statements imported yet.</div>')+'</section>';
 }
@@ -226,7 +240,8 @@ function renderFinance(){
   financeTouch();
   if(financeGmailConnected()&&financeState.gmail&&Date.now()-Number(financeState.gmail.lastSyncAt||0)>15*60*1000&&!financeAutoSyncQueued&&!financeBusy&&!financeGmailAutoBlocked){financeAutoSyncQueued=true;setTimeout(function(){if(section==="finance"&&financeUnlocked()&&financeGmailConnected())financeGmailSync(true);else financeAutoSyncQueued=false;},400);}
   var body=financeTab==="financetransactions"?financeTransactions():financeTab==="financeloans"?financeLoans():financeTab==="financestatements"?financeStatements():financeOverview();
-  return '<div class="finance-private-note"><span>&#128274; Encrypted vault unlocked</span><div>'+(phoneUi()?(financeFaceConfig()?'<button class="btn" data-act="finance-face-disable">Remove Face ID</button>':'<button class="btn" data-act="finance-face-enable">Enable Face ID</button>'):'')+'<button class="btn" data-act="finance-lock">Lock now</button></div></div>'+body;
+  var face=financeFaceConfig(),enabled=face&&face.enabledAt?new Date(face.enabledAt).toLocaleDateString("en-IN"):"";
+  return '<div class="finance-private-note"><span>&#128274; Encrypted vault unlocked</span><div><details class="finance-security-menu"><summary class="btn">Security</summary><div><label>Auto-lock<select id="financeLockMinutes"><option value="2"'+(financeLockMinutes()===2?' selected':'')+'>After 2 minutes</option><option value="5"'+(financeLockMinutes()===5?' selected':'')+'>After 5 minutes</option><option value="15"'+(financeLockMinutes()===15?' selected':'')+'>After 15 minutes</option></select></label>'+(face?'<span>Face ID enabled'+(enabled?' '+esc(enabled):'')+'</span><button class="btn" data-act="finance-face-disable">Remove Face ID</button>':'<button class="btn blue" data-act="finance-face-enable">Enable Face ID</button>')+'</div></details><button class="btn" data-act="finance-lock">Lock now</button></div></div>'+body;
 }
 
 function financeParseDate(value){
@@ -275,8 +290,22 @@ function financeGmailApi(path,token){
 }
 function financeGmailListMessages(query,token,pageToken,all){
   all=all||[];var path="messages?q="+encodeURIComponent(query)+"&maxResults=100"+(pageToken?"&pageToken="+encodeURIComponent(pageToken):"");
-  return financeGmailApi(path,token).then(function(list){all=all.concat(list.messages||[]);if(list.nextPageToken&&all.length<500)return financeGmailListMessages(query,token,list.nextPageToken,all);return {messages:all,resultSizeEstimate:list.resultSizeEstimate||all.length,truncated:!!list.nextPageToken};});
+  return financeGmailApi(path,token).then(function(list){all=all.concat(list.messages||[]);if(list.nextPageToken&&all.length<2000)return financeGmailListMessages(query,token,list.nextPageToken,all);return {messages:all,resultSizeEstimate:list.resultSizeEstimate||all.length,truncated:!!list.nextPageToken};});
 }
+function financeGmailQuery(){
+  var last=Number(financeState.gmail.lastSuccessfulSyncAt||0);if(!last)return FINANCE_GMAIL_DEFAULT_QUERY;
+  var overlap=new Date(Math.max(0,last-7*86400000)),after=overlap.getFullYear()+"/"+String(overlap.getMonth()+1).padStart(2,"0")+"/"+String(overlap.getDate()).padStart(2,"0");
+  return FINANCE_GMAIL_DEFAULT_QUERY.replace("newer_than:5y","after:"+after);
+}
+function financeMapLimit(items,limit,worker,progress){
+  var next=0,done=0,out=new Array(items.length);function run(){var index=next++;if(index>=items.length)return Promise.resolve();return worker(items[index],index).then(function(value){out[index]=value;}).catch(function(err){out[index]={error:String(err&&err.message||err),id:items[index]&&items[index].id};}).then(function(){done++;if(progress)progress(done,items.length);return run();});}
+  var runners=[];for(var i=0;i<Math.min(limit,items.length);i++)runners.push(run());return Promise.all(runners).then(function(){return out;});
+}
+function financeStatementMeta(text,meta,files){
+  var all=(String(meta.subject||"")+" "+String(text||"")).replace(/\s+/g," "),account=all.match(/(?:card|account|a\/c)(?:\s+(?:number|ending|no\.?))?\s*[:*x-]*\s*([A-Za-z0-9*Xx-]{4,24})/i),period=all.match(/(?:statement|billing)\s+(?:period|month)\s*[:\-]?\s*([A-Za-z]+\s+20\d{2}|\d{1,2}[\/-]20\d{2})/i),due=all.match(/(?:payment due|due date|pay by)\s*[:\-]?\s*(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i);
+  return {account:account?"ending "+account[1].replace(/[^A-Za-z0-9]/g,"").slice(-4):"",period:period?period[1]:"",dueDate:due?financeParseDate(due[1]):"",files:(files||[]).map(function(f){return f.name;})};
+}
+function financeStatementKey(candidate){var period=candidate.meta&&candidate.meta.period;if(!period)return "";return [candidate.from,candidate.subject,(candidate.meta&&candidate.meta.account)||"",period,(candidate.meta&&candidate.meta.files||[]).join("|")].join("|").toLowerCase().replace(/\s+/g," ").trim();}
 function financeGmailDecode(value){
   var text=String(value||"").replace(/-/g,"+").replace(/_/g,"/");while(text.length%4)text+="=";
   var raw=atob(text),bytes=new Uint8Array(raw.length);for(var i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);return bytes;
@@ -342,24 +371,26 @@ function financeGmailReadMessage(message,token){
     var items=[].concat.apply([],groups);items.forEach(function(t){t.gmailMessageId=message.id;t.source="Gmail statement: "+meta.subject+" / "+t.source;});
     var plain=financeGmailPlainText(texts);
     var emi=financeGmailEmi(plain,meta,items[0]||null);
-    return {id:message.id,subject:meta.subject,from:meta.from,items:items,emis:emi?[emi]:[],attachments:files.length,isStatement:true};
+    var statementMeta=financeStatementMeta(plain,meta,files);if(statementMeta.account)items.forEach(function(t){if(!t.account||/\.pdf$|\.csv$|\.txt$/i.test(t.account))t.account=statementMeta.account;});
+    var result={id:message.id,subject:meta.subject,from:meta.from,items:items,emis:emi?[emi]:[],attachments:files.length,isStatement:true,meta:statementMeta};result.statementKey=financeStatementKey(result);return result;
   });
 }
 function financeGmailSync(automatic){
-  if(financeBusy)return;var query=FINANCE_GMAIL_DEFAULT_QUERY;financeState.gmail.query=query;financeBusy=true;financeGmailStatus="Opening Google authorization...";render();
+  if(financeBusy)return;var query=financeGmailQuery();financeState.gmail.query=query;financeState.gmail.lastAttemptAt=Date.now();financeBusy=true;financeGmailProgress=null;financeGmailStatus="Opening Google authorization...";render();
   var token,profile,listed;
   financeGmailAuthorize().then(function(t){token=t;financeGmailStatus="Searching Gmail for attached card and bank statements...";render();return Promise.all([financeGmailApi("profile",token),financeGmailListMessages(query,token)]);}).then(function(results){
-    profile=results[0];listed=results[1];var imported={};financeState.gmail.importedMessageIds.forEach(function(id){imported[id]=1;});var messages=(listed.messages||[]).filter(function(m){return !imported[m.id];}).slice(0,100);
-    if(!messages.length){financeGmailCandidates=[];financeState.gmail.email=profile.emailAddress||financeState.gmail.email;financeState.gmail.authorized=true;financeState.gmail.lastSyncAt=Date.now();financeBusy=false;financeGmailStatus=(listed.resultSizeEstimate||0)?"All matching statements were already reviewed.":"No attached credit-card or bank statements were found.";return financeSave();}
+    profile=results[0];listed=results[1];var imported={},queued={};financeState.gmail.importedMessageIds.forEach(function(id){imported[id]=1;});var messages=[];(financeState.gmail.retryMessageIds||[]).forEach(function(id){if(!imported[id]&&!queued[id]){queued[id]=1;messages.push({id:id});}});(listed.messages||[]).forEach(function(m){if(!imported[m.id]&&!queued[m.id]){queued[m.id]=1;messages.push(m);}});messages=messages.slice(0,200);
+    if(!messages.length){financeGmailCandidates=[];financeState.gmail.email=profile.emailAddress||financeState.gmail.email;financeState.gmail.authorized=true;financeState.gmail.lastSyncAt=Date.now();financeState.gmail.lastSuccessfulSyncAt=Date.now();financeState.gmail.lastResult="No new statements";financeBusy=false;financeGmailStatus=(listed.resultSizeEstimate||0)?"All matching statements were already reviewed.":"No attached credit-card or bank statements were found.";return financeSave();}
     financeGmailStatus="Reading "+messages.length+" new statement email"+(messages.length===1?"":"s")+"...";render();
-    return Promise.all(messages.map(function(m){return financeGmailApi("messages/"+encodeURIComponent(m.id)+"?format=full",token).then(function(full){return financeGmailReadMessage(full,token);});})).then(function(candidates){
-      candidates=candidates.filter(function(c){return c.isStatement;});financeGmailCandidates=candidates;var items=[].concat.apply([],candidates.map(function(c){return c.items;})),emis=[].concat.apply([],candidates.map(function(c){return c.emis||[];})),unreadable=candidates.filter(function(c){return !c.items.length&&!(c.emis||[]).length;});
-      financeState.gmail.email=profile.emailAddress||financeState.gmail.email;financeState.gmail.authorized=true;financeState.gmail.lastSyncAt=Date.now();financeBusy=false;
-      financeGmailStatus="Checked "+candidates.length+" statement"+(candidates.length===1?"":"s")+"; "+items.length+" transaction"+(items.length===1?"":"s")+" extracted"+(unreadable.length?"; "+unreadable.length+" attachment"+(unreadable.length===1?" was":"s were")+" not readable":"")+".";
-      if(candidates.length)financePendingImport={id:uid(),name:"Gmail statements - "+candidates.length,items:items,emis:emis,messageIds:candidates.map(function(c){return c.id;}),source:"gmail",statementCount:candidates.length,unreadableCount:unreadable.length};
+    financeGmailProgress={stage:"Reading statements",done:0,total:messages.length};render();
+    return financeMapLimit(messages,4,function(m){return financeGmailApi("messages/"+encodeURIComponent(m.id)+"?format=full",token).then(function(full){return financeGmailReadMessage(full,token);});},function(done,total){financeGmailProgress={stage:"Reading statements",done:done,total:total};if(done===total||done%4===0)render();}).then(function(candidates){
+      var failed=candidates.filter(function(c){return c&&c.error;}),known={},duplicateIds=[];financeState.gmail.importedStatementKeys.forEach(function(key){known[key]=1;});candidates=candidates.filter(function(c){if(!c||!c.isStatement)return false;if(c.statementKey&&known[c.statementKey]){duplicateIds.push(c.id);return false;}return true;});financeGmailCandidates=candidates;var readable=candidates.filter(function(c){return c.items.length||(c.emis||[]).length;}),items=[].concat.apply([],readable.map(function(c){return c.items;})),emis=[].concat.apply([],readable.map(function(c){return c.emis||[];})),unreadable=candidates.filter(function(c){return !c.items.length&&!(c.emis||[]).length;});
+      var marked={};financeState.gmail.importedMessageIds.forEach(function(id){marked[id]=1;});duplicateIds.forEach(function(id){if(id&&!marked[id]){marked[id]=1;financeState.gmail.importedMessageIds.push(id);}});financeState.gmail.email=profile.emailAddress||financeState.gmail.email;financeState.gmail.authorized=true;financeState.gmail.lastSyncAt=Date.now();financeState.gmail.lastResult="Checked "+candidates.length+" statements";financeState.gmail.retryMessageIds=unreadable.map(function(c){return c.id;}).concat(failed.map(function(c){return c.id;})).filter(Boolean).slice(-100);financeBusy=false;financeGmailProgress=null;
+      financeGmailStatus="Checked "+candidates.length+" statement"+(candidates.length===1?"":"s")+"; "+items.length+" transaction"+(items.length===1?"":"s")+" extracted"+(unreadable.length?"; "+unreadable.length+" attachment"+(unreadable.length===1?" was":"s were")+" not readable":"")+(failed.length?"; "+failed.length+" message"+(failed.length===1?" will":"s will")+" retry automatically":"")+".";
+      if(candidates.length)financePendingImport={id:uid(),name:"Gmail statements - "+candidates.length,items:items,emis:emis,messageIds:readable.map(function(c){return c.id;}),statementKeys:readable.map(function(c){return c.statementKey;}),unreadableIds:unreadable.map(function(c){return c.id;}).concat(failed.map(function(c){return c.id;})).filter(Boolean),metadata:candidates.map(function(c){return {subject:c.subject,account:c.meta&&c.meta.account,period:c.meta&&c.meta.period,dueDate:c.meta&&c.meta.dueDate,readable:!!(c.items.length||(c.emis||[]).length)};}),source:"gmail",statementCount:candidates.length,unreadableCount:unreadable.length+failed.length};
       return financeSave();
     });
-  }).then(function(value){financeAutoSyncQueued=false;financeGmailAutoBlocked=false;financeGmailSetupRequired=false;return value;}).catch(function(err){var message=String(err&&err.message||"Try again"),setup=/has not been used|is disabled|accessnotconfigured/i.test(message);financeAutoSyncQueued=false;financeBusy=false;financeGmailAutoBlocked=true;financeGmailSetupRequired=setup;financeGmailStatus=setup?"Gmail API is disabled for this Google Cloud project. Enable it once, wait a few minutes, then refresh statements.":"Gmail synchronization stopped: "+message;render();if(!setup&&!automatic)flash("Gmail synchronization failed - "+message);});
+  }).then(function(value){financeAutoSyncQueued=false;financeGmailAutoBlocked=false;financeGmailSetupRequired=false;return value;}).catch(function(err){var message=String(err&&err.message||"Try again"),setup=/has not been used|is disabled|accessnotconfigured/i.test(message);financeAutoSyncQueued=false;financeBusy=false;financeGmailProgress=null;financeGmailAutoBlocked=true;financeGmailSetupRequired=setup;if(financeState&&financeState.gmail)financeState.gmail.lastResult="Failed: "+message;financeGmailStatus=setup?"Gmail API is disabled for this Google Cloud project. Enable it once, wait a few minutes, then refresh statements.":"Gmail synchronization stopped: "+message;render();if(!setup&&!automatic)flash("Gmail synchronization failed - "+message);});
 }
 function financeGmailDisconnect(){
   financeGmailToken=null;financeGmailTokenClient=null;financeGmailCandidates=[];financeGmailAutoBlocked=false;financeGmailSetupRequired=false;financeGmailStatus="Gmail disconnected from this browser session.";
@@ -372,11 +403,14 @@ function financeConfirmImport(){
   if(financePendingImport.source==="gmail"){
     var seen={};financeState.gmail.importedMessageIds.forEach(function(id){seen[id]=1;});(financePendingImport.messageIds||[]).forEach(function(id){if(!seen[id]){seen[id]=1;financeState.gmail.importedMessageIds.push(id);}});
     if(financeState.gmail.importedMessageIds.length>2000)financeState.gmail.importedMessageIds=financeState.gmail.importedMessageIds.slice(-2000);
+    var keys={};financeState.gmail.importedStatementKeys.forEach(function(key){keys[key]=1;});(financePendingImport.statementKeys||[]).forEach(function(key){if(key&&!keys[key]){keys[key]=1;financeState.gmail.importedStatementKeys.push(key);}});if(financeState.gmail.importedStatementKeys.length>2000)financeState.gmail.importedStatementKeys=financeState.gmail.importedStatementKeys.slice(-2000);
+    financeState.gmail.retryMessageIds=(financePendingImport.unreadableIds||[]).slice(-100);financeState.gmail.lastSuccessfulSyncAt=Date.now();financeState.gmail.lastSyncAt=Date.now();
   }
-  financeState.statements.unshift({id:financePendingImport.id,name:financePendingImport.name,source:financePendingImport.source||"gmail",importedAt:Date.now(),count:added,skipped:skipped});var emiCount=(financePendingImport.emis||[]).length;financePendingImport=null;financeSave(added+" transactions imported"+(emiCount?"; "+emiCount+" EMI updates":"")+(skipped?"; "+skipped+" duplicates skipped":""));
+  financeState.statements.unshift({id:financePendingImport.id,name:financePendingImport.name,source:financePendingImport.source||"gmail",importedAt:Date.now(),count:added,skipped:skipped,statementCount:financePendingImport.statementCount||0,unreadableCount:financePendingImport.unreadableCount||0,metadata:financePendingImport.metadata||[]});var emiCount=(financePendingImport.emis||[]).length;financePendingImport=null;financeSave(added+" transactions imported"+(emiCount?"; "+emiCount+" EMI updates":"")+(skipped?"; "+skipped+" duplicates skipped":""));
 }
 function financeHandleAction(act,id){
   if(act==="finance-setup"){financeSetup();return true;}if(act==="finance-unlock"){financeUnlockPin();return true;}if(act==="finance-lock"){financeLock();render();return true;}
+  if(act==="finance-pin-show"){financePinFallback=true;render();setTimeout(function(){var pin=document.getElementById("financePin");if(pin)pin.focus();},0);return true;}
   if(act==="finance-face-enable"){financeEnableFace();return true;}if(act==="finance-face-unlock"){financeUnlockFace();return true;}if(act==="finance-face-disable"){confirmDestructive("Remove Face ID unlock from this device? Your Finance PIN will still work.","Remove Face ID",financeDisableFace);return true;}
   if(!financeUnlocked())return false;financeTouch();
   if(act==="finance-gmail-sync"){financeGmailAutoBlocked=false;financeGmailSetupRequired=false;financeGmailSync(false);return true;}if(act==="finance-gmail-disconnect"){financeGmailDisconnect();return true;}
@@ -398,6 +432,7 @@ function financeHandleAction(act,id){
 }
 function financeHandleInput(target){if(target.id==="financeSearch"){financeSearch=target.value;var pos=target.selectionStart;render();var next=document.getElementById("financeSearch");if(next){next.focus();try{next.setSelectionRange(pos,pos);}catch(e){}}return true;}return false;}
 function financeHandleChange(target){
+  if(target.id==="financeLockMinutes"){localStorage.setItem(FINANCE_LOCK_PREF,target.value);financeTouch();render();flash("Finance auto-lock updated");return true;}
   if(target.id==="financeOverviewMonth"){financeMonthFilter=target.value;render();return true;}
   if(target.id==="financeMonthFilter"){financeMonthFilter=target.value;if(target.value)financeYearFilter="";render();return true;}
   if(target.id==="financeYearFilter"){financeYearFilter=target.value;if(target.value)financeMonthFilter="";render();return true;}
@@ -410,3 +445,10 @@ function financeHandleChange(target){
 
 document.addEventListener("pointerdown",function(){if(section==="finance"&&financeUnlocked())financeTouch();},{passive:true});
 document.addEventListener("keydown",function(){if(section==="finance"&&financeUnlocked())financeTouch();},{passive:true});
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState==="hidden"){financeHiddenAt=Date.now();return;}
+  if(!financeHiddenAt||!financeUnlocked())return;
+  if(Date.now()-financeHiddenAt>60000){financeLock(true);if(section==="finance")render();}
+  else financeTouch();
+  financeHiddenAt=0;
+});

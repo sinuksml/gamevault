@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.25.0 - 2026-07-19
+
+- Made Finance unlock Face ID-first on supported devices, with one-tap entry, a hidden PIN fallback, clearer error states, vault-bound credentials, and PIN retry delays.
+- Added configurable Finance auto-lock timing, background locking, and a compact Security menu with device enrollment status.
+- Reworked Gmail statement sync into an incremental seven-day-overlap scan with four-at-a-time processing and visible progress.
+- Added statement metadata, repeated-statement protection, transient-failure recovery, and an encrypted retry queue for unreadable attachments.
+
 ## v1.24.2 - 2026-07-19
 
 - Added a direct Gmail API setup action when Google reports that the API is disabled.

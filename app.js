@@ -1,5 +1,5 @@
 ﻿"use strict";
-var APP_VERSION = "1.24.2";
+var APP_VERSION = "1.25.0";
 var APP_BUILD_DATE = "2026-07-19";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
@@ -5972,7 +5972,7 @@ function switchPlexTab(next){
   render();
   window.scrollTo(0,tabScroll["plex:"+next]||0);
 }
-function switchSection(s){
+function switchSection(s,userGesture){
   if(section===s) return;
   if(section==="films") tabScroll["film:"+filmTab]=window.scrollY;
   else if(section==="series") tabScroll["series:"+seriesTab]=window.scrollY;
@@ -5989,7 +5989,9 @@ function switchSection(s){
     b.classList.toggle("on",active);
     if(active) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current");
   });
+  var autoFinanceUnlock=!!(userGesture&&s==="finance"&&typeof financeShouldAutoUnlock==="function"&&financeShouldAutoUnlock());
   render();
+  if(autoFinanceUnlock)financeUnlockFace();
   window.scrollTo(0, section==="films" ? (tabScroll["film:"+filmTab]||0) : section==="series" ? (tabScroll["series:"+seriesTab]||0) : section==="plex" ? (tabScroll["plex:"+plexTab]||0) : section==="biglybt" ? (tabScroll.biglybt||0) : section==="health" ? (tabScroll["health:"+healthTab]||0) : section==="finance" ? (tabScroll["finance:"+financeTab]||0) : (section==="library"||section==="home") ? (tabScroll[section]||0) : (tabScroll[tab]||0));
   if(section==="films") ensureFilms(filmTab);
   if(section==="films") scheduleMediaWarmup("films",filmTab);
@@ -5999,7 +6001,7 @@ function switchSection(s){
   if(section==="biglybt" && biglyToken) biglyRefresh();
 }
 document.getElementById("sectionSw").addEventListener("click",function(e){
-  var b=e.target.closest("[data-section]"); if(b) switchSection(b.getAttribute("data-section"));
+  var b=e.target.closest("[data-section]"); if(b) switchSection(b.getAttribute("data-section"),true);
 });
 document.getElementById("recentStrip").addEventListener("click",function(e){
   var b=e.target.closest('[data-act="recent-open"]');
@@ -6477,7 +6479,7 @@ document.getElementById("content").addEventListener("click",function(e){
   if(gc){ sugGenre=gc.getAttribute("data-genre"); render(); return; }
   var b=e.target.closest("[data-act]"); if(!b) return;
   var act=b.getAttribute("data-act"), id=b.getAttribute("data-id"), nm=b.getAttribute("data-name");
-  if(act==="phone-library-open"){switchSection(b.getAttribute("data-section"));return;}
+  if(act==="phone-library-open"){switchSection(b.getAttribute("data-section"),true);return;}
   if(act==="phone-sync"){setPhoneRefreshing(true);refreshAllData();setTimeout(function(){setPhoneRefreshing(false);},1500);return;}
   if(act==="phone-settings"){toggleSettings(true);return;}
   if(act==="phone-export"){document.getElementById("exportBtn").click();return;}
