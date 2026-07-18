@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.25.3 - 2026-07-19
+
+- Finance now opens password-protected PDF statements automatically. Add your name, date of birth and last five mobile digits once (stored only inside the encrypted vault) and GameVault derives each bank's password.
+- Added per-issuer password formats for ICICI and Kotak (first four name letters + DDMM, Kotak lowercase) and SBI (last five mobile digits + DDMMYY), with a manual override for cards like Neyo forex.
+- Password candidates are tried in order against PDF.js, so previously unreadable ICICI, Kotak and SBI statements now import instead of sitting in the retry queue.
+
 ## v1.25.2 - 2026-07-19
 
 - Replaced the 200-attachment iPhone scan with six-statement sequential batches to prevent Safari memory termination.

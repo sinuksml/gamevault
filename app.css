@@ -2298,3 +2298,14 @@ html.light:not(.tv) .detail-actionbar{
   html:not(.tv) .episode-browser{padding:10px}
   html:not(.tv) .season-chip{min-width:104px}
 }
+
+/* ---------- Finance: statement-password panel ---------- */
+.finance-creds{padding:12px 14px}
+.finance-creds>summary{cursor:pointer;font-weight:800;color:var(--text);list-style:none;display:flex;gap:8px;align-items:baseline}
+.finance-creds>summary::-webkit-details-marker{display:none}
+.finance-creds>summary>span{font-size:9px;font-weight:900;letter-spacing:.14em;color:var(--accent)}
+.finance-creds p{color:var(--text2);font-size:12px;line-height:1.5;margin:8px 0}
+.finance-creds small{display:block;margin-top:6px;color:var(--muted);font-size:11px}
+.finance-creds .fields{display:flex;gap:8px;flex-wrap:wrap}
+.finance-creds .fields>input{flex:1 1 180px;min-width:0}
+.finance-creds .fields>select{flex:0 0 auto}
