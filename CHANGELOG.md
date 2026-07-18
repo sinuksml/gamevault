@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.19.0 - 2026-07-18
+
+- Unified Game, Film and TV title details around a consistent artwork, status, facts, overview and actions hierarchy.
+- Added lazy Film and TV metadata enrichment for runtime, director, certification, providers, network, series status and episode totals.
+- Added context-aware card metadata for release dates, providers, seasons and countdowns with stable card alignment.
+- Rebuilt the TV-series season and episode selector as a browsable episode list with dates and summaries.
+- Improved iPhone title details so facts and overviews use the full screen width below the artwork.
+- Improved 1080p and 2K list layouts, light-mode contrast, missing-artwork treatment and responsive action alignment.
+- Clarified game rating sources and added context-specific library details for Rentals, Queue, Playing, Upcoming and Played.
+
 ## v1.17.0 - 2026-07-17
 
 - Added a desktop Home dashboard: rentals due soon, next queue pick, this week's game and movie releases, live download status, watchlist titles now streaming, and vault totals with one-tap navigation.

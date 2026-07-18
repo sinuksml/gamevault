@@ -1,5 +1,5 @@
 ﻿"use strict";
-var APP_VERSION = "1.18.2";
+var APP_VERSION = "1.19.0";
 var APP_BUILD_DATE = "2026-07-18";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
@@ -1207,6 +1207,8 @@ function refreshCatalog(silent){
         year:g.released?Number(g.released.slice(0,4)):null,
         score:g.metacritic||null,
         rating:g.rating||null,
+        date:g.released||null,
+        playtime:g.playtime||0,
         genre:(g.genres&&g.genres[0]&&g.genres[0].name)||"Other",
         note:(g.genres||[]).slice(0,3).map(function(x){return x.name;}).join(" · "),
         img:g.background_image||"",
@@ -1268,6 +1270,8 @@ function enrichScore(list,id){
     if(g.metacritic) it.score=g.metacritic;
     if(g.rating) it.rrating=Math.round(g.rating*10)/10;
     if(g.genres&&g.genres[0]&&g.genres[0].name) it.genre=g.genres[0].name;
+    if(g.released&&!it.date) it.date=g.released;
+    if(g.playtime) it.playtime=g.playtime;
     it.img=g.background_image||"";
     if(it.img) data.covers[norm(it.name)]=it.img;
     persistSilent(); maybeRender();
@@ -1325,11 +1329,11 @@ function gameTilePrimary(x,id){
   return "";
 }
 function gameTile(x,id,sub,detailHtml){
-  var score=x&&x.score?("Critic "+x.score):(x&&x.rrating?x.rrating+"★":(x&&x.rating?Math.round(x.rating*10)/10+"★":"Game"));
+  var score=x&&x.rating?("Your rating "+Math.round(x.rating*10)/10+" / 5"):(x&&x.score?("Metacritic "+x.score):(x&&x.rrating?("RAWG "+x.rrating+" / 5"):"Rating unavailable"));
   var state=gameTileState(x,id,sub);
   return '<div class="card game-tile">'+(state?'<span class="title-state state-game-'+state[1]+'">'+state[0]+'</span>':'')+'<div class="game-tile-main" role="button" tabindex="0" data-act="game-open" data-id="'+esc(String(id))+'">'+
     '<div class="game-cover-wrap">'+gameCoverHero(x)+'</div>'+
-    '<div class="game-tile-info"><div class="game-tile-title">'+esc(x.name)+'</div>'+
+    '<div class="game-tile-info"><div class="game-tile-title" title="'+esc(x.name)+'">'+esc(x.name)+'</div>'+
     '<div class="game-tile-meta"><span class="game-pill">'+esc(score)+'</span><span class="game-pill">'+esc(x.genre||tierFor(x.name)||"PS5")+'</span>'+(sub?'<span class="game-pill">'+sub+'</span>':'')+'</div>'+
     (detailHtml?'<div class="game-tile-detail">'+detailHtml+'</div>':'')+'</div>'+
   '</div><div class="game-card-actions">'+gameTilePrimary(x,id)+'</div></div>';
@@ -1353,7 +1357,7 @@ function gameFindById(id){
 function gamePage(x,actionsHtml,extraHtml){
   var cinematic=coverUrl(x);
   var release=x.date?fmt(x.date):(x.year||"Not listed");
-  var community=x.rrating?(Math.round(Number(x.rrating)*10)/10+" / 5"):(x.rating?(Math.round(Number(x.rating)*10)/10+" / 5"):"Not rated");
+  var community=x.rating?(Math.round(Number(x.rating)*10)/10+" / 5"):(x.rrating?(Math.round(Number(x.rrating)*10)/10+" / 5"):"Not rated");
   var context={rentals:"RENTAL",playing:"NOW PLAYING",queue:"RENTAL QUEUE",upcoming:"UPCOMING RELEASE",suggest:"DISCOVER",played:"COMPLETED"}[tab]||"GAME";
   return '<div class="game-page">'+detailToolbar("game",x)+(cinematic?'<div class="phone-detail-backdrop landscape" style="background-image:url(&quot;'+esc(cinematic)+'&quot;)"></div>':'')+
     '<div class="game-page-head"><div class="game-page-cover">'+gameCoverHero(x)+'</div>'+
@@ -1363,12 +1367,31 @@ function gamePage(x,actionsHtml,extraHtml){
     '<div class="game-fact-grid">'+
       '<div class="game-fact"><span>Release</span><b>'+esc(String(release))+'</b></div>'+
       '<div class="game-fact"><span>Genre</span><b>'+esc(x.genre||"Not listed")+'</b></div>'+
-      '<div class="game-fact"><span>Critic score</span><b>'+(x.score?esc(String(x.score))+" / 100":"Not rated")+'</b></div>'+
-      '<div class="game-fact"><span>'+(x.rating?"Your rating":"Community")+'</span><b>'+esc(community)+'</b></div>'+
+      '<div class="game-fact"><span>Metacritic</span><b>'+(x.score?esc(String(x.score))+" / 100":"Not rated")+'</b></div>'+
+      '<div class="game-fact"><span>'+(x.rating?"Your rating":"RAWG community")+'</span><b>'+esc(community)+'</b></div>'+
     '</div>'+
     (x.note?'<div class="game-page-overview"><span>Overview</span><p>'+esc(x.note)+'</p></div>':'')+'</div></div>'+
-    '<div class="actions detail-actionbar">'+(actionsHtml||"")+linkBtns(x.name)+'</div>'+
+    gameLibraryDetails(x)+'<div class="detail-section-label">Actions &amp; links</div><div class="actions detail-actionbar">'+(actionsHtml||"")+linkBtns(x.name)+'</div>'+
     (tab==="playing"?plotBlock(x.name):"")+(extraHtml||"")+'</div>';
+}
+function gameLibraryDetails(x){
+  var items=[];
+  if(tab==="rentals"){
+    if(x.start)items.push(["Rented",fmt(x.start)]);
+    if(x.start&&x.days){var due=parseD(x.start);due.setDate(due.getDate()+Number(x.days));items.push(["Return date",fmt(localISO(due))]);}
+    if(x.vendor)items.push(["Vendor",x.vendor]);if(Number(x.cost))items.push(["Rental cost",fmtMoney(x.cost)]);
+  }else if(tab==="queue"){
+    if(x.avail)items.push(["Available from",fmt(x.avail)]);items.push(["Queue position",String(qIndex(x.id)+1)]);
+  }else if(tab==="upcoming"){
+    if(x.date){var left=daysBetween(today(),parseD(x.date));items.push(["Countdown",left<0?"Available now":left===0?"Releases today":left+" days left"]);}
+  }else if(tab==="playing"){
+    if(x.start)items.push(["Started / rented",fmt(x.start)]);if(x.status)items.push(["Playing status",STATUS_LABEL[x.status]||x.status]);
+  }else if(tab==="played"){
+    if(x.status)items.push(["Library status",STATUS_LABEL[x.status]||x.status]);if(x.added)items.push(["Added",fmt(x.added)]);
+  }
+  if(x.playtime)items.push(["Typical playtime",x.playtime+" hours"]);
+  if(!items.length)return "";
+  return '<section class="title-library-panel"><div class="detail-section-label">Your library</div><div class="title-library-grid">'+items.map(function(it){return mediaFact(it[0],it[1]);}).join("")+'</div></section>';
 }
 function gameDetailActions(x){
   var id=String(expandedId||x.id||("name:"+norm(x.name)));
@@ -4404,8 +4427,33 @@ function mediaPoster(src, label){
   return '<div class="poster-wrap">'+mediaImage(src,label,"poster-img"+(src?"":" fallback-art"))+'</div>';
 }
 function mediaSummary(title, rating, genre, extra){
-  return '<div class="media-info"><div class="media-title">'+esc(title)+'</div><div class="media-meta">'+
+  return '<div class="media-info"><div class="media-title" title="'+esc(title)+'">'+esc(title)+'</div><div class="media-meta">'+
     '<span class="media-pill imdb">'+esc(rating)+'</span><span class="media-pill">'+esc(genre)+'</span></div>'+(extra||'')+'</div>';
+}
+function mediaValue(value,fallback){
+  return value!==undefined&&value!==null&&String(value).trim()?String(value):(fallback||"Not available");
+}
+function mediaFact(label,value,cls){
+  return '<div class="media-fact'+(cls?' '+cls:'')+'"><span>'+esc(label)+'</span><b>'+esc(mediaValue(value))+'</b></div>';
+}
+function mediaProviderLine(x){
+  if(!x||!x.providers||!x.providers.length) return "Provider not listed";
+  return x.providers.slice(0,3).join(" · ");
+}
+function mediaRatingSource(x){
+  if(typeof x.imdb==="number") return "IMDb "+x.imdb.toFixed(1)+" / 10";
+  if(typeof x.tmdb==="number"&&x.tmdb>0) return "TMDB "+x.tmdb.toFixed(1)+" / 10";
+  return "Rating unavailable";
+}
+function mediaStateLabel(kind,key){
+  var film={watchlist:"WATCHLIST",watching:"WATCHING",watched:"WATCHED",uphw:"COMING SOON",bluray:"BLU-RAY",relhw:"DISCOVER",mlott:"MALAYALAM OTT",mlup:"UPCOMING OTT",search:"SEARCH RESULT"};
+  var series={serieswatchlist:"WATCHLIST",serieswatching:"WATCHING",seriesnew:"NEW EPISODE",seriesupcoming:"COMING SOON",serieswatched:"WATCHED",seriesdiscover:"DISCOVER",enseries:"ENGLISH",mlseries:"MALAYALAM",taseries:"TAMIL",hiseries:"HINDI",seriessearch:"SEARCH RESULT"};
+  return (kind==="film"?film[key]:series[key])||(kind==="film"?"MOVIE":"TV SERIES");
+}
+function mediaFreshness(x){
+  if(!x||!x.imdbAt) return "";
+  var mins=Math.max(0,Math.round((Date.now()-Number(x.imdbAt))/60000));
+  return mins<2?"IMDb updated now":mins<60?("IMDb updated "+mins+" min ago"):"IMDb refreshed recently";
 }
 function mediaClose(kind){
   return '<button class="detail-close" data-act="media-close" data-kind="'+kind+'" aria-label="Close details" title="Close details (Esc)">&times;</button>';
@@ -4452,6 +4500,48 @@ function tmdbGet(path, params){
   var qs=Object.keys(params||{}).map(function(p){ return encodeURIComponent(p)+"="+encodeURIComponent(params[p]); }).join("&");
   return fetchWithPolicy("https://api.themoviedb.org/3"+path+"?api_key="+encodeURIComponent(k)+(qs?"&"+qs:""),{},{timeout:15000,retries:1})
     .then(function(r){ if(!r.ok) throw new Error("TMDB "+r.status); return r.json(); });
+}
+function pickCertification(rows,country){
+  var groups=rows&&rows.results||[],found="";
+  groups.some(function(group){
+    if(group.iso_3166_1!==country) return false;
+    if(group.rating){found=group.rating;return true;}
+    var releases=group.release_dates||[];
+    for(var i=0;i<releases.length;i++) if(releases[i].certification){found=releases[i].certification;break;}
+    return !!found;
+  });
+  return found;
+}
+function ensureMediaDetails(x,kind){
+  if(!x||!tmdbKey()||!/^[0-9]+$/.test(String(x.tmdbId||x.id||""))||x._detailBusy) return;
+  if(x._detailCheckedAt&&Date.now()-Number(x._detailCheckedAt)<86400000) return;
+  x._detailBusy=true;
+  var path=kind==="film"?"movie":"tv",id=x.tmdbId||x.id;
+  var append=kind==="film"?"credits,release_dates,external_ids,watch/providers":"external_ids,watch/providers,content_ratings";
+  tmdbGet("/"+path+"/"+id,{append_to_response:append}).then(function(d){
+    x.poster=x.poster||tmdbPoster(d.poster_path);x.backdrop=x.backdrop||tmdbBackdrop(d.backdrop_path);
+    x.overview=x.overview||d.overview||"";x.status=d.status||x.status||"";x.tagline=d.tagline||x.tagline||"";
+    x.originalLanguage=d.original_language||x.originalLanguage||"";
+    if(d.genres&&d.genres.length)x.genres=d.genres.map(function(g){return g.id;});
+    if(kind==="film"){
+      x.runtime=d.runtime||x.runtime||0;x.director=((d.credits&&d.credits.crew)||[]).filter(function(c){return c.job==="Director";}).map(function(c){return c.name;}).slice(0,2).join(" · ");
+      x.certification=pickCertification(d.release_dates,"US")||pickCertification(d.release_dates,"IN")||x.certification||"";
+      x.imdbId=d.external_ids&&d.external_ids.imdb_id||x.imdbId||"";
+    }else{
+      x.seasons=d.number_of_seasons||x.seasons||0;x.episodeCount=d.number_of_episodes||x.episodeCount||0;
+      x.episodeRuntime=(d.episode_run_time&&d.episode_run_time[0])||x.episodeRuntime||0;
+      x.networks=(d.networks||[]).map(function(n){return n.name;}).filter(Boolean);
+      x.seriesType=d.type||x.seriesType||"";x.imdbId=d.external_ids&&d.external_ids.imdb_id||x.imdbId||"";
+      x.certification=pickCertification(d.content_ratings,"US")||pickCertification(d.content_ratings,"IN")||x.certification||"";
+      x.nextEpisode=d.next_episode_to_air?{season:d.next_episode_to_air.season_number,episode:d.next_episode_to_air.episode_number,title:d.next_episode_to_air.name||"",date:d.next_episode_to_air.air_date||""}:null;
+      x.lastEpisode=d.last_episode_to_air?{season:d.last_episode_to_air.season_number,episode:d.last_episode_to_air.episode_number,title:d.last_episode_to_air.name||"",date:d.last_episode_to_air.air_date||""}:null;
+      x.seasonList=(d.seasons||[]).filter(function(se){return se.season_number>0;}).map(function(se){return {n:se.season_number,name:se.name||("Season "+se.season_number),episodes:se.episode_count||0};});
+    }
+    var providerRows=d["watch/providers"]&&d["watch/providers"].results||{},wp=providerRows.IN||providerRows.US;
+    if(wp)x.providers=(((wp.flatrate)||[]).concat((wp.free)||[])).map(function(p){return p.provider_name;}).filter(function(v,i,a){return a.indexOf(v)===i;});
+    x._detailCheckedAt=Date.now();x._detailBusy=false;saveFilmCache();saveSeriesCache();persistSilent();
+    if((section==="films"&&kind==="film"&&String(filmExpanded)===String(x.id))||(section==="series"&&kind==="series"&&String(seriesExpanded)===String(x.id)))render();
+  }).catch(function(){x._detailBusy=false;x._detailCheckedAt=Date.now();});
 }
 function mapMovie(m){
   return { id:m.id, title:m.title||m.name||"Untitled",
@@ -4995,20 +5085,49 @@ function filmReleaseMeta(m,key){
   if(key==="mlup") return '<div class="media-release">OTT release: '+esc(m.ottDate?fmt(m.ottDate):"Date TBC")+'<br>'+releaseCountdown(m.ottDate)+'</div>';
   return "";
 }
+function filmCardContext(m,key){
+  var release=filmReleaseMeta(m,key);
+  if(release)return release;
+  var bits=[];
+  if(m.year)bits.push(m.year);
+  if(m.runtime)bits.push(m.runtime+" min");
+  if(m.providers&&m.providers.length)bits.push(m.providers.slice(0,2).join(" · "));
+  return bits.length?'<div class="media-release media-context">'+esc(bits.join(" · "))+'</div>':'<div class="media-release media-context muted-context">Release details unavailable</div>';
+}
 function movieMain(m,key){
   ensureMediaArtwork(m,"movie");
   var details=genreLabel(m.genres,MOVIE_GENRES);
   if(m.originalLanguage&&m.originalLanguage!=="en") details+=(details?" · ":"")+m.originalLanguage.toUpperCase();
-  return mediaPoster(m.poster,m.title)+mediaSummary(m.title,mediaRatingLabel(m),details,filmReleaseMeta(m,key));
+  return mediaPoster(m.poster,m.title)+mediaSummary(m.title,mediaRatingLabel(m),details,filmCardContext(m,key));
 }
-function mediaPageHero(kind,x,genreList){
-  ensureMediaArtwork(x,kind==="film"?"movie":"series");
+function mediaDetailFacts(kind,x,genreList){
+  var facts="";
+  if(kind==="film"){
+    facts+=mediaFact("Release",x.date?fmt(x.date):(x.year||"Date TBC"));
+    facts+=mediaFact("Runtime",x.runtime?(x.runtime+" min"):"Not listed");
+    facts+=mediaFact("Rating",mediaRatingSource(x));
+    facts+=mediaFact("Where to watch",mediaProviderLine(x));
+    if(x.director)facts+=mediaFact("Director",x.director,"wide");
+    if(x.certification)facts+=mediaFact("Certification",x.certification);
+  }else{
+    facts+=mediaFact("First aired",x.date?fmt(x.date):(x.year||"Date TBC"));
+    facts+=mediaFact("Seasons / episodes",(x.seasons||"-")+" / "+(x.episodeCount||"-"));
+    facts+=mediaFact("Rating",mediaRatingSource(x));
+    facts+=mediaFact("Status",x.status||x.seriesType||"Not listed");
+    facts+=mediaFact("Network",(x.networks&&x.networks.length)?x.networks.slice(0,2).join(" · "):mediaProviderLine(x),"wide");
+    facts+=mediaFact("Episode runtime",x.episodeRuntime?(x.episodeRuntime+" min"):"Not listed");
+  }
+  return '<div class="media-fact-grid">'+facts+'</div>';
+}
+function mediaPageHero(kind,x,genreList,key){
+  ensureMediaArtwork(x,kind==="film"?"movie":"series");ensureMediaDetails(x,kind);
   var cinematic=mediaBgUrl(x);
   return detailToolbar(kind,x)+(cinematic?'<div class="phone-detail-backdrop" style="background-image:url(&quot;'+esc(cinematic)+'&quot;)"></div>':'')+'<div class="media-page-head">'+
     '<div class="media-page-poster">'+mediaImage(x.poster,x.title||kind,(x.poster?"":"fallback-art"))+'</div>'+
-    '<div><div class="media-page-title">'+esc(x.title)+'</div>'+
-    '<div class="media-page-sub"><span class="media-pill imdb">'+esc(mediaRatingLabel(x))+'</span><span class="media-pill">'+esc(genreLabel(x.genres,genreList))+'</span>'+(x.year?'<span class="media-pill">'+esc(x.year)+'</span>':'')+'</div>'+
-    (x.overview?'<div class="media-page-overview">'+esc(x.overview)+'</div>':'')+
+    '<div class="media-page-info"><div class="media-page-kicker"><span>'+(kind==="film"?'MOVIE':'TV SERIES')+'</span><span>'+esc(mediaStateLabel(kind,key))+'</span></div><div class="media-page-title">'+esc(x.title)+'</div>'+
+    '<div class="media-page-sub"><span class="media-pill imdb">'+esc(mediaRatingSource(x))+'</span><span class="media-pill">'+esc(genreLabel(x.genres,genreList))+'</span>'+(x.originalLanguage?'<span class="media-pill">'+esc(x.originalLanguage.toUpperCase())+'</span>':'')+'</div>'+
+    mediaDetailFacts(kind,x,genreList)+(mediaFreshness(x)?'<div class="rating-freshness">'+esc(mediaFreshness(x))+'</div>':'')+
+    (x.overview?'<div class="media-page-overview"><span>Overview</span><p>'+esc(x.overview)+'</p></div>':'<div class="media-page-overview empty-overview"><span>Overview</span><p>Synopsis not available from the current source.</p></div>')+
     '</div></div>';
 }
 function mediaProvidersBlock(x){
@@ -5021,7 +5140,7 @@ function filmDetailPage(m,key){
   actions+=movieLinks(m.title,m.year)+imdbLink(m)+((key==="bluray"||key==="uphw"||key==="relhw"||key==="watched"||key==="watchlist")?reeloadReviewLink(m.title,m.year,"movie"):"")+(showReviews?mlReviewLinks(m.title):"")+
     tmdbMovieLink(m)+
     '<button class="btn" data-act="ai-open" data-ai-type="film" data-id="'+esc(String(m.id))+'">AI Assistant</button></div>';
-  return '<div class="media-page">'+mediaPageHero("film",m,MOVIE_GENRES)+filmReleaseMeta(m,key)+actions+mediaProvidersBlock(m)+plotBlock(moviePlotName(m),"film")+aiPanel("film",m)+'</div>';
+  return '<div class="media-page">'+mediaPageHero("film",m,MOVIE_GENRES,key)+filmReleaseMeta(m,key)+'<div class="detail-section-label">Library &amp; links</div>'+actions+mediaProvidersBlock(m)+plotBlock(moviePlotName(m),"film")+aiPanel("film",m)+'</div>';
 }
 function watchlistSearchCard(m){
   return movieCard(m,"search");
@@ -5550,17 +5669,16 @@ function seriesEpisodeBlock(s){
   ensureSeriesEpisodes(s, selected);
   var key=s.id+":"+selected, eps=seriesEpisodeCache[key]||[];
   var epSel=seriesEpisodeSel[sid]||((eps[0]&&String(eps[0].n))||"");
-  var h='<div class="plot"><b>Episodes</b><div class="fields" style="margin-top:10px">'+
-    '<select class="selectmini sr-season" data-id="'+esc(sid)+'">'+seasons.map(function(se){ return '<option value="'+se.n+'"'+(String(se.n)===String(selected)?" selected":"")+'>'+esc(se.name)+' '+(se.episodes?("("+se.episodes+")"):"")+'</option>'; }).join("")+'</select>'+
-    '<select class="selectmini sr-episode" data-id="'+esc(sid)+'">'+(eps.length?eps.map(function(ep){ return '<option value="'+ep.n+'"'+(String(ep.n)===String(epSel)?" selected":"")+'>'+ep.n+'. '+esc(ep.title)+'</option>'; }).join(""):'<option>Loading episodes...</option>')+'</select></div>';
+  var h='<section class="episode-browser"><div class="detail-section-label">Episodes</div><div class="season-chipbar">'+seasons.map(function(se){return '<button class="season-chip '+(String(se.n)===String(selected)?"on":"")+'" data-act="series-season-pick" data-id="'+esc(sid)+'" data-season="'+se.n+'">'+esc(se.name)+(se.episodes?'<small>'+se.episodes+' episodes</small>':'')+'</button>';}).join("")+'</div>'+
+    '<div class="episode-list">'+(eps.length?eps.map(function(ep){return '<button class="episode-row '+(String(ep.n)===String(epSel)?"on":"")+'" data-act="series-episode-pick" data-id="'+esc(sid)+'" data-episode="'+ep.n+'"><b>E'+ep.n+'</b><span>'+esc(ep.title)+'</span><small>'+(ep.air?esc(fmt(ep.air)):"Air date TBC")+'</small></button>';}).join(""):'<div class="episode-loading">Loading episodes…</div>')+'</div>';
   var ep=eps.filter(function(e){ return String(e.n)===String(epSel); })[0];
   if(ep){
-    h+='<div style="margin-top:10px"><b>S'+selected+' E'+ep.n+': '+esc(ep.title)+'</b>'+(ep.air?' <span style="color:var(--muted)">· '+fmt(ep.air)+'</span>':'')+'<br>'+
-      (ep.overview?esc(ep.overview):'No episode overview available from TMDB.')+'</div></div>'+
+    h+='<div class="episode-summary"><div><b>S'+selected+' E'+ep.n+': '+esc(ep.title)+'</b>'+(ep.air?' <span>· '+fmt(ep.air)+'</span>':'')+'</div><p>'+
+      (ep.overview?esc(ep.overview):'No episode overview available from TMDB.')+'</p></div></section>'+
       episodePlotBlock(s,selected,ep);
     return h;
   }
-  return h+'</div>';
+  return h+'</section>';
 }
 function seriesMeta(s, key){
   var parts=[];
@@ -5573,15 +5691,24 @@ function seriesMeta(s, key){
   return parts.join(" ");
 }
 function seriesReleaseMeta(s){
-  var date=s&&(s.ottDate||s.latestDate||s.date);
+  var date=s&&(s.nextEpisode&&s.nextEpisode.date||s.ottDate||s.latestDate||s.date);
   if(!date) return "";
   var day=parseD(date).toLocaleDateString("en-IN",{weekday:"long"});
-  var label=s.ottDate?"OTT premiere":s.latestDate?"Latest episode":"First aired";
+  var label=s.nextEpisode&&s.nextEpisode.date?"Next episode":s.ottDate?"OTT premiere":s.latestDate?"Latest episode":"First aired";
   return '<div class="media-release">'+label+': '+esc(fmt(date))+' · '+esc(day)+'</div>';
+}
+function seriesCardContext(s){
+  var release=seriesReleaseMeta(s);
+  if(release)return release;
+  var bits=[];
+  if(s.year)bits.push(s.year);
+  if(s.seasons)bits.push(s.seasons+" season"+(Number(s.seasons)===1?"":"s"));
+  if(s.providers&&s.providers.length)bits.push(s.providers.slice(0,2).join(" · "));
+  return bits.length?'<div class="media-release media-context">'+esc(bits.join(" · "))+'</div>':'<div class="media-release media-context muted-context">Series details unavailable</div>';
 }
 function seriesMain(s){
   ensureMediaArtwork(s,"series");
-  return mediaPoster(s.poster,s.title)+mediaSummary(s.title,mediaRatingLabel(s),genreLabel(s.genres,SERIES_GENRES),seriesReleaseMeta(s));
+  return mediaPoster(s.poster,s.title)+mediaSummary(s.title,mediaRatingLabel(s),genreLabel(s.genres,SERIES_GENRES),seriesCardContext(s));
 }
 var seriesSearchQ="", seriesSearchItems=[], seriesSearchBusy=false, seriesSearchSeq=0, seriesSearchTimer=null;
 var seriesExpanded=null;
@@ -5631,7 +5758,7 @@ function seriesDetailPage(s,key){
     '<button class="btn" data-act="ai-open" data-ai-type="series" data-id="'+esc(String(s.id))+'">AI Assistant</button>'+
     '<a class="btn" href="https://www.themoviedb.org/tv/'+s.id+'" target="_blank" rel="noopener">TMDB</a>';
   actions+='</div>';
-  return '<div class="media-page">'+mediaPageHero("series",s,SERIES_GENRES)+seriesReleaseMeta(s)+actions+mediaProvidersBlock(s)+seriesEpisodeBlock(s)+aiPanel("series",s)+'</div>';
+  return '<div class="media-page">'+mediaPageHero("series",s,SERIES_GENRES,key)+seriesReleaseMeta(s)+'<div class="detail-section-label">Library &amp; links</div>'+actions+mediaProvidersBlock(s)+seriesEpisodeBlock(s)+aiPanel("series",s)+'</div>';
 }
 function seriesSearchCard(s){
   return seriesCard(s,"seriessearch");
@@ -6352,6 +6479,12 @@ document.getElementById("content").addEventListener("click",function(e){
     return;
   }
   if(act==="film-refresh"){ ensureFilms(filmTab,true); if(filmTab==="mlott") ensureFilms("mlup",true); return; }
+  if(act==="series-season-pick"){
+    seriesSeasonSel[id]=b.getAttribute("data-season");delete seriesEpisodeSel[id];render();return;
+  }
+  if(act==="series-episode-pick"){
+    seriesEpisodeSel[id]=b.getAttribute("data-episode");render();return;
+  }
   if(act==="clear-sug-filters"){ sugGenre="All"; sugTier="All"; render(); return; }
   if(act==="detail-neighbor"){
     var neighborKind=b.getAttribute("data-kind");
@@ -8081,7 +8214,7 @@ window.addEventListener("pageshow",function(e){
 
 applyKeysFromData();     // migrate legacy cached keys into device-local storage
 backfillKeysToData();    // scrub any remaining key material from the vault object
-if("serviceWorker" in navigator && location.protocol.indexOf("http")===0){
+if("serviceWorker" in navigator && location.protocol.indexOf("http")===0 && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)){
   navigator.serviceWorker.register("sw.js?v="+APP_VERSION,{updateViaCache:"none"}).then(function(reg){
     function offerUpdate(worker){
       if(!worker) return;

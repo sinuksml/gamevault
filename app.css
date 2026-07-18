@@ -1972,3 +1972,267 @@ html:not(.tv) .media-closebar.detail-toolbar>.detail-close{
   html:not(.tv) .game-fact b{text-align:right}
   html:not(.tv) .game-page-overview{display:none}
 }
+
+/* ---------- v1.19 unified title cards and detail information ---------- */
+html:not(.tv) .media-page-head{
+  display:grid;
+  grid-template-columns:minmax(220px,300px) minmax(0,1fr);
+  gap:26px;
+  align-items:start;
+}
+html:not(.tv) .media-page-info{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-self:stretch;
+}
+html:not(.tv) .media-page-kicker{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px 12px;
+  margin:0 0 7px;
+  color:var(--accent);
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.08em;
+}
+html:not(.tv) .media-page-kicker span+span{color:var(--dim)}
+html:not(.tv) .media-page-title{
+  max-width:28ch;
+  margin:0 0 10px;
+  line-height:1.08;
+  text-wrap:balance;
+  overflow-wrap:normal;
+  word-break:normal;
+}
+html:not(.tv) .media-page-sub{margin:0 0 14px}
+html:not(.tv) .media-fact-grid,
+html:not(.tv) .title-library-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+}
+html:not(.tv) .media-fact,
+html:not(.tv) .title-library-grid .media-fact{
+  min-width:0;
+  padding:10px 11px;
+  border:1px solid var(--border3);
+  border-radius:8px;
+  background:var(--surface-soft);
+}
+html:not(.tv) .media-fact.wide{grid-column:span 2}
+html:not(.tv) .media-fact span{
+  display:block;
+  margin-bottom:4px;
+  color:var(--dim);
+  font-size:11px;
+  font-weight:700;
+}
+html:not(.tv) .media-fact b{
+  display:block;
+  color:var(--text);
+  font-size:13px;
+  font-weight:800;
+  line-height:1.3;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+html:not(.tv) .rating-freshness{
+  margin:7px 1px 0;
+  color:var(--dim);
+  font-size:11px;
+}
+html:not(.tv) .media-page-overview{
+  max-width:76ch;
+  margin-top:12px;
+  padding:11px 13px;
+  border-left:3px solid var(--accent);
+  border-radius:0 8px 8px 0;
+  background:color-mix(in srgb,var(--surface-soft) 75%,transparent);
+}
+html:not(.tv) .media-page-overview>span,
+html:not(.tv) .detail-section-label{
+  display:block;
+  margin:0 0 6px;
+  color:var(--dim);
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+html:not(.tv) .media-page-overview p{margin:0;color:var(--text2);font-size:13px;line-height:1.55}
+html:not(.tv) .empty-overview p{color:var(--dim)}
+html:not(.tv) .detail-section-label{margin-top:15px}
+html:not(.tv) .title-library-panel{
+  margin:14px 0 0;
+  padding:12px;
+  border:1px solid var(--border3);
+  border-radius:8px;
+  background:color-mix(in srgb,var(--surface-soft) 78%,transparent);
+}
+html:not(.tv) .title-library-panel>.detail-section-label{margin-top:0}
+html:not(.tv) .title-library-grid{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+
+html:not(.tv) .media-grid .media-info,
+html:not(.tv) .game-grid .game-tile-info{
+  display:flex;
+  min-height:126px;
+  flex-direction:column;
+}
+html:not(.tv) .media-grid .media-title,
+html:not(.tv) .game-grid .game-tile-title{
+  min-height:36px;
+  overflow-wrap:normal;
+  word-break:normal;
+}
+html:not(.tv) .media-grid .media-meta,
+html:not(.tv) .game-grid .game-tile-meta{min-height:27px}
+html:not(.tv) .media-grid .media-release{
+  min-height:42px;
+  margin-top:auto;
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-end;
+}
+html:not(.tv) .muted-context{color:var(--dim)}
+html:not(.tv) .poster-img.fallback-art,
+html:not(.tv) .cover.fallback-art{
+  object-fit:contain;
+  padding:18%;
+  background:linear-gradient(145deg,var(--surface-soft),var(--inset));
+}
+
+html:not(.tv) .detail-actionbar{
+  padding:10px;
+  border:1px solid var(--border3);
+  border-radius:8px;
+  background:color-mix(in srgb,var(--surface-soft) 74%,transparent);
+}
+html:not(.tv) .detail-actionbar>.btn.blue,
+html:not(.tv) .detail-actionbar>.title-primary{
+  box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 24%,transparent);
+}
+
+html:not(.tv) .episode-browser{
+  margin-top:16px;
+  padding:14px;
+  border:1px solid var(--border3);
+  border-radius:8px;
+  background:var(--surface-soft);
+}
+html:not(.tv) .episode-browser>.detail-section-label{margin-top:0}
+html:not(.tv) .season-chipbar{
+  display:flex;
+  gap:7px;
+  overflow-x:auto;
+  padding:2px 1px 9px;
+  scrollbar-width:thin;
+}
+html:not(.tv) .season-chip{
+  min-width:112px;
+  min-height:44px;
+  padding:7px 10px;
+  border:1px solid var(--border3);
+  border-radius:8px;
+  background:var(--surface-raised);
+  color:var(--text);
+  text-align:left;
+}
+html:not(.tv) .season-chip small{display:block;margin-top:2px;color:var(--dim);font-size:11px}
+html:not(.tv) .season-chip.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+html:not(.tv) .episode-list{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:7px;
+  max-height:260px;
+  overflow-y:auto;
+  padding:1px;
+}
+html:not(.tv) .episode-row{
+  display:grid;
+  grid-template-columns:42px minmax(0,1fr) auto;
+  gap:8px;
+  align-items:center;
+  min-height:48px;
+  padding:8px 10px;
+  border:1px solid var(--border3);
+  border-radius:8px;
+  background:var(--surface-raised);
+  color:var(--text);
+  text-align:left;
+}
+html:not(.tv) .episode-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+html:not(.tv) .episode-row small{color:var(--dim);font-size:11px}
+html:not(.tv) .episode-row.on{border-color:var(--accent);box-shadow:inset 3px 0 var(--accent)}
+html:not(.tv) .episode-summary{margin-top:10px;padding:12px;border-radius:8px;background:var(--surface-raised)}
+html:not(.tv) .episode-summary span{color:var(--dim)}
+html:not(.tv) .episode-summary p{margin:7px 0 0;color:var(--text2);line-height:1.55}
+html:not(.tv) .episode-loading{padding:16px;color:var(--dim)}
+
+html.light:not(.tv) .media-fact,
+html.light:not(.tv) .title-library-panel,
+html.light:not(.tv) .episode-browser,
+html.light:not(.tv) .detail-actionbar{
+  border-color:#aebdce;
+  background:#edf3f9;
+  box-shadow:0 3px 12px rgba(36,55,82,.08);
+}
+
+@media (min-width:900px) and (max-width:1250px){
+  html:not(.tv) .media-list .media-card{grid-template-columns:minmax(0,1fr)}
+  html:not(.tv) .media-list .media-card-actions{
+    grid-column:1;
+    min-width:0;
+    border-left:0;
+    border-top:1px solid var(--border3);
+  }
+}
+
+@media (max-width:899px){
+  html:not(.tv) .media-page-head{grid-template-columns:132px minmax(0,1fr);gap:13px}
+  html:not(.tv) .media-page-info{display:contents}
+  html:not(.tv) .media-page-poster{grid-column:1;grid-row:1/4;align-self:start}
+  html:not(.tv) .media-page-kicker,
+  html:not(.tv) .media-page-title,
+  html:not(.tv) .media-page-sub{grid-column:2}
+  html:not(.tv) .media-page-kicker{margin-bottom:4px;font-size:10px}
+  html:not(.tv) .media-page-title{margin-bottom:6px;font-size:23px}
+  html:not(.tv) .media-page-sub{margin-bottom:8px}
+  html:not(.tv) .media-fact-grid,
+  html:not(.tv) .media-page-overview,
+  html:not(.tv) .rating-freshness{grid-column:1/-1}
+  html:not(.tv) .media-fact-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:4px}
+  html:not(.tv) .media-fact.wide{grid-column:span 2}
+  html:not(.tv) .episode-list{grid-template-columns:1fr}
+  html:not(.tv) .episode-row{grid-template-columns:38px minmax(0,1fr)}
+  html:not(.tv) .episode-row small{grid-column:2}
+}
+
+@media (max-width:430px){
+  html:not(.tv) .game-page-info{display:contents}
+  html:not(.tv) .game-page-cover{grid-column:1;grid-row:1/4;align-self:start}
+  html:not(.tv) .game-page-kicker,
+  html:not(.tv) .game-page-title,
+  html:not(.tv) .game-page-badges{grid-column:2}
+  html:not(.tv) .game-fact-grid,
+  html:not(.tv) .game-page-overview{grid-column:1/-1}
+  html:not(.tv) .game-fact-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:4px}
+  html:not(.tv) .game-fact{display:block;padding:8px}
+  html:not(.tv) .game-fact span{margin-bottom:3px}
+  html:not(.tv) .game-fact b{text-align:left}
+  html:not(.tv) .game-page-overview{display:block}
+  html:not(.tv) .media-page-head{grid-template-columns:112px minmax(0,1fr);gap:12px}
+  html:not(.tv) .media-page-poster{width:112px}
+  html:not(.tv) .media-fact{padding:8px}
+  html:not(.tv) .media-fact.wide{grid-column:auto}
+  html:not(.tv) .media-fact b{font-size:12px}
+  html:not(.tv) .media-page-overview{margin-top:9px;padding:9px 10px}
+  html:not(.tv) .media-grid .media-info,
+  html:not(.tv) .game-grid .game-tile-info{min-height:138px}
+  html:not(.tv) .media-grid .media-title,
+  html:not(.tv) .game-grid .game-tile-title{min-height:49px;-webkit-line-clamp:3}
+  html:not(.tv) .episode-browser{padding:10px}
+  html:not(.tv) .season-chip{min-width:104px}
+}
