@@ -1,8 +1,12 @@
 ﻿"use strict";
-var APP_VERSION = "1.19.0";
+var APP_VERSION = "1.20.0";
 var APP_BUILD_DATE = "2026-07-18";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Redesigned BiglyBT with a stable native download workspace and corrected Native/Web UI switching",
+  "Added counted torrent filters, sorting, state-aware actions, expandable file details and speed-limit controls",
+  "Added silent keyed progress updates, fixed notifications, offline and idle states, and safer removal confirmations",
+  "Upgraded BiglyBT history with search, outcome and date filters, totals and CSV export",
   "Aligned title actions and upgraded game detail information",
   "Made title detail buttons wrap into visible rows instead of requiring sideways scrolling",
   "Polished PC and iPhone contrast, tap targets, focus states and light-mode surfaces",
@@ -3168,7 +3172,7 @@ function setBiglyProxyUrl(v){
 }
 var BIGLY_MODE_KEY="gamevault-biglybt-mode";
 var BIGLY_NATIVE_TOKEN_KEY="gamevault-biglybt-native-token";
-function biglyMode(){ try{ return localStorage.getItem(BIGLY_MODE_KEY)||"iframe"; }catch(e){ return "iframe"; } }
+function biglyMode(){ try{ return localStorage.getItem(BIGLY_MODE_KEY)||"api"; }catch(e){ return "api"; } }
 function setBiglyMode(v){ try{ localStorage.setItem(BIGLY_MODE_KEY, v==="iframe"?"iframe":"api"); }catch(e){} }
 function biglyFrameUrl(){ return biglyProxyUrl()+(biglyMode()==="api"?"/__native":""); }
 function addBiglyHistoryEvent(entry){
@@ -3192,13 +3196,15 @@ window.addEventListener("message",function(e){
     addBiglyHistoryEvent(e.data.entry);
   }else if(e.data.type==="gvbt-history-request"){
     e.source.postMessage({type:"gvbt-history-response",items:(data.biglyHistory||[]).slice(0,1000)},origin);
+  }else if(e.data.type==="gvbt-switch-mode" && (e.data.mode==="api"||e.data.mode==="iframe")){
+    setBiglyMode(e.data.mode);
+    render();
   }
 });
-/* Existing installs used the API dashboard by default. Move them once to the
-   internal browser; users can still explicitly select API mode afterwards. */
+/* Preserve an existing preference. New devices start with the native dashboard,
+   while the original Web UI remains one click away. */
 try{
   if(!localStorage.getItem("gamevault-biglybt-browser-v1")){
-    setBiglyMode("iframe");
     localStorage.setItem("gamevault-biglybt-browser-v1","1");
   }
 }catch(e){}
@@ -3321,7 +3327,7 @@ function renderBiglyBT(){
   }
   if(/^https:\/\//i.test(proxy)){
     var nativeMode=biglyMode()==="api";
-    return html+'<div class="card bigly-browser" id="biglyBrowser"><div class="bigly-browser-bar"><button class="btn" data-act="bigly-home" title="Open the BiglyBT home page">Home</button>'+(nativeMode?'<button class="btn blue" data-act="bigly-native" title="Return to the native dashboard">Switch to Native UI</button>':'')+'<button class="btn" data-act="bigly-reload" title="Reload BiglyBT">Reload</button><button class="btn" data-act="bigly-fullscreen" title="Use the full screen">Full screen</button><button class="btn" data-act="bigly-settings" title="BiglyBT settings">Settings</button><span class="syncnote" style="align-self:center">'+(nativeMode?'Optional native dashboard':'BiglyBT Web UI')+' is open securely inside GameVault</span></div><iframe id="biglyFrame" class="bigly-browser-frame" title="'+(nativeMode?'Native BiglyBT Dashboard':'BiglyBT Web UI')+'" src="'+esc(biglyFrameUrl())+'" allow="clipboard-read; clipboard-write; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe></div>';
+    return html+'<div class="card bigly-browser" id="biglyBrowser"><div class="bigly-browser-bar"><div class="bigly-mode-switch" role="group" aria-label="BiglyBT interface"><button class="btn'+(nativeMode?' blue':'')+'" data-act="bigly-mode" data-mode="api" aria-pressed="'+(nativeMode?'true':'false')+'">Native Dashboard</button><button class="btn'+(!nativeMode?' blue':'')+'" data-act="bigly-mode" data-mode="iframe" aria-pressed="'+(!nativeMode?'true':'false')+'">Web UI</button></div><button class="btn" data-act="bigly-reload" title="Reload the current BiglyBT interface">Reload</button><button class="btn" data-act="bigly-fullscreen" title="Use the full screen">Full screen</button><button class="btn" data-act="bigly-settings" title="BiglyBT settings">Settings</button><span class="syncnote" style="align-self:center">'+(nativeMode?'Native dashboard':'BiglyBT Web UI')+' · secure internal view</span></div><iframe id="biglyFrame" class="bigly-browser-frame" title="'+(nativeMode?'Native BiglyBT Dashboard':'BiglyBT Web UI')+'" src="'+esc(biglyFrameUrl())+'" allow="clipboard-read; clipboard-write; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe></div>';
   }
   if(!biglyToken){
     return html+'<div class="card torrent-login"><h3>Sign in to BiglyBT</h3><p class="meta">Credentials are not saved. They are sent only to your configured proxy for this browser session.</p><div class="fields"><input class="f-name" id="biglyUser" placeholder="BiglyBT username" autocomplete="username"><input class="f-name" id="biglyPass" placeholder="BiglyBT password" type="password" autocomplete="current-password"><button class="btn blue" data-act="bigly-login">Login</button></div>'+(biglyErr?'<div class="empty">'+esc(biglyErr)+'</div>':'')+'</div>';
@@ -6446,7 +6452,11 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="plex-delete"){ plexDeleteItem(id); return; }
   if(act==="bigly-settings"){ toggleSettings(true); return; }
   if(act==="bigly-home"){ var bh=document.getElementById("biglyFrame"); if(bh) bh.src=biglyFrameUrl(); return; }
-  if(act==="bigly-native"){ var bn=document.getElementById("biglyFrame"); if(bn) bn.src=biglyProxyUrl()+"/__native"; return; }
+  if(act==="bigly-mode"){
+    setBiglyMode(b.getAttribute("data-mode")==="iframe"?"iframe":"api");
+    render();
+    return;
+  }
   if(act==="bigly-reload"){ var bf=document.getElementById("biglyFrame"); if(bf) bf.src=bf.src; return; }
   if(act==="bigly-fullscreen"){
     var browser=document.getElementById("biglyBrowser");

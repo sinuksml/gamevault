@@ -25,7 +25,7 @@
 <link rel="apple-touch-startup-image" href="splash-portrait.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Sinu Game Vault — PS5 Tracker</title>
-<link rel="stylesheet" href="app.css?v=1.19.0">
+<link rel="stylesheet" href="app.css?v=1.20.0">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -128,10 +128,10 @@
     </details>
     <details class="settings-group">
     <summary>BiglyBT &amp; Plex</summary>
-    <p><b style="color:var(--text)">BiglyBT internal browser.</b> Paste your HTTPS Cloudflare Worker URL. When you select BiglyBT, its Web UI opens inside GameVault. The raw <b>http://</b> public-IP address cannot be embedded because GameVault uses HTTPS. The optional native dashboard uses the same secure gateway and can be switched off at any time.</p>
+    <p><b style="color:var(--text)">BiglyBT secure dashboard.</b> Paste your HTTPS Cloudflare Worker URL. The streamlined Native Dashboard is recommended; the original Web UI remains available from the BiglyBT mode switch. The raw <b>http://</b> public-IP address cannot be embedded because GameVault uses HTTPS.</p>
     <div class="fields">
       <input class="f-name" id="biglyProxyInput" placeholder="HTTPS gateway URL, e.g. https://gamevault-biglybt.yourname.workers.dev" autocomplete="off">
-      <select class="f-sm" id="biglyModeInput"><option value="iframe">Internal browser (recommended)</option><option value="api">Native dashboard (optional)</option></select>
+      <select class="f-sm" id="biglyModeInput"><option value="api">Native dashboard (recommended)</option><option value="iframe">Original Web UI</option></select>
       <button class="btn blue" id="saveBiglyProxyBtn">Save BiglyBT gateway</button>
     </div>
     <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
@@ -214,5 +214,5 @@
   </div>
 </div>
 
-<script src="app.js?v=1.19.0"></script></body>
+<script src="app.js?v=1.20.0"></script></body>
 </html>

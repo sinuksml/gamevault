@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.20.0 - 2026-07-18
+
+- Redesigned the BiglyBT native dashboard as a compact download workspace with a sticky connection and transfer summary.
+- Corrected Native Dashboard and Web UI switching while preserving the current gateway and authentication flow.
+- Replaced full two-second list redraws with keyed torrent-row updates that preserve focus, expansion and scroll position.
+- Added global totals, counted Active, Queued, Completed, Seeding, Errors and All filters, plus seven sorting options.
+- Added state-aware primary actions, secondary action menus, stronger progress hierarchy and safer named deletion confirmations.
+- Added expandable torrent details with save location, dates, trackers, files and individual file priorities.
+- Added fixed notifications, offline and idle states, five-minute polling pause, alternative speed-limit control and last-updated status.
+- Added searchable and date-filtered torrent history, storage totals, CSV export, improved mobile layout and light-mode support.
+
 ## v1.19.0 - 2026-07-18
 
 - Unified Game, Film and TV title details around a consistent artwork, status, facts, overview and actions hierarchy.

@@ -6,6 +6,7 @@ const html=fs.readFileSync("index.html","utf8");
 const js=fs.readFileSync("app.js","utf8");
 const css=fs.readFileSync("app.css","utf8");
 const sw=fs.readFileSync("sw.js","utf8");
+const biglyWorker=fs.readFileSync("biglybt-worker/worker.js","utf8");
 const manifest=JSON.parse(fs.readFileSync("manifest.webmanifest","utf8"));
 const pkg=JSON.parse(fs.readFileSync("package.json","utf8"));
 const version=(js.match(/var APP_VERSION\s*=\s*"(\d+\.\d+\.\d+)"/)||[])[1];
@@ -29,6 +30,18 @@ assert.ok(css.length>10000,"application styles are unexpectedly empty");
 assert.ok(js.length>100000,"application script is unexpectedly empty");
 new vm.Script(js,{filename:"app.js"});
 new vm.Script(sw,{filename:"sw.js"});
+const biglyDashboardStart=biglyWorker.indexOf("function nativeDashboardPage() {");
+const biglyDashboardEnd=biglyWorker.indexOf("async function nativeRpc",biglyDashboardStart);
+assert.ok(biglyDashboardStart>=0&&biglyDashboardEnd>biglyDashboardStart,"BiglyBT native dashboard must be present");
+const biglyDashboardFactory=new Function(`${biglyWorker.slice(biglyDashboardStart,biglyDashboardEnd)};return nativeDashboardPage;`)();
+const biglyDashboardHtml=biglyDashboardFactory();
+const biglyScriptStart=biglyDashboardHtml.indexOf("<script>")+8;
+const biglyScriptEnd=biglyDashboardHtml.lastIndexOf("</script>");
+assert.ok(biglyScriptStart>=8&&biglyScriptEnd>biglyScriptStart,"BiglyBT dashboard script must be embedded");
+new vm.Script(biglyDashboardHtml.slice(biglyScriptStart,biglyScriptEnd),{filename:"biglybt-native-dashboard.js"});
+for(const marker of ["gvbt-switch-mode",'data-filter="error"',"historyExport",'id="sort"','id="autoRemove"']){
+  assert.ok(biglyWorker.includes(marker),`BiglyBT dashboard must include ${marker}`);
+}
 for(const name of ["movieCard","watchlistCard","watchlistSearchCard","seriesCard","seriesSearchCard"]){
   const count=(js.match(new RegExp("function\\s+"+name+"\\s*\\(","g"))||[]).length;
   assert.equal(count,1,`${name} should have one canonical implementation`);
@@ -113,7 +126,6 @@ assert.match(js,/function refreshAllData\(/);
 assert.match(js,/function plexDetailPage\(/);
 assert.match(js,/data-act=\"plex-open\"/);
 assert.doesNotMatch(js,/if\(!item\|\|!item\.watched\) return/);
-const biglyWorker=fs.readFileSync("biglybt-worker/worker.js","utf8");
 assert.match(biglyWorker,/Remove completed: On/);
 assert.match(biglyWorker,/delete-local-data':false/);
 assert.match(biglyWorker,/id="historyView"/);
