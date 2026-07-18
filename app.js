@@ -1,5 +1,5 @@
 ﻿"use strict";
-var APP_VERSION = "1.22.0";
+var APP_VERSION = "1.23.0";
 var APP_BUILD_DATE = "2026-07-19";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [

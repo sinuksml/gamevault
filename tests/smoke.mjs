@@ -87,6 +87,12 @@ assert.match(financeJs,/extensions:\{prf:/);
 assert.match(financeJs,/function financeReadStatement\(/);
 assert.match(financeJs,/finance-import-confirm/);
 assert.match(financeJs,/function financeAddLoan\(/);
+assert.match(financeJs,/https:\/\/www\.googleapis\.com\/auth\/gmail\.readonly/);
+assert.match(financeJs,/function financeGmailSync\(/);
+assert.match(financeJs,/function financeGmailReadMessage\(/);
+assert.match(financeJs,/importedMessageIds/);
+assert.match(financeJs,/Access tokens stay in memory/);
+assert.match(css,/\.finance-gmail/);
 assert.match(css,/\.finance-auth/);
 for(const key of ["serieswatching","seriesnew","seriesupcoming","enseries","mlseries","taseries","hiseries"]){ assert.ok(js.includes(key),`TV navigation must include ${key}`); }
 assert.match(js,/watchingSeries/);

@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.23.0 - 2026-07-19
+
+- Added optional Gmail statement and transaction-alert discovery to the encrypted Finance workspace.
+- Added incremental Gmail read-only OAuth using the existing Google Client ID, with access tokens kept only in memory.
+- Added a configurable Gmail search query, labeled-message workflow, connection status and explicit session disconnect.
+- Added local parsing of supported CSV, TXT and text-based PDF attachments plus cautious transaction-alert detection.
+- Added review-before-import, encrypted Gmail message-ID deduplication and privacy-safe Gmail import history.
+
 ## v1.22.0 - 2026-07-19
 
 - Added a separate PC and mobile Finance workspace with encrypted expense, income, loan and EMI tracking.

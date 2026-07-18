@@ -8,13 +8,23 @@ var financeState=null,financeKey=null,financeBusy=false,financePendingImport=nul
 var financeSearch="",financeAccountFilter="",financeLockTimer=null;
 var FINANCE_FACE_STORE="gamevault-finance-face-v1";
 var FINANCE_IDLE_MS=5*60*1000;
+var FINANCE_GMAIL_SCOPE="https://www.googleapis.com/auth/gmail.readonly";
+var FINANCE_GMAIL_DEFAULT_QUERY='label:"GameVault Statements" newer_than:2y';
+var financeGmailToken=null,financeGmailTokenClient=null,financeGmailCandidates=[];
+var financeGmailStatus="";
 
-function financeDefaults(){return {version:1,transactions:[],loans:[],statements:[],updatedAt:Date.now()};}
+function financeDefaults(){return {version:1,transactions:[],loans:[],statements:[],gmail:{query:FINANCE_GMAIL_DEFAULT_QUERY,importedMessageIds:[],lastSyncAt:0,email:"",authorized:false},updatedAt:Date.now()};}
 function financeNormalize(value){
   var f=value&&typeof value==="object"&&!Array.isArray(value)?value:financeDefaults();
   if(!Array.isArray(f.transactions))f.transactions=[];
   if(!Array.isArray(f.loans))f.loans=[];
   if(!Array.isArray(f.statements))f.statements=[];
+  if(!f.gmail||typeof f.gmail!=="object"||Array.isArray(f.gmail))f.gmail={};
+  if(!f.gmail.query)f.gmail.query=FINANCE_GMAIL_DEFAULT_QUERY;
+  if(!Array.isArray(f.gmail.importedMessageIds))f.gmail.importedMessageIds=[];
+  if(!Number.isFinite(Number(f.gmail.lastSyncAt)))f.gmail.lastSyncAt=0;
+  if(typeof f.gmail.email!=="string")f.gmail.email="";
+  f.gmail.authorized=!!f.gmail.authorized;
   f.version=1;return f;
 }
 function financeConfigured(){return !!(data&&data.finance&&data.finance.format==="gamevault-finance-v1"&&data.finance.cipher);}
@@ -25,7 +35,7 @@ function financeTouch(){
   financeLockTimer=setTimeout(function(){financeLock();if(section==="finance")render();flash("Finance locked after 5 minutes of inactivity");},FINANCE_IDLE_MS);
 }
 function financeLock(silent){
-  clearTimeout(financeLockTimer);financeLockTimer=null;financeState=null;financeKey=null;financePendingImport=null;
+  clearTimeout(financeLockTimer);financeLockTimer=null;financeState=null;financeKey=null;financePendingImport=null;financeGmailCandidates=[];financeGmailToken=null;
   if(!silent&&typeof flash==="function")flash("Finance locked");
 }
 function financeRandom(n){var out=new Uint8Array(n);crypto.getRandomValues(out);return out;}
@@ -164,11 +174,17 @@ function financeLoans(){
   var cards=financeState.loans.slice().sort(function(a,b){return (a.status==="closed")-(b.status==="closed");}).map(function(x){var original=Number(x.principal)||0,balance=Number(x.balance)||0,pct=original?Math.max(0,Math.min(100,Math.round((original-balance)/original*100))):0;return '<article class="finance-loan '+(x.status==="closed"?'closed':'')+'"><div class="finance-loan-head"><div><span>'+esc(x.lender||"Loan")+'</span><h3>'+esc(x.name)+'</h3></div><button class="iconbtn finance-delete" data-act="finance-delete-loan" data-id="'+esc(x.id)+'" aria-label="Delete loan">&times;</button></div><strong>'+financeMoney(balance)+'</strong><small>outstanding of '+financeMoney(original)+'</small><div class="finance-loan-track"><i style="width:'+pct+'%"></i></div><div class="finance-loan-meta"><span>EMI <b>'+financeMoney(x.emi)+'</b></span><span>Rate <b>'+esc(String(x.rate||0))+'%</b></span><span>Due <b>day '+esc(String(x.dueDay||"-"))+'</b></span></div><button class="btn" data-act="finance-toggle-loan" data-id="'+esc(x.id)+'">'+(x.status==="closed"?'Reopen loan':'Mark paid off')+'</button></article>';}).join("");
   return '<section class="finance-panel"><div class="finance-panel-head"><div><span>ADD LIABILITY</span><h3>Loan or EMI</h3></div></div><div class="finance-loan-form"><input id="financeLoanName" placeholder="Loan name"><input id="financeLoanLender" placeholder="Lender"><input id="financeLoanPrincipal" type="number" min="0" step="0.01" placeholder="Original amount"><input id="financeLoanBalance" type="number" min="0" step="0.01" placeholder="Current balance"><input id="financeLoanEmi" type="number" min="0" step="0.01" placeholder="Monthly EMI"><input id="financeLoanRate" type="number" min="0" step="0.01" placeholder="Interest %"><input id="financeLoanDue" type="number" min="1" max="31" placeholder="Due day"><button class="btn blue" data-act="finance-add-loan">Add loan</button></div></section><div class="finance-loan-grid">'+(cards||'<div class="finance-empty">No loans recorded.</div>')+'</div>';
 }
+function financeGmailConnected(){return !!(financeGmailToken&&financeGmailToken.access_token&&Date.now()<financeGmailToken.expiresAt-60000);}
+function financeGmailPanel(){
+  var g=financeState.gmail||{},connected=financeGmailConnected(),last=g.lastSyncAt?new Date(g.lastSyncAt).toLocaleString("en-IN"):"Never";
+  var state=connected?"Connected for this browser session":(g.authorized?"Previously authorized - tap Sync Gmail to reconnect":"Not connected");
+  return '<section class="finance-panel finance-gmail"><div class="finance-panel-head"><div><span>OPTIONAL GMAIL IMPORT</span><h3>Statements and transaction alerts</h3></div><span class="finance-gmail-state '+(connected?'on':'')+'">'+esc(state)+'</span></div><p>GameVault reads only messages matched by this Gmail search. Create a Gmail label named <b>GameVault Statements</b>, apply it to statement emails or bank alerts, then review every detected transaction before importing.</p><label class="finance-gmail-query"><span>Gmail search query</span><input id="financeGmailQuery" value="'+esc(g.query||FINANCE_GMAIL_DEFAULT_QUERY)+'" autocomplete="off" spellcheck="false"></label><div class="finance-actions"><button class="btn blue" data-act="finance-gmail-sync"'+(financeBusy?' disabled':'')+'>'+(financeBusy?'Checking Gmail...':(connected?'Sync Gmail now':'Connect Gmail & scan'))+'</button>'+(connected?'<button class="btn" data-act="finance-gmail-disconnect">Disconnect Gmail</button>':'')+'</div><div class="finance-gmail-meta"><span>Account: '+esc(g.email||"shown after connection")+'</span><span>Last checked: '+esc(last)+'</span></div>'+(financeGmailStatus?'<div class="finance-gmail-result">'+esc(financeGmailStatus)+'</div>':'')+'<details><summary>One-time Google setup</summary><p>Enable the Gmail API in the same Google Cloud project used by GameVault. Add the Gmail read-only scope to the OAuth consent screen and, while the app is in Testing, add your Google account as a test user. Gmail access is requested separately from Drive and only after this button is pressed.</p></details><small>Access tokens stay in memory and expire quickly. Raw emails and attachments are never saved to local storage or Drive; only approved transactions and imported Gmail message IDs enter your encrypted Finance vault.</small></section>';
+}
 function financeStatements(){
   var pending="";
   if(financePendingImport){pending='<section class="finance-panel"><div class="finance-panel-head"><div><span>REVIEW BEFORE IMPORT</span><h3>'+esc(financePendingImport.name)+'</h3></div><b>'+financePendingImport.items.length+' detected</b></div><div class="finance-import-preview">'+financePendingImport.items.slice(0,20).map(function(t){return '<div><span>'+esc(t.date)+'</span><strong>'+esc(t.description)+'</strong><b class="'+(t.type==="income"?'income':'expense')+'">'+(t.type==="income"?'+':'-')+financeMoney(t.amount)+'</b></div>';}).join("")+'</div><div class="finance-actions"><button class="btn blue" data-act="finance-import-confirm">Import transactions</button><button class="btn" data-act="finance-import-cancel">Cancel</button></div></section>';}
   var history=financeState.statements.slice().sort(function(a,b){return b.importedAt-a.importedAt;}).map(function(s){return '<div class="finance-statement"><div><strong>'+esc(s.name)+'</strong><span>'+new Date(s.importedAt).toLocaleString("en-IN")+' - '+s.count+' imported'+(s.skipped?' - '+s.skipped+' duplicates skipped':'')+'</span></div><button class="iconbtn finance-delete" data-act="finance-delete-statement" data-id="'+esc(s.id)+'" aria-label="Delete statement record">&times;</button></div>';}).join("");
-  return '<section class="finance-upload"><span aria-hidden="true">&#8682;</span><h3>Import bank or card statement</h3><p>Upload CSV, TXT or a text-based PDF. GameVault detects dates, descriptions, debit/credit amounts and categories locally in your browser. Review the detected entries before importing.</p><button class="btn blue" data-act="finance-pick-statement">Choose statement</button><input id="financeStatementFile" type="file" accept=".csv,.txt,.pdf,text/csv,text/plain,application/pdf" hidden><small>Scanned-image PDFs cannot be read. Export CSV from your bank whenever possible for the most reliable result.</small></section>'+pending+'<section class="finance-panel"><div class="finance-panel-head"><div><span>IMPORT LOG</span><h3>Statements</h3></div></div>'+(history||'<div class="finance-empty">No statements imported yet.</div>')+'</section>';
+  return financeGmailPanel()+'<section class="finance-upload"><span aria-hidden="true">&#8682;</span><h3>Import bank or card statement</h3><p>Upload CSV, TXT or a text-based PDF. GameVault detects dates, descriptions, debit/credit amounts and categories locally in your browser. Review the detected entries before importing.</p><button class="btn blue" data-act="finance-pick-statement">Choose statement</button><input id="financeStatementFile" type="file" accept=".csv,.txt,.pdf,text/csv,text/plain,application/pdf" hidden><small>Scanned-image PDFs cannot be read. Export CSV from your bank whenever possible for the most reliable result.</small></section>'+pending+'<section class="finance-panel"><div class="finance-panel-head"><div><span>IMPORT LOG</span><h3>Statements</h3></div></div>'+(history||'<div class="finance-empty">No statements imported yet.</div>')+'</section>';
 }
 function renderFinance(){
   if(!financeUnlocked())return financeLockScreen();
@@ -211,6 +227,95 @@ function financePdfTransactions(lines,name){
 function financeReadPdf(file){
   return import("https://mozilla.github.io/pdf.js/build/pdf.mjs").then(function(pdfjs){pdfjs.GlobalWorkerOptions.workerSrc="https://mozilla.github.io/pdf.js/build/pdf.worker.mjs";return file.arrayBuffer().then(function(buffer){return pdfjs.getDocument({data:new Uint8Array(buffer)}).promise;}).then(async function(pdf){var lines=[];for(var p=1;p<=pdf.numPages;p++){var page=await pdf.getPage(p),content=await page.getTextContent(),groups={};content.items.forEach(function(item){var y=Math.round(item.transform[5]/3)*3;(groups[y]||(groups[y]=[])).push(item);});Object.keys(groups).sort(function(a,b){return Number(b)-Number(a);}).forEach(function(y){lines.push(groups[y].sort(function(a,b){return a.transform[4]-b.transform[4];}).map(function(x){return x.str;}).join(" ").replace(/\s+/g," ").trim());});}return lines;});});
 }
+function financeGmailAuthorize(){
+  if(financeGmailConnected())return Promise.resolve(financeGmailToken.access_token);
+  if(typeof gdClientId!=="function"||!gdClientId())return Promise.reject(new Error("Google OAuth Client ID is not configured in Settings"));
+  return gdLoadGoogleIdentity().then(function(){
+    return new Promise(function(resolve,reject){
+      financeGmailTokenClient=google.accounts.oauth2.initTokenClient({client_id:gdClientId(),scope:FINANCE_GMAIL_SCOPE,callback:function(resp){
+        if(!resp||!resp.access_token){reject(new Error((resp&&resp.error)||"Gmail authorization failed"));return;}
+        if(!google.accounts.oauth2.hasGrantedAllScopes(resp,FINANCE_GMAIL_SCOPE)){reject(new Error("Gmail read-only access was not granted"));return;}
+        financeGmailToken={access_token:resp.access_token,expiresAt:Date.now()+(Number(resp.expires_in)||3600)*1000};resolve(resp.access_token);
+      },error_callback:function(err){reject(new Error((err&&err.type)||"Gmail authorization was cancelled"));}});
+      try{financeGmailTokenClient.requestAccessToken({prompt:financeState.gmail.authorized?"":"consent"});}catch(err){reject(err);}
+    });
+  });
+}
+function financeGmailApi(path,token){
+  return fetch("https://gmail.googleapis.com/gmail/v1/users/me/"+path,{headers:{Authorization:"Bearer "+token}}).then(function(response){
+    if(response.status===401){financeGmailToken=null;throw new Error("Gmail session expired - tap Sync Gmail again");}
+    return response.json().then(function(json){if(!response.ok)throw new Error((json.error&&json.error.message)||("Gmail HTTP "+response.status));return json;});
+  });
+}
+function financeGmailDecode(value){
+  var text=String(value||"").replace(/-/g,"+").replace(/_/g,"/");while(text.length%4)text+="=";
+  var raw=atob(text),bytes=new Uint8Array(raw.length);for(var i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);return bytes;
+}
+function financeGmailHeaders(payload){
+  var out={};((payload&&payload.headers)||[]).forEach(function(h){out[String(h.name||"").toLowerCase()]=h.value||"";});return out;
+}
+function financeGmailParts(part,messageId,token,files,textParts){
+  if(!part)return Promise.resolve();
+  var tasks=[];if(Array.isArray(part.parts))part.parts.forEach(function(child){tasks.push(financeGmailParts(child,messageId,token,files,textParts));});
+  var body=part.body||{},filename=String(part.filename||""),mime=String(part.mimeType||"").toLowerCase();
+  if(filename&&/\.(csv|txt|pdf)$/i.test(filename)&&Number(body.size||0)<=15*1024*1024){
+    var bytesPromise=body.data?Promise.resolve(financeGmailDecode(body.data)):body.attachmentId?financeGmailApi("messages/"+encodeURIComponent(messageId)+"/attachments/"+encodeURIComponent(body.attachmentId),token).then(function(a){return financeGmailDecode(a.data);}):Promise.resolve(null);
+    tasks.push(bytesPromise.then(function(bytes){if(bytes)files.push(new File([bytes],filename,{type:mime||"application/octet-stream"}));}));
+  }else if(!filename&&body.data&&(mime==="text/plain"||mime==="text/html")){
+    try{textParts.push({mime:mime,text:new TextDecoder().decode(financeGmailDecode(body.data))});}catch(e){}
+  }
+  return Promise.all(tasks).then(function(){});
+}
+function financeGmailPlainText(parts){
+  var plain=parts.filter(function(x){return x.mime==="text/plain";}).map(function(x){return x.text;}).join("\n");
+  if(plain)return plain;var html=parts.map(function(x){return x.text;}).join("\n");
+  try{return new DOMParser().parseFromString(html,"text/html").body.textContent||"";}catch(e){return html.replace(/<[^>]+>/g," ");}
+}
+function financeGmailAlertTransaction(text,meta){
+  var all=(meta.subject+"\n"+text).replace(/\s+/g," ");
+  if(/statement|invoice|bill summary/i.test(meta.subject)||!/debited|spent|purchase|paid|transaction|credited|received|deposited/i.test(all))return null;
+  var amount=all.match(/(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)/i);if(!amount)return null;
+  var value=Math.abs(financeNumber(amount[1]));if(!value)return null;
+  var income=/credited|received|deposited/i.test(all)&&!/debited|spent|purchase|paid/i.test(all),merchant=all.match(/(?:\bat\b|\bto\b|\bfor\b)\s+([A-Za-z0-9][A-Za-z0-9 &.'_-]{2,55})/i);
+  var description=(merchant&&merchant[1]?merchant[1]:meta.subject).replace(/\s+/g," ").trim().slice(0,90)||"Gmail transaction alert";
+  var d=new Date(Number(meta.internalDate)||Date.parse(meta.date)||Date.now());
+  return {id:uid(),date:localISO(d),description:description,amount:value,type:income?"income":"expense",category:financeCategory(description),account:meta.from||"Gmail alert",source:"Gmail: "+meta.subject,createdAt:Date.now(),gmailMessageId:meta.id};
+}
+function financeGmailParseFile(file){
+  if(/\.pdf$/i.test(file.name))return financeReadPdf(file).then(function(lines){return financePdfTransactions(lines,file.name);});
+  return file.text().then(function(text){return financeRowsToTransactions(financeCsvRows(text),file.name);});
+}
+function financeGmailReadMessage(message,token){
+  var headers=financeGmailHeaders(message.payload),meta={id:message.id,subject:headers.subject||"Gmail message",from:headers.from||"",date:headers.date||"",internalDate:message.internalDate||0},files=[],texts=[];
+  return financeGmailParts(message.payload,message.id,token,files,texts).then(function(){
+    return Promise.all(files.map(function(file){return financeGmailParseFile(file).catch(function(){return [];});}));
+  }).then(function(groups){
+    var items=[].concat.apply([],groups);items.forEach(function(t){t.gmailMessageId=message.id;t.source="Gmail: "+meta.subject+" / "+t.source;});
+    if(!items.length){var alert=financeGmailAlertTransaction(financeGmailPlainText(texts),meta);if(alert)items.push(alert);}
+    return {id:message.id,subject:meta.subject,from:meta.from,items:items,attachments:files.length};
+  });
+}
+function financeGmailSync(){
+  if(financeBusy)return;var input=document.getElementById("financeGmailQuery"),query=(input&&input.value||financeState.gmail.query||FINANCE_GMAIL_DEFAULT_QUERY).trim();
+  if(!query){flash("Enter a Gmail search query");return;}financeState.gmail.query=query;financeBusy=true;financeGmailStatus="Opening Google authorization...";render();
+  var token,profile,listed;
+  financeGmailAuthorize().then(function(t){token=t;financeGmailStatus="Searching labeled Gmail messages...";render();return Promise.all([financeGmailApi("profile",token),financeGmailApi("messages?q="+encodeURIComponent(query)+"&maxResults=50",token)]);}).then(function(results){
+    profile=results[0];listed=results[1];var imported={};financeState.gmail.importedMessageIds.forEach(function(id){imported[id]=1;});var messages=(listed.messages||[]).filter(function(m){return !imported[m.id];});
+    if(!messages.length){financeGmailCandidates=[];financeState.gmail.email=profile.emailAddress||financeState.gmail.email;financeState.gmail.authorized=true;financeState.gmail.lastSyncAt=Date.now();financeBusy=false;financeGmailStatus=(listed.resultSizeEstimate||0)?"All matching Gmail messages were already imported.":"No messages matched this Gmail search.";return financeSave();}
+    financeGmailStatus="Reading "+messages.length+" new matching message"+(messages.length===1?"":"s")+"...";render();
+    return Promise.all(messages.map(function(m){return financeGmailApi("messages/"+encodeURIComponent(m.id)+"?format=full",token).then(function(full){return financeGmailReadMessage(full,token);});})).then(function(candidates){
+      financeGmailCandidates=candidates;var items=[].concat.apply([],candidates.map(function(c){return c.items;})),usable=candidates.filter(function(c){return c.items.length;});
+      financeState.gmail.email=profile.emailAddress||financeState.gmail.email;financeState.gmail.authorized=true;financeState.gmail.lastSyncAt=Date.now();financeBusy=false;
+      financeGmailStatus="Checked "+candidates.length+" new message"+(candidates.length===1?"":"s")+"; "+items.length+" transaction"+(items.length===1?"":"s")+" detected.";
+      if(items.length)financePendingImport={id:uid(),name:"Gmail - "+usable.length+" message"+(usable.length===1?"":"s"),items:items,messageIds:usable.map(function(c){return c.id;}),source:"gmail"};
+      return financeSave();
+    });
+  }).catch(function(err){financeBusy=false;financeGmailStatus="";render();flash("Gmail import failed - "+(err&&err.message||"try again"));});
+}
+function financeGmailDisconnect(){
+  financeGmailToken=null;financeGmailTokenClient=null;financeGmailCandidates=[];financeGmailStatus="Gmail disconnected from this browser session.";
+  if(financeState&&financeState.gmail){financeState.gmail.authorized=false;financeSave("Gmail disconnected; Drive sync remains connected");}else render();
+}
 function financeReadStatement(file){
   if(!file)return;financeBusy=true;render();var promise=/\.pdf$/i.test(file.name)?financeReadPdf(file).then(function(lines){return financePdfTransactions(lines,file.name);}):file.text().then(function(text){return financeRowsToTransactions(financeCsvRows(text),file.name);});
   promise.then(function(items){financeBusy=false;if(!items.length){render();flash("No transactions were detected. Try a CSV export or a text-based PDF");return;}financePendingImport={id:uid(),name:file.name,items:items};financeTab="financestatements";render();flash(items.length+" transactions detected - review before importing");}).catch(function(){financeBusy=false;render();flash("Could not read this statement. CSV is the most reliable format");});
@@ -218,13 +323,18 @@ function financeReadStatement(file){
 function financeConfirmImport(){
   if(!financePendingImport)return;var existing={};financeState.transactions.forEach(function(t){existing[financeTransactionKey(t)]=1;});var added=0,skipped=0;
   financePendingImport.items.forEach(function(t){var key=financeTransactionKey(t);if(existing[key]){skipped++;return;}existing[key]=1;financeState.transactions.push(t);added++;});
-  financeState.statements.unshift({id:financePendingImport.id,name:financePendingImport.name,importedAt:Date.now(),count:added,skipped:skipped});financePendingImport=null;financeSave(added+" transactions imported"+(skipped?"; "+skipped+" duplicates skipped":""));
+  if(financePendingImport.source==="gmail"){
+    var seen={};financeState.gmail.importedMessageIds.forEach(function(id){seen[id]=1;});(financePendingImport.messageIds||[]).forEach(function(id){if(!seen[id]){seen[id]=1;financeState.gmail.importedMessageIds.push(id);}});
+    if(financeState.gmail.importedMessageIds.length>2000)financeState.gmail.importedMessageIds=financeState.gmail.importedMessageIds.slice(-2000);
+  }
+  financeState.statements.unshift({id:financePendingImport.id,name:financePendingImport.name,source:financePendingImport.source||"file",importedAt:Date.now(),count:added,skipped:skipped});financePendingImport=null;financeSave(added+" transactions imported"+(skipped?"; "+skipped+" duplicates skipped":""));
 }
 function financeHandleAction(act,id){
   if(act==="finance-setup"){financeSetup();return true;}if(act==="finance-unlock"){financeUnlockPin();return true;}if(act==="finance-lock"){financeLock();render();return true;}
   if(act==="finance-face-enable"){financeEnableFace();return true;}if(act==="finance-face-unlock"){financeUnlockFace();return true;}if(act==="finance-face-disable"){confirmDestructive("Remove Face ID unlock from this device? Your Finance PIN will still work.","Remove Face ID",financeDisableFace);return true;}
   if(!financeUnlocked())return false;financeTouch();
   if(act==="finance-add-transaction"){financeAddTransaction();return true;}if(act==="finance-add-loan"){financeAddLoan();return true;}
+  if(act==="finance-gmail-sync"){financeGmailSync();return true;}if(act==="finance-gmail-disconnect"){financeGmailDisconnect();return true;}
   if(act==="finance-pick-statement"){var input=document.getElementById("financeStatementFile");if(input)input.click();return true;}
   if(act==="finance-import-confirm"){financeConfirmImport();return true;}if(act==="finance-import-cancel"){financePendingImport=null;render();return true;}
   if(act==="finance-delete-transaction"){var tx=financeState.transactions.filter(function(x){return x.id===id;})[0];confirmDestructive('Delete "'+(tx?tx.description:"this transaction")+'"?','Delete transaction',function(){financeState.transactions=financeState.transactions.filter(function(x){return x.id!==id;});financeSave("Transaction deleted");});return true;}
