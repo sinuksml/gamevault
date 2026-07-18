@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.25.2 - 2026-07-19
+
+- Replaced the 200-attachment iPhone scan with six-statement sequential batches to prevent Safari memory termination.
+- Preserved the complete five-year backfill across batches before switching to lightweight incremental Gmail scans.
+- Added a Face ID device-key fallback for Safari installations that do not expose the WebAuthn PRF extension.
+- Kept the fallback wrapping key non-exportable and device-only in IndexedDB; biometric verification is still required before vault access.
+
 ## v1.25.1 - 2026-07-19
 
 - Prevented Finance inactivity and background locks while Gmail authorization, statement parsing or encrypted saving is active.
