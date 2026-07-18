@@ -1,4 +1,4 @@
-const CACHE_NAME = "gamevault-shell-v54";
+const CACHE_NAME = "gamevault-shell-v55";
 const IMAGE_CACHE = "gamevault-images-v1";
 const APP_SHELL = [
   "./",

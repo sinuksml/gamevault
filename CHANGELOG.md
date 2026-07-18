@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.24.2 - 2026-07-19
+
+- Added a direct Gmail API setup action when Google reports that the API is disabled.
+- Stopped automatic Gmail retries after configuration or network failures, preventing repeated refresh loops.
+- Replaced long raw Google API errors with a concise in-app setup message optimized for mobile.
+
 ## v1.24.1 - 2026-07-19
 
 - Restricted Gmail Finance synchronization to attached credit-card and bank/debit-account statements only.

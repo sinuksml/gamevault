@@ -445,6 +445,13 @@ img[data-cover],.cover img,.poster img{background:var(--card2)}
   --danger:#f0646f;
   --header-height:116px;
 }
+
+.finance-gmail-setup{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:14px 0;padding:14px;border:1px solid color-mix(in srgb,var(--warning) 58%,var(--border));border-radius:8px;background:color-mix(in srgb,var(--warning) 10%,var(--card));box-shadow:var(--shadow-1)}
+.finance-gmail-setup div{display:grid;gap:4px;min-width:0}
+.finance-gmail-setup strong{color:var(--text);font-size:15px}
+.finance-gmail-setup span{color:var(--dim);font-size:13px;line-height:1.45}
+.finance-gmail-setup .btn{flex:0 0 auto;text-decoration:none}
+@media(max-width:720px){.finance-gmail-setup{align-items:stretch;flex-direction:column}.finance-gmail-setup .btn{width:100%;min-height:44px}}
 html.light{
   --surface:rgba(247,249,252,.96);
   --surface-raised:rgba(255,255,255,.98);
