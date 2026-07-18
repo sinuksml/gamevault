@@ -1539,3 +1539,228 @@ html.tv-dim{filter:brightness(.35);transition:filter 2.5s ease}
 .home-row{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--text2);padding:2px 0}
 .home-row .grow{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .home-foot{margin-top:auto;display:flex;gap:8px;flex-wrap:wrap;padding-top:8px}
+
+/* ---------- v1.18 PC + iPhone polish: contrast, tap targets and calmer hierarchy ---------- */
+html:not(.tv){
+  --dim:#6E7B94;
+  --faint:#536178;
+  --ui-radius:8px;
+  --chip-radius:999px;
+  --elev-1:0 2px 8px rgba(0,0,0,.18);
+  --elev-2:0 8px 26px rgba(0,0,0,.26);
+  --elev-3:0 20px 70px rgba(0,0,0,.42);
+}
+html.light:not(.tv){
+  --dim:#53637A;
+  --faint:#8795AA;
+  --surface:rgba(243,247,251,.97);
+  --surface-raised:rgba(250,252,255,.98);
+  --surface-soft:rgba(47,75,113,.065);
+  --card:rgba(244,248,252,.98);
+  --card2:rgba(238,244,250,.96);
+  --elev-1:0 2px 8px rgba(34,54,84,.10);
+  --elev-2:0 8px 24px rgba(34,54,84,.14);
+  --elev-3:0 22px 70px rgba(34,54,84,.24);
+}
+html:not(.tv) body{font-size:15px}
+html:not(.tv) .brand h1,
+html:not(.tv) .media-title,
+html:not(.tv) .game-tile-title,
+html:not(.tv) .gname,
+html:not(.tv) .home-title{font-weight:800}
+html:not(.tv) .btn,
+html:not(.tv) .iconbtn,
+html:not(.tv) .tab,
+html:not(.tv) .gchip,
+html:not(.tv) .title-menu-pop button,
+html:not(.tv) .desktop-command-btn{font-weight:700}
+html:not(.tv) .meta,
+html:not(.tv) .syncnote,
+html:not(.tv) .plot .src,
+html:not(.tv) .ac-tag,
+html:not(.tv) .page-context p,
+html:not(.tv) .phone-sheet-handle{color:var(--dim)}
+html:not(.tv) .poster-ph,
+html:not(.tv) .game-cover-ph,
+html:not(.tv) .cover.ph,
+html:not(.tv) .dot,
+html:not(.tv) .star{color:var(--faint)}
+html:not(.tv) .card,
+html:not(.tv) .media-card,
+html:not(.tv) .game-tile,
+html:not(.tv) .plex-card,
+html:not(.tv) .settings,
+html:not(.tv) .form,
+html:not(.tv) .menupanel,
+html:not(.tv) .tabs,
+html:not(.tv) .media-page,
+html:not(.tv) .game-page,
+html:not(.tv) .command-panel,
+html:not(.tv) .title-menu-pop{border-radius:var(--ui-radius)}
+html:not(.tv) .chip,
+html:not(.tv) .gchip,
+html:not(.tv) .media-pill,
+html:not(.tv) .game-pill,
+html:not(.tv) .tab-count,
+html:not(.tv) .desktop-sync-pill,
+html:not(.tv) .context-count{border-radius:var(--chip-radius)}
+html:not(.tv) .card,
+html:not(.tv) .media-card,
+html:not(.tv) .game-tile,
+html:not(.tv) .plex-card{box-shadow:var(--elev-1)}
+html:not(.tv) .card:hover,
+html:not(.tv) .media-card:hover,
+html:not(.tv) .game-tile:hover,
+html:not(.tv) .plex-card:hover{box-shadow:var(--elev-2)}
+html:not(.tv) :focus-visible{
+  outline:2px solid color-mix(in srgb,var(--accent) 86%,white)!important;
+  outline-offset:3px;
+}
+html:not(.tv) .btn:active,
+html:not(.tv) .iconbtn:active,
+html:not(.tv) .tab:active,
+html:not(.tv) .gchip:active,
+html:not(.tv) .media-card:active,
+html:not(.tv) .game-tile:active,
+html:not(.tv) .plex-card:active,
+html:not(.tv) .recent-item:active,
+html:not(.tv) .command-item:active{transform:scale(.97)}
+html:not(.tv) .bignum,
+html:not(.tv) .stat .v,
+html:not(.tv) .rent-days,
+html:not(.tv) .release-countdown,
+html:not(.tv) .torrent-meta,
+html:not(.tv) .torrent-status,
+html:not(.tv) .scorebadge,
+html:not(.tv) .prov.imdb,
+html:not(.tv) .media-pill.imdb{font-variant-numeric:tabular-nums}
+
+@media (min-width:900px){
+  html:not(.tv){--desktop-rail:clamp(188px,15vw,220px)}
+  html:not(.tv).desktop-nav-collapsed{--desktop-rail:64px}
+  html:not(.tv) .wrap{padding-left:calc(var(--desktop-rail) + 38px)}
+  html:not(.tv) .sectionsw{border-radius:12px;box-shadow:var(--elev-2)}
+  html:not(.tv) .sectionsw button{min-height:44px;font-size:13px;border:1px solid transparent}
+  html:not(.tv) .sectionsw button:hover{background:var(--surface-soft);border-color:var(--border2);color:var(--text)}
+  html:not(.tv) .section-label{display:flex;flex:1;align-items:center;justify-content:space-between;gap:10px}
+  html:not(.tv) .page-context{
+    min-height:52px;
+    align-items:center;
+    margin-bottom:7px;
+    padding:2px 2px 8px;
+  }
+  html:not(.tv) .page-context h2{font-size:20px}
+  html:not(.tv) .page-context p{margin-top:2px}
+  html:not(.tv) .tabsticky{padding-bottom:6px}
+  html:not(.tv) .toolbar{
+    min-height:44px;
+    margin:8px 0 10px;
+    padding:0;
+  }
+  html:not(.tv) .toolbar>.btn,
+  html:not(.tv) .toolbar>select,
+  html:not(.tv) .toolbar input{min-height:40px}
+  html:not(.tv) .desktop-command-btn{min-height:40px}
+  html:not(.tv) .detail-close{
+    width:40px;
+    height:40px;
+    font-size:26px;
+    box-shadow:var(--elev-2);
+  }
+  html:not(.tv) .detail-actionbar{
+    box-shadow:var(--elev-2);
+  }
+  html.light:not(.tv) .sectionsw,
+  html.light:not(.tv) .app-header,
+  html.light:not(.tv) .tabs{
+    background:color-mix(in srgb,var(--surface-raised) 88%,#d7e0eb);
+  }
+  html.light:not(.tv) .card,
+  html.light:not(.tv) .media-card,
+  html.light:not(.tv) .game-tile,
+  html.light:not(.tv) .plex-card,
+  html.light:not(.tv) .media-page,
+  html.light:not(.tv) .game-page{
+    background:color-mix(in srgb,var(--surface-raised) 94%,#d7e0eb);
+  }
+}
+
+@media (max-width:899px){
+  html:not(.tv) .btn,
+  html:not(.tv) .iconbtn,
+  html:not(.tv) button,
+  html:not(.tv) a.btn,
+  html:not(.tv) .tab,
+  html:not(.tv) .gchip,
+  html:not(.tv) .title-menu>summary,
+  html:not(.tv) .selectmini{min-height:44px}
+  html:not(.tv) .chip,
+  html:not(.tv) .media-pill,
+  html:not(.tv) .game-pill{display:inline-flex;align-items:center;min-height:24px}
+  html:not(.tv) .sectionsw{height:calc(72px + env(safe-area-inset-bottom))}
+  html:not(.tv) .sectionsw button{min-height:62px}
+  html:not(.tv) .section-icon{font-size:22px}
+  html:not(.tv) .sectionsw button:not(.on) .section-label{
+    opacity:.72;
+    font-size:9px;
+    font-weight:600;
+  }
+  html:not(.tv) .sectionsw button.on .section-label{
+    opacity:1;
+    font-size:10px;
+    font-weight:800;
+  }
+  html:not(.tv) .phone-filter-bar button{min-height:44px;padding:8px 13px}
+  html:not(.tv) .phone-more-button{width:44px;min-width:44px;height:44px}
+  html:not(.tv) .media-card-actions,
+  html:not(.tv) .game-card-actions{
+    min-height:52px;
+    padding:8px;
+  }
+  html:not(.tv) .media-card-actions .compact-link,
+  html:not(.tv) .media-card-actions .imdbbtn,
+  html:not(.tv) .game-card-actions a.btn{
+    display:none!important;
+  }
+  html:not(.tv) .title-primary,
+  html:not(.tv) .game-primary{min-height:44px}
+  html:not(.tv) .title-menu-pop button{min-height:48px;font-size:14px}
+  html:not(.tv) .detail-actionbar{
+    position:relative;
+    isolation:isolate;
+    padding-right:22px;
+    box-shadow:var(--elev-2);
+    mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 30px),transparent 100%);
+    -webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 30px),transparent 100%);
+  }
+  html:not(.tv) .detail-actionbar::after{
+    content:"";
+    position:sticky;
+    right:-22px;
+    width:28px;
+    align-self:stretch;
+    flex:0 0 28px;
+    margin-left:-28px;
+    pointer-events:none;
+    background:linear-gradient(90deg,transparent,var(--surface-raised));
+  }
+  html:not(.tv) .media-closebar.detail-toolbar .detail-close{
+    width:48px;
+    height:48px;
+    font-size:30px;
+  }
+  html:not(.tv) .media-list .media-main{
+    grid-template-columns:52px minmax(0,1fr);
+  }
+  html:not(.tv) .media-list .poster-wrap{
+    width:52px;
+    min-height:78px;
+  }
+  html:not(.tv) .toast{
+    z-index:170;
+  }
+  html:not(.tv) .phone-status-banner{z-index:150}
+  html:not(.tv) .phone-keyboard-bar{z-index:210}
+  html:not(.tv) .phone-sheet{z-index:220}
+  html:not(.tv) .shortcuts-help{z-index:230}
+}

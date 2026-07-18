@@ -1,8 +1,9 @@
 ﻿"use strict";
-var APP_VERSION = "1.17.0";
-var APP_BUILD_DATE = "2026-07-17";
+var APP_VERSION = "1.18.0";
+var APP_BUILD_DATE = "2026-07-18";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Polished PC and iPhone contrast, tap targets, focus states and light-mode surfaces",
   "Redesigned Android TV as a cinematic command center without changing phone or desktop",
   "Added an immersive featured title, continuation summary and wider TV shelves",
   "Introduced a compact expanding TV navigation rail and clearer Downloads and Settings labels",
