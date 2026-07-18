@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.22.0 - 2026-07-19
+
+- Added a separate PC and mobile Finance workspace with encrypted expense, income, loan and EMI tracking.
+- Added six-digit PIN protection and optional iPhone Face ID unlock through WebAuthn PRF when supported.
+- Added local CSV, TXT and text-based PDF statement parsing, review, categorization and duplicate detection.
+- Added monthly and category insights, statement history, manual transactions and loan payoff tracking.
+- Reduced the size of the 12-month rental, history and library-purchase chart.
+- Added a privacy-safe Finance summary to Home that reveals values only while the vault is unlocked.
+
 ## v1.21.0 - 2026-07-19
 
 - Added a one-click BiglyBT Paste & Add button that reads a copied magnet link and immediately submits it.

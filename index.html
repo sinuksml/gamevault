@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="Sinu Game Vault">
 <meta name="theme-color" content="#0A0D13">
 <meta name="color-scheme" content="dark light">
-<meta name="description" content="A private personal dashboard for games, movies, TV shows, Plex, BiglyBT, health tracking and cloud backup.">
+<meta name="description" content="A private personal dashboard for games, movies, TV shows, Plex, BiglyBT, health, finance tracking and cloud backup.">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Sinu Game Vault">
@@ -25,7 +25,7 @@
 <link rel="apple-touch-startup-image" href="splash-portrait.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Sinu Game Vault — PS5 Tracker</title>
-<link rel="stylesheet" href="app.css?v=1.21.0">
+<link rel="stylesheet" href="app.css?v=1.22.0">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -56,6 +56,7 @@
     <button data-section="series"><span class="section-icon">&#128250;</span><span class="section-label">TV Shows</span></button>
     <button data-section="plex"><span class="section-icon">&#9654;</span><span class="section-label"><span class="desktop-label">Plex Library</span><span class="mobile-label">Plex</span></span></button>
     <button data-section="biglybt"><span class="section-icon">&#8681;</span><span class="section-label">BiglyBT</span></button>
+    <button data-section="finance" class="desktop-only"><span class="section-icon" aria-hidden="true">&#8377;</span><span class="section-label">Finance</span></button>
     <button data-section="health" class="phone-secondary"><span class="section-icon" aria-hidden="true">&#9829;</span><span class="section-label">Health</span></button>
     <button data-section="library" class="phone-only"><span class="section-icon">&#8942;</span><span class="section-label">Library</span></button>
     <div class="desktop-rail-tools desktop-only" aria-label="Application utilities">
@@ -183,7 +184,7 @@
         <button class="btn" id="encryptedExportBtn">Encrypted backup</button>
         <button class="btn" id="diagnosticsBtn">Export diagnostics</button>
       </div>
-      <p class="syncnote privacy-note">Health sync is off by default. If enabled, health records are included in your normal Drive or JSONBin backup. Use Encrypted backup for a password-protected portable copy.</p>
+      <p class="syncnote privacy-note">Health sync is off by default. If enabled, health records are included in your normal Drive or JSONBin backup. Finance records are always stored as a separately PIN-encrypted envelope; the PIN is never saved or uploaded. Use Encrypted backup for a password-protected portable copy of the remaining vault.</p>
       <div class="recent-activity" id="recentActivity"></div>
       <p class="syncnote">GameVault keeps up to eight local recovery points and up to five daily Drive history copies. Diagnostics never include passwords, OAuth tokens, Plex tokens, or API keys.</p>
     </details>
@@ -214,5 +215,6 @@
   </div>
 </div>
 
-<script src="app.js?v=1.21.0"></script></body>
+<script src="finance.js?v=1.22.0"></script>
+<script src="app.js?v=1.22.0"></script></body>
 </html>

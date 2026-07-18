@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 
 const html=fs.readFileSync("index.html","utf8");
 const js=fs.readFileSync("app.js","utf8");
+const financeJs=fs.readFileSync("finance.js","utf8");
 const css=fs.readFileSync("app.css","utf8");
 const sw=fs.readFileSync("sw.js","utf8");
 const biglyWorker=fs.readFileSync("biglybt-worker/worker.js","utf8");
@@ -17,6 +18,7 @@ assert.ok(version,"application version must be present");
 assert.equal(pkg.version,version,"package version must match APP_VERSION");
 assert.ok(html.includes(`app.css?v=${version}`),"CSS asset version must match APP_VERSION");
 assert.ok(html.includes(`app.js?v=${version}`),"JavaScript asset version must match APP_VERSION");
+assert.ok(html.includes(`finance.js?v=${version}`),"Finance asset version must match APP_VERSION");
 assert.match(html,/viewport-fit=cover/);
 assert.match(html,/maximum-scale=1/);
 assert.match(html,/user-scalable=no/);
@@ -29,6 +31,7 @@ assert.ok(html.length<50000,"index.html should stay a small application shell");
 assert.ok(css.length>10000,"application styles are unexpectedly empty");
 assert.ok(js.length>100000,"application script is unexpectedly empty");
 new vm.Script(js,{filename:"app.js"});
+new vm.Script(financeJs,{filename:"finance.js"});
 new vm.Script(sw,{filename:"sw.js"});
 const biglyDashboardStart=biglyWorker.indexOf("function nativeDashboardPage() {");
 const biglyDashboardEnd=biglyWorker.indexOf("async function nativeRpc",biglyDashboardStart);
@@ -50,7 +53,7 @@ for(const name of ["movieCard","watchlistCard","watchlistSearchCard","seriesCard
   const count=(js.match(new RegExp("function\\s+"+name+"\\s*\\(","g"))||[]).length;
   assert.equal(count,1,`${name} should have one canonical implementation`);
 }
-for(const asset of ["./index.html","./app.css","./app.js","./manifest.webmanifest"]){
+for(const asset of ["./index.html","./app.css","./app.js","./finance.js","./manifest.webmanifest"]){
   assert.ok(sw.includes(`"${asset}"`),`service worker must cache ${asset}`);
 }
 assert.equal(manifest.name,"Sinu Game Vault");
@@ -76,6 +79,15 @@ assert.match(sw,/if \(res\.ok\)/);
 assert.match(js,/data-bigly="remove-data"/);
 assert.doesNotMatch(js,/plot\.length>12000/);
 for(const label of ["Movies","TV Shows","Plex Library"]){ assert.ok(html.includes(label),`primary navigation must include ${label}`); }
+assert.match(html,/data-section="finance"/);
+assert.match(financeJs,/gamevault-finance-v1/);
+assert.match(financeJs,/AES-GCM/);
+assert.match(financeJs,/PBKDF2/);
+assert.match(financeJs,/extensions:\{prf:/);
+assert.match(financeJs,/function financeReadStatement\(/);
+assert.match(financeJs,/finance-import-confirm/);
+assert.match(financeJs,/function financeAddLoan\(/);
+assert.match(css,/\.finance-auth/);
 for(const key of ["serieswatching","seriesnew","seriesupcoming","enseries","mlseries","taseries","hiseries"]){ assert.ok(js.includes(key),`TV navigation must include ${key}`); }
 assert.match(js,/watchingSeries/);
 assert.match(js,/PLEX_ORDER=\["home","continue","movies","shows","recent"\]/);

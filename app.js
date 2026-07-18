@@ -1,8 +1,12 @@
 ﻿"use strict";
-var APP_VERSION = "1.21.0";
+var APP_VERSION = "1.22.0";
 var APP_BUILD_DATE = "2026-07-19";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Added a PIN-encrypted Finance workspace for expenses, statements, loans and EMI tracking",
+  "Added optional iPhone Face ID unlock using a hardware-backed WebAuthn credential",
+  "Added local CSV, TXT and text-based PDF statement parsing with review and duplicate detection",
+  "Reduced the height and width of the 12-month rental spending chart",
   "Added one-click Paste and Add for copied BiglyBT magnet links",
   "Added consistent confirmation warnings before user-initiated removals and deletions",
   "Added per-episode IMDb ratings through the existing OMDb season lookup",
@@ -252,7 +256,7 @@ var BUILTIN_CATALOG = [
 
 /* ---------- storage ---------- */
 var VAULT_ARRAY_FIELDS = ["rentals","upcoming","played","dismissed","catalogExtra","vendors","queue","rentalHistory","playing","upcomingRemoved","watchedMovies","movieWatchlist","watchingMovies","hiddenMovies","watchedSeries","seriesWatchlist","watchingSeries","hiddenSeries","biglyHistory"];
-var VAULT_OBJECT_FIELDS = ["covers","dismissedNames","fandom","hubkeys","keys","seriesRatings","aiChats","health"];
+var VAULT_OBJECT_FIELDS = ["covers","dismissedNames","fandom","hubkeys","keys","seriesRatings","aiChats","health","finance"];
 var HEALTH_SYNC_STORE="gamevault-sync-health-v1";
 function healthDefaults(){
   return {
@@ -330,6 +334,7 @@ function adoptVault(incoming,reason,options){
   var previousHealth=data&&data.health?JSON.parse(JSON.stringify(data.health)):null;
   if(data && vaultSize(data)) createRecoverySnapshot("Before "+(reason||"data restore"),data);
   data=migrate(incoming);
+  if(typeof financeLock==="function") financeLock(true);
   if(options&&options.preserveLocalHealth&&healthHasUserData(previousHealth)) data.health=normalizeHealth(previousHealth);
   applyKeysFromData();
   addAudit("vault-restored",reason||"Cloud/import restore");
@@ -343,6 +348,7 @@ function restoreRecoverySnapshot(index){
   if(!checked.ok) throw new Error(checked.errors.join(" "));
   createRecoverySnapshot("Before recovery restore",data);
   data=migrate(incoming);
+  if(typeof financeLock==="function") financeLock(true);
   data.updatedAt=Date.now();
   addAudit("recovery-restored",snap.reason||"Recovery snapshot");
   persistSilent(); scheduleAutoPush(); render();
@@ -366,11 +372,11 @@ function vaultSize(d){
          ((d&&d.watchedMovies)||[]).length + ((d&&d.hiddenMovies)||[]).length +
          ((d&&d.seriesWatchlist)||[]).length + ((d&&d.watchingSeries)||[]).length + ((d&&d.watchedSeries)||[]).length +
          ((d&&d.hiddenSeries)||[]).length + ((d&&d.biglyHistory)||[]).length +
-         ((((d&&d.health)||{}).foodLog)||[]).length;
+         ((((d&&d.health)||{}).foodLog)||[]).length + ((d&&d.finance&&d.finance.cipher)?1:0);
 }
 /* Schema migrations: bump SCHEMA_VERSION when structure changes and add an
    upgrade step below. Old data is always upgraded in place, never recreated. */
-var SCHEMA_VERSION = 9;
+var SCHEMA_VERSION = 10;
 function migrate(d){
   if(!d || typeof d!=="object" || Array.isArray(d)) d={};
   VAULT_ARRAY_FIELDS.forEach(function(k){ if(!Array.isArray(d[k])) d[k]=[]; });
@@ -410,6 +416,7 @@ function migrate(d){
   if(!d.hiddenSeries) d.hiddenSeries = []; // TV series marked Not Interested, synced
   if(!d.aiChats) d.aiChats = {}; // saved AI assistant conversation links by title/service, synced
   if(!d.biglyHistory) d.biglyHistory = []; // completed and manually removed torrents, synced
+  if(!d.finance || typeof d.finance!=="object" || Array.isArray(d.finance)) d.finance={}; // encrypted finance envelope only
   d.health=normalizeHealth(d.health);
   // v5: a game appears at most once per library — merge accidental duplicates
   d.played = dedupeList(d.played);
@@ -490,7 +497,7 @@ function cloudNeedsPrivacyScrub(incoming){
   return !healthCloudSyncEnabled()&&Object.prototype.hasOwnProperty.call(incoming,"health");
 }
 function vaultFingerprint(d){
-  return ["rentals","rentalHistory","playing","queue","played","movieWatchlist","watchingMovies","watchedMovies","seriesWatchlist","watchingSeries","watchedSeries","biglyHistory"].map(function(k){ return k+":"+((d[k]||[]).length); }).join(", ")+", health:"+((((d.health||{}).foodLog)||[]).length);
+  return ["rentals","rentalHistory","playing","queue","played","movieWatchlist","watchingMovies","watchedMovies","seriesWatchlist","watchingSeries","watchedSeries","biglyHistory"].map(function(k){ return k+":"+((d[k]||[]).length); }).join(", ")+", health:"+((((d.health||{}).foodLog)||[]).length)+", finance:"+((d.finance&&d.finance.updatedAt)||0);
 }
 var lastAuditFingerprint=vaultFingerprint(data);
 function getKey(){ try { return localStorage.getItem(KEY_STORE) || ""; } catch(e){ return ""; } }
@@ -1694,7 +1701,7 @@ function applyBackground(){
     g=nextBigGame(); u=g?coverUrl(g):""; title=(g&&g.name)||"";
     if(g){
       var dl=g.date?daysBetween(today(),parseD(g.date)):null;
-      detail=g.date?fmt(g.date)+(dl!==null&&dl>=0?' Â· in '+dl+' day'+(dl===1?"":"s"):''):"Date TBC";
+      detail=g.date?fmt(g.date)+(dl!==null&&dl>=0?' - in '+dl+' day'+(dl===1?"":"s"):''):"Date TBC";
       extra=badges(g.name);
     }
   }
@@ -2092,6 +2099,11 @@ function renderTabs(){
     document.getElementById("tabs").innerHTML="";
     return;
   }
+  if(section==="finance"){
+    var findefs=[["financeoverview","&#9636;","Overview"],["financetransactions","&#8645;","Transactions"],["financeloans","&#8377;","Loans & EMI"],["financestatements","&#8682;","Statements"]];
+    document.getElementById("tabs").innerHTML=findefs.map(function(d){return '<button class="tab '+(financeTab===d[0]?"on":"")+'" data-fin-tab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';}).join("");
+    finishTabRender();return;
+  }
   if(section==="health"){
     var hd=[["healthoverview","&#9829;","Overview"],["healthfood","&#9783;","Food & Activity"],["healthlabs","&#8599;","Lab Trends"]];
     document.getElementById("tabs").innerHTML=hd.map(function(d){return '<button class="tab '+(healthTab===d[0]?"on":"")+'" data-htab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';}).join("");
@@ -2257,6 +2269,14 @@ function renderHome(){
     '<div class="home-row"><span class="grow">Total spent</span><b style="color:#F2B84B">'+fmtMoney(totalSpent())+'</b></div>'+
     '<div class="home-foot">'+homeGoBtn("Completed","games","played")+homeGoBtn("Discover","games","suggest")+'</div></div>';
 
+  // private finance snapshot - no values are exposed while the vault is locked
+  html+='<div class="card home-card"><div class="home-title">&#8377; Private finance</div>';
+  if(typeof financeUnlocked==="function"&&financeUnlocked()){
+    var financeHome=financeSummary();
+    html+='<div class="home-row"><span class="grow">This month</span><b>'+financeMoney(financeHome.expense)+'</b></div><div class="home-row"><span class="grow">Monthly EMI</span><b>'+financeMoney(financeHome.emi)+'</b></div><div class="home-row"><span class="grow">Outstanding loans</span><b>'+financeMoney(financeHome.balance)+'</b></div>';
+  }else html+='<div class="meta">Encrypted and locked. Open Finance to review expenses, statements and loans.</div>';
+  html+='<div class="home-foot">'+homeGoBtn("Open Finance","finance")+'</div></div>';
+
   html+='</div>';
   html+=spendChartHtml();
   return html;
@@ -2282,9 +2302,9 @@ function spendChartHtml(){
   data.played.forEach(function(p){ addSpend(p.added,p.cost); });
   var mmax=0; mkeys.forEach(function(k){ if(mtot[k]>mmax) mmax=mtot[k]; });
   if(!mmax) return "";
-  var CW=560, CH=150, PADB=6, bw=CW/12;
+  var CW=560, CH=110, PADB=6, bw=CW/12;
   var bars=mkeys.map(function(k,ix){
-    var v=mtot[k], bh=Math.round((CH-38)*v/mmax);
+    var v=mtot[k], bh=Math.round((CH-34)*v/mmax);
     var x=ix*bw, y=CH-20-bh;
     var mlabel=new Date(Number(k.slice(0,4)), Number(k.slice(5,7))-1, 1).toLocaleDateString("en-GB",{month:"short"});
     return '<rect x="'+(x+PADB).toFixed(1)+'" y="'+y+'" width="'+(bw-PADB*2).toFixed(1)+'" height="'+Math.max(bh,(v>0?3:0))+'" rx="4" fill="'+(v>0?"var(--accent)":"var(--inset)")+'" opacity="'+(v>0?"0.9":"0.55")+'"></rect>'+
@@ -3647,13 +3667,14 @@ function plexDeleteItem(id,confirmed){
 function renderPageContext(){
   var el=document.getElementById("pageContext"); if(!el) return;
   var parent="Games",key=tab,title="",desc="",count="";
-  var labels={rentals:"Rentals",playing:"Now Playing",queue:"Rental Queue",upcoming:"Upcoming Releases",suggest:"Discover",played:"Completed",watchlist:"My Watchlist",watching:"Watching",bluray:"New on Blu-ray",uphw:"Coming Soon",relhw:"Discover",mlott:"Malayalam OTT",watched:"Watched",serieswatchlist:"My Watchlist",serieswatching:"Watching",seriesnew:"New Episodes",seriesupcoming:"Upcoming",enseries:"English",mlseries:"Malayalam",taseries:"Tamil",hiseries:"Hindi",serieswatched:"Watched",home:"Home",continue:"Continue Watching",movies:"Movies",shows:"TV Shows",recent:"Recently Added",healthoverview:"Overview",healthfood:"Food & Activity",healthlabs:"Lab Trends"};
-  var descriptions={rentals:"Active rentals, return dates and complete history",playing:"Games in progress, saved for later, or on hold",queue:"Your prioritized rental queue and vendor availability",upcoming:"Upcoming game releases and release countdowns",suggest:"Recommendations shaped by your ratings and library",played:"Finished games, ratings and personal history",watchlist:"Movies saved for later",watching:"Movies you have started watching",bluray:"Major new Hollywood physical-media releases",uphw:"Major movies in every language with a confirmed U.S. theatrical release",relhw:"Critically acclaimed Hollywood movies to discover",mlott:"Latest and upcoming Malayalam streaming releases",watched:"Your completed movie library",serieswatchlist:"TV shows saved for later",serieswatching:"TV shows you are currently watching",seriesnew:"Latest episodes from shows you are watching",seriesupcoming:"New and returning TV shows coming soon",enseries:"Highly rated English TV shows",mlseries:"Malayalam TV shows, newest first",taseries:"Tamil TV shows, newest first",hiseries:"Hindi TV shows, newest first",serieswatched:"Watched",home:"A summary of your Plex library",continue:"Partially watched movies and TV shows",movies:"Movies available on your Plex server",shows:"TV shows available on your Plex server",recent:"The latest media added to your Plex server",healthoverview:"Your July 2026 report priorities and this week's progress",healthfood:"Track vegetarian and non-vegetarian meals, activity and recovery",healthlabs:"Compare future blood-test results with your July 2026 baseline"};
+  var labels={rentals:"Rentals",playing:"Now Playing",queue:"Rental Queue",upcoming:"Upcoming Releases",suggest:"Discover",played:"Completed",watchlist:"My Watchlist",watching:"Watching",bluray:"New on Blu-ray",uphw:"Coming Soon",relhw:"Discover",mlott:"Malayalam OTT",watched:"Watched",serieswatchlist:"My Watchlist",serieswatching:"Watching",seriesnew:"New Episodes",seriesupcoming:"Upcoming",enseries:"English",mlseries:"Malayalam",taseries:"Tamil",hiseries:"Hindi",serieswatched:"Watched",home:"Home",continue:"Continue Watching",movies:"Movies",shows:"TV Shows",recent:"Recently Added",healthoverview:"Overview",healthfood:"Food & Activity",healthlabs:"Lab Trends",financeoverview:"Overview",financetransactions:"Transactions",financeloans:"Loans & EMI",financestatements:"Statements"};
+  var descriptions={rentals:"Active rentals, return dates and complete history",playing:"Games in progress, saved for later, or on hold",queue:"Your prioritized rental queue and vendor availability",upcoming:"Upcoming game releases and release countdowns",suggest:"Recommendations shaped by your ratings and library",played:"Finished games, ratings and personal history",watchlist:"Movies saved for later",watching:"Movies you have started watching",bluray:"Major new Hollywood physical-media releases",uphw:"Major movies in every language with a confirmed U.S. theatrical release",relhw:"Critically acclaimed Hollywood movies to discover",mlott:"Latest and upcoming Malayalam streaming releases",watched:"Your completed movie library",serieswatchlist:"TV shows saved for later",serieswatching:"TV shows you are currently watching",seriesnew:"Latest episodes from shows you are watching",seriesupcoming:"New and returning TV shows coming soon",enseries:"Highly rated English TV shows",mlseries:"Malayalam TV shows, newest first",taseries:"Tamil TV shows, newest first",hiseries:"Hindi TV shows, newest first",serieswatched:"Watched",home:"A summary of your Plex library",continue:"Partially watched movies and TV shows",movies:"Movies available on your Plex server",shows:"TV shows available on your Plex server",recent:"The latest media added to your Plex server",healthoverview:"Your July 2026 report priorities and this week's progress",healthfood:"Track vegetarian and non-vegetarian meals, activity and recovery",healthlabs:"Compare future blood-test results with your July 2026 baseline",financeoverview:"Private monthly spending, income and liability summary",financetransactions:"Search, categorize and review encrypted transactions",financeloans:"Track balances, EMI amounts and due dates",financestatements:"Import and review bank or credit-card statements"};
   if(section==="films"){ parent="Movies"; key=filmTab; }
   else if(section==="series"){ parent="TV Shows"; key=seriesTab; }
   else if(section==="plex"){ parent="Plex Library"; key=plexTab; }
   else if(section==="biglybt"){ parent="BiglyBT"; key="biglybt"; }
   else if(section==="health"){ parent="Health"; key=healthTab; }
+  else if(section==="finance"){ parent="Finance"; key=financeTab; }
   else if(section==="library"){ parent="GameVault";key="phonelibrary"; }
   else if(section==="home"){ parent="GameVault";key="homedash"; }
   if(key==="phonelibrary"){title="Library";desc="Health, sync, backup and application tools";}
@@ -3688,7 +3709,7 @@ function rememberViewed(kind,id,title,subtab){
 function renderRecentStrip(){
   var el=document.getElementById("recentStrip"); if(!el) return;
   var list=recentViewed();
-  if(!list.length || filmExpanded || seriesExpanded || plexExpanded || expandedId || section==="biglybt" || section==="library"){ el.innerHTML=""; el.style.display="none"; return; }
+  if(!list.length || filmExpanded || seriesExpanded || plexExpanded || expandedId || section==="biglybt" || section==="finance" || section==="library"){ el.innerHTML=""; el.style.display="none"; return; }
   el.style.display="flex";
   el.innerHTML='<span class="recent-label">Recent</span>'+list.map(function(x){return '<button class="recent-item" data-act="recent-open" data-kind="'+esc(x.kind)+'" data-id="'+esc(x.id)+'" data-subtab="'+esc(x.tab)+'">'+esc(x.title)+'</button>';}).join("");
 }
@@ -3706,6 +3727,7 @@ function openRecent(kind,id,subtab){
 function libraryStatus(ok){return '<span class="phone-library-status '+(ok?"ok":"")+'">'+(ok?"Connected":"Setup needed")+'</span>';}
 function renderPhoneLibrary(){
   return '<div class="phone-library-grid">'+
+    '<button type="button" data-act="phone-library-open" data-section="finance"><span class="phone-library-icon">&#8377;</span><strong>Finance</strong><small>Encrypted expenses, statements, loans and EMI tracking</small></button>'+
     '<button type="button" data-act="phone-library-open" data-section="health"><span class="phone-library-icon">&#9829;</span><strong>Health</strong><small>Food, activity, lab trends and weekly progress</small></button>'+
     '<button type="button" data-act="phone-sync"><span class="phone-library-icon">&#8635;</span><strong>Sync now</strong><small>Check Google Drive for the newest vault</small>'+libraryStatus(!!cloudMode())+'</button>'+
     '<button type="button" data-act="phone-settings"><span class="phone-library-icon">&#9881;</span><strong>Settings</strong><small>Services, appearance and recovery</small></button>'+
@@ -4176,6 +4198,13 @@ function render(){
     applyBackground();
     return;
   }
+  if(section==="finance"){
+    statsEl.style.display="none";
+    renderTabs();
+    document.getElementById("content").innerHTML=renderFinance();
+    applyBackground();
+    return;
+  }
   if(section==="biglybt"){
     statsEl.style.display="none";
     renderTabs();
@@ -4235,8 +4264,8 @@ var section="games", filmTab="watchlist", healthTab="healthoverview", healthWeek
 function phoneUi(){ return !TV_MODE&&window.matchMedia&&window.matchMedia("(max-width:720px)").matches; }
 try{ section=localStorage.getItem(SECTION_KEY)||"games"; }catch(e){}
 var requestedSection=new URLSearchParams(location.search).get("section");
-if(["games","films","series","plex","biglybt","health","library"].indexOf(requestedSection)>=0)section=requestedSection;
-if(["games","films","series","plex","biglybt","health","library"].indexOf(section)<0)section="games";
+if(["games","films","series","plex","biglybt","health","finance","library"].indexOf(requestedSection)>=0)section=requestedSection;
+if(["games","films","series","plex","biglybt","health","finance","library"].indexOf(section)<0)section="games";
 if(!phoneUi()&&section==="library")section="games";
 if((TV_MODE||phoneUi())&&section==="home")section="games"; // Home dashboard is desktop-only
 var requestedHealthTab=new URLSearchParams(location.search).get("healthTab");
@@ -5950,6 +5979,7 @@ function switchSection(s){
   else if(section==="plex") tabScroll["plex:"+plexTab]=window.scrollY;
   else if(section==="biglybt") tabScroll.biglybt=window.scrollY;
   else if(section==="health") tabScroll["health:"+healthTab]=window.scrollY;
+  else if(section==="finance") tabScroll["finance:"+financeTab]=window.scrollY;
   else if(section==="library"||section==="home") tabScroll[section]=window.scrollY;
   else tabScroll[tab]=window.scrollY;
   section=s; try{ localStorage.setItem(SECTION_KEY,s); }catch(e){}
@@ -5960,7 +5990,7 @@ function switchSection(s){
     if(active) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current");
   });
   render();
-  window.scrollTo(0, section==="films" ? (tabScroll["film:"+filmTab]||0) : section==="series" ? (tabScroll["series:"+seriesTab]||0) : section==="plex" ? (tabScroll["plex:"+plexTab]||0) : section==="biglybt" ? (tabScroll.biglybt||0) : section==="health" ? (tabScroll["health:"+healthTab]||0) : (section==="library"||section==="home") ? (tabScroll[section]||0) : (tabScroll[tab]||0));
+  window.scrollTo(0, section==="films" ? (tabScroll["film:"+filmTab]||0) : section==="series" ? (tabScroll["series:"+seriesTab]||0) : section==="plex" ? (tabScroll["plex:"+plexTab]||0) : section==="biglybt" ? (tabScroll.biglybt||0) : section==="health" ? (tabScroll["health:"+healthTab]||0) : section==="finance" ? (tabScroll["finance:"+financeTab]||0) : (section==="library"||section==="home") ? (tabScroll[section]||0) : (tabScroll[tab]||0));
   if(section==="films") ensureFilms(filmTab);
   if(section==="films") scheduleMediaWarmup("films",filmTab);
   if(section==="series"){ ensureSeries(seriesTab); scheduleMediaWarmup("series",seriesTab); }
@@ -5989,7 +6019,7 @@ function commandCandidates(){
   var list=[],seen={};
   [
     ["games","🎮","Games"],["films","🎬","Movies"],["series","📺","TV Shows"],
-    ["plex","▶","Plex Library"],["biglybt","⇩","BiglyBT"],["health","♥","Health"]
+    ["plex","▶","Plex Library"],["biglybt","⇩","BiglyBT"],["finance","₹","Finance"],["health","♥","Health"]
   ].forEach(function(x){commandPush(list,seen,{kind:"section",section:x[0],icon:x[1],title:x[2],meta:"Main section",label:"Page"});});
   var pages=[
     ["games","rentals","Rentals"],["games","playing","Now Playing"],["games","queue","Rental Queue"],
@@ -6003,7 +6033,8 @@ function commandCandidates(){
     ["series","serieswatched","Watched TV Shows"],
     ["plex","home","Plex Home"],["plex","continue","Plex Continue Watching"],["plex","movies","Plex Movies"],
     ["plex","shows","Plex TV Shows"],["plex","recent","Recently Added to Plex"],
-    ["health","healthoverview","Health Overview"],["health","healthfood","Food and Activity"],["health","healthlabs","Lab Trends"]
+    ["health","healthoverview","Health Overview"],["health","healthfood","Food and Activity"],["health","healthlabs","Lab Trends"],
+    ["finance","financeoverview","Finance Overview"],["finance","financetransactions","Transactions"],["finance","financeloans","Loans and EMI"],["finance","financestatements","Statements"]
   ];
   pages.forEach(function(x){commandPush(list,seen,{kind:"page",section:x[0],tab:x[1],icon:"↗",title:x[2],meta:"Open page",label:"Page"});});
   [
@@ -6054,6 +6085,7 @@ function openCommandItem(item){
     else if(item.section==="series")switchSeriesTab(item.tab);
     else if(item.section==="plex")switchPlexTab(item.tab);
     else if(item.section==="health"){healthTab=item.tab;render();}
+    else if(item.section==="finance"){financeTab=item.tab;render();}
     return;
   }
   if(item.kind==="game"){
@@ -6072,10 +6104,10 @@ function openCommandItem(item){
     if(section!=="plex")switchSection("plex");plexSearch=item.title;switchPlexTab(item.tab);return;
   }
 }
-function desktopTabs(){return section==="films"?FILM_ORDER:section==="series"?SERIES_ORDER:section==="plex"?PLEX_ORDER:section==="health"?["healthoverview","healthfood","healthlabs"]:section==="biglybt"?[]:TAB_ORDER;}
+function desktopTabs(){return section==="films"?FILM_ORDER:section==="series"?SERIES_ORDER:section==="plex"?PLEX_ORDER:section==="health"?["healthoverview","healthfood","healthlabs"]:section==="finance"?["financeoverview","financetransactions","financeloans","financestatements"]:section==="biglybt"?[]:TAB_ORDER;}
 function desktopOpenTabByIndex(index){
   var order=desktopTabs(),next=order[index];if(!next)return;
-  if(section==="films")switchFilmTab(next);else if(section==="series")switchSeriesTab(next);else if(section==="plex")switchPlexTab(next);else switchTab(next);
+  if(section==="films")switchFilmTab(next);else if(section==="series")switchSeriesTab(next);else if(section==="plex")switchPlexTab(next);else if(section==="health"){healthTab=next;render();}else if(section==="finance"){financeTab=next;render();}else switchTab(next);
 }
 var desktopRailBtn=document.getElementById("desktopRailBtn");
 if(desktopRailBtn)desktopRailBtn.addEventListener("click",function(){try{localStorage.setItem(DESKTOP_RAIL_KEY,desktopRailCollapsed()?"0":"1");}catch(e){}applyDesktopShell();});
@@ -6123,7 +6155,7 @@ document.addEventListener("keydown",function(e){
   if(e.key==="/"&&!e.ctrlKey&&!e.altKey&&!e.metaKey){var search=[].filter.call(document.querySelectorAll(".searchwrap input"),function(x){return x.offsetParent!==null;})[0];if(search){e.preventDefault();search.focus();search.select();}return;}
   if(e.altKey&&!e.ctrlKey&&/^[1-6]$/.test(e.key)){
     e.preventDefault();var n=Number(e.key)-1;
-    if(e.shiftKey)desktopOpenTabByIndex(n);else{var sections=["games","films","series","plex","biglybt","health"];if(sections[n])switchSection(sections[n]);}
+    if(e.shiftKey)desktopOpenTabByIndex(n);else{var sections=["games","films","series","plex","biglybt","finance","health"];if(sections[n])switchSection(sections[n]);}
   }
 });
 
@@ -6144,8 +6176,8 @@ function toggleShortcutsHelp(force){
         '<div class="shortcuts-grid">'+
           '<span><kbd>Ctrl</kbd><kbd>K</kbd></span><span>Search everything</span>'+
           '<span><kbd>/</kbd></span><span>Focus the page search box</span>'+
-          '<span><kbd>Alt</kbd><kbd>1</kbd>&#8211;<kbd>6</kbd></span><span>Switch section (Games &#8594; Health)</span>'+
-          '<span><kbd>Alt</kbd><kbd>Shift</kbd><kbd>1</kbd>&#8211;<kbd>6</kbd></span><span>Open the Nth tab in this section</span>'+
+          '<span><kbd>Alt</kbd><kbd>1</kbd>&#8211;<kbd>7</kbd></span><span>Switch section (Games &#8594; Health)</span>'+
+          '<span><kbd>Alt</kbd><kbd>Shift</kbd><kbd>1</kbd>&#8211;<kbd>7</kbd></span><span>Open the Nth tab in this section</span>'+
           '<span><kbd>W</kbd></span><span>Mark open movie / show as Watched</span>'+
           '<span><kbd>L</kbd></span><span>Add open movie / show to Watchlist</span>'+
           '<span><kbd>Enter</kbd> / <kbd>Space</kbd></span><span>Activate the focused card</span>'+
@@ -6224,6 +6256,8 @@ if(menuCloseBtn) menuCloseBtn.addEventListener("click",function(){setMenuOpen(fa
 var settingsCloseBtn=document.getElementById("settingsCloseBtn");
 if(settingsCloseBtn) settingsCloseBtn.addEventListener("click",function(){toggleSettings(false);});
 document.getElementById("tabs").addEventListener("click",function(e){
+  var fin=e.target.closest("[data-fin-tab]");
+  if(fin){tabScroll["finance:"+financeTab]=window.scrollY;financeTab=fin.getAttribute("data-fin-tab");render();window.scrollTo(0,tabScroll["finance:"+financeTab]||0);return;}
   var more=e.target.closest("[data-phone-series-tabs]");
   if(more){
     var all=[["serieswatchlist","My Watchlist"],["serieswatching","Watching"],["seriesnew","New Episodes"],["seriesupcoming","Upcoming"],["enseries","English"],["mlseries","Malayalam"],["taseries","Tamil"],["hiseries","Hindi"],["serieswatched","Watched"]];
@@ -6285,7 +6319,7 @@ document.getElementById("gdSaveBtn").addEventListener("click",function(){
   flash(v?"Client ID saved — now press Sign in with Google":"Client ID cleared");
 });
 document.getElementById("gdSignInBtn").addEventListener("click",gdSignIn);
-document.getElementById("gdSignOutBtn").addEventListener("click",gdSignOut);
+document.getElementById("gdSignOutBtn").addEventListener("click",function(){confirmDestructive("Disconnect Google Drive on this device? Your Drive backup will not be deleted.","Disconnect Drive",gdSignOut);});
 var gdTvSaveBtn=document.getElementById("gdTvSaveBtn");
 if(gdTvSaveBtn) gdTvSaveBtn.addEventListener("click",function(){
   try{
@@ -6354,7 +6388,7 @@ if(savePlexBtn) savePlexBtn.addEventListener("click",function(){
 });
 var clearPlexBtn=document.getElementById("clearPlexBtn");
 if(clearPlexBtn) clearPlexBtn.addEventListener("click",function(){
-  setPlexConfig("",""); plexConnected=false; plexAllowDelete=false; plexErr=""; toggleSettings(false); render(); flash("Plex disconnected; cached titles were kept");
+  confirmDestructive("Disconnect Plex on this device? Cached titles will be kept.","Disconnect Plex",function(){setPlexConfig("",""); plexConnected=false; plexAllowDelete=false; plexErr=""; toggleSettings(false); render(); flash("Plex disconnected; cached titles were kept");});
 });
 var densityInput=document.getElementById("densityInput");
 if(densityInput) densityInput.addEventListener("change",function(){
@@ -6448,6 +6482,7 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="phone-settings"){toggleSettings(true);return;}
   if(act==="phone-export"){document.getElementById("exportBtn").click();return;}
   if(act==="phone-restore"){document.getElementById("importBtn").click();return;}
+  if(act.indexOf("finance-")===0&&financeHandleAction(act,id))return;
   if(act==="phone-filter-set"){
     var ftype=b.getAttribute("data-filter"),fkind=b.getAttribute("data-kind"),fvalue=b.getAttribute("data-value")||"";
     if(fkind==="film"){
@@ -6971,6 +7006,7 @@ function handleVendorNew(sel){
 }
 
 document.getElementById("content").addEventListener("change",function(e){
+  if(financeHandleChange(e.target))return;
   var bp=e.target.closest(".bigly-priority");
   if(bp && bp.value){
     biglyAction(bp.getAttribute("data-id"),"priority",{priority:bp.value});
@@ -7180,6 +7216,8 @@ document.getElementById("content").addEventListener("change",function(e){
 /* Enter key adds, no reaching for the button */
 document.getElementById("content").addEventListener("keydown",function(e){
   if(e.key!=="Enter") return;
+  if(e.target.id==="financePin"){e.preventDefault();var unlock=document.querySelector('[data-act="finance-unlock"]');if(unlock)unlock.click();return;}
+  if(e.target.id==="financePinAgain"){e.preventDefault();var setup=document.querySelector('[data-act="finance-setup"]');if(setup)setup.click();return;}
   var map={rName:"add-rental",uName:"add-upcoming",qName:"add-queue",pName:"add-played",plName:"add-playing"};
   var actName=map[e.target.id];
   if(actName){
@@ -7191,6 +7229,7 @@ document.getElementById("content").addEventListener("keydown",function(e){
 
 /* ---------- per-tab search + autocomplete (input delegation) ---------- */
 document.getElementById("content").addEventListener("input",function(e){
+  if(financeHandleInput(e.target))return;
   if(e.target.id==="plexSearch"){
     plexSearch=e.target.value;
     var plexPos=e.target.selectionStart;
@@ -8313,6 +8352,7 @@ setTimeout(function(){
   else if(section==="series" && SERIES_ORDER.indexOf(wanted)>=0) seriesTab=wanted;
   else if(section==="plex" && PLEX_ORDER.indexOf(wanted)>=0) plexTab=wanted;
   else if(section==="health" && ["healthoverview","healthfood","healthlabs"].indexOf(wanted)>=0) healthTab=wanted;
+  else if(section==="finance" && ["financeoverview","financetransactions","financeloans","financestatements"].indexOf(wanted)>=0) financeTab=wanted;
 })();
 [].forEach.call(document.querySelectorAll("#sectionSw button"),function(b){
   var active=b.getAttribute("data-section")===section;
