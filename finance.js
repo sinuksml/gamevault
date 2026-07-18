@@ -40,7 +40,7 @@ function financeTouch(){
   if(!financeUnlocked())return;
   clearTimeout(financeLockTimer);
   var minutes=financeLockMinutes();
-  financeLockTimer=setTimeout(function(){financeLock();if(section==="finance")render();flash("Finance locked after "+minutes+" minutes of inactivity");},minutes*60*1000);
+  financeLockTimer=setTimeout(function(){if(financeBusy){financeTouch();return;}financeLock();if(section==="finance")render();flash("Finance locked after "+minutes+" minutes of inactivity");},minutes*60*1000);
 }
 function financeLock(silent){
   clearTimeout(financeLockTimer);financeLockTimer=null;financeState=null;financeKey=null;financePendingImport=null;financeGmailCandidates=[];financeGmailToken=null;financePinFallback=false;
@@ -105,9 +105,9 @@ function financeGetPrf(credentialId,salt){
 function financeEnableFace(){
   if(!financeUnlocked()){flash("Unlock with your PIN first");return;}
   if(!window.PublicKeyCredential||!navigator.credentials){flash("Face ID unlock is not supported by this browser");return;}
-  financeBusy=true;render();var prfSalt=financeRandom(32),userId=financeRandom(16),created;
-  var capability=PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable?PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable():Promise.resolve(true);
-  capability.then(function(available){if(!available)throw new Error("No device biometric authenticator is available");return navigator.credentials.create({publicKey:{challenge:financeRandom(32),rp:{name:"Sinu Game Vault"},user:{id:userId,name:"sinu-finance",displayName:"Sinu Finance"},pubKeyCredParams:[{type:"public-key",alg:-7},{type:"public-key",alg:-257}],authenticatorSelection:{authenticatorAttachment:"platform",residentKey:"preferred",userVerification:"required"},timeout:60000,attestation:"none",extensions:{prf:{eval:{first:prfSalt}}}}});}).then(function(credential){
+  financeBusy=true;var prfSalt=financeRandom(32),userId=financeRandom(16),created,createRequest;
+  try{createRequest=navigator.credentials.create({publicKey:{challenge:financeRandom(32),rp:{name:"Sinu Game Vault"},user:{id:userId,name:"sinu-finance",displayName:"Sinu Finance"},pubKeyCredParams:[{type:"public-key",alg:-7},{type:"public-key",alg:-257}],authenticatorSelection:{authenticatorAttachment:"platform",residentKey:"preferred",userVerification:"required"},timeout:60000,attestation:"none",extensions:{prf:{eval:{first:prfSalt}}}}});}catch(err){createRequest=Promise.reject(err);}render();
+  createRequest.then(function(credential){
     created=credential;var direct=financePrfOutput(credential);return direct||financeGetPrf(financeB64Url(new Uint8Array(credential.rawId)),prfSalt);
   }).then(function(prf){
     return Promise.all([crypto.subtle.importKey("raw",prf,{name:"AES-GCM"},false,["encrypt"]),crypto.subtle.exportKey("raw",financeKey)]);
@@ -121,8 +121,8 @@ function financeEnableFace(){
 function financeUnlockFace(){
   var cfg=financeFaceConfig();if(!cfg){flash("Unlock with PIN, then enable Face ID on this device");return;}
   if(cfg.vaultSalt&&cfg.vaultSalt!==data.finance.salt){localStorage.removeItem(FINANCE_FACE_STORE);financePinFallback=true;render();flash("Finance vault changed. Unlock with PIN and enable Face ID again");return;}
-  financeBusy=true;render();var prfSalt=b64ToBytes(cfg.salt);
-  financeGetPrf(cfg.credentialId,prfSalt).then(function(prf){return crypto.subtle.importKey("raw",prf,{name:"AES-GCM"},false,["decrypt"]);}).then(function(wrapKey){
+  financeBusy=true;var prfSalt=b64ToBytes(cfg.salt),unlockRequest;try{unlockRequest=financeGetPrf(cfg.credentialId,prfSalt);}catch(err){unlockRequest=Promise.reject(err);}render();
+  unlockRequest.then(function(prf){return crypto.subtle.importKey("raw",prf,{name:"AES-GCM"},false,["decrypt"]);}).then(function(wrapKey){
     return crypto.subtle.decrypt({name:"AES-GCM",iv:b64ToBytes(cfg.iv)},wrapKey,b64ToBytes(cfg.wrappedKey));
   }).then(function(rawKey){return crypto.subtle.importKey("raw",rawKey,{name:"AES-GCM"},true,["encrypt","decrypt"]);}).then(function(key){
     return financeDecrypt(data.finance,key).then(function(state){financeKey=key;financeState=state;});
@@ -241,7 +241,7 @@ function renderFinance(){
   if(financeGmailConnected()&&financeState.gmail&&Date.now()-Number(financeState.gmail.lastSyncAt||0)>15*60*1000&&!financeAutoSyncQueued&&!financeBusy&&!financeGmailAutoBlocked){financeAutoSyncQueued=true;setTimeout(function(){if(section==="finance"&&financeUnlocked()&&financeGmailConnected())financeGmailSync(true);else financeAutoSyncQueued=false;},400);}
   var body=financeTab==="financetransactions"?financeTransactions():financeTab==="financeloans"?financeLoans():financeTab==="financestatements"?financeStatements():financeOverview();
   var face=financeFaceConfig(),enabled=face&&face.enabledAt?new Date(face.enabledAt).toLocaleDateString("en-IN"):"";
-  return '<div class="finance-private-note"><span>&#128274; Encrypted vault unlocked</span><div><details class="finance-security-menu"><summary class="btn">Security</summary><div><label>Auto-lock<select id="financeLockMinutes"><option value="2"'+(financeLockMinutes()===2?' selected':'')+'>After 2 minutes</option><option value="5"'+(financeLockMinutes()===5?' selected':'')+'>After 5 minutes</option><option value="15"'+(financeLockMinutes()===15?' selected':'')+'>After 15 minutes</option></select></label>'+(face?'<span>Face ID enabled'+(enabled?' '+esc(enabled):'')+'</span><button class="btn" data-act="finance-face-disable">Remove Face ID</button>':'<button class="btn blue" data-act="finance-face-enable">Enable Face ID</button>')+'</div></details><button class="btn" data-act="finance-lock">Lock now</button></div></div>'+body;
+  return '<div class="finance-private-note"><span>&#128274; Encrypted vault unlocked</span><div><details class="finance-security-menu"><summary class="btn">Security</summary><div><label>Auto-lock<select id="financeLockMinutes"><option value="2"'+(financeLockMinutes()===2?' selected':'')+'>After 2 minutes</option><option value="5"'+(financeLockMinutes()===5?' selected':'')+'>After 5 minutes</option><option value="15"'+(financeLockMinutes()===15?' selected':'')+'>After 15 minutes</option></select></label>'+(face?'<span>Face ID enabled'+(enabled?' '+esc(enabled):'')+'</span><button class="btn blue" data-act="finance-face-enable">Re-enroll Face ID</button><button class="btn" data-act="finance-face-disable">Remove Face ID</button>':'<button class="btn blue" data-act="finance-face-enable">Enable Face ID</button>')+'</div></details><button class="btn" data-act="finance-lock"'+(financeBusy?' disabled':'')+'>Lock now</button></div></div>'+body;
 }
 
 function financeParseDate(value){
@@ -448,6 +448,7 @@ document.addEventListener("keydown",function(){if(section==="finance"&&financeUn
 document.addEventListener("visibilitychange",function(){
   if(document.visibilityState==="hidden"){financeHiddenAt=Date.now();return;}
   if(!financeHiddenAt||!financeUnlocked())return;
+  if(financeBusy){financeHiddenAt=0;financeTouch();return;}
   if(Date.now()-financeHiddenAt>60000){financeLock(true);if(section==="finance")render();}
   else financeTouch();
   financeHiddenAt=0;

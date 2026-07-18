@@ -85,6 +85,8 @@ assert.match(financeJs,/AES-GCM/);
 assert.match(financeJs,/PBKDF2/);
 assert.match(financeJs,/extensions:\{prf:/);
 assert.match(financeJs,/function financeShouldAutoUnlock\(/);
+assert.match(financeJs,/if\(financeBusy\)\{financeTouch\(\);return;\}/);
+assert.doesNotMatch(financeJs,/capability\.then\(/);
 assert.match(financeJs,/vaultSalt:data\.finance\.salt/);
 assert.match(financeJs,/finance-pin-show/);
 assert.match(financeJs,/FINANCE_LOCK_PREF/);

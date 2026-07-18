@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.25.1 - 2026-07-19
+
+- Prevented Finance inactivity and background locks while Gmail authorization, statement parsing or encrypted saving is active.
+- Started Face ID WebAuthn requests before UI rendering so iPhone Safari preserves the required tap gesture.
+- Added one-step Face ID re-enrollment from the Finance Security menu.
+
 ## v1.25.0 - 2026-07-19
 
 - Made Finance unlock Face ID-first on supported devices, with one-tap entry, a hidden PIN fallback, clearer error states, vault-bound credentials, and PIN retry delays.

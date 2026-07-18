@@ -1,5 +1,5 @@
 ﻿"use strict";
-var APP_VERSION = "1.25.0";
+var APP_VERSION = "1.25.1";
 var APP_BUILD_DATE = "2026-07-19";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
@@ -5990,8 +5990,7 @@ function switchSection(s,userGesture){
     if(active) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current");
   });
   var autoFinanceUnlock=!!(userGesture&&s==="finance"&&typeof financeShouldAutoUnlock==="function"&&financeShouldAutoUnlock());
-  render();
-  if(autoFinanceUnlock)financeUnlockFace();
+  if(autoFinanceUnlock)financeUnlockFace();else render();
   window.scrollTo(0, section==="films" ? (tabScroll["film:"+filmTab]||0) : section==="series" ? (tabScroll["series:"+seriesTab]||0) : section==="plex" ? (tabScroll["plex:"+plexTab]||0) : section==="biglybt" ? (tabScroll.biglybt||0) : section==="health" ? (tabScroll["health:"+healthTab]||0) : section==="finance" ? (tabScroll["finance:"+financeTab]||0) : (section==="library"||section==="home") ? (tabScroll[section]||0) : (tabScroll[tab]||0));
   if(section==="films") ensureFilms(filmTab);
   if(section==="films") scheduleMediaWarmup("films",filmTab);
