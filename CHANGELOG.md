@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.24.0 - 2026-07-19
+
+- Rebuilt Finance around a simple monthly summary with previous-month comparison, credits, spending, net cash flow, top categories and merchant insights.
+- Added automatic Gmail classification for refunds, reversals, failures, transfers, card payments, accounts, merchants and reference-based duplicate detection.
+- Added 12-month credits-versus-spending charts, category drill-downs, filters and collapsed transaction details instead of showing the full ledger by default.
+- Added Gmail-derived EMI progress, remaining instalments, expected completion, upcoming payments and recurring-expense increase alerts.
+- Removed manual transaction, loan and statement-entry controls so Gmail is the Finance workspace's primary data source.
+- Added latest Gmail synchronization time, manual refresh and automatic refresh while an authorized Finance session remains open.
+
 ## v1.23.0 - 2026-07-19
 
 - Added optional Gmail statement and transaction-alert discovery to the encrypted Finance workspace.
