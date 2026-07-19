@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.25.6 - 2026-07-19
+
+- BiglyBT now stops each download when it completes instead of auto-removing it, so finished films move to History while staying loaded and fully deletable.
+- Removed the "Remove completed" toggle, since completion always stops (never removes) the torrent now.
+- History records are permanent and can no longer be removed; the only action is "Delete torrent + files", which deletes the file and torrent from the drive.
+- After a permanent delete the download stays in History as a greyed-out entry marked "Files deleted" (worker gateway github-v19).
+
 ## v1.25.5 - 2026-07-19
 
 - Added per-record actions to the BiglyBT download History: "Delete torrent + files" permanently removes a still-loaded torrent and its downloaded file from the drive, and "Remove record" clears just the history log entry.
