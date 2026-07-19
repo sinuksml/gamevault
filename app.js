@@ -1,5 +1,5 @@
 ﻿"use strict";
-var APP_VERSION = "1.25.4";
+var APP_VERSION = "1.25.5";
 var APP_BUILD_DATE = "2026-07-19";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
@@ -3238,6 +3238,23 @@ function addBiglyHistoryEvent(entry){
   if((data.biglyHistory||[]).some(function(x){return x.id===clean.id;})) return;
   data.biglyHistory.unshift(clean);data.biglyHistory=data.biglyHistory.slice(0,1000);persist();
 }
+function removeBiglyHistoryEvent(id){
+  if(!data.biglyHistory) return;
+  var before=data.biglyHistory.length;
+  data.biglyHistory=data.biglyHistory.filter(function(x){return x.id!==id;});
+  if(data.biglyHistory.length!==before) persist();
+}
+function updateBiglyHistoryEvent(id,patch){
+  if(!data.biglyHistory||!patch) return;
+  var hit=false;
+  data.biglyHistory.forEach(function(x){
+    if(x.id!==id) return;
+    if(typeof patch.filesDeleted==="boolean") x.filesDeleted=patch.filesDeleted;
+    if(typeof patch.outcome==="string") x.outcome=String(patch.outcome).slice(0,200);
+    hit=true;
+  });
+  if(hit) persist();
+}
 window.addEventListener("message",function(e){
   var frame=document.getElementById("biglyFrame"), proxy=biglyProxyUrl(), origin="";
   try{ origin=new URL(proxy).origin; }catch(err){ return; }
@@ -3251,6 +3268,10 @@ window.addEventListener("message",function(e){
     try{ localStorage.removeItem(BIGLY_NATIVE_TOKEN_KEY); }catch(err){}
   }else if(e.data.type==="gvbt-history-event"){
     addBiglyHistoryEvent(e.data.entry);
+  }else if(e.data.type==="gvbt-history-remove" && e.data.id){
+    removeBiglyHistoryEvent(String(e.data.id));
+  }else if(e.data.type==="gvbt-history-update" && e.data.id){
+    updateBiglyHistoryEvent(String(e.data.id), e.data);
   }else if(e.data.type==="gvbt-history-request"){
     e.source.postMessage({type:"gvbt-history-response",items:(data.biglyHistory||[]).slice(0,1000)},origin);
   }else if(e.data.type==="gvbt-switch-mode" && (e.data.mode==="api"||e.data.mode==="iframe")){

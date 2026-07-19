@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.25.5 - 2026-07-19
+
+- Added per-record actions to the BiglyBT download History: "Delete torrent + files" permanently removes a still-loaded torrent and its downloaded file from the drive, and "Remove record" clears just the history log entry.
+- History entries whose torrent is no longer loaded in BiglyBT are clearly marked "Not in BiglyBT — delete on the Shield", because Transmission's RPC cannot delete files it no longer tracks.
+- Synced history deletions and file-deleted status back to the encrypted GameVault vault so the log stays consistent across devices (worker gateway github-v18).
+
 ## v1.25.4 - 2026-07-19
 
 - Added a "Files" button to the BiglyBT toolbar (both the native dashboard and Web UI views) that opens the main downloads folder where every film is saved.
