@@ -2309,3 +2309,65 @@ html.light:not(.tv) .detail-actionbar{
 .finance-creds .fields{display:flex;gap:8px;flex-wrap:wrap}
 .finance-creds .fields>input{flex:1 1 180px;min-width:0}
 .finance-creds .fields>select{flex:0 0 auto}
+
+/* v1.26.0 Finance dashboard redesign */
+.fin-hero{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}
+.fin-kpi{min-width:0;padding:18px;border:1px solid var(--border2);border-radius:10px;background:var(--surface);box-shadow:var(--elev-1);color:var(--text);text-align:left;cursor:pointer}
+.fin-kpi:hover{border-color:color-mix(in srgb,var(--accent) 60%,var(--border))}
+.fin-kpi>span{display:block;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase}
+.fin-kpi>strong{display:block;margin-top:7px;font-size:30px;font-variant-numeric:tabular-nums;line-height:1.1}
+.fin-delta{display:block;margin-top:8px;color:var(--muted);font-size:11px;font-style:normal}
+.fin-delta.good{color:var(--success)}
+.fin-delta.bad{color:var(--danger)}
+.fin-chips{margin-top:10px}
+.fin-chips>button strong{font-size:16px}
+.fin-labeled{height:214px}
+.fin-labeled button.sel{border-radius:8px;background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.fin-labeled button.sel>b{color:var(--accent);font-weight:800}
+.fin-cols{display:flex;width:100%;height:170px!important;align-items:flex-end;justify-content:center;gap:3px;background:repeating-linear-gradient(to top,transparent,transparent 41px,color-mix(in srgb,var(--border) 55%,transparent) 42px)}
+.fin-col{display:flex;height:100%;min-width:0;flex:1;align-items:center;justify-content:flex-end;flex-direction:column}
+.fin-col>em{overflow:hidden;max-width:100%;margin-bottom:3px;font-size:8.5px;font-style:normal;font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+.fin-col>em.credit{color:var(--success)}
+.fin-col>em.spent{color:var(--danger)}
+.fin-labeled .fin-col i{width:min(15px,72%)}
+.finance-emi-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:12px}
+.finance-emi-summary>div{min-width:0;padding:13px 14px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);box-shadow:var(--elev-1)}
+.finance-emi-summary b{display:block;overflow:hidden;font-size:20px;font-variant-numeric:tabular-nums;text-overflow:ellipsis;white-space:nowrap}
+.finance-emi-summary span{display:block;margin-top:3px;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.finance-emi-track{position:relative;height:22px;overflow:hidden;margin-top:10px;border:1px solid var(--border2);border-radius:99px;background:var(--inset)}
+.finance-emi-track i{display:block;height:100%;border-radius:inherit;background:color-mix(in srgb,var(--success) 75%,#2a8f5c)}
+.finance-emi-track span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text);font-size:10px;font-weight:800;text-shadow:0 1px 2px #0006}
+.fin-loan-row{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:4px}
+.fin-loan-count>b{font-size:30px;font-variant-numeric:tabular-nums;line-height:1}
+.fin-loan-count>span{margin-left:4px;color:var(--muted);font-size:12px}
+.fin-loan-count>u{display:block;margin-top:4px;color:var(--warn);font-size:11px;font-weight:700;text-decoration:none}
+.fin-loan-emi{text-align:right}
+.fin-loan-emi strong{display:block;font-size:19px;font-variant-numeric:tabular-nums}
+.fin-loan-emi small{color:var(--muted);font-size:10px}
+.finance-loan-seg{display:flex;gap:3px;margin:13px 0}
+.finance-loan-seg i{display:block;height:9px;flex:1;border-radius:3px;background:var(--inset);box-shadow:inset 0 0 0 1px var(--border)}
+.finance-loan-seg i.on{background:var(--success);box-shadow:none}
+@media(max-width:900px){.finance-emi-summary{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:720px){
+.fin-hero{grid-template-columns:1fr;gap:8px}
+.fin-kpi{padding:14px}
+.fin-kpi>strong{font-size:24px}
+.fin-labeled{height:190px}
+.fin-cols{height:146px!important}
+.fin-col>em{display:none}
+.fin-labeled button.sel .fin-col>em{display:block;font-size:8px}
+.finance-emi-summary{grid-template-columns:1fr 1fr;gap:7px}
+.finance-emi-summary b{font-size:16px}
+.fin-loan-count>b{font-size:25px}
+}
+.fin-merchant-list{display:grid;gap:4px}
+.fin-merchant-row{display:grid;grid-template-columns:22px minmax(0,1fr) auto auto;align-items:center;gap:9px;padding:7px 8px;border:0;border-radius:7px;background:transparent;color:var(--text);text-align:left;cursor:pointer}
+.fin-merchant-row:hover{background:var(--inset)}
+.fin-merchant-row>u{color:var(--muted);font-size:11px;font-weight:800;text-decoration:none;text-align:center}
+.fin-merchant-row strong{display:block;overflow:hidden;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+.fin-merchant-row>div>i{display:block;height:4px;overflow:hidden;margin-top:4px;border-radius:99px;background:var(--inset)}
+.fin-merchant-row>div>i span{display:block;height:100%;border-radius:inherit;background:var(--accent)}
+.fin-merchant-count{color:var(--accent);font-size:11px;font-weight:800;font-variant-numeric:tabular-nums}
+.fin-merchant-row>b{min-width:74px;font-size:12px;font-variant-numeric:tabular-nums;text-align:right}
+.fin-account-row{display:block;width:100%;border:0;background:transparent;color:var(--text);text-align:left;cursor:pointer}
+.fin-acct-badge{display:inline-block;padding:1px 6px;border:1px solid var(--border);border-radius:99px;color:var(--muted);font-size:9px;font-style:normal;font-weight:800;vertical-align:1px}

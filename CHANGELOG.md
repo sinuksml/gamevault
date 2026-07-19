@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.26.0 - 2026-07-19
+
+- Income is now calculated only from bank statements: credits on credit cards and the Niyo Global forex card (bill payments, top-ups) are classified as own-money transfers, never income — including previously imported records.
+- Bank-side debits that pay a credit-card bill (CRED, BillDesk, BBPS, card payment) are also excluded from spending, so card purchases are never counted twice.
+- Added a "Top 10 merchants" panel ranked by how often each merchant is used (visit count), with per-merchant totals, and a "Spending per card / account" breakdown with Bank/Card badges.
+- Redesigned the Finance dashboard around three large Credited / Spent / Net cash-flow cards, each showing the change versus last month.
+- The 12-month chart now prints the credited and spent amounts directly on the bars in compact Indian notation (₹1.2L, ₹45k) and highlights the selected month.
+- Added an EMI overview strip — active loans, total per month, instalments paid of total, remaining count and balance left — with an overall repayment progress bar.
+- Each loan card now leads with "X of Y paid · Z remaining" and a segmented per-instalment tracker (one block per EMI), with balance, next due, end date and last payment below.
+
 ## v1.25.6 - 2026-07-19
 
 - BiglyBT now stops each download when it completes instead of auto-removing it, so finished films move to History while staying loaded and fully deletable.
