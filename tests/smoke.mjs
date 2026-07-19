@@ -42,7 +42,7 @@ const biglyScriptStart=biglyDashboardHtml.indexOf("<script>")+8;
 const biglyScriptEnd=biglyDashboardHtml.lastIndexOf("</script>");
 assert.ok(biglyScriptStart>=8&&biglyScriptEnd>biglyScriptStart,"BiglyBT dashboard script must be embedded");
 new vm.Script(biglyDashboardHtml.slice(biglyScriptStart,biglyScriptEnd),{filename:"biglybt-native-dashboard.js"});
-for(const marker of ["gvbt-switch-mode",'data-filter="error"',"historyExport",'id="sort"','id="autoRemove"','id="pasteMagnet"',"navigator.clipboard.readText"]){
+for(const marker of ["gvbt-switch-mode",'data-filter="error"',"historyExport",'id="sort"','id="pasteMagnet"',"navigator.clipboard.readText"]){
   assert.ok(biglyWorker.includes(marker),`BiglyBT dashboard must include ${marker}`);
 }
 assert.match(js,/function confirmDestructive\(/);
@@ -179,8 +179,10 @@ assert.match(js,/function refreshAllData\(/);
 assert.match(js,/function plexDetailPage\(/);
 assert.match(js,/data-act=\"plex-open\"/);
 assert.doesNotMatch(js,/if\(!item\|\|!item\.watched\) return/);
-assert.match(biglyWorker,/Remove completed: On/);
-assert.match(biglyWorker,/delete-local-data':false/);
+assert.ok(biglyWorker.includes("recordHistory(t,'Completed',false)"),"completed downloads must be recorded to history");
+assert.ok(biglyWorker.includes("data-hdelete="),"history must offer delete torrent + files");
+assert.ok(biglyWorker.includes("'delete-local-data':true"),"history delete must permanently remove local data");
+assert.ok(!biglyWorker.includes("data-hremove"),"history records must not be removable");
 assert.match(biglyWorker,/id="historyView"/);
 assert.match(biglyWorker,/Manually removed before completion/);
 assert.match(js,/function plexReconcilePlayback\(/);
