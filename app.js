@@ -1,5 +1,5 @@
 ﻿"use strict";
-var APP_VERSION = "1.25.3";
+var APP_VERSION = "1.25.4";
 var APP_BUILD_DATE = "2026-07-19";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
@@ -3215,6 +3215,22 @@ var BIGLY_MODE_KEY="gamevault-biglybt-mode";
 var BIGLY_NATIVE_TOKEN_KEY="gamevault-biglybt-native-token";
 function biglyMode(){ try{ return localStorage.getItem(BIGLY_MODE_KEY)||"api"; }catch(e){ return "api"; } }
 function setBiglyMode(v){ try{ localStorage.setItem(BIGLY_MODE_KEY, v==="iframe"?"iframe":"api"); }catch(e){} }
+/* device-specific downloads folder link (e.g. Z:\Downloads, \\192.168.0.100\Elements,
+   or an http file-browser URL). Differs per device, so kept in localStorage. */
+var BIGLY_FOLDER_KEY="gamevault-biglybt-folder";
+function biglyFolder(){ try{ return (localStorage.getItem(BIGLY_FOLDER_KEY)||"").trim(); }catch(e){ return ""; } }
+function setBiglyFolder(v){ try{ localStorage.setItem(BIGLY_FOLDER_KEY,(v||"").trim()); }catch(e){} }
+function biglyOpenFolder(){
+  var loc=biglyFolder();
+  if(!loc){ flash("Set your downloads folder in Settings first"); toggleSettings(true); return; }
+  if(/^https?:\/\//i.test(loc)){ window.open(loc,"_blank","noopener"); return; }
+  // file:// / drive / UNC path: browsers block opening these from an HTTPS page,
+  // so copy it for pasting into Explorer / Files, and best-effort try to open.
+  var copied=false;
+  try{ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(loc); copied=true; } }catch(e){}
+  try{ var w=window.open(loc); if(w){ return; } }catch(e){}
+  flash(copied?("Folder path copied — paste it into Explorer / Files ("+loc+")"):("Downloads folder: "+loc));
+}
 function biglyFrameUrl(){ return biglyProxyUrl()+(biglyMode()==="api"?"/__native":""); }
 function addBiglyHistoryEvent(entry){
   if(!entry||typeof entry!=="object") return;
@@ -3368,12 +3384,12 @@ function renderBiglyBT(){
   }
   if(/^https:\/\//i.test(proxy)){
     var nativeMode=biglyMode()==="api";
-    return html+'<div class="card bigly-browser" id="biglyBrowser"><div class="bigly-browser-bar"><div class="bigly-mode-switch" role="group" aria-label="BiglyBT interface"><button class="btn'+(nativeMode?' blue':'')+'" data-act="bigly-mode" data-mode="api" aria-pressed="'+(nativeMode?'true':'false')+'">Native Dashboard</button><button class="btn'+(!nativeMode?' blue':'')+'" data-act="bigly-mode" data-mode="iframe" aria-pressed="'+(!nativeMode?'true':'false')+'">Web UI</button></div><button class="btn" data-act="bigly-reload" title="Reload the current BiglyBT interface">Reload</button><button class="btn" data-act="bigly-fullscreen" title="Use the full screen">Full screen</button><button class="btn" data-act="bigly-settings" title="BiglyBT settings">Settings</button><span class="syncnote" style="align-self:center">'+(nativeMode?'Native dashboard':'BiglyBT Web UI')+' · secure internal view</span></div><iframe id="biglyFrame" class="bigly-browser-frame" title="'+(nativeMode?'Native BiglyBT Dashboard':'BiglyBT Web UI')+'" src="'+esc(biglyFrameUrl())+'" allow="clipboard-read; clipboard-write; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe></div>';
+    return html+'<div class="card bigly-browser" id="biglyBrowser"><div class="bigly-browser-bar"><div class="bigly-mode-switch" role="group" aria-label="BiglyBT interface"><button class="btn'+(nativeMode?' blue':'')+'" data-act="bigly-mode" data-mode="api" aria-pressed="'+(nativeMode?'true':'false')+'">Native Dashboard</button><button class="btn'+(!nativeMode?' blue':'')+'" data-act="bigly-mode" data-mode="iframe" aria-pressed="'+(!nativeMode?'true':'false')+'">Web UI</button></div><button class="btn" data-act="bigly-reload" title="Reload the current BiglyBT interface">Reload</button><button class="btn" data-act="bigly-fullscreen" title="Use the full screen">Full screen</button><button class="btn" data-act="bigly-folder" title="Open the folder where all downloads are saved">&#128193; Files</button><button class="btn" data-act="bigly-settings" title="BiglyBT settings">Settings</button><span class="syncnote" style="align-self:center">'+(nativeMode?'Native dashboard':'BiglyBT Web UI')+' · secure internal view</span></div><iframe id="biglyFrame" class="bigly-browser-frame" title="'+(nativeMode?'Native BiglyBT Dashboard':'BiglyBT Web UI')+'" src="'+esc(biglyFrameUrl())+'" allow="clipboard-read; clipboard-write; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe></div>';
   }
   if(!biglyToken){
     return html+'<div class="card torrent-login"><h3>Sign in to BiglyBT</h3><p class="meta">Credentials are not saved. They are sent only to your configured proxy for this browser session.</p><div class="fields"><input class="f-name" id="biglyUser" placeholder="BiglyBT username" autocomplete="username"><input class="f-name" id="biglyPass" placeholder="BiglyBT password" type="password" autocomplete="current-password"><button class="btn blue" data-act="bigly-login">Login</button></div>'+(biglyErr?'<div class="empty">'+esc(biglyErr)+'</div>':'')+'</div>';
   }
-  html+='<div class="toolbar" style="margin-top:14px"><button class="btn blue" data-act="bigly-refresh"'+(biglyBusy?' disabled':'')+'>'+(biglyBusy?'Refreshing...':'Refresh')+'</button><button class="btn ghost danger" data-act="bigly-logout">Logout</button><span class="syncnote" style="align-self:center">Connected through proxy. Private server address is not stored in GameVault.</span></div>';
+  html+='<div class="toolbar" style="margin-top:14px"><button class="btn blue" data-act="bigly-refresh"'+(biglyBusy?' disabled':'')+'>'+(biglyBusy?'Refreshing...':'Refresh')+'</button><button class="btn" data-act="bigly-folder" title="Open the folder where all downloads are saved">&#128193; Files</button><button class="btn ghost danger" data-act="bigly-logout">Logout</button><span class="syncnote" style="align-self:center">Connected through proxy. Private server address is not stored in GameVault.</span></div>';
   if(biglyErr) html+='<div class="empty">'+esc(biglyErr)+'</div>';
   if(!biglyItems.length) html+=biglyBusy?loadingSkeletons("game",4):'<div class="empty">No torrents returned by the proxy yet.</div>';
   else html+='<div class="torrent-grid">'+biglyItems.map(biglyTorrentCard).join("")+'</div>';
@@ -6216,6 +6232,8 @@ function toggleSettings(force){
     if(biglyProxy) biglyProxy.value=biglyProxyUrl();
     var biglyModeSel=document.getElementById("biglyModeInput");
     if(biglyModeSel) biglyModeSel.value=biglyMode();
+    var biglyFolderIn=document.getElementById("biglyFolderInput");
+    if(biglyFolderIn) biglyFolderIn.value=biglyFolder();
     var plexUrlInput=document.getElementById("plexUrlInput"), plexTokenInput=document.getElementById("plexTokenInput"), plexStatus=document.getElementById("plexSettingsStatus");
     if(plexUrlInput) plexUrlInput.value=plexServerUrl();
     if(plexTokenInput) plexTokenInput.value=plexToken();
@@ -6352,6 +6370,7 @@ var saveBiglyProxyBtn=document.getElementById("saveBiglyProxyBtn");
 if(saveBiglyProxyBtn) saveBiglyProxyBtn.addEventListener("click",function(){
   setBiglyProxyUrl(document.getElementById("biglyProxyInput").value);
   var mSel=document.getElementById("biglyModeInput"); if(mSel) setBiglyMode(mSel.value);
+  var fSel=document.getElementById("biglyFolderInput"); if(fSel) setBiglyFolder(fSel.value);
   var existingBigly=document.getElementById("biglyBrowser"); if(existingBigly) existingBigly.remove();
   biglyLogout();
   toggleSettings(false);
@@ -6544,6 +6563,7 @@ document.getElementById("content").addEventListener("click",function(e){
     render();
     return;
   }
+  if(act==="bigly-folder"){ biglyOpenFolder(); return; }
   if(act==="bigly-reload"){ var bf=document.getElementById("biglyFrame"); if(bf) bf.src=bf.src; return; }
   if(act==="bigly-fullscreen"){
     var browser=document.getElementById("biglyBrowser");

@@ -25,7 +25,7 @@
 <link rel="apple-touch-startup-image" href="splash-portrait.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Sinu Game Vault — PS5 Tracker</title>
-<link rel="stylesheet" href="app.css?v=1.25.3">
+<link rel="stylesheet" href="app.css?v=1.25.4">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -133,6 +133,7 @@
     <div class="fields">
       <input class="f-name" id="biglyProxyInput" placeholder="HTTPS gateway URL, e.g. https://gamevault-biglybt.yourname.workers.dev" autocomplete="off">
       <select class="f-sm" id="biglyModeInput"><option value="api">Native dashboard (recommended)</option><option value="iframe">Original Web UI</option></select>
+      <input class="f-name" id="biglyFolderInput" placeholder="Downloads folder (this device) — e.g. Z:\Downloads or \\192.168.0.100\Elements" autocomplete="off">
       <button class="btn blue" id="saveBiglyProxyBtn">Save BiglyBT gateway</button>
     </div>
     <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
@@ -215,6 +216,6 @@
   </div>
 </div>
 
-<script src="finance.js?v=1.25.3"></script>
-<script src="app.js?v=1.25.3"></script></body>
+<script src="finance.js?v=1.25.4"></script>
+<script src="app.js?v=1.25.4"></script></body>
 </html>

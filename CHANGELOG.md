@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.25.4 - 2026-07-19
+
+- Added a "Files" button to the BiglyBT toolbar (both the native dashboard and Web UI views) that opens the main downloads folder where every film is saved.
+- Added a "Downloads folder" field in Settings to point the button at that location once per device (for example `Z:\Downloads`, `\\192.168.0.100\Elements`, or a Plex/file-server web URL).
+- Web (http/https) folder links open directly; because browsers block `file://` and network paths from an HTTPS page, those paths are copied to the clipboard so they can be pasted straight into Explorer or the Files app.
+
 ## v1.25.3 - 2026-07-19
 
 - Finance now opens password-protected PDF statements automatically. Add your name, date of birth and last five mobile digits once (stored only inside the encrypted vault) and GameVault derives each bank's password.
