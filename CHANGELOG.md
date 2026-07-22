@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.26.2 - 2026-07-22
+
+- Release dates are now shown consistently on Games, Films and TV Series cards in every tab whenever a confirmed date is available.
+- Future releases use the same red, amber and green countdown treatment across all three libraries, not only their Upcoming or Coming Soon tabs.
+- Game release dates are preserved when a title moves from Upcoming to Queue, Rental or Completed, and can be recovered by title from the release catalog.
+
 ## v1.26.1 - 2026-07-22
 
 - Upcoming game cards now show the confirmed release date and the same bold color-coded countdown used by Coming Soon movies.

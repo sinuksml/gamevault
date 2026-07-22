@@ -1,5 +1,5 @@
 ﻿"use strict";
-var APP_VERSION = "1.26.1";
+var APP_VERSION = "1.26.2";
 var APP_BUILD_DATE = "2026-07-22";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
@@ -1350,7 +1350,7 @@ function gameTile(x,id,sub,detailHtml){
     '<div class="game-cover-wrap">'+gameCoverHero(x)+'</div>'+
     '<div class="game-tile-info"><div class="game-tile-title" title="'+esc(x.name)+'">'+esc(x.name)+'</div>'+
     '<div class="game-tile-meta"><span class="game-pill">'+esc(score)+'</span><span class="game-pill">'+esc(x.genre||tierFor(x.name)||"PS5")+'</span>'+(sub?'<span class="game-pill">'+sub+'</span>':'')+'</div>'+
-    (detailHtml?'<div class="game-tile-detail">'+detailHtml+'</div>':'')+'</div>'+
+    (detailHtml?'<div class="game-tile-detail">'+detailHtml+'</div>':'')+gameReleaseMeta(x)+'</div>'+
   '</div><div class="game-card-actions">'+gameTilePrimary(x,id)+'</div></div>';
 }
 function rentalDaysChip(left){
@@ -1385,7 +1385,7 @@ function gamePage(x,actionsHtml,extraHtml){
       '<div class="game-fact"><span>Metacritic</span><b>'+(x.score?esc(String(x.score))+" / 100":"Not rated")+'</b></div>'+
       '<div class="game-fact"><span>'+(x.rating?"Your rating":"RAWG community")+'</span><b>'+esc(community)+'</b></div>'+
     '</div>'+
-    (tab==="upcoming"?gameReleaseMeta(x):'')+
+    gameReleaseMeta(x)+
     (x.note?'<div class="game-page-overview"><span>Overview</span><p>'+esc(x.note)+'</p></div>':'')+'</div></div>'+
     gameLibraryDetails(x)+'<div class="detail-section-label">Actions &amp; links</div><div class="actions detail-actionbar">'+(actionsHtml||"")+linkBtns(x.name)+'</div>'+
     (tab==="playing"?plotBlock(x.name):"")+(extraHtml||"")+'</div>';
@@ -2394,7 +2394,7 @@ function renderRentals(){
         '<div class="meta">'+badges(r.name)+'Rented '+fmt(r.start)+' · '+r.days+'-day period · due '+fmt(localISO(due))+
         (r.vendor?' · <span style="color:var(--vendor)">'+esc(r.vendor)+'</span>':'')+
         (Number(r.cost)?' · <span style="color:#F2B84B;font-weight:700">'+fmtMoney(r.cost)+'</span>':'')+
-        scoreBits(r)+'</div>'+
+        scoreBits(r)+'</div>'+gameReleaseMeta(r)+
       '</div><div>'+
         '<div class="bignum" style="color:'+c+'">'+(r.left>0?r.left:0)+'</div>'+
         '<div class="biglabel">'+(r.left<=0?"Expired":(r.left===1?"Day left":"Days left"))+'</div>'+
@@ -2432,7 +2432,7 @@ function renderRentals(){
         (h.used===1?"1 day":h.used+" days")+' used of '+h.days+
         (h.vendor?' · <span style="color:var(--vendor)">'+esc(h.vendor)+'</span>':'')+
         (Number(h.cost)?' · <span style="color:#F2B84B;font-weight:700">'+fmtMoney(h.cost)+'</span>':'')+
-        (h.note?'<br>“'+esc(h.note)+'”':'')+'</div>'+
+        (h.note?'<br>“'+esc(h.note)+'”':'')+'</div>'+gameReleaseMeta(h)+
       '</div></div>'+
       '<div class="actions">'+
         '<button class="btn" data-act="hist-again" data-id="'+h.id+'">↻ Rent again</button>'+
@@ -2485,7 +2485,7 @@ function endRental(id, toPlayed){
   var used=daysBetween(parseD(r.start),today()); if(used<0) used=0;
   data.rentalHistory.unshift({
     id:uid(), name:r.name, start:r.start, end:localISO(), days:r.days, used:used,
-    vendor:r.vendor||"", cost:Number(r.cost)||0, note:r.note||"", img:coverUrl(r)||""
+    vendor:r.vendor||"", cost:Number(r.cost)||0, note:r.note||"", date:r.date||gameKnownReleaseDate(r)||null, img:coverUrl(r)||""
   });
   if(toPlayed){
     var exP=inList(data.played,r.name);
@@ -2494,10 +2494,11 @@ function endRental(id, toPlayed){
       if(!exP.vendor) exP.vendor=r.vendor||"";
       if(!exP.score && r.score) exP.score=r.score;
       if(!exP.rrating && r.rrating) exP.rrating=r.rrating;
+      if(!exP.date) exP.date=r.date||gameKnownReleaseDate(r)||null;
       save(); flash("Returned — history saved, existing Played entry updated");
     } else {
       var pid=uid();
-      data.played.unshift({id:pid,name:r.name,rating:0,status:"Finished",added:localISO(),cost:0,vendor:r.vendor||"",note:"",score:r.score||null,rrating:r.rrating||null,img:coverUrl(r)||undefined});
+      data.played.unshift({id:pid,name:r.name,rating:0,status:"Finished",added:localISO(),cost:0,vendor:r.vendor||"",note:"",score:r.score||null,rrating:r.rrating||null,date:r.date||gameKnownReleaseDate(r)||null,img:coverUrl(r)||undefined});
       save(); flash("Returned — saved to history and added to Played");
       enrichScore("played",pid);
     }
@@ -2548,7 +2549,7 @@ function renderPlaying(){
     var h=
     '<div class="card">'+
       '<div class="row clickrow" data-act="pl-toggle" data-id="'+x.id+'">'+coverImg(x)+
-        '<div class="grow"><div class="gname">'+esc(x.name)+'</div><div class="meta">'+badges(x.name)+sub+scoreBits(x)+'</div></div>'+
+        '<div class="grow"><div class="gname">'+esc(x.name)+'</div><div class="meta">'+badges(x.name)+sub+scoreBits(x)+'</div>'+gameReleaseMeta(x)+'</div>'+
         '<span style="color:var(--dim);font-size:12px;flex-shrink:0">'+(open?"▲":"▼")+'</span>'+
       '</div>';
     if(open){
@@ -2812,7 +2813,7 @@ function renderQueue(){
       coverImg(q1)+
       '<div class="grow">'+
         '<div class="gname">'+esc(q1.name)+'</div>'+
-        '<div class="meta">'+badges(q1.name)+'Queued '+fmt(q1.added)+scoreBits(q1)+(q1.note?' · '+esc(q1.note):'')+availBits+'</div>'+
+        '<div class="meta">'+badges(q1.name)+'Queued '+fmt(q1.added)+scoreBits(q1)+(q1.note?' · '+esc(q1.note):'')+availBits+'</div>'+gameReleaseMeta(q1)+
       '</div>'+
     '</div><div class="actions">'+
       (i>0?'<button class="btn" data-act="q-top" data-id="'+q1.id+'" title="Move to top">⤒ Top</button>':'')+
@@ -2836,14 +2837,15 @@ function renderQueue(){
   return html;
 }
 function qIndex(id){ for(var i=0;i<data.queue.length;i++) if(data.queue[i].id===id) return i; return -1; }
-function addToQueue(name, note, score, rrating, avail){
+function addToQueue(name, note, score, rrating, avail, releaseDate){
   if(!name) return;
   var n=norm(name);
   for(var i=0;i<data.queue.length;i++){
     if(norm(data.queue[i].name)===n){ flash("Already in your queue at #"+(i+1)); return; }
   }
   var qid=uid();
-  data.queue.push({id:qid, name:name, note:note||"", score:score||null, rrating:rrating||null, avail:avail||null, added:localISO()});
+  var known=releaseDate||gameKnownReleaseDate({name:name});
+  data.queue.push({id:qid, name:name, note:note||"", score:score||null, rrating:rrating||null, avail:avail||null, date:known||null, added:localISO()});
   save(); flash("Added to rental queue at #"+data.queue.length);
   enrichScore("queue",qid);
   setTimeout(function(){ checkAvailability(qid); },150); // auto-check both rental shops
@@ -2877,7 +2879,7 @@ function renderUpcoming(){
   if(gameView==="grid"){
     html+='<div class="game-grid">';
     list.forEach(function(g){
-      html+=gameTile(g,g.id,g.date?esc(fmt(g.date)):"Date TBC",gameReleaseMeta(g));
+      html+=gameTile(g,g.id,"");
     });
     html+='</div>';
     if((data.upcomingRemoved||[]).length) html+='<div class="sechead">Removed games · '+data.upcomingRemoved.length+'</div>';
@@ -3030,7 +3032,7 @@ function renderSuggest(){
       coverImg(g)+
       '<div class="grow">'+
         '<div class="gname">'+esc(g.name)+'</div>'+
-        '<div class="meta">'+prefChip+tierHtml+'<span style="color:'+scoreColor(g.score)+';font-weight:700">'+(g.score?("Critic "+g.score):"Unrated")+'</span> · '+(g.year||"")+' · '+esc(g.genre||"")+(g.rating?' · '+(Math.round(g.rating*10)/10)+'★ users':'')+(g.note?'<br>'+esc(g.note):'')+'</div>'+
+        '<div class="meta">'+prefChip+tierHtml+'<span style="color:'+scoreColor(g.score)+';font-weight:700">'+(g.score?("Critic "+g.score):"Unrated")+'</span> · '+(g.year||"")+' · '+esc(g.genre||"")+(g.rating?' · '+(Math.round(g.rating*10)/10)+'★ users':'')+(g.note?'<br>'+esc(g.note):'')+'</div>'+gameReleaseMeta(g)+
       '</div>'+
     '</div><div class="actions">'+
       '<button class="btn blue" data-act="sug-queue" data-name="'+esc(g.name)+'">◇ Add to queue</button>'+
@@ -3137,7 +3139,7 @@ function playedCard(p, expandable){
     '<div class="grow"><div class="gname">'+esc(p.name)+'</div><div class="meta">'+badges(p.name)+'Added '+fmt(p.added)+
     (p.vendor?' · <span style="color:var(--vendor)">'+esc(p.vendor)+'</span>':'')+
     (Number(p.cost)?' · <span style="color:#F2B84B;font-weight:700">'+fmtMoney(p.cost)+'</span>':'')+
-    scoreBits(p)+'</div></div>'+
+    scoreBits(p)+'</div>'+gameReleaseMeta(p)+'</div>'+
     '<div class="dots">'+dots+'</div>'+
     (expandable?'<span style="color:var(--dim);font-size:12px;flex-shrink:0">'+(open?"▲":"▼")+'</span>':'')+
   '</div><div class="actions">'+
@@ -5171,17 +5173,25 @@ function releaseCountdown(date){
   var label=left===0?"RELEASES TODAY":left+" DAY"+(left===1?"":"S")+" LEFT";
   return '<div class="release-countdown '+cls+'">'+label+'</div>';
 }
+function gameKnownReleaseDate(g){
+  if(g&&g.date)return g.date;
+  var name=norm(g&&g.name||"");if(!name)return "";
+  var lists=[data.upcoming||[],data.upcomingRemoved||[],fullCatalog()];
+  for(var li=0;li<lists.length;li++)for(var i=0;i<lists[li].length;i++)if(norm(lists[li][i].name)===name&&lists[li][i].date)return lists[li][i].date;
+  return "";
+}
 function gameReleaseMeta(g){
-  if(!g||!g.date) return '<div class="media-release game-release">Release date: Date TBC</div>';
-  var left=daysBetween(today(),parseD(g.date));
-  var status=left<0?'<div class="release-countdown available">AVAILABLE NOW</div>':releaseCountdown(g.date);
-  return '<div class="media-release game-release">Release date: '+esc(fmt(g.date))+'<br>'+status+'</div>';
+  var date=gameKnownReleaseDate(g);if(!date)return "";
+  var left=daysBetween(today(),parseD(date));
+  var status=left>=0?releaseCountdown(date):(tab==="upcoming"?'<div class="release-countdown available">AVAILABLE NOW</div>':'');
+  return '<div class="media-release game-release">Release date: '+esc(fmt(date))+(status?'<br>'+status:'')+'</div>';
 }
 function filmReleaseMeta(m,key){
   if(key==="uphw") return '<div class="media-release">Theatrical release: '+esc(m.date?fmt(m.date):"Date TBC")+'<br>'+releaseCountdown(m.date)+'</div>';
   if(key==="bluray") return '<div class="media-release">Blu-ray release: '+esc(m.date?fmt(m.date):"Date TBC")+'</div>';
   if(key==="mlott") return '<div class="media-release">OTT release: '+esc(m.ottDate?fmt(m.ottDate):"Date TBC")+'</div>';
   if(key==="mlup") return '<div class="media-release">OTT release: '+esc(m.ottDate?fmt(m.ottDate):"Date TBC")+'<br>'+releaseCountdown(m.ottDate)+'</div>';
+  if(m.date) return '<div class="media-release">Release date: '+esc(fmt(m.date))+(daysBetween(today(),parseD(m.date))>=0?'<br>'+releaseCountdown(m.date):'')+'</div>';
   return "";
 }
 function filmCardContext(m,key){
@@ -5820,7 +5830,8 @@ function seriesReleaseMeta(s){
   if(!date) return "";
   var day=parseD(date).toLocaleDateString("en-IN",{weekday:"long"});
   var label=s.nextEpisode&&s.nextEpisode.date?"Next episode":s.ottDate?"OTT premiere":s.latestDate?"Latest episode":"First aired";
-  return '<div class="media-release">'+label+': '+esc(fmt(date))+' · '+esc(day)+'</div>';
+  var countdown=daysBetween(today(),parseD(date))>=0?releaseCountdown(date):"";
+  return '<div class="media-release">'+label+': '+esc(fmt(date))+' · '+esc(day)+(countdown?'<br>'+countdown:'')+'</div>';
 }
 function seriesCardContext(s){
   var release=seriesReleaseMeta(s);
@@ -6848,7 +6859,7 @@ document.getElementById("content").addEventListener("click",function(e){
         save(); flash("Already in your library — set to ↺ Resume Later");
       } else {
         var tpId=uid();
-        data.played.unshift({id:tpId,name:g2.name,rating:0,status:"Playing",added:localISO(),img:coverUrl(g2)||undefined});
+        data.played.unshift({id:tpId,name:g2.name,rating:0,status:"Playing",added:localISO(),date:g2.date||null,img:coverUrl(g2)||undefined});
         save(); flash("Moved to Played");
         enrichScore("played",tpId);
       }
@@ -6856,7 +6867,7 @@ document.getElementById("content").addEventListener("click",function(e){
   }
   else if(act==="up-queue"){
     var gq=byId(data.upcoming,id);
-    if(gq) addToQueue(gq.name, gq.note||"");
+    if(gq) addToQueue(gq.name,gq.note||"",gq.score||null,gq.rrating||null,null,gq.date||null);
   }
 
   else if(act==="sug-played"){
@@ -6918,7 +6929,7 @@ document.getElementById("content").addEventListener("click",function(e){
       if(inList(data.rentals,qr.name)){ flash("Already an active rental"); return; }
       data.queue=data.queue.filter(function(x){return x.id!==id;});
       var rid=uid();
-      data.rentals.push({id:rid,name:qr.name,start:localISO(),days:30,cost:0,vendor:"",note:qr.note||"",score:qr.score||null,rrating:qr.rrating||null,img:coverUrl(qr)||undefined});
+      data.rentals.push({id:rid,name:qr.name,start:localISO(),days:30,cost:0,vendor:"",note:qr.note||"",score:qr.score||null,rrating:qr.rrating||null,date:qr.date||gameKnownReleaseDate(qr)||null,img:coverUrl(qr)||undefined});
       tabScroll[tab]=window.scrollY; tab="rentals"; save(); window.scrollTo(0,0);
       flash("Rental started today — set the cost and vendor below");
       enrichScore("rentals",rid);
