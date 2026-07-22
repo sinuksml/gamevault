@@ -1,5 +1,5 @@
 ﻿"use strict";
-var APP_VERSION = "1.26.2";
+var APP_VERSION = "1.26.3";
 var APP_BUILD_DATE = "2026-07-22";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
@@ -2192,7 +2192,7 @@ function renderHome(){
   var due=(data.rentals||[]).map(function(r){
     return {name:r.name, left:r.days-daysBetween(parseD(r.start),t0)};
   }).filter(function(r){ return r.left<=7; }).sort(function(a,b){ return a.left-b.left; });
-  html+='<div class="card home-card"><div class="home-title">⏳ Rentals due soon</div>';
+  html+='<div class="card home-card home-card-rentals"><div class="home-title">⏳ Rentals due soon</div>';
   if(due.length) due.slice(0,5).forEach(function(r){
     var dueText=r.left<0?Math.abs(r.left)+'d overdue':r.left===0?'Due today':r.left+'d';
     html+='<div class="home-row"><span class="grow">'+esc(r.name)+'</span><b style="color:'+(r.left<=0?'var(--danger)':urgency(r.left))+'">'+dueText+'</b></div>';
@@ -2202,7 +2202,7 @@ function renderHome(){
 
   // next in queue
   var nq=(data.queue||[])[0];
-  html+='<div class="card home-card"><div class="home-title">◇ Next rental pick</div>';
+  html+='<div class="card home-card home-card-queue"><div class="home-title">◇ Next rental pick</div>';
   html+= nq ? '<div class="home-row"><span class="grow" style="font-weight:700">'+esc(nq.name)+'</span></div><div class="meta">#1 of '+data.queue.length+' in your queue'+(nq.availableFrom?' · Available '+fmt(nq.availableFrom):'')+'</div>'
             : '<div class="meta">Your queue is empty.</div>';
   html+='<div class="home-foot">'+homeGoBtn("Open Queue","games","queue")+'</div></div>';
@@ -2212,7 +2212,7 @@ function renderHome(){
   (data.playing||[]).forEach(function(x){resume.push({title:x.name,kind:"Game",sec:"games",tab:"playing"});});
   (data.watchingMovies||[]).forEach(function(x){resume.push({title:x.title,kind:"Movie",sec:"films",tab:"watching"});});
   (data.watchingSeries||[]).forEach(function(x){resume.push({title:x.title,kind:"Series",sec:"series",tab:"serieswatching"});});
-  html+='<div class="card home-card home-card-wide"><div class="home-title">▶ Continue</div>';
+  html+='<div class="card home-card home-card-wide home-card-continue"><div class="home-title">▶ Continue</div>';
   if(resume.length) resume.slice(0,6).forEach(function(x){html+='<button class="home-row home-row-link" data-act="home-goto" data-sec="'+x.sec+'" data-tab="'+x.tab+'"><span class="grow">'+esc(x.title)+'</span><span class="meta">'+x.kind+'</span><b>Open</b></button>';});
   else html+='<div class="meta">Nothing is currently marked Playing or Watching.</div>';
   html+='<div class="home-foot">'+homeGoBtn("Playing Games","games","playing")+homeGoBtn("Watching Movies","films","watching")+homeGoBtn("Watching TV","series","serieswatching")+'</div></div>';
@@ -2232,7 +2232,7 @@ function renderHome(){
     });
   }catch(e){}
   rel.sort(function(a,b){ return a.dl-b.dl; });
-  html+='<div class="card home-card"><div class="home-title">△ Releasing this week</div>';
+  html+='<div class="card home-card home-card-releases"><div class="home-title">△ Releasing this week</div>';
   if(rel.length) rel.slice(0,6).forEach(function(x){
     html+='<div class="home-row"><span class="grow">'+esc(x.name)+'</span><span class="meta" style="margin:0">'+x.kind+'</span><b style="color:#2D7FF9">'+(x.dl===0?"Today":x.dl+"d")+'</b></div>';
   });
@@ -2240,7 +2240,7 @@ function renderHome(){
   html+='<div class="home-foot">'+homeGoBtn("Games","games","upcoming")+homeGoBtn("Movies","films","uphw")+'</div></div>';
 
   // downloads
-  html+='<div class="card home-card"><div class="home-title">⇩ Downloads</div>';
+  html+='<div class="card home-card home-card-downloads"><div class="home-title">⇩ Downloads</div>';
   if(typeof biglyItems!=="undefined" && biglyItems.length){
     biglyItems.slice(0,5).forEach(function(t){
       var pct=Math.round(((t.progress>1?t.progress:(t.progress||0)*100)));
@@ -2254,7 +2254,7 @@ function renderHome(){
     var d=String(m.ottDate||m.date||"").slice(0,10);
     return d ? {title:m.title, dl:daysBetween(parseD(d),t0)} : null;
   }).filter(function(x){ return x && x.dl>=0 && x.dl<=14; });
-  html+='<div class="card home-card"><div class="home-title">♥ Watchlist, out now</div>';
+  html+='<div class="card home-card home-card-watchlist"><div class="home-title">♥ Watchlist, out now</div>';
   if(outNow.length) outNow.slice(0,5).forEach(function(x){
     html+='<div class="home-row"><span class="grow">'+esc(x.title||"")+'</span><b style="color:#3ECF8E">Out</b></div>';
   });
@@ -2262,7 +2262,7 @@ function renderHome(){
   html+='<div class="home-foot">'+homeGoBtn("Movie Watchlist","films","watchlist")+homeGoBtn("TV Watchlist","series","serieswatchlist")+'</div></div>';
 
   // vault at a glance
-  html+='<div class="card home-card"><div class="home-title">▦ Vault at a glance</div>'+
+  html+='<div class="card home-card home-card-vault"><div class="home-title">▦ Vault at a glance</div>'+
     '<div class="home-row"><span class="grow">Active rentals</span><b>'+(data.rentals||[]).length+'</b></div>'+
     '<div class="home-row"><span class="grow">Queue</span><b>'+(data.queue||[]).length+'</b></div>'+
     '<div class="home-row"><span class="grow">Completed games</span><b>'+(data.played||[]).length+'</b></div>'+
@@ -2271,7 +2271,7 @@ function renderHome(){
     '<div class="home-foot">'+homeGoBtn("Completed","games","played")+homeGoBtn("Discover","games","suggest")+'</div></div>';
 
   // private finance snapshot - no values are exposed while the vault is locked
-  html+='<div class="card home-card"><div class="home-title">&#8377; Private finance</div>';
+  html+='<div class="card home-card home-card-finance"><div class="home-title">&#8377; Private finance</div>';
   if(typeof financeUnlocked==="function"&&financeUnlocked()){
     var financeHome=financeSummary();
     html+='<div class="home-row"><span class="grow">This month</span><b>'+financeMoney(financeHome.expense)+'</b></div><div class="home-row"><span class="grow">Monthly EMI</span><b>'+financeMoney(financeHome.emi)+'</b></div><div class="home-row"><span class="grow">Outstanding loans</span><b>'+financeMoney(financeHome.balance)+'</b></div>';
@@ -4605,7 +4605,7 @@ function pickCertification(rows,country){
 }
 function ensureMediaDetails(x,kind){
   if(!x||!tmdbKey()||!/^[0-9]+$/.test(String(x.tmdbId||x.id||""))||x._detailBusy) return;
-  if(x._detailCheckedAt&&Date.now()-Number(x._detailCheckedAt)<86400000) return;
+  if(x._detailCheckedAt&&Date.now()-Number(x._detailCheckedAt)<86400000&&x.date) return;
   x._detailBusy=true;
   var path=kind==="film"?"movie":"tv",id=x.tmdbId||x.id;
   var append=kind==="film"?"credits,release_dates,external_ids,watch/providers":"external_ids,watch/providers,content_ratings";
@@ -4615,10 +4615,12 @@ function ensureMediaDetails(x,kind){
     x.originalLanguage=d.original_language||x.originalLanguage||"";
     if(d.genres&&d.genres.length)x.genres=d.genres.map(function(g){return g.id;});
     if(kind==="film"){
+      x.date=x.date||d.release_date||"";x.year=x.year||(x.date||"").slice(0,4);
       x.runtime=d.runtime||x.runtime||0;x.director=((d.credits&&d.credits.crew)||[]).filter(function(c){return c.job==="Director";}).map(function(c){return c.name;}).slice(0,2).join(" · ");
       x.certification=pickCertification(d.release_dates,"US")||pickCertification(d.release_dates,"IN")||x.certification||"";
       x.imdbId=d.external_ids&&d.external_ids.imdb_id||x.imdbId||"";
     }else{
+      x.date=x.date||d.first_air_date||"";x.year=x.year||(x.date||"").slice(0,4);
       x.seasons=d.number_of_seasons||x.seasons||0;x.episodeCount=d.number_of_episodes||x.episodeCount||0;
       x.episodeRuntime=(d.episode_run_time&&d.episode_run_time[0])||x.episodeRuntime||0;
       x.networks=(d.networks||[]).map(function(n){return n.name;}).filter(Boolean);
@@ -4630,7 +4632,7 @@ function ensureMediaDetails(x,kind){
     }
     var providerRows=d["watch/providers"]&&d["watch/providers"].results||{},wp=providerRows.IN||providerRows.US;
     if(wp)x.providers=(((wp.flatrate)||[]).concat((wp.free)||[])).map(function(p){return p.provider_name;}).filter(function(v,i,a){return a.indexOf(v)===i;});
-    x._detailCheckedAt=Date.now();x._detailBusy=false;saveFilmCache();saveSeriesCache();persistSilent();
+    x._detailCheckedAt=Date.now();x._detailBusy=false;saveFilmCache();saveSeriesCache();persistSilent();scheduleArtworkRender();
     if((section==="films"&&kind==="film"&&String(filmExpanded)===String(x.id))||(section==="series"&&kind==="series"&&String(seriesExpanded)===String(x.id)))render();
   }).catch(function(){x._detailBusy=false;x._detailCheckedAt=Date.now();});
 }
@@ -5038,7 +5040,7 @@ function markMovieWatching(m){
   data.watchedMovies=(data.watchedMovies||[]).filter(function(x){return movieWatchKey(x)!==key;});
   data.hiddenMovies=(data.hiddenMovies||[]).filter(function(x){return movieWatchKey(x)!==key;});
   if(!(data.watchingMovies||[]).some(function(x){return movieWatchKey(x)===key;})){
-    data.watchingMovies.unshift({key:key,id:m.id,title:m.title,year:m.year||"",poster:m.poster||"",imdb:typeof m.imdb==="number"?m.imdb:null,imdbId:m.imdbId||null,tmdb:m.tmdb||null,overview:m.overview||"",genres:m.genres||[],providers:m.providers||[],started:Date.now()});
+    data.watchingMovies.unshift({key:key,id:m.id,title:m.title,year:m.year||"",poster:m.poster||"",imdb:typeof m.imdb==="number"?m.imdb:null,imdbId:m.imdbId||null,tmdb:m.tmdb||null,date:m.date||"",ottDate:m.ottDate||"",runtime:m.runtime||null,overview:m.overview||"",genres:m.genres||[],providers:m.providers||[],started:Date.now()});
   }
   commitVaultUndo(undo,"Moved to Watching");
 }
@@ -5104,7 +5106,8 @@ function addToWatchlist(m){
   data.watchingMovies=(data.watchingMovies||[]).filter(function(x){ return movieWatchKey(x)!==movieWatchKey(m); });
   if(inWatchlist(m)){ flash("Already in your watchlist"); return; }
   data.movieWatchlist.unshift({key:movieWatchKey(m), id:m.id, title:m.title, year:m.year||"", poster:m.poster||"",
-    imdb:(typeof m.imdb==="number"?m.imdb:null), imdbId:m.imdbId||null, tmdb:m.tmdb||null, overview:m.overview||"", genres:m.genres||[], added:Date.now()});
+    imdb:(typeof m.imdb==="number"?m.imdb:null), imdbId:m.imdbId||null, tmdb:m.tmdb||null, date:m.date||"", ottDate:m.ottDate||"",
+    runtime:m.runtime||null, providers:m.providers||[], overview:m.overview||"", genres:m.genres||[], added:Date.now()});
   commitVaultUndo(undo,"Added to your watchlist");
 }
 function removeFromWatchlist(id){
@@ -5191,7 +5194,10 @@ function filmReleaseMeta(m,key){
   if(key==="bluray") return '<div class="media-release">Blu-ray release: '+esc(m.date?fmt(m.date):"Date TBC")+'</div>';
   if(key==="mlott") return '<div class="media-release">OTT release: '+esc(m.ottDate?fmt(m.ottDate):"Date TBC")+'</div>';
   if(key==="mlup") return '<div class="media-release">OTT release: '+esc(m.ottDate?fmt(m.ottDate):"Date TBC")+'<br>'+releaseCountdown(m.ottDate)+'</div>';
-  if(m.date) return '<div class="media-release">Release date: '+esc(fmt(m.date))+(daysBetween(today(),parseD(m.date))>=0?'<br>'+releaseCountdown(m.date):'')+'</div>';
+  var cached=(!m.date&&!m.ottDate)?findCachedMovie(m.id):null;
+  var date=m.date||(cached&&cached.date)||"",ott=m.ottDate||(cached&&cached.ottDate)||"";
+  var selected=ott||date,label=ott?"OTT release":"Release date";
+  if(selected) return '<div class="media-release">'+label+': '+esc(fmt(selected))+(daysBetween(today(),parseD(selected))>=0?'<br>'+releaseCountdown(selected):'')+'</div>';
   return "";
 }
 function filmCardContext(m,key){
@@ -5205,6 +5211,7 @@ function filmCardContext(m,key){
 }
 function movieMain(m,key){
   ensureMediaArtwork(m,"movie");
+  if(!m.date)ensureMediaDetails(m,"film");
   var details=genreLabel(m.genres,MOVIE_GENRES);
   if(m.originalLanguage&&m.originalLanguage!=="en") details+=(details?" · ":"")+m.originalLanguage.toUpperCase();
   return mediaPoster(m.poster,m.title)+mediaSummary(m.title,mediaRatingLabel(m),details,filmCardContext(m,key));
@@ -5372,13 +5379,13 @@ function renderFilms(){
   if(!items.length && !upcomingItems.length){
     return html+'<div class="empty">'+(filmBusy[key]?"Loading…":(last?"Nothing left here — everything shown is marked Watched.":"Nothing to show yet — tap ↻ Refresh."))+'</div>';
   }
-  if(key==="mlott") html+='<div class="sechead">Now Streaming · '+items.length+'</div>';
-  if(items.length){ html+='<div class="'+mediaWrapClass("film")+'">'; items.forEach(function(m){ html+=movieCard(m,key); }); html+='</div>'; }
   if(key==="mlott"){
     html+='<div class="sechead">Coming to Malayalam OTT · '+upcomingItems.length+'</div>';
     if(upcomingItems.length){ html+='<div class="'+mediaWrapClass("film")+'">'; upcomingItems.forEach(function(m){ html+=movieCard(m,"mlup"); }); html+='</div>'; }
     else html+='<div class="empty">No confirmed upcoming Malayalam OTT dates are available yet.</div>';
+    html+='<div class="sechead">Now Streaming · '+items.length+'</div>';
   }
+  if(items.length){ html+='<div class="'+mediaWrapClass("film")+'">'; items.forEach(function(m){ html+=movieCard(m,key); }); html+='</div>'; }
   return html;
 }
 /* ================= TV SERIES SECTION (TMDB + OMDb) =================

@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.26.3 - 2026-07-22
+
+- Moved Coming to Malayalam OTT above Now Streaming so confirmed future premieres appear first.
+- Fixed Movie Watchlist entries dropping release, OTT, provider and runtime data when saved; existing entries now recover missing dates automatically from TMDB or cached results.
+- Redesigned Home with eight distinct, accessible color themes for rentals, queue, continuation, releases, downloads, watchlist, library and finance panels.
+
 ## v1.26.2 - 2026-07-22
 
 - Release dates are now shown consistently on Games, Films and TV Series cards in every tab whenever a confirmed date is available.
