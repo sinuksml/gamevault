@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.26.1 - 2026-07-22
+
+- Upcoming game cards now show the confirmed release date and the same bold color-coded countdown used by Coming Soon movies.
+- Countdown colors are consistent in game grid view, list view and the expanded game details page: red within 7 days, amber within 30 days and green for later releases or games available now.
+
 ## v1.26.0 - 2026-07-19
 
 - Income is now calculated only from bank statements: credits on credit cards and the Niyo Global forex card (bill payments, top-ups) are classified as own-money transfers, never income — including previously imported records.

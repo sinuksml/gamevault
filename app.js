@@ -1,6 +1,6 @@
 ﻿"use strict";
-var APP_VERSION = "1.26.0";
-var APP_BUILD_DATE = "2026-07-19";
+var APP_VERSION = "1.26.1";
+var APP_BUILD_DATE = "2026-07-22";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
   "Added a PIN-encrypted Finance workspace for expenses, statements, loans and EMI tracking",
@@ -1385,6 +1385,7 @@ function gamePage(x,actionsHtml,extraHtml){
       '<div class="game-fact"><span>Metacritic</span><b>'+(x.score?esc(String(x.score))+" / 100":"Not rated")+'</b></div>'+
       '<div class="game-fact"><span>'+(x.rating?"Your rating":"RAWG community")+'</span><b>'+esc(community)+'</b></div>'+
     '</div>'+
+    (tab==="upcoming"?gameReleaseMeta(x):'')+
     (x.note?'<div class="game-page-overview"><span>Overview</span><p>'+esc(x.note)+'</p></div>':'')+'</div></div>'+
     gameLibraryDetails(x)+'<div class="detail-section-label">Actions &amp; links</div><div class="actions detail-actionbar">'+(actionsHtml||"")+linkBtns(x.name)+'</div>'+
     (tab==="playing"?plotBlock(x.name):"")+(extraHtml||"")+'</div>';
@@ -2876,8 +2877,7 @@ function renderUpcoming(){
   if(gameView==="grid"){
     html+='<div class="game-grid">';
     list.forEach(function(g){
-      var d=g.date?parseD(g.date):null, dleft=d?daysBetween(t0,d):null;
-      html+=gameTile(g,g.id,dleft!==null?(dleft<0?"Out now":dleft+" days"):"TBC");
+      html+=gameTile(g,g.id,g.date?esc(fmt(g.date)):"Date TBC",gameReleaseMeta(g));
     });
     html+='</div>';
     if((data.upcomingRemoved||[]).length) html+='<div class="sechead">Removed games · '+data.upcomingRemoved.length+'</div>';
@@ -2889,14 +2889,10 @@ function renderUpcoming(){
     var d=g.date?parseD(g.date):null;
     var dleft=d?daysBetween(t0,d):null;
     var out=dleft!==null&&dleft<0;
-    var when=d?fmt(g.date):"Date TBC";
-    var extra="";
-    if(dleft!==null&&!out) extra=' <span style="color:#2D7FF9;font-weight:700">· in '+dleft+' day'+(dleft===1?"":"s")+'</span>';
-    if(out) extra=' <span style="color:#3ECF8E;font-weight:700">· Out now</span>';
     html+=
     '<div class="card"><div class="row">'+
       coverImg(g)+
-      '<div class="grow"><div class="gname">'+esc(g.name)+'</div><div class="meta">'+badges(g.name)+'<b style="color:var(--text)">'+when+'</b>'+extra+(g.note?'<br>'+esc(g.note):'')+'</div></div>'+
+      '<div class="grow"><div class="gname">'+esc(g.name)+'</div><div class="meta">'+badges(g.name)+(g.note?esc(g.note):'')+'</div>'+gameReleaseMeta(g)+'</div>'+
       '<button class="star '+(g.want?"on":"")+'" data-act="want" data-id="'+g.id+'" title="I want this">★</button>'+
     '</div><div class="actions">'+
       '<button class="btn" data-act="up-queue" data-id="'+g.id+'">◇ Add to queue</button>'+
@@ -5174,6 +5170,12 @@ function releaseCountdown(date){
   var cls=left<=7?"urgent":left<=30?"soon":"later";
   var label=left===0?"RELEASES TODAY":left+" DAY"+(left===1?"":"S")+" LEFT";
   return '<div class="release-countdown '+cls+'">'+label+'</div>';
+}
+function gameReleaseMeta(g){
+  if(!g||!g.date) return '<div class="media-release game-release">Release date: Date TBC</div>';
+  var left=daysBetween(today(),parseD(g.date));
+  var status=left<0?'<div class="release-countdown available">AVAILABLE NOW</div>':releaseCountdown(g.date);
+  return '<div class="media-release game-release">Release date: '+esc(fmt(g.date))+'<br>'+status+'</div>';
 }
 function filmReleaseMeta(m,key){
   if(key==="uphw") return '<div class="media-release">Theatrical release: '+esc(m.date?fmt(m.date):"Date TBC")+'<br>'+releaseCountdown(m.date)+'</div>';

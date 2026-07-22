@@ -144,6 +144,8 @@
   .release-countdown.urgent { color:#ff5c68; background:rgba(255,60,75,.12); }
   .release-countdown.soon { color:#ffad33; background:rgba(255,166,35,.12); }
   .release-countdown.later { color:#48c78e; background:rgba(49,196,132,.12); }
+  .release-countdown.available { color:#48c78e; background:rgba(49,196,132,.12); }
+  .game-release { margin-top:8px; }
   .media-detail { grid-column:1/-1; margin-top:0; padding:12px; background:var(--card2); border-top:1px solid var(--border); }
   .media-closebar { display:flex; justify-content:flex-end; margin-bottom:10px; }
   .media-closebar .btn { font-weight:800; }
