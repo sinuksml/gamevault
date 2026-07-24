@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.0.1 - 2026-07-25
+
+- Made the app activate completed service-worker updates automatically instead of waiting for a hidden update action.
+- Forced page navigations to check the network first so an old cached shell cannot keep showing a previous version.
+
 ## v2.0.0 - 2026-07-25
 
 - Redesigned the PC, 2K and iPhone workspaces around one responsive layout system without changing application workflows.

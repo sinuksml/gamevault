@@ -1,12 +1,12 @@
-const CACHE_NAME = "gamevault-shell-v69";
+const CACHE_NAME = "gamevault-shell-v70";
 const IMAGE_CACHE = "gamevault-images-v1";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./app.css?v=2.0.0",
-  "./core.js?v=2.0.0",
-  "./finance.js?v=2.0.0",
-  "./app.js?v=2.0.0",
+  "./app.css?v=2.0.1",
+  "./core.js?v=2.0.1",
+  "./finance.js?v=2.0.1",
+  "./app.js?v=2.0.1",
   "./release.json",
   "./icon.png",
   "./manifest.webmanifest"
@@ -59,7 +59,7 @@ self.addEventListener("fetch", event => {
     }
     if (req.mode === "navigate") {
       event.respondWith(
-        fetch(req).then(res => {
+        fetch(req, {cache:"no-store"}).then(res => {
           if (!res.ok) return res;
           const copy = res.clone();
           return caches.open(CACHE_NAME).then(cache => cache.put("./index.html", copy)).then(() => res);

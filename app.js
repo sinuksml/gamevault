@@ -1,5 +1,5 @@
 "use strict";
-var APP_VERSION = "2.0.0";
+var APP_VERSION = "2.0.1";
 var APP_BUILD_DATE = "2026-07-25";
 var APP_RELEASE_CHANNEL = "Stable";
 
@@ -7004,10 +7004,15 @@ backfillKeysToData();    // scrub any remaining key material from the vault obje
 secureConfigAutoUnlock();
 if("serviceWorker" in navigator && location.protocol.indexOf("http")===0 && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)){
   navigator.serviceWorker.register("sw.js?v="+APP_VERSION,{updateViaCache:"none"}).then(function(reg){
+    var reloading=false;
+    navigator.serviceWorker.addEventListener("controllerchange",function(){
+      if(!reloading){reloading=true;pendingPhoneWorker=null;location.reload();}
+    });
     function offerUpdate(worker){
       if(!worker) return;
-      if(phoneUi()){pendingPhoneWorker=worker;setPhoneStatus("GameVault "+APP_VERSION+" is ready to install","update","update");return;}
-      flash("A GameVault update is ready - tap here to install",function(){ worker.postMessage({type:"SKIP_WAITING"}); });
+      pendingPhoneWorker=worker;
+      if(phoneUi())setPhoneStatus("Installing GameVault "+APP_VERSION+"...","update");
+      worker.postMessage({type:"SKIP_WAITING"});
     }
     if(reg.waiting) offerUpdate(reg.waiting);
     reg.update().catch(function(){});
@@ -7015,8 +7020,6 @@ if("serviceWorker" in navigator && location.protocol.indexOf("http")===0 && !/^(
       var worker=reg.installing;
       if(worker) worker.addEventListener("statechange",function(){ if(worker.state==="installed" && navigator.serviceWorker.controller) offerUpdate(worker); });
     });
-    var reloading=false;
-    navigator.serviceWorker.addEventListener("controllerchange",function(){ if(!reloading){ reloading=true;pendingPhoneWorker=null;location.reload(); } });
   }).catch(function(){});
 }
 document.addEventListener("error",function(e){
