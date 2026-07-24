@@ -13,6 +13,9 @@ const release=JSON.parse(fs.readFileSync("release.json","utf8"));
 const biglyWorker=fs.readFileSync("biglybt-worker/worker.js","utf8");
 const manifest=JSON.parse(fs.readFileSync("manifest.webmanifest","utf8"));
 const pkg=JSON.parse(fs.readFileSync("package.json","utf8"));
+const nativeTvActivity=fs.readFileSync("android-tv-native/app/src/main/java/in/sinu/gamevault/nativetv/MainActivity.java","utf8");
+const nativeTvView=fs.readFileSync("android-tv-native/app/src/main/java/in/sinu/gamevault/nativetv/VaultTvView.java","utf8");
+const nativeTvData=fs.readFileSync("android-tv-native/app/src/main/java/in/sinu/gamevault/nativetv/VaultData.java","utf8");
 const version=(js.match(/var APP_VERSION\s*=\s*"(\d+\.\d+\.\d+)"/)||[])[1];
 
 assert.match(html,/href="app\.css(?:\?v=\d+\.\d+\.\d+)?"/);
@@ -46,9 +49,10 @@ const biglyScriptStart=biglyDashboardHtml.indexOf("<script>")+8;
 const biglyScriptEnd=biglyDashboardHtml.lastIndexOf("</script>");
 assert.ok(biglyScriptStart>=8&&biglyScriptEnd>biglyScriptStart,"BiglyBT dashboard script must be embedded");
 new vm.Script(biglyDashboardHtml.slice(biglyScriptStart,biglyScriptEnd),{filename:"biglybt-native-dashboard.js"});
-for(const marker of ["gvbt-switch-mode",'data-filter="error"',"historyExport",'id="sort"','id="pasteMagnet"',"navigator.clipboard.readText"]){
+for(const marker of ['data-filter="error"',"historyExport",'id="sort"','id="pasteMagnet"',"navigator.clipboard.readText"]){
   assert.ok(biglyWorker.includes(marker),`BiglyBT dashboard must include ${marker}`);
 }
+assert.ok(!biglyWorker.includes("gvbt-switch-mode"),"BiglyBT must expose one native dashboard rather than duplicate modes");
 assert.match(js,/function confirmDestructive\(/);
 assert.match(js,/function ensureSeriesEpisodeRatings\(/);
 assert.match(js,/episode-summary-rating/);
@@ -68,9 +72,12 @@ assert.equal(release.version,version,"release manifest version must match APP_VE
 assert.equal(release.schema,11,"release manifest must expose the current data schema");
 assert.equal(manifest.name,"Sinu Game Vault");
 assert.match(html,/name="description"/);
-assert.match(html,/property="og:title"/);
-assert.match(html,/rel="canonical"/);
-assert.match(html,/id="shareBtn"/);
+assert.doesNotMatch(html,/property="og:title"/);
+assert.doesNotMatch(html,/rel="canonical"/);
+assert.match(html,/id="syncNowBtn"/);
+for(const obsolete of ["shareBtn","pushBtn","pullBtn","jsonbin","JSONBin"]){
+  assert.ok(!html.includes(obsolete),`application shell must not expose obsolete ${obsolete}`);
+}
 assert.match(js,/function validateVault\(/);
 assert.match(js,/function createRecoverySnapshot\(/);
 assert.match(js,/var APP_VERSION\s*=/);
@@ -95,7 +102,7 @@ assert.doesNotMatch(upcomingSource,/with_original_language/);
 assert.match(js,/var gdUploadQueue=Promise\.resolve\(\)/);
 assert.doesNotMatch(sw,/install[\s\S]{0,250}skipWaiting/);
 assert.match(sw,/if \(res\.ok\)/);
-assert.match(js,/data-bigly="remove-data"/);
+assert.ok(biglyWorker.includes('data-delete="1"'),"native BiglyBT dashboard must retain explicit torrent-and-file deletion");
 assert.doesNotMatch(js,/plot\.length>12000/);
 for(const label of ["Movies","TV Shows","Plex Library"]){ assert.ok(html.includes(label),`primary navigation must include ${label}`); }
 assert.match(html,/data-section="finance"/);
@@ -153,7 +160,7 @@ assert.match(js,/PLEX_ORDER=\["home","continue","movies","shows","recent"\]/);
 assert.match(html,/id="desktopRailBtn"/);
 assert.match(html,/id="commandPalette"/);
 assert.match(css,/@media \(min-width:900px\)/);
-assert.match(css,/html:not\(\.tv\) \.sectionsw/);
+assert.match(css,/html \.sectionsw/);
 assert.match(js,/function openCommandPalette\(/);
 assert.match(js,/function applyDesktopShell\(/);
 assert.match(js,/document\.body\.classList\.remove\("command-open"\)/);
@@ -165,29 +172,17 @@ assert.match(css,/\.title-menu-pop/);
 assert.match(html,/class="hamburger-icon"/);
 assert.match(js,/function detailToolbar\(/);
 assert.match(js,/var SERIES_ORDER=\["serieswatchlist","serieswatching","seriesnew","seriesupcoming","enseries","mlseries","taseries","hiseries","serieswatched"\]/);
-assert.match(js,/window\.gameVaultTvKey=tvHandleTvKey/);
-assert.match(js,/function renderTvApp\(/);
-assert.match(js,/function tvRowsForSection\(/);
-assert.match(js,/function tvHeroHtml\(/);
-assert.match(js,/function tvHomeSummaryHtml\(/);
-assert.match(js,/function tvRowLayout\(/);
-assert.match(js,/function tvHandleShellKey\(/);
-assert.match(css,/\.tv-shell/);
-assert.match(css,/\.tv-card-row/);
-assert.match(css,/\.tv-feature-hero/);
-assert.match(css,/\.tv-home-summary/);
-assert.match(css,/\.tv-rail:focus-within/);
-assert.match(js,/\["biglybt","⇩","Downloads"\]/);
-assert.match(js,/if\(TV_MODE\)\{worker\.postMessage\(\{type:"SKIP_WAITING"\}\);return;\}/);
-assert.match(js,/summary,\[role="button"\]/);
+for(const obsolete of ["renderTvApp","tvRowsForSection","tvHeroHtml","tvHandleShellKey","TV_MODE","gameVaultTvKey"]){
+  assert.ok(!js.includes(obsolete),`browser bundle must not retain obsolete TV implementation ${obsolete}`);
+}
+assert.ok(!css.includes(".tv-shell"),"browser stylesheet must not retain obsolete TV shell");
+assert.match(nativeTvActivity,/class MainActivity/);
+assert.match(nativeTvActivity,/saveHandler\.postDelayed\(pendingDriveSave,2500L\)/);
+assert.match(nativeTvView,/KEYCODE_DPAD_DOWN/);
+assert.match(nativeTvView,/Connect Google Drive/);
+assert.match(nativeTvView,/REELOAD Review/);
+assert.match(nativeTvData,/days left/);
 assert.doesNotMatch(js,/window\.innerHeight\*\.48/);
-assert.match(js,/id=\"tvGdQrBox\"/);
-assert.match(js,/data-tv-system=\"drive-login\"/);
-assert.match(js,/data-tv-system=\"drive-save\"/);
-assert.match(css,/\.tv-drive-setup button\{grid-column:1\/-1/);
-assert.match(css,/\.tv-drive-login\{display:grid;grid-template-columns:minmax\(0,1fr\)/);
-assert.match(css,/\.tv-drive-qr\{position:fixed;z-index:100/);
-assert.match(js,/data-tv-key=\"qr:cancel\"/);
 assert.match(sw,/gamevault-shell-v\d+/);
 assert.match(js,/function scheduleMediaWarmup\(/);
 assert.match(js,/function scheduleGameWarmup\(/);
@@ -221,10 +216,13 @@ assert.match(js,/if\(!healthCloudSyncEnabled\(\)\) delete copy\.health/);
 assert.match(html,/id="healthCloudInput"/);
 assert.doesNotMatch(js,/Absolute eosinophils were/);
 
-assert.match(html,/id="appLockOverlay"/);
+assert.doesNotMatch(html,/id="appLockOverlay"/);
 assert.match(html,/id="secureConfigSaveBtn"/);
-for(const marker of ["function appLockEnable(","function appLockBiometric(","function appLockInitialCheck(","function normalizeStoredLibrary(","function mergeAutomaticCloud(","function hydrateIndexedStorage(","function checkReleaseVersion("]){
+for(const marker of ["function normalizeStoredLibrary(","function mergeAutomaticCloud(","function hydrateIndexedStorage(","function checkReleaseVersion("]){
   assert.ok(js.includes(marker),`application must include ${marker}`);
+}
+for(const removed of ["function appLockEnable(","function appLockBiometric(","function appLockInitialCheck(","JSONBin","jsonbin"]){
+  assert.ok(!js.includes(removed),`application must not include ${removed}`);
 }
 assert.match(js,/if\(remoteSize===0&&localSize>0\)return \{changedLocal:false,needsPush:true\}/,"an empty cloud file must never replace a populated device");
 assert.match(coreJs,/indexedDB\.open/);
@@ -266,6 +264,6 @@ const envelope=await core.crypto.seal({token:"private-value"},"correct horse bat
 assert.ok(!JSON.stringify(envelope).includes("private-value"),"encrypted configuration must not contain plaintext credentials");
 assert.deepEqual(await core.crypto.open(envelope,"correct horse battery staple"),{token:"private-value"},"encrypted configuration must round-trip");
 const verifier=await core.crypto.pinVerifier("2468");
-assert.equal(await core.crypto.verifyPin("2468",verifier),true,"correct app-lock PIN must verify");
-assert.equal(await core.crypto.verifyPin("1357",verifier),false,"incorrect app-lock PIN must fail");
+assert.equal(await core.crypto.verifyPin("2468",verifier),true,"correct secure-vault PIN must verify");
+assert.equal(await core.crypto.verifyPin("1357",verifier),false,"incorrect secure-vault PIN must fail");
 console.log("GameVault smoke checks passed");

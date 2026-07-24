@@ -436,26 +436,6 @@ function financeGmailPlainText(parts){
   try{return new DOMParser().parseFromString(html,"text/html").body.textContent||"";}catch(e){return html.replace(/<[^>]+>/g," ");}
 }
 function financeGmailIsStatement(meta,files){return files.length>0&&/(?:credit card|debit card|bank|account|monthly|e[- ]?)?statement|estatement/i.test(meta.subject||"");}
-function financeGmailAlertTransactionLegacy(text,meta){
-  var all=(meta.subject+"\n"+text).replace(/\s+/g," ");
-  if(/statement|invoice|bill summary/i.test(meta.subject)||!/debited|spent|purchase|paid|transaction|credited|received|deposited/i.test(all))return null;
-  var amount=all.match(/(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)/i);if(!amount)return null;
-  var value=Math.abs(financeNumber(amount[1]));if(!value)return null;
-  var income=/credited|received|deposited/i.test(all)&&!/debited|spent|purchase|paid/i.test(all),merchant=all.match(/(?:\bat\b|\bto\b|\bfor\b)\s+([A-Za-z0-9][A-Za-z0-9 &.'_-]{2,55})/i);
-  var description=(merchant&&merchant[1]?merchant[1]:meta.subject).replace(/\s+/g," ").trim().slice(0,90)||"Gmail transaction alert";
-  var d=new Date(Number(meta.internalDate)||Date.parse(meta.date)||Date.now());
-  return {id:uid(),date:localISO(d),description:description,amount:value,type:income?"income":"expense",category:financeCategory(description),account:meta.from||"Gmail alert",source:"Gmail: "+meta.subject,createdAt:Date.now(),gmailMessageId:meta.id};
-}
-function financeGmailAlertTransaction(text,meta){
-  var all=(meta.subject+"\n"+text).replace(/\s+/g," ");
-  if(/statement available|monthly statement/i.test(meta.subject)||!/debited|spent|purchase|paid|transaction|credited|received|deposited|refund|reversal|failed|declined|emi/i.test(all))return null;
-  var amount=all.match(/(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)/i);if(!amount)return null;
-  var value=Math.abs(financeNumber(amount[1]));if(!value)return null;
-  var kind=/failed|declined|unsuccessful/i.test(all)?"failed":/reversal|reversed/i.test(all)?"reversal":/refund|refunded|cashback/i.test(all)?"refund":/credit card (?:bill )?payment|card payment|self transfer|own account/i.test(all)?"transfer":/credited|received|deposited/i.test(all)&&!/debited|spent|purchase/i.test(all)?"income":"expense";
-  var merchantMatch=all.match(/(?:\bat\b|\bto\b|\bfor\b|merchant[:\s]+|towards[:\s]+)\s*([A-Za-z0-9][A-Za-z0-9 &.'_-]{2,55}?)(?=\s+(?:on|using|via|ref|reference|txn|transaction|from|card|account|UPI)\b|[.,]|$)/i),description=(merchantMatch&&merchantMatch[1]?merchantMatch[1]:meta.subject).replace(/\s+/g," ").trim().slice(0,100)||"Gmail transaction alert";
-  var accountMatch=all.match(/(?:account|a\/c|card)(?:\s+(?:number|ending|no\.?))?\s*[:*x-]*\s*([A-Za-z0-9*Xx-]{4,24})/i),reference=all.match(/(?:UPI\s*(?:ref|reference)|UTR|RRN|txn(?:action)?\s*(?:id|ref)|reference)\s*(?:no\.?|number|id)?\s*[:#-]?\s*([A-Za-z0-9-]{6,40})/i),dateMatch=all.match(/\b(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})\b/),d=new Date(Number(meta.internalDate)||Date.parse(meta.date)||Date.now()),date=dateMatch?financeParseDate(dateMatch[1]):localISO(d),merchant=financeMerchant(description);
-  return {id:uid(),date:date,description:description,merchant:merchant,amount:value,type:kind==="income"?"income":"expense",kind:kind,category:financeCategory(description+" "+all.slice(0,240)),account:accountMatch?"…"+accountMatch[1].replace(/[^A-Za-z0-9]/g,"").slice(-4):(meta.from||"Gmail alert"),reference:reference?reference[1]:"",source:"Gmail: "+meta.subject,createdAt:Date.now(),gmailMessageId:meta.id};
-}
 function financeGmailEmi(text,meta,transaction){
   var all=(meta.subject+" "+text).replace(/\s+/g," ");if(!/\b(emi|instalment|installment|loan repayment)\b/i.test(all))return null;
   var parts=all.match(/(?:instalment|installment|emi)\s*(?:no\.?|number)?\s*(\d{1,3})\s*(?:of|\/|out of)\s*(\d{1,3})/i),remaining=all.match(/(?:remaining|outstanding|balance)\s*(?:amount)?\s*[:\-]?\s*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{1,2})?)/i),due=all.match(/(?:due (?:on|date)|payment date)\s*[:\-]?\s*(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i),lender=String(meta.from||meta.subject||"Loan provider").replace(/<[^>]+>/g,"").replace(/\b(?:noreply|no-reply|alerts?|notification)\b/ig," ").replace(/\s+/g," ").trim().slice(0,60),paid=parts?Number(parts[1]):0,total=parts?Number(parts[2]):0,pending=total?Math.max(0,total-paid):0,completion="";

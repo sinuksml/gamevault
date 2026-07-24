@@ -1,98 +1,7 @@
-﻿"use strict";
-var APP_VERSION = "1.27.0";
+"use strict";
+var APP_VERSION = "1.28.0";
 var APP_BUILD_DATE = "2026-07-24";
 var APP_RELEASE_CHANNEL = "Stable";
-var APP_RELEASE_NOTES = [
-  "Added a modular core runtime for IndexedDB, requests, encryption, diagnostics, cloud merging and stable rendering",
-  "Replaced plaintext cloud credential copies with optional passphrase-encrypted credential synchronization",
-  "Added record-level merge metadata and deletion tombstones to protect concurrent PC and phone edits",
-  "Mirrored the vault and media caches into IndexedDB for larger, non-blocking durable storage",
-  "Added an optional whole-app PIN lock with Face ID or passkey support on compatible devices",
-  "Improved responsive typography, minimum touch targets, focus visibility and Home priority alerts",
-  "Added atomic PWA asset versioning and broader behavioral regression tests",
-  "Added a PIN-encrypted Finance workspace for expenses, statements, loans and EMI tracking",
-  "Added optional iPhone Face ID unlock using a hardware-backed WebAuthn credential",
-  "Added local CSV, TXT and text-based PDF statement parsing with review and duplicate detection",
-  "Reduced the height and width of the 12-month rental spending chart",
-  "Added one-click Paste and Add for copied BiglyBT magnet links",
-  "Added consistent confirmation warnings before user-initiated removals and deletions",
-  "Added per-episode IMDb ratings through the existing OMDb season lookup",
-  "Improved Home with overdue rentals, continue-watching activity and clearer daily priorities",
-  "Redesigned BiglyBT with a stable native download workspace and corrected Native/Web UI switching",
-  "Added counted torrent filters, sorting, state-aware actions, expandable file details and speed-limit controls",
-  "Added silent keyed progress updates, fixed notifications, offline and idle states, and safer removal confirmations",
-  "Upgraded BiglyBT history with search, outcome and date filters, totals and CSV export",
-  "Aligned title actions and upgraded game detail information",
-  "Made title detail buttons wrap into visible rows instead of requiring sideways scrolling",
-  "Polished PC and iPhone contrast, tap targets, focus states and light-mode surfaces",
-  "Redesigned Android TV as a cinematic command center without changing phone or desktop",
-  "Added an immersive featured title, continuation summary and wider TV shelves",
-  "Introduced a compact expanding TV navigation rail and clearer Downloads and Settings labels",
-  "Reworked TV title details for a more cinematic ten-foot presentation",
-  "Kept RAWG, TMDB and OMDb keys on each device and out of cloud backups",
-  "Made health-record cloud sync explicit opt-in with local data preservation",
-  "Removed personal lab values from the public application source",
-  "Added native sharing, improved page metadata and automated quality checks",
-  "Restored approval-based service-worker updates before a new version activates",
-  "Updated iPhone navigation with Plex and BiglyBT on the bottom bar and Health inside Library",
-  "Fixed iPhone updates being held on an older versioned app file by the service-worker cache",
-  "Made online launches check the current GameVault shell before using the offline copy",
-  "Made cover artwork mandatory with automatic TMDB recovery and a visible branded fallback",
-  "Curated Malayalam, Tamil and Hindi tabs to premium or highly rated scripted TV series only",
-  "Removed films, serials and YouTube programmes from regional TV series results",
-  "Made cached game, movie and TV title lists open instantly while updates run silently",
-  "Added filter-specific media caches, early idle refresh and stale-request protection",
-  "Reduced TMDB and OMDb wait time with controlled parallel metadata enrichment",
-  "Synced Plex playback progress into Movie and TV Watching and Watched lists",
-  "Added a Drive-synced BiglyBT completion and removal history report",
-  "Added Google Drive storage usage for GameVault backup and recovery files",
-  "Added optional BiglyBT auto-removal for completed torrents while always preserving downloaded files",
-  "Added full Plex movie and TV show details with the existing media actions",
-  "Enabled guarded permanent Plex deletion for watched, partially watched and unwatched media",
-  "Added a private PC and mobile Health section based on the July 2026 lab report",
-  "Added weekly food, activity, sleep, hydration and follow-up lab tracking",
-  "Moved the TV login QR into a fully visible fixed overlay",
-  "Fixed the TV OAuth Save button being pushed beyond the right edge",
-  "Added remote-friendly one-time TV OAuth setup before Google Drive QR login",
-  "Restored phone QR login for Google Drive inside the TV System page",
-  "Replaced the Shield layout with a dedicated view-only TV interface",
-  "Added YouTube-style navigation, horizontal shelves and cinematic title details",
-  "Removed editing, search, backup and advanced settings from the normal TV experience",
-  "Added deterministic rail, shelf and card navigation for the NVIDIA Shield remote",
-  "Rebuilt Android TV focus navigation for predictable one-step D-pad movement",
-  "Made all TV menus, settings groups, dropdowns, dialogs and detail actions reachable",
-  "Removed TV focus jumps caused by page recentering and card scaling",
-  "Added dedicated English, Malayalam, Tamil and Hindi TV show tabs",
-  "Improved 1080p and 2K layouts with sharper wide-screen artwork",
-  "Fixed desktop navigation and detail-toolbar alignment",
-  "Added one-click Watchlist, Watching and Watched actions with Undo",
-  "Redesigned title cards, full-page details and desktop Library utilities",
-  "Improved Windows alignment, sorting, status visibility and light-mode contrast",
-  "Added a Windows laptop workspace with compact navigation and wider 16:9 layouts",
-  "Added Ctrl+K search, keyboard shortcuts and persistent desktop navigation preferences",
-  "Moved desktop Settings and quick actions into non-disruptive overlay panels",
-  "Improved Windows density, contrast, focus visibility and sync status feedback",
-  "Redesigned Android TV with a dedicated navigation rail and 10-foot layout",
-  "Added stable per-screen focus memory, overlay focus traps and remote-safe text editing",
-  "Added cinematic TV details, compact status rows and fixed-position notifications",
-  "Upgraded the Shield launcher lifecycle, offline recovery and external-page return controls",
-  "Redesigned the iPhone interface with a native-style bottom navigation bar",
-  "Added compact phone headers, centered subsection tabs and full-screen Settings",
-  "Improved mobile touch targets, detail pages, menus and safe-area spacing",
-  "Locked accidental pinch and gesture zoom on iPhone while preserving scrolling",
-  "Optimized portrait and landscape layouts for iPhone 17 Pro",
-  "Fixed clipped text, top controls, forms and action buttons on iPhone",
-  "Added Dynamic Island and home-indicator safe-area support",
-  "Version badge is always visible in the top bar",
-  "Coming Soon now includes major U.S. theatrical releases in every language",
-  "Exact U.S. theatrical dates replace global or festival dates",
-  "Original language is shown for non-English upcoming movies",
-  "Clearer Games, Movies, TV Shows, Plex Library and BiglyBT navigation",
-  "TV Watching, New Episodes, Upcoming and unified Discover tabs",
-  "Plex Home, Continue Watching and Recently Added views",
-  "Combined current and upcoming Malayalam OTT releases",
-  "BiglyBT Active, Queued, Completed, Seeding and All filters"
-];
 
 if(/iPhone|iPad|iPod/i.test(navigator.userAgent)){
   ["gesturestart","gesturechange","gestureend"].forEach(function(type){
@@ -106,36 +15,14 @@ function applyAppVersion(){
   document.documentElement.setAttribute("data-app-version",APP_VERSION);
 }
 applyAppVersion();
-var TV_MODE = new URLSearchParams(location.search).get("tv")==="1";
-if(TV_MODE) document.documentElement.classList.add("tv");
-var TV_ZOOM_KEY="gamevault-tv-zoom";
-function tvZoomValue(){
-  try{ return Math.min(1.15, Math.max(0.70, Number(localStorage.getItem(TV_ZOOM_KEY))||0.90)); }catch(e){ return 0.90; }
-}
-function applyTvZoom(){
-  if(!TV_MODE) return;
-  var z=tvZoomValue();
-  document.documentElement.style.setProperty("--tv-zoom", String(z));
-  document.documentElement.style.setProperty("--tv-zoom-size", (100/z).toFixed(3)+"%");
-  var btn=document.getElementById("tvZoomResetBtn");
-  if(btn) btn.textContent=Math.round(z*100)+"%";
-  var settingsBtn=document.getElementById("tvSettingsZoomResetBtn");
-  if(settingsBtn) settingsBtn.textContent=Math.round(z*100)+"%";
-}
-function setTvZoom(v){
-  v=Math.min(1.15, Math.max(0.70, Math.round(v*100)/100));
-  try{ localStorage.setItem(TV_ZOOM_KEY,String(v)); }catch(e){}
-  applyTvZoom();
-  if(typeof flash==="function") flash("TV zoom "+Math.round(v*100)+"%");
-}
-applyTvZoom();
+/* The Android TV experience now lives in the native Shield app. */
 var DENSITY_KEY="gamevault-density";
 var uiDensity="comfortable";
 try{ uiDensity=localStorage.getItem(DENSITY_KEY)||"comfortable"; }catch(e){}
-function applyDensity(){ document.documentElement.classList.toggle("density-compact",uiDensity==="compact"&&!TV_MODE); }
+function applyDensity(){ document.documentElement.classList.toggle("density-compact",uiDensity==="compact"); }
 applyDensity();
 var DESKTOP_RAIL_KEY="gamevault-desktop-rail-collapsed";
-function desktopMode(){ return !TV_MODE && window.matchMedia && window.matchMedia("(min-width:900px)").matches; }
+function desktopMode(){ return window.matchMedia && window.matchMedia("(min-width:900px)").matches; }
 function desktopRailCollapsed(){ try{return localStorage.getItem(DESKTOP_RAIL_KEY)==="1";}catch(e){return false;} }
 function applyDesktopShell(){
   var desktop=desktopMode(),collapsed=desktop&&desktopRailCollapsed();
@@ -196,21 +83,8 @@ function norm(s){
 function urgency(left){ return left<=0 ? "#8B96AC" : left<=3 ? "#F05A5A" : left<=10 ? "#F2B84B" : "#2D7FF9"; }
 function scoreColor(s){ return !s ? "#8B96AC" : s>=90 ? "#3ECF8E" : s>=84 ? "#2D7FF9" : "#F2B84B"; }
 
-/* ---------- built-in seeds (work fully offline) ---------- */
-var SEED_UPCOMING = [
-  {name:"Marvel Tōkon: Fighting Souls", date:"2026-08-06", note:"Marvel tag-team fighter from Arc System Works"},
-  {name:"Metal Gear Solid: Master Collection Vol. 2", date:"2026-08-27", note:"MGS3/4-era classics collection"},
-  {name:"Resonance: A Plague Tale Legacy", date:"2026-08-27", note:"New chapter in the Plague Tale saga"},
-  {name:"Star Wars: Zero Company", date:"2026-08-27", note:"Turn-based tactics set in the Clone Wars era"},
-  {name:"Phantom Blade Zero", date:"2026-09-09", note:"Kung-fu punk action, 30–40 hr campaign"},
-  {name:"Marvel's Wolverine", date:"2026-09-15", note:"Insomniac's PS5 exclusive — brutal claw combat", want:true},
-  {name:"Castlevania: Belmont's Curse", date:"2026-10-15", note:"New mainline Castlevania"},
-  {name:"Grand Theft Auto VI", date:"2026-11-19", note:"Rockstar. Leonida. Lucia & Jason. The big one.", want:true},
-  {name:"Assassin's Creed Black Flag Resynced", date:null, note:"Black Flag remake — 2026, date TBC"},
-  {name:"The Blood of the Dawnwalker", date:null, note:"Dark-fantasy vampire RPG, ex-Witcher devs — 2026"},
-  {name:"Onimusha: Way of the Sword", date:null, note:"Capcom's samurai revival — 2026"},
-  {name:"Control Resonant", date:null, note:"Remedy's Control follow-up — 2026"}
-].map(function(g){ return {id:uid(), name:g.name, date:g.date, note:g.note, want:!!g.want, src:"seed"}; });
+/* Upcoming releases come from RAWG. Avoid shipping dated entries that become stale. */
+var SEED_UPCOMING = [];
 
 /* Curated released PS5 AAA catalog for suggestions (2020 – mid 2026) */
 var BUILTIN_CATALOG = [
@@ -589,128 +463,6 @@ function secureConfigAutoUnlock(){
   if(!pass||!data.secureConfig||!data.secureConfig.cipher||!window.GameVaultCore)return;
   GameVaultCore.crypto.open(data.secureConfig,pass).then(applySecureConfigPayload).catch(function(){});
 }
-var APP_LOCK_CONFIG_KEY="gamevault-app-lock-v1";
-var APP_LOCK_SESSION_KEY="gamevault-app-unlocked-v1";
-var appLockHiddenAt=0;
-function appLockConfig(){
-  try{return JSON.parse(localStorage.getItem(APP_LOCK_CONFIG_KEY)||"null")||null;}catch(e){return null;}
-}
-function appLockSaveConfig(config){
-  try{localStorage.setItem(APP_LOCK_CONFIG_KEY,JSON.stringify(config));}catch(e){}
-}
-function appLockSetMessage(message,error){
-  var overlay=document.getElementById("appLockMessage"),settings=document.getElementById("appLockStatus");
-  [overlay,settings].forEach(function(el){if(el){el.textContent=message||"";el.style.color=error?"var(--danger)":"var(--success)";}});
-}
-function appLockSessionUnlocked(){
-  try{return sessionStorage.getItem(APP_LOCK_SESSION_KEY)==="1";}catch(e){return false;}
-}
-function appLockSetSession(value){
-  try{if(value)sessionStorage.setItem(APP_LOCK_SESSION_KEY,"1");else sessionStorage.removeItem(APP_LOCK_SESSION_KEY);}catch(e){}
-}
-function appLockShow(){
-  if(TV_MODE)return;
-  var config=appLockConfig(),overlay=document.getElementById("appLockOverlay");
-  if(!config||!config.pin||!overlay)return;
-  appLockSetSession(false);
-  overlay.hidden=false;
-  document.body.classList.add("app-locked");
-  var app=document.querySelector(".wrap");if(app)app.inert=true;
-  var biometric=document.getElementById("appLockBiometricBtn");
-  if(biometric)biometric.hidden=!(config.credentialId&&window.PublicKeyCredential);
-  var pin=document.getElementById("appLockPin");
-  if(pin){pin.value="";setTimeout(function(){pin.focus();},30);}
-  appLockSetMessage("");
-}
-function appLockHide(){
-  var overlay=document.getElementById("appLockOverlay");
-  if(overlay)overlay.hidden=true;
-  document.body.classList.remove("app-locked");
-  var app=document.querySelector(".wrap");if(app)app.inert=false;
-  appLockSetSession(true);
-  appLockSetMessage("");
-}
-function appLockUnlockPin(){
-  var config=appLockConfig(),input=document.getElementById("appLockPin");
-  if(!config||!config.pin||!window.GameVaultCore)return;
-  appLockSetMessage("Checking PIN…");
-  GameVaultCore.crypto.verifyPin(input&&input.value||"",config.pin).then(function(ok){
-    if(ok){appLockHide();return;}
-    if(input){input.value="";input.focus();}
-    appLockSetMessage("Incorrect PIN.",true);
-  });
-}
-function appLockEnable(){
-  if(!window.GameVaultCore)return;
-  var input=document.getElementById("appLockPinSetup"),pin=input&&input.value||"";
-  var minutes=Math.max(1,Number((document.getElementById("appLockMinutes")||{}).value)||5);
-  appLockSetMessage("Securing this browser…");
-  GameVaultCore.crypto.pinVerifier(pin).then(function(verifier){
-    var existing=appLockConfig()||{};
-    appLockSaveConfig({version:1,pin:verifier,minutes:minutes,credentialId:existing.credentialId||"",createdAt:existing.createdAt||Date.now(),updatedAt:Date.now()});
-    if(input)input.value="";
-    appLockSetSession(true);
-    appLockSetMessage("App lock enabled. GameVault locks after "+minutes+" minute"+(minutes===1?"":"s")+" away.");
-    flash("App lock enabled on this browser");
-  }).catch(function(error){appLockSetMessage(error.message,true);});
-}
-function appLockBytes(value){
-  var bytes=new Uint8Array(value);return GameVaultCore.crypto.bytesToB64(bytes);
-}
-function appLockCredentialBytes(value){
-  return GameVaultCore.crypto.b64ToBytes(value);
-}
-function appLockRegisterBiometric(){
-  var config=appLockConfig();
-  if(!config||!config.pin){appLockSetMessage("Enable the PIN lock first.",true);return;}
-  if(!window.PublicKeyCredential||!navigator.credentials){appLockSetMessage("Face ID / passkeys are not available in this browser.",true);return;}
-  var userId=GameVaultCore.crypto.randomBytes(24),challenge=GameVaultCore.crypto.randomBytes(32);
-  appLockSetMessage("Follow the Face ID / passkey prompt…");
-  navigator.credentials.create({publicKey:{
-    challenge:challenge,
-    rp:{name:"Sinu Game Vault"},
-    user:{id:userId,name:"gamevault-owner",displayName:"GameVault owner"},
-    pubKeyCredParams:[{type:"public-key",alg:-7},{type:"public-key",alg:-257}],
-    authenticatorSelection:{residentKey:"preferred",userVerification:"required"},
-    timeout:60000,
-    attestation:"none"
-  }}).then(function(credential){
-    config.credentialId=appLockBytes(credential.rawId);
-    config.updatedAt=Date.now();
-    appLockSaveConfig(config);
-    appLockSetMessage("Face ID / passkey unlock is enabled on this device.");
-    flash("Face ID / passkey enabled");
-  }).catch(function(error){if(error&&error.name!=="NotAllowedError")reportError("app-lock-register",error);appLockSetMessage("Face ID / passkey setup was cancelled or unavailable.",true);});
-}
-function appLockBiometric(){
-  var config=appLockConfig();
-  if(!config||!config.credentialId||!navigator.credentials)return;
-  appLockSetMessage("Waiting for Face ID / passkey…");
-  navigator.credentials.get({publicKey:{
-    challenge:GameVaultCore.crypto.randomBytes(32),
-    allowCredentials:[{type:"public-key",id:appLockCredentialBytes(config.credentialId)}],
-    userVerification:"required",
-    timeout:60000
-  }}).then(function(){appLockHide();}).catch(function(error){if(error&&error.name!=="NotAllowedError")reportError("app-lock-unlock",error);appLockSetMessage("Face ID / passkey did not unlock GameVault.",true);});
-}
-function appLockDisable(){
-  try{localStorage.removeItem(APP_LOCK_CONFIG_KEY);}catch(e){}
-  appLockSetSession(true);
-  appLockHide();
-  appLockSetMessage("App lock is disabled on this browser.");
-  flash("App lock disabled");
-}
-function appLockRefreshStatus(){
-  var config=appLockConfig(),el=document.getElementById("appLockStatus");
-  if(!el)return;
-  el.textContent=config&&config.pin?"Enabled · locks after "+(config.minutes||5)+" min"+(config.credentialId?" · Face ID / passkey ready":""):"Not enabled on this browser.";
-  el.style.color=config&&config.pin?"var(--success)":"";
-}
-function appLockInitialCheck(){
-  var config=appLockConfig();
-  appLockRefreshStatus();
-  if(config&&config.pin&&!appLockSessionUnlocked())appLockShow();
-}
 function nativeTvCatalogSnapshot(){
   function snapshot(cache,keys){
     var out={};
@@ -764,8 +516,8 @@ function persistSilent(){
 }
 
 /* ---------- device-local API keys (RAWG / TMDB / OMDb) ----------
-   API keys stay in localStorage and are excluded from Drive, JSONBin and
-   portable backups. Legacy cloud backups may still contain data.keys; the
+   API keys stay in localStorage and are excluded from Drive and portable
+   backups. Legacy backups may still contain data.keys; the
    helpers below import those values once on the current device, then scrub
    them from the next cloud upload. */
 var SYNCED_KEYS={rawg:KEY_STORE, tmdb:"ps5-tmdb-key", omdb:"ps5-omdb-key"};
@@ -857,61 +609,8 @@ function rawgFetch(url){
   });
 }
 
-/* ---------- cloud sync (JSONBin) ---------- */
-var JB_KEY_STORE="ps5-jsonbin-key", JB_BIN_STORE="ps5-jsonbin-bin";
-function getJB(){
-  try { return { key:localStorage.getItem(JB_KEY_STORE)||"", bin:localStorage.getItem(JB_BIN_STORE)||"" }; }
-  catch(e){ return {key:"",bin:""}; }
-}
-function jbPushCloud(){
-  var jb=getJB();
-  if(!jb.key){ flash("Set up cloud sync in Settings first"); toggleSettings(true); return; }
-  if(busy) return; busy=true;
-  var isNew=!jb.bin;
-  var url=isNew?"https://api.jsonbin.io/v3/b":"https://api.jsonbin.io/v3/b/"+jb.bin;
-  var headers={ "Content-Type":"application/json", "X-Master-Key":jb.key };
-  if(isNew){ headers["X-Bin-Private"]="true"; headers["X-Bin-Name"]="game-vault"; }
-  fetchWithPolicy(url,{ method:isNew?"POST":"PUT", headers:headers, body:cloudVaultJson() },{scope:"jsonbin:push",timeout:20000,retries:0})
-  .then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return res.json(); })
-  .then(function(json){
-    if(isNew && json.metadata && json.metadata.id){
-      try{ localStorage.setItem(JB_BIN_STORE,json.metadata.id); }catch(e){}
-    }
-    busy=false;
-    lastSyncedAt=data.updatedAt;
-    setSyncStatus("Synced just now");
-    var bin=getJB().bin;
-    flash("Pushed to cloud"+(isNew&&bin?(" — Bin ID saved: "+bin+" (see Settings)"):""));
-    toggleSettings(false);
-  })
-  .catch(function(err){ busy=false; flash("Push failed — check internet and Master Key"); });
-}
-function jbPullCloud(confirmed){
-  var jb=getJB();
-  if(!jb.key||!jb.bin){ flash("Enter Master Key and Bin ID in Settings first"); toggleSettings(true); return; }
-  if(busy) return;
-  if(!confirmed){
-    if(TV_MODE||phoneUi()){tvConfirm("Replace the data on this device with the JSONBin cloud copy?","Replace local data",function(){jbPullCloud(true);});return;}
-    if(!confirm("Replace the data on THIS device with the cloud copy?")) return;
-  }
-  busy=true;
-  fetchWithPolicy("https://api.jsonbin.io/v3/b/"+jb.bin+"/latest",{ headers:{ "X-Master-Key":jb.key } },{scope:"jsonbin:pull",timeout:16000,retries:1})
-  .then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return res.json(); })
-  .then(function(json){
-    var d=json.record;
-    if(d&&d.rentals&&d.upcoming&&d.played){
-      var scrub=cloudNeedsPrivacyScrub(d);
-      adoptVault(d,"JSONBin manual pull",{preserveLocalHealth:!healthCloudSyncEnabled()}); busy=false; lastSyncedAt=data.updatedAt; render();
-      if(scrub)persist();
-      flash("Pulled from cloud - this device is up to date");
-    } else { busy=false; flash("Cloud data doesn't look like a Game Vault backup"); }
-  })
-  .catch(function(err){ busy=false; flash("Pull failed — check internet, Master Key and Bin ID"); });
-}
-
 /* ---------- automatic sync engine ---------- */
-/* Every device that has the same Master Key + Bin ID stays in step without
-   any button presses: the newest updatedAt timestamp always wins. */
+/* Every signed-in device converges on the same Drive backup automatically. */
 var lastSyncedAt = 0;
 var autoPushTimer = null;
 function setSyncStatus(s){
@@ -974,54 +673,6 @@ function mergeAutomaticCloud(incoming,reason){
   }
   return {changedLocal:changedLocal,needsPush:needsPush};
 }
-function jbSilentPush(keepalive){
-  var jb=getJB();
-  if(!jb.key) return;
-  var isNew=!jb.bin;
-  var url=isNew?"https://api.jsonbin.io/v3/b":"https://api.jsonbin.io/v3/b/"+jb.bin;
-  var headers={ "Content-Type":"application/json", "X-Master-Key":jb.key };
-  if(isNew){ headers["X-Bin-Private"]="true"; headers["X-Bin-Name"]="game-vault"; }
-  var snapshot=cloudVaultJson();
-  fetchWithPolicy(url,{ method:isNew?"POST":"PUT", headers:headers, body:snapshot, keepalive:!!keepalive },{scope:"jsonbin:auto-push",timeout:20000,retries:0})
-  .then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return res.json(); })
-  .then(function(json){
-    if(isNew && json.metadata && json.metadata.id){
-      try{ localStorage.setItem(JB_BIN_STORE,json.metadata.id); }catch(e){}
-      flash("Cloud sync connected — Bin ID saved automatically");
-    }
-    lastSyncedAt=data.updatedAt;
-    setSyncStatus("Synced just now");
-  })
-  .catch(function(){ setSyncStatus("Sync failed — will retry on next change"); });
-}
-function jbSilentPullOnLoad(){
-  var jb=getJB();
-  if(!jb.key||!jb.bin) return;
-  setSyncStatus("Checking for updates…");
-  fetchWithPolicy("https://api.jsonbin.io/v3/b/"+jb.bin+"/latest",{ headers:{ "X-Master-Key":jb.key } },{scope:"jsonbin:auto-pull",timeout:16000,retries:1})
-  .then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return res.json(); })
-  .then(function(json){
-    var d=json.record;
-    cloudChecked=true;
-    if(!d||!d.rentals||!d.upcoming||!d.played){ setSyncStatus(""); return; }
-    var cloudTime=d.updatedAt||0, localTime=data.updatedAt||0,privacyScrub=cloudNeedsPrivacyScrub(d);
-    var different=cloudTime!==localTime||(window.GameVaultCore&&GameVaultCore.stable(prepareCloudVault(d))!==GameVaultCore.stable(data));
-    if(different || (vaultSize(data)===0 && vaultSize(d)>0)){
-      var mergeResult=mergeAutomaticCloud(d,"JSONBin automatic merge");
-      lastSyncedAt=data.updatedAt;
-      if(mergeResult.changedLocal){render();setSyncStatus("Merged updates from your other device");flash("Merged newer data from your other device");setTimeout(backfillImages,800);}
-      if(mergeResult.needsPush||privacyScrub)persist();else setSyncStatus("Up to date");
-    } else if(privacyScrub){
-      lastSyncedAt=cloudTime;
-      persist();
-    } else {
-      lastSyncedAt=cloudTime;
-      setSyncStatus("Up to date");
-    }
-  })
-  .catch(function(){ setSyncStatus(""); });
-}
-
 /* ---------- Google Drive sync (primary) ----------
    Browser-only OAuth via Google Identity Services (loaded from CDN in <head>).
    The whole vault lives as one JSON file (SinuGameVault.json) created by this
@@ -1030,22 +681,19 @@ function jbSilentPullOnLoad(){
    loses nothing. */
 var GD_CLIENT_STORE="ps5-gd-client", GD_TOKEN_STORE="ps5-gd-token", GD_FILE_STORE="ps5-gd-file";
 var GD_HISTORY_STORE="ps5-gd-history-at", GD_HISTORY_PREFIX="game-vault-history-";
-var GD_TV_CLIENT_STORE="ps5-gd-tv-client", GD_TV_SECRET_STORE="ps5-gd-tv-secret";
 var GD_FILENAME="game-vault-backup.json";
 var GD_SCOPE="https://www.googleapis.com/auth/drive.file";
-var gdTokenClient=null, gdRefreshing=false, gdTvPollTimer=null, gdStoredBytes=0, gdStoredFiles=0;
+var gdTokenClient=null, gdRefreshing=false, gdStoredBytes=0, gdStoredFiles=0;
 /* Baked-in Google OAuth Client ID (public by design — its security is the
    Authorized JavaScript origins list, not secrecy). Lets a fresh/wiped device
    connect Drive and pull everything back with no manual entry. A value saved
    in Settings still overrides it. */
 var GD_CLIENT_DEFAULT="898110284062-76km1uptkth506kgaecoafohu15js0rh.apps.googleusercontent.com";
 function gdClientId(){ try{ return localStorage.getItem(GD_CLIENT_STORE)||GD_CLIENT_DEFAULT; }catch(e){ return GD_CLIENT_DEFAULT; } }
-function gdTvClientId(){ try{ return localStorage.getItem(GD_TV_CLIENT_STORE)||""; }catch(e){ return ""; } }
-function gdTvSecret(){ try{ return localStorage.getItem(GD_TV_SECRET_STORE)||""; }catch(e){ return ""; } }
 function gdTok(){ try{ return JSON.parse(localStorage.getItem(GD_TOKEN_STORE)||"null"); }catch(e){ return null; } }
 function gdSaveTok(t){ try{ if(t) localStorage.setItem(GD_TOKEN_STORE,JSON.stringify(t)); else localStorage.removeItem(GD_TOKEN_STORE); }catch(e){} }
 function gdConnected(){ return !!(gdClientId() && gdTok()); }
-function cloudMode(){ return gdConnected() ? "drive" : (getJB().key ? "jsonbin" : ""); }
+function cloudMode(){ return gdConnected() ? "drive" : ""; }
 
 var gdLibPromise=null;
 function gdOauthReady(){
@@ -1082,24 +730,6 @@ function gdLoadGoogleIdentity(){
   });
   return gdLibPromise;
 }
-function gdRefreshFromDeviceToken(t){
-  if(!t || !t.refresh_token || !gdTvClientId()) return Promise.reject(new Error("No TV refresh token"));
-  var body=new URLSearchParams();
-  body.set("client_id",gdTvClientId());
-  if(gdTvSecret()) body.set("client_secret",gdTvSecret());
-  body.set("refresh_token",t.refresh_token);
-  body.set("grant_type","refresh_token");
-  return fetchWithPolicy("https://oauth2.googleapis.com/token",{
-    method:"POST",
-    headers:{"Content-Type":"application/x-www-form-urlencoded"},
-    body:body.toString()
-  },{scope:"drive:token-refresh",timeout:16000,retries:0}).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error_description||j.error||("Drive token refresh failed "+r.status)); return j; }); })
-  .then(function(j){
-    var nt={access_token:j.access_token, exp:Date.now()+(Number(j.expires_in)||3600)*1000, refresh_token:t.refresh_token, tv:true};
-    gdSaveTok(nt); gdSetStatus();
-    return nt.access_token;
-  });
-}
 function gdEnsureClient(){
   if(gdTokenClient) return gdTokenClient;
   var cid=gdClientId();
@@ -1110,7 +740,6 @@ function gdEnsureClient(){
 function gdToken(){
   var t=gdTok();
   if(t && t.access_token && Date.now()<(t.exp||0)-60000) return Promise.resolve(t.access_token);
-  if(t && t.refresh_token && gdTvClientId()) return gdRefreshFromDeviceToken(t);
   if(!gdClientId()) return Promise.reject(new Error("No Client ID saved"));
   return gdLoadGoogleIdentity().then(function(){
     var readyClient=gdEnsureClient();
@@ -1237,103 +866,7 @@ function gdSignOut(){
   gdSaveTok(null);
   try{ localStorage.removeItem(GD_FILE_STORE); }catch(e){}
   gdSetStatus(); setSyncStatus("");
-  flash("Google Drive disconnected"+(getJB().key?" — JSONBin fallback is active":""));
-}
-function gdTvSetStatus(msg){
-  var el=document.getElementById("gdTvStatus");
-  if(el) el.textContent=msg||"";
-  var tvEl=document.getElementById("tvGdStatus");
-  if(tvEl) tvEl.textContent=msg||"";
-}
-function gdTvStop(){
-  if(gdTvPollTimer){ clearTimeout(gdTvPollTimer); gdTvPollTimer=null; }
-  var cancel=document.getElementById("gdTvCancelBtn");
-  if(cancel) cancel.style.display="none";
-  var tvCancel=document.getElementById("tvGdCancelBtn");
-  if(tvCancel) tvCancel.style.display="none";
-}
-function gdTvQrUrl(url){
-  return "https://quickchart.io/qr?size=280&text="+encodeURIComponent(url);
-}
-function gdTvRenderCode(info){
-  var box=document.getElementById("gdTvBox");
-  var url=info.verification_url_complete||info.verification_uri_complete||info.verification_url||info.verification_uri;
-  var base=info.verification_url||info.verification_uri||"https://www.google.com/device";
-  var markup=
-    '<b style="color:var(--text)">Scan with your phone</b>'+
-    '<img src="'+gdTvQrUrl(url)+'" alt="Google TV login QR">'+
-    '<div class="meta">If the QR does not open, go to <a href="'+esc(base)+'" target="_blank" rel="noopener">'+esc(base)+'</a> and enter:</div>'+
-    '<div class="tv-code">'+esc(info.user_code||"")+'</div>'+
-    '<div class="meta">Waiting for approval on your phone...</div>';
-  if(box){ box.style.display="block"; box.innerHTML=markup; }
-  var tvBox=document.getElementById("tvGdQrBox");
-  if(tvBox){
-    tvBox.style.display="grid";
-    tvBox.innerHTML='<div class="tv-qr-head"><b>Scan with your phone</b><button type="button" data-tv-system="drive-cancel" data-tv-key="qr:cancel" aria-label="Cancel QR login">×</button></div><img src="'+gdTvQrUrl(url)+'" alt="Google TV login QR"><div class="tv-qr-copy"><div class="meta">Open <b>'+esc(base)+'</b> on your phone if scanning does not work, then enter:</div><div class="tv-code">'+esc(info.user_code||"")+'</div><div class="meta">Waiting for approval on your phone...</div></div>';
-    setTimeout(function(){var close=tvBox.querySelector("button");if(close)tvFocusShell(close);},0);
-  }
-}
-function gdTvPoll(deviceCode, interval, expiresAt){
-  if(Date.now()>expiresAt){ gdTvStop(); gdTvSetStatus("QR login expired - start again."); return; }
-  var body=new URLSearchParams();
-  body.set("client_id",gdTvClientId());
-  if(gdTvSecret()) body.set("client_secret",gdTvSecret());
-  body.set("device_code",deviceCode);
-  body.set("grant_type","urn:ietf:params:oauth:grant-type:device_code");
-  fetchWithPolicy("https://oauth2.googleapis.com/token",{
-    method:"POST",
-    headers:{"Content-Type":"application/x-www-form-urlencoded"},
-    body:body.toString()
-  },{scope:"drive:tv-token",timeout:16000,retries:0}).then(function(r){ return r.json().then(function(j){ j._ok=r.ok; return j; }); })
-  .then(function(j){
-    if(j._ok && j.access_token){
-      gdTvStop();
-      gdSaveTok({access_token:j.access_token, exp:Date.now()+(Number(j.expires_in)||3600)*1000, refresh_token:j.refresh_token||"", tv:true});
-      gdSetStatus(); gdTvSetStatus("Connected - pulling Drive backup...");
-      var box=document.getElementById("gdTvBox"); if(box) box.style.display="none";
-      var tvBox=document.getElementById("tvGdQrBox"); if(tvBox) tvBox.style.display="none";
-      flash("Google Drive connected on TV");
-      silentPullOnLoad();
-      if(TV_MODE&&tvSection==="system")setTimeout(function(){renderTvApp("system:sync");},250);
-      return;
-    }
-    if(j.error==="authorization_pending"){
-      gdTvPollTimer=setTimeout(function(){ gdTvPoll(deviceCode, interval, expiresAt); }, interval*1000);
-      return;
-    }
-    if(j.error==="slow_down"){
-      gdTvPollTimer=setTimeout(function(){ gdTvPoll(deviceCode, interval+5, expiresAt); }, (interval+5)*1000);
-      return;
-    }
-    gdTvStop();
-    gdTvSetStatus(j.error_description||j.error||"QR login failed");
-  }).catch(function(e){
-    gdTvStop();
-    gdTvSetStatus("QR login failed: "+e.message);
-  });
-}
-function gdTvStart(){
-  gdTvStop();
-  var cid=gdTvClientId();
-  if(!cid){ gdTvSetStatus("Save the TV OAuth Client ID first."); return; }
-  gdTvSetStatus("Creating QR login...");
-  var body=new URLSearchParams();
-  body.set("client_id",cid);
-  body.set("scope",GD_SCOPE);
-  fetchWithPolicy("https://oauth2.googleapis.com/device/code",{
-    method:"POST",
-    headers:{"Content-Type":"application/x-www-form-urlencoded"},
-    body:body.toString()
-  },{scope:"drive:tv-device-code",timeout:16000,retries:0}).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error_description||j.error||("Device login failed "+r.status)); return j; }); })
-  .then(function(info){
-    gdTvRenderCode(info);
-    gdTvSetStatus("Scan the QR with your phone.");
-    var cancel=document.getElementById("gdTvCancelBtn"); if(cancel) cancel.style.display="";
-    var tvCancel=document.getElementById("tvGdCancelBtn"); if(tvCancel) tvCancel.style.display="";
-    gdTvPoll(info.device_code, Math.max(5,Number(info.interval)||5), Date.now()+(Number(info.expires_in)||1800)*1000);
-  }).catch(function(e){
-    gdTvSetStatus(e.message);
-  });
+  flash("Google Drive disconnected");
 }
 /* while the tab is open and idle, look for changes from the other device */
 setInterval(function(){
@@ -1352,88 +885,43 @@ document.addEventListener("click",function(){
   gdToken().catch(function(){}).then(function(){ gdRefreshing=false; });
 },true);
 
-/* ---------- cloud dispatch: Google Drive primary, JSONBin fallback ---------- */
+/* ---------- Google Drive cloud dispatch ---------- */
 var cloudChecked=false; // true once this session has compared against the cloud copy
 function silentPush(keepalive){
   // never auto-push an empty vault before we've seen what the cloud holds —
   // a cache-wiped device must pull the backup, not overwrite it
   if(vaultSize(data)===0 && !cloudChecked){ silentPullOnLoad(); return; }
-  if(cloudMode()==="drive"){
-    gdUpload(keepalive).then(function(uploadedAt){
-      lastSyncedAt=Math.max(lastSyncedAt,uploadedAt||0);
-      setSyncStatus("Synced to Drive just now");
-      if((data.updatedAt||0)>(uploadedAt||0)) schedulePush();
-    }).catch(function(){ setSyncStatus("Drive sync failed — will retry on next change"); });
-    return;
-  }
-  jbSilentPush(keepalive);
+  if(!gdConnected())return;
+  gdUpload(keepalive).then(function(uploadedAt){
+    lastSyncedAt=Math.max(lastSyncedAt,uploadedAt||0);
+    setSyncStatus("Synced to Drive just now");
+    if((data.updatedAt||0)>(uploadedAt||0)) schedulePush();
+  }).catch(function(){ setSyncStatus("Drive sync failed — will retry on next change"); });
 }
 function silentPullOnLoad(){
-  if(cloudMode()==="drive"){
-    setSyncStatus("Checking Google Drive…");
-    gdDownload().then(function(d){
-      cloudChecked=true;
-      if(!d){ silentPush(); return; } // no backup file yet — seed Drive from this device
-      if(!d.rentals||!d.upcoming||!d.played){ setSyncStatus(""); return; }
-      var cloudTime=d.updatedAt||0, localTime=data.updatedAt||0,privacyScrub=cloudNeedsPrivacyScrub(d);
-      // empty-vault guard: whatever the timestamps say, a device holding no
-      // games must adopt a cloud copy that has them — never the reverse
-      var mustAdopt = vaultSize(data)===0 && vaultSize(d)>0;
-      var different=cloudTime!==localTime||(window.GameVaultCore&&GameVaultCore.stable(prepareCloudVault(d))!==GameVaultCore.stable(data));
-      if(different || mustAdopt){
-        var mergeResult=mergeAutomaticCloud(d,"Google Drive automatic merge"),rkA=reconcileKeys(d);
-        lastSyncedAt=data.updatedAt;
-        if(mergeResult.changedLocal){render();setSyncStatus("Merged updates from Google Drive");flash("Merged newer data from Google Drive");setTimeout(backfillImages,800);}
-        if(mergeResult.needsPush||rkA.push||privacyScrub)persist();else setSyncStatus("Up to date");
-      } else {
-        lastSyncedAt=cloudTime;
-        var rkC=reconcileKeys(d);
-        if(rkC.changed) render();           // a key arrived from the cloud → reflect it
-        if(rkC.push||privacyScrub){ persist(); setSyncStatus("Refreshing private Drive backup"); }
-        else setSyncStatus("Up to date");
-      }
-    }).catch(function(){ setSyncStatus("Drive check failed — tap ↻ to retry"); });
-    return;
-  }
-  jbSilentPullOnLoad();
-}
-function pushCloud(confirmed){
-  if(vaultSize(data)===0&&!confirmed){
-    var emptyWarning="This device's vault is empty. Pushing now would overwrite the cloud backup with nothing. Pull from cloud instead unless this is intentional.";
-    if(TV_MODE||phoneUi()){tvConfirm(emptyWarning,"Push empty vault",function(){pushCloud(true);});return;}
-    if(!confirm(emptyWarning)) return;
-  }
-  if(cloudMode()==="drive"){
-    flash("Uploading to Google Drive…");
-    gdUpload().then(function(uploadedAt){
-      lastSyncedAt=Math.max(lastSyncedAt,uploadedAt||0);
-      setSyncStatus("Synced to Drive just now");
-      flash("Pushed to Google Drive");
-      if((data.updatedAt||0)>(uploadedAt||0)) schedulePush();
-    }).catch(function(e){ flash("Drive push failed — "+e.message); });
-    return;
-  }
-  if(!cloudMode()){ flash("Connect Google Drive (or JSONBin) in Settings first"); toggleSettings(true); return; }
-  jbPushCloud();
-}
-function pullCloud(confirmed){
-  if(cloudMode()==="drive"){
-    if(!confirmed){
-      if(TV_MODE||phoneUi()){tvConfirm("Replace the data on this device with the Google Drive copy?","Replace local data",function(){pullCloud(true);});return;}
-      if(!confirm("Replace the data on THIS device with the Google Drive copy?")) return;
+  if(!gdConnected())return;
+  setSyncStatus("Checking Google Drive…");
+  gdDownload().then(function(d){
+    cloudChecked=true;
+    if(!d){ silentPush(); return; } // no backup file yet — seed Drive from this device
+    if(!d.rentals||!d.upcoming||!d.played){ setSyncStatus(""); return; }
+    var cloudTime=d.updatedAt||0, localTime=data.updatedAt||0,privacyScrub=cloudNeedsPrivacyScrub(d);
+    // A cache-wiped device must adopt a populated cloud copy, never overwrite it.
+    var mustAdopt = vaultSize(data)===0 && vaultSize(d)>0;
+    var different=cloudTime!==localTime||(window.GameVaultCore&&GameVaultCore.stable(prepareCloudVault(d))!==GameVaultCore.stable(data));
+    if(different || mustAdopt){
+      var mergeResult=mergeAutomaticCloud(d,"Google Drive automatic merge"),rkA=reconcileKeys(d);
+      lastSyncedAt=data.updatedAt;
+      if(mergeResult.changedLocal){render();setSyncStatus("Merged updates from Google Drive");flash("Merged newer data from Google Drive");setTimeout(backfillImages,800);}
+      if(mergeResult.needsPush||rkA.push||privacyScrub)persist();else setSyncStatus("Up to date");
+    } else {
+      lastSyncedAt=cloudTime;
+      var rkC=reconcileKeys(d);
+      if(rkC.changed) render();
+      if(rkC.push||privacyScrub){ persist(); setSyncStatus("Refreshing private Drive backup"); }
+      else setSyncStatus("Up to date");
     }
-    gdDownload().then(function(d){
-      if(d && d.rentals && d.upcoming && d.played){
-        var scrub=cloudNeedsPrivacyScrub(d);
-        adoptVault(d,"Google Drive manual pull",{preserveLocalHealth:!healthCloudSyncEnabled()}); lastSyncedAt=data.updatedAt; render();
-        if(scrub)persist();
-        flash("Pulled from Google Drive — this device is up to date");
-      } else flash(d ? "Drive data doesn't look like a Game Vault backup" : "No backup in Drive yet — push first");
-    }).catch(function(e){ flash("Drive pull failed — "+e.message); });
-    return;
-  }
-  if(!cloudMode()){ flash("Connect Google Drive (or JSONBin) in Settings first"); toggleSettings(true); return; }
-  jbPullCloud();
+  }).catch(function(){ setSyncStatus("Drive check failed — tap ↻ to retry"); });
 }
 
 /* ---------- RAWG live updates ---------- */
@@ -1865,13 +1353,13 @@ function nextBigGame(){
 function tmdbBackdropUrl(url){
   url=String(url||"");
   if(!url) return "";
-  if(/image\.tmdb\.org\/t\/p\//.test(url)) return url.replace(/\/t\/p\/(?:w\d+|original)\//,"/t/p/"+((TV_MODE||window.innerWidth>=900)?"original":"w1280")+"/");
+  if(/image\.tmdb\.org\/t\/p\//.test(url)) return url.replace(/\/t\/p\/(?:w\d+|original)\//,"/t/p/"+(window.innerWidth>=900?"original":"w1280")+"/");
   return url;
 }
 function mediaBgUrl(x){
   if(!x) return "";
   if(x.backdrop) return tmdbBackdropUrl(x.backdrop);
-  return (!TV_MODE&&window.innerWidth<900)?(x.poster||""):"";
+  return window.innerWidth<900?(x.poster||""):"";
 }
 function nextBigFilm(){
   var t0=localISO(today()), pool=[];
@@ -2569,48 +2057,10 @@ function renderHome(){
   html+='<div class="home-foot">'+homeGoBtn("Open Finance","finance")+'</div></div>';
 
   html+='</div>';
-  html+=spendChartHtml();
   return html;
 }
 
-/* Monthly spend bar chart (last 12 months) shown at the bottom of Rentals
-   in both grid and list view. Skipped on TV — too small at ten feet. */
-function spendChartHtml(){
-  if(TV_MODE) return "";
-  var mkeys=[], mtot={}, mnow=new Date();
-  for(var mi=11; mi>=0; mi--){
-    var md=new Date(mnow.getFullYear(), mnow.getMonth()-mi, 1);
-    var mk=md.getFullYear()+"-"+String(md.getMonth()+1).padStart(2,"0");
-    mkeys.push(mk); mtot[mk]=0;
-  }
-  var addSpend=function(dateStr,cost){
-    if(!dateStr||!Number(cost)) return;
-    var mk=String(dateStr).slice(0,7);
-    if(mk in mtot) mtot[mk]+=Number(cost)||0;
-  };
-  data.rentals.forEach(function(r){ addSpend(r.start,r.cost); });
-  data.rentalHistory.forEach(function(h){ addSpend(h.start,h.cost); });
-  data.played.forEach(function(p){ addSpend(p.added,p.cost); });
-  var mmax=0; mkeys.forEach(function(k){ if(mtot[k]>mmax) mmax=mtot[k]; });
-  if(!mmax) return "";
-  var CW=560, CH=110, PADB=6, bw=CW/12;
-  var bars=mkeys.map(function(k,ix){
-    var v=mtot[k], bh=Math.round((CH-34)*v/mmax);
-    var x=ix*bw, y=CH-20-bh;
-    var mlabel=new Date(Number(k.slice(0,4)), Number(k.slice(5,7))-1, 1).toLocaleDateString("en-GB",{month:"short"});
-    return '<rect x="'+(x+PADB).toFixed(1)+'" y="'+y+'" width="'+(bw-PADB*2).toFixed(1)+'" height="'+Math.max(bh,(v>0?3:0))+'" rx="4" fill="'+(v>0?"var(--accent)":"var(--inset)")+'" opacity="'+(v>0?"0.9":"0.55")+'"></rect>'+
-      (v>0?'<text x="'+(x+bw/2).toFixed(1)+'" y="'+(y-5)+'" text-anchor="middle" font-size="10" fill="var(--muted)">₹'+(v>=1000?((v/1000).toFixed(1)+"k"):v)+'</text>':'')+
-      '<text x="'+(x+bw/2).toFixed(1)+'" y="'+(CH-6)+'" text-anchor="middle" font-size="10" fill="var(--dim)">'+mlabel+'</text>';
-  }).join("");
-  var mtotal=mkeys.reduce(function(a,k){ return a+mtot[k]; },0);
-  return '<div class="sechead">Spend by month</div><div class="card spend-chart">'+
-    '<svg viewBox="0 0 '+CW+' '+CH+'" role="img" aria-label="Monthly rental spend for the last 12 months" preserveAspectRatio="xMidYMid meet">'+bars+'</svg>'+
-    '<div class="meta" style="margin-top:4px">Last 12 months · rentals, history &amp; library purchases · '+fmtMoney(mtotal)+'</div>'+
-  '</div>';
-}
-
 function renderRentals(){
-  if(TV_MODE) formOpen[tab]=false;
   var t0=today();
   var list=data.rentals.map(function(r){
     var used=daysBetween(parseD(r.start),t0);
@@ -2619,11 +2069,6 @@ function renderRentals(){
     .sort(function(a,b){ return a.start<b.start?1:a.start>b.start?-1:0; }); // latest rented first
 
   var html = toolbar("Add rental","Search rentals & history…");
-  if(TV_MODE){
-    html=html.replace(/<button class="btn[^>]*data-act="toggle-form"[\s\S]*?<\/button>/,"");
-    html+='<div class="syncnote" style="margin:-6px 0 12px">Rental details are view-only on Android TV. Edit rentals on PC or mobile.</div>';
-  }
-
   if(formOpen[tab]){
     html+=
     '<div class="form"><h3>Add a rental</h3><div class="fields">'+
@@ -2663,7 +2108,6 @@ function renderRentals(){
       });
       html+='</div>';
     }
-    html+=spendChartHtml();
     return html;
   }
   html+='<div class="cards">';
@@ -2764,7 +2208,6 @@ function renderRentals(){
     '</div>';
   }
 
-  html+=spendChartHtml();
   return html;
 }
 
@@ -3244,11 +2687,6 @@ function isOwned(name, owned){
 /* Learn taste from Played ratings: loved genres score high, disliked ones sink.
    Higher ratings carry the most weight (5★ ≫ 4★ ≫ neutral 3★ ≫ low). */
 var RATING_INFL={1:-2,2:-1,3:0,4:2,5:4};
-function genreOf(name){
-  var n=norm(name), cat=fullCatalog();
-  for(var i=0;i<cat.length;i++) if(norm(cat[i].name)===n) return cat[i].genre||null;
-  return null;
-}
 function genrePrefs(){
   var pref={}, byName={};
   fullCatalog().forEach(function(g){ byName[norm(g.name)]=g; });
@@ -3490,19 +2928,14 @@ function renderPlayed(){
 
 /* ---------- BiglyBT tab (HTTPS proxy contract) ---------- */
 var BIGLY_PROXY_KEY="gamevault-biglybt-proxy";
-var biglyToken="";
-try{ biglyToken=sessionStorage.getItem("gamevault-biglybt-token")||""; }catch(e){}
-var biglyItems=[], biglyBusy=false, biglyErr="";
+var biglyItems=[];
 function biglyProxyUrl(){
   try{ return (localStorage.getItem(BIGLY_PROXY_KEY)||"").trim().replace(/\/+$/,""); }catch(e){ return ""; }
 }
 function setBiglyProxyUrl(v){
   try{ localStorage.setItem(BIGLY_PROXY_KEY,(v||"").trim().replace(/\/+$/,"")); }catch(e){}
 }
-var BIGLY_MODE_KEY="gamevault-biglybt-mode";
 var BIGLY_NATIVE_TOKEN_KEY="gamevault-biglybt-native-token";
-function biglyMode(){ try{ return localStorage.getItem(BIGLY_MODE_KEY)||"api"; }catch(e){ return "api"; } }
-function setBiglyMode(v){ try{ localStorage.setItem(BIGLY_MODE_KEY, v==="iframe"?"iframe":"api"); }catch(e){} }
 /* device-specific downloads folder link (e.g. Z:\Downloads, \\192.168.0.100\Elements,
    or an http file-browser URL). Differs per device, so kept in localStorage. */
 var BIGLY_FOLDER_KEY="gamevault-biglybt-folder";
@@ -3519,7 +2952,7 @@ function biglyOpenFolder(){
   try{ var w=window.open(loc); if(w){ return; } }catch(e){}
   flash(copied?("Folder path copied — paste it into Explorer / Files ("+loc+")"):("Downloads folder: "+loc));
 }
-function biglyFrameUrl(){ return biglyProxyUrl()+(biglyMode()==="api"?"/__native":""); }
+function biglyFrameUrl(){ return biglyProxyUrl()+"/__native"; }
 function addBiglyHistoryEvent(entry){
   if(!entry||typeof entry!=="object") return;
   var clean={id:String(entry.id||("bigly-"+Date.now()+"-"+Math.random().toString(36).slice(2))),at:Number(entry.at)||Date.now(),name:String(entry.name||"Untitled torrent").slice(0,500),outcome:String(entry.outcome||"Activity recorded").slice(0,200),progress:Math.max(0,Math.min(100,Number(entry.progress)||0)),downloaded:Math.max(0,Number(entry.downloaded)||0),total:Math.max(0,Number(entry.total)||0),filesDeleted:!!entry.filesDeleted,hash:String(entry.hash||"").slice(0,100)};
@@ -3562,126 +2995,8 @@ window.addEventListener("message",function(e){
     updateBiglyHistoryEvent(String(e.data.id), e.data);
   }else if(e.data.type==="gvbt-history-request"){
     e.source.postMessage({type:"gvbt-history-response",items:(data.biglyHistory||[]).slice(0,1000)},origin);
-  }else if(e.data.type==="gvbt-switch-mode" && (e.data.mode==="api"||e.data.mode==="iframe")){
-    setBiglyMode(e.data.mode);
-    render();
   }
 });
-/* Preserve an existing preference. New devices start with the native dashboard,
-   while the original Web UI remains one click away. */
-try{
-  if(!localStorage.getItem("gamevault-biglybt-browser-v1")){
-    localStorage.setItem("gamevault-biglybt-browser-v1","1");
-  }
-}catch(e){}
-function biglyHeaders(){
-  var h={"Content-Type":"application/json"};
-  if(biglyToken) h.Authorization="Bearer "+biglyToken;
-  return h;
-}
-function biglyApi(path, opts){
-  var base=biglyProxyUrl();
-  if(!base) return Promise.reject(new Error("Add your HTTPS BiglyBT proxy URL in Settings first."));
-  if(location.protocol==="https:" && /^http:\/\//i.test(base)){
-    return Promise.reject(new Error("Your saved BiglyBT URL starts with http://. GameVault runs on HTTPS, so the browser blocks it before login. Use an HTTPS proxy URL in Settings; the direct BiglyBT Web UI URL cannot be called from GitHub Pages."));
-  }
-  opts=opts||{};
-  opts.headers=Object.assign(biglyHeaders(), opts.headers||{});
-  return fetchWithPolicy(base+path,opts,{timeout:15000,retries:0}).then(function(r){
-    return r.text().then(function(t){
-      var j={}; try{ j=t?JSON.parse(t):{}; }catch(e){ j={message:t}; }
-      if(!r.ok) throw new Error(j.message||j.error||("BiglyBT proxy returned "+r.status));
-      return j;
-    });
-  }).catch(function(e){
-    if(e && e.message && e.message!=="Failed to fetch") throw e;
-    throw new Error("Cannot reach the BiglyBT proxy. Check that Settings contains an HTTPS proxy, not the direct BiglyBT Web UI URL; also confirm the proxy is online and allows requests from https://sinuksml.github.io.");
-  });
-}
-function biglyLogin(user, pass){
-  biglyBusy=true; biglyErr=""; render();
-  return biglyApi("/login",{method:"POST",body:JSON.stringify({username:user,password:pass})}).then(function(j){
-    biglyToken=j.token||j.session||"";
-    if(!biglyToken) throw new Error("Proxy did not return a session token.");
-    try{ sessionStorage.setItem("gamevault-biglybt-token",biglyToken); }catch(e){}
-    return biglyRefresh();
-  }).catch(function(e){
-    biglyToken=""; try{ sessionStorage.removeItem("gamevault-biglybt-token"); }catch(err){}
-    biglyErr=e.message||"Login failed";
-    biglyBusy=false; render();
-  });
-}
-function biglyLogout(){
-  biglyToken=""; biglyItems=[]; biglyErr="";
-  try{ sessionStorage.removeItem("gamevault-biglybt-token"); }catch(e){}
-  render();
-}
-function biglyRefresh(){
-  if(!biglyToken){ render(); return Promise.resolve(); }
-  biglyBusy=true; biglyErr=""; render();
-  return biglyApi("/torrents").then(function(j){
-    biglyItems=Array.isArray(j)?j:(j.items||j.torrents||[]);
-    biglyBusy=false; render();
-  }).catch(function(e){
-    biglyErr=e.message||"BiglyBT server is offline, unreachable, or login details are incorrect.";
-    biglyBusy=false; render();
-  });
-}
-function biglyAction(id, action, extra){
-  var confirmed=extra&&extra.__confirmed;
-  if((action==="remove"||action==="remove-data")&&!confirmed){
-    var warning=action==="remove-data"?"Delete this torrent and all of its downloaded files? This cannot be undone.":"Remove this torrent from BiglyBT? Downloaded files will be kept.";
-    if(TV_MODE||phoneUi()){tvConfirm(warning,action==="remove-data"?"Delete files":"Remove torrent",function(){biglyAction(id,action,{__confirmed:true});});return Promise.resolve();}
-    if(!confirm(warning)) return Promise.resolve();
-  }
-  var payload=Object.assign({action:action},extra||{});delete payload.__confirmed;
-  biglyBusy=true; render();
-  return biglyApi("/torrents/"+encodeURIComponent(id)+"/action",{
-    method:"POST",
-    body:JSON.stringify(payload)
-  }).then(function(){ return biglyRefresh(); }).catch(function(e){ biglyErr=e.message||"Action failed"; biglyBusy=false; render(); });
-}
-function biglyBytes(n){
-  n=Number(n)||0;
-  var u=["B","KB","MB","GB","TB"], i=0;
-  while(n>=1024 && i<u.length-1){ n/=1024; i++; }
-  return (i?n.toFixed(n>=10?1:2):Math.round(n))+u[i];
-}
-function biglySpeed(n){ return biglyBytes(n)+"/s"; }
-function biglyPct(x){
-  x=Number(x)||0;
-  if(x>0 && x<=1) x*=100;
-  return Math.max(0,Math.min(100,x));
-}
-function biglyTorrentCard(t){
-  var id=t.id||t.hash||t.infoHash||t.name;
-  var pct=biglyPct(t.progress!=null?t.progress:t.percentDone);
-  var status=t.status||t.state||"Unknown";
-  var total=Number(t.totalSize||t.size||0),downloaded=Number(t.downloaded||t.haveValid||t.downloadedEver||0);
-  if(!downloaded && total) downloaded=total*pct/100;
-  return '<div class="card torrent-card">'+
-    '<div class="torrent-head"><div class="torrent-name">'+esc(t.name||"Untitled torrent")+'</div><span class="torrent-status">'+esc(status)+'</span></div>'+
-    '<div class="torrent-meter"><div class="torrent-fill" style="width:'+pct.toFixed(1)+'%"></div></div>'+
-    '<div class="torrent-meta">'+
-      '<div>Progress <b style="color:var(--text)">'+pct.toFixed(1)+'%</b></div>'+
-      '<div>Downloaded <b style="color:var(--text)">'+biglyBytes(downloaded)+' / '+biglyBytes(total)+'</b></div>'+
-      '<div>ETA <b style="color:var(--text)">'+esc(t.eta||t.remaining||"TBC")+'</b></div>'+
-      '<div>Down <b style="color:var(--text)">'+biglySpeed(t.downloadSpeed||t.downSpeed||0)+'</b></div>'+
-      '<div>Up <b style="color:var(--text)">'+biglySpeed(t.uploadSpeed||t.upSpeed||0)+'</b></div>'+
-      '<div>Seeds <b style="color:var(--text)">'+esc(String(t.seeds!=null?t.seeds:"-"))+'</b></div>'+
-      '<div>Peers <b style="color:var(--text)">'+esc(String(t.peers!=null?t.peers:"-"))+'</b></div>'+
-    '</div>'+
-    '<div class="actions">'+
-      '<button class="btn" data-act="bigly-action" data-id="'+esc(String(id))+'" data-bigly="start">Start</button>'+
-      '<button class="btn" data-act="bigly-action" data-id="'+esc(String(id))+'" data-bigly="pause">Pause</button>'+
-      '<button class="btn" data-act="bigly-action" data-id="'+esc(String(id))+'" data-bigly="resume">Resume</button>'+
-      '<button class="btn" data-act="bigly-action" data-id="'+esc(String(id))+'" data-bigly="stop">Stop</button>'+
-      '<button class="btn ghost danger" data-act="bigly-action" data-id="'+esc(String(id))+'" data-bigly="remove">Remove</button>'+
-      '<button class="btn ghost danger" data-act="bigly-action" data-id="'+esc(String(id))+'" data-bigly="remove-data">Delete files</button>'+
-      '<select class="selectmini bigly-priority" data-id="'+esc(String(id))+'"><option value="">Priority...</option><option value="high">High</option><option value="normal">Normal</option><option value="low">Low</option></select>'+
-    '</div>'+
-  '</div>';
-}
 function renderBiglyBT(){
   var proxy=biglyProxyUrl();
   var html='<div class="sechead">BiglyBT</div>';
@@ -3689,20 +3004,12 @@ function renderBiglyBT(){
     return html+'<div class="card torrent-login"><h3>Proxy required</h3><p class="meta">For security, GameVault cannot connect directly to your public BiglyBT IP from this public GitHub Pages frontend. Add an HTTPS proxy URL in Settings. The proxy keeps the real BiglyBT server address in its backend environment/config.</p><button class="btn blue" data-act="bigly-settings">Open Settings</button></div>';
   }
   if(location.protocol==="https:" && /^http:\/\//i.test(proxy)){
-    return html+'<div class="card torrent-login"><h3>HTTPS proxy required</h3><p class="meta">The saved BiglyBT URL starts with <b>http://</b>. Because GameVault is loaded from HTTPS GitHub Pages, the browser blocks that request before login. Add an HTTPS proxy URL in Settings. The proxy should privately connect to your BiglyBT Web UI.</p><div class="actions"><button class="btn blue" data-act="bigly-settings">Open Settings</button><a class="btn" href="'+esc(proxy)+'" target="_blank" rel="noopener">Open BiglyBT directly</a></div></div>';
+    return html+'<div class="card torrent-login"><h3>HTTPS gateway required</h3><p class="meta">The saved BiglyBT URL starts with <b>http://</b>. Because GameVault is loaded from HTTPS GitHub Pages, the browser blocks that request before login. Add the HTTPS gateway URL in Settings.</p><div class="actions"><button class="btn blue" data-act="bigly-settings">Open Settings</button></div></div>';
   }
   if(/^https:\/\//i.test(proxy)){
-    var nativeMode=biglyMode()==="api";
-    return html+'<div class="card bigly-browser" id="biglyBrowser"><div class="bigly-browser-bar"><div class="bigly-mode-switch" role="group" aria-label="BiglyBT interface"><button class="btn'+(nativeMode?' blue':'')+'" data-act="bigly-mode" data-mode="api" aria-pressed="'+(nativeMode?'true':'false')+'">Native Dashboard</button><button class="btn'+(!nativeMode?' blue':'')+'" data-act="bigly-mode" data-mode="iframe" aria-pressed="'+(!nativeMode?'true':'false')+'">Web UI</button></div><button class="btn" data-act="bigly-reload" title="Reload the current BiglyBT interface">Reload</button><button class="btn" data-act="bigly-fullscreen" title="Use the full screen">Full screen</button><button class="btn" data-act="bigly-folder" title="Open the folder where all downloads are saved">&#128193; Files</button><button class="btn" data-act="bigly-settings" title="BiglyBT settings">Settings</button><span class="syncnote" style="align-self:center">'+(nativeMode?'Native dashboard':'BiglyBT Web UI')+' · secure internal view</span></div><iframe id="biglyFrame" class="bigly-browser-frame" title="'+(nativeMode?'Native BiglyBT Dashboard':'BiglyBT Web UI')+'" src="'+esc(biglyFrameUrl())+'" allow="clipboard-read; clipboard-write; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe></div>';
+    return html+'<div class="card bigly-browser" id="biglyBrowser"><div class="bigly-browser-bar"><button class="btn" data-act="bigly-reload" title="Reload BiglyBT">Reload</button><button class="btn" data-act="bigly-fullscreen" title="Use the full screen">Full screen</button><button class="btn" data-act="bigly-folder" title="Open the folder where all downloads are saved">&#128193; Files</button><button class="btn" data-act="bigly-settings" title="BiglyBT settings">Settings</button><span class="syncnote" style="align-self:center">Secure native dashboard</span></div><iframe id="biglyFrame" class="bigly-browser-frame" title="Native BiglyBT Dashboard" src="'+esc(biglyFrameUrl())+'" allow="clipboard-read; clipboard-write; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe></div>';
   }
-  if(!biglyToken){
-    return html+'<div class="card torrent-login"><h3>Sign in to BiglyBT</h3><p class="meta">Credentials are not saved. They are sent only to your configured proxy for this browser session.</p><div class="fields"><input class="f-name" id="biglyUser" placeholder="BiglyBT username" autocomplete="username"><input class="f-name" id="biglyPass" placeholder="BiglyBT password" type="password" autocomplete="current-password"><button class="btn blue" data-act="bigly-login">Login</button></div>'+(biglyErr?'<div class="empty">'+esc(biglyErr)+'</div>':'')+'</div>';
-  }
-  html+='<div class="toolbar" style="margin-top:14px"><button class="btn blue" data-act="bigly-refresh"'+(biglyBusy?' disabled':'')+'>'+(biglyBusy?'Refreshing...':'Refresh')+'</button><button class="btn" data-act="bigly-folder" title="Open the folder where all downloads are saved">&#128193; Files</button><button class="btn ghost danger" data-act="bigly-logout">Logout</button><span class="syncnote" style="align-self:center">Connected through proxy. Private server address is not stored in GameVault.</span></div>';
-  if(biglyErr) html+='<div class="empty">'+esc(biglyErr)+'</div>';
-  if(!biglyItems.length) html+=biglyBusy?loadingSkeletons("game",4):'<div class="empty">No torrents returned by the proxy yet.</div>';
-  else html+='<div class="torrent-grid">'+biglyItems.map(biglyTorrentCard).join("")+'</div>';
-  return html;
+  return html+'<div class="card torrent-login"><h3>Invalid gateway URL</h3><p class="meta">Use an HTTPS BiglyBT gateway URL in Settings.</p><button class="btn blue" data-act="bigly-settings">Open Settings</button></div>';
 }
 
 /* ---------- Plex library (direct secure Plex Media Server API) ---------- */
@@ -3982,7 +3289,7 @@ function plexDeleteItem(id,confirmed){
   var progress=item.watched?"watched":plexProgress(item)>0?"partially watched":"unwatched";
   var warning='Permanently delete "'+item.title+'"? This item is '+progress+'. Plex will remove '+what+' from the Shield storage. This cannot be undone in GameVault.';
   if(!confirmed){
-    if(TV_MODE||phoneUi()){tvConfirm(warning,"Delete from Plex",function(){plexDeleteItem(id,true);});return;}
+    if(phoneUi()){tvConfirm(warning,"Delete from Plex",function(){plexDeleteItem(id,true);});return;}
     if(!confirm(warning)) return;
   }
   plexBusy=true; render();
@@ -4162,334 +3469,7 @@ function healthSaveLab(){
   data.health.labs=data.health.labs.filter(function(x){return x.date!==date;});data.health.labs.push(item);save();flash("Lab results added");
 }
 
-/* ---------- dedicated Android TV application ----------
-   The Shield is a view-only, 10-foot experience. It deliberately does not
-   reuse desktop forms, filters or settings so every D-pad move is predictable. */
-var TV_HOME_KEY="gamevault-tv-home-section";
-var TV_SECTIONS=["home","games","films","series","plex","biglybt","system"];
-var tvSection="home",tvDetail=null,tvItemRegistry={},tvLastCardBySection={},tvLastRowBySection={};
-try{tvSection=localStorage.getItem(TV_HOME_KEY)||"home";}catch(e){}
-if(TV_SECTIONS.indexOf(tvSection)<0)tvSection="home";
-
-function tvSectionDefs(){
-  return [
-    ["home","⌂","Home"],["games","▣","Games"],["films","●","Movies"],
-    ["series","▤","TV Shows"],["plex","▶","Plex"],["biglybt","⇩","Downloads"],
-    ["system","⚙","Settings"]
-  ];
-}
-function tvSectionLabel(name){
-  var labels={home:"For You",games:"Games",films:"Movies",series:"TV Shows",plex:"Plex Library",biglybt:"Downloads",system:"Settings"};
-  return labels[name]||"GameVault";
-}
-function tvStableId(x){
-  if(x&&x.id!=null)return String(x.id);
-  if(x&&x.ratingKey!=null)return String(x.ratingKey);
-  return "name:"+norm((x&&(x.name||x.title))||"item");
-}
-function tvDedupe(items){
-  var seen={};return (items||[]).filter(function(item){
-    if(!item||!item.title)return false;
-    var key=item.kind+":"+norm(item.title);
-    if(seen[key])return false;seen[key]=1;return true;
-  });
-}
-function tvRegister(item){
-  if(!item)return null;
-  item.key=item.kind+":"+item.source+":"+item.id;
-  tvItemRegistry[item.key]=item;
-  return item;
-}
-function tvRentalDue(r){
-  var due=parseD(r.end||"");
-  if(!due&&r.start){due=parseD(r.start);if(due)due.setDate(due.getDate()+(Number(r.days)||0));}
-  return due?daysBetween(today(),due):null;
-}
-function tvGameItem(x,source,label,options){
-  options=options||{};
-  var due=source==="rental"?tvRentalDue(x):null;
-  var status=label||x.status||tierFor(x.name)||"PS5";
-  if(due!=null)status=due<0?"Return overdue":due===0?"Return today":due+" days left";
-  var score=x.score?("Critic "+x.score):(x.rrating?x.rrating+"★":(x.rating?x.rating+"★":"PS5"));
-  return tvRegister({kind:"game",source:source,id:tvStableId(x),title:x.name||"Untitled game",art:coverUrl(x),backdrop:coverUrl(x),
-    eyebrow:status,meta:[score,x.genre||tierFor(x.name)||"Game"].filter(Boolean).join(" · "),raw:x,due:due,plot:!!options.plot});
-}
-function tvFilmItem(m,source,label){
-  ensureMediaArtwork(m,"movie");
-  var date=m.ottDate||m.date||"",countdown="";
-  if(date){var left=daysBetween(today(),parseD(date));if(left>=0)countdown=left===0?"Today":left+" days";}
-  return tvRegister({kind:"film",source:source,id:tvStableId(m),title:m.title||"Untitled movie",art:m.poster||"",backdrop:m.backdrop||m.poster||"",
-    eyebrow:label||(countdown?countdown:(m.year||"Movie")),meta:[mediaRatingLabel(m),genreLabel(m.genres,MOVIE_GENRES)].filter(Boolean).join(" · "),raw:m});
-}
-function tvSeriesItem(s,source,label){
-  ensureMediaArtwork(s,"series");
-  var date=s.latestDate||s.date||"";
-  return tvRegister({kind:"series",source:source,id:tvStableId(s),title:s.title||"Untitled series",art:s.poster||"",backdrop:s.backdrop||s.poster||"",
-    eyebrow:label||(date?fmt(date):(s.year||"TV Series")),meta:[mediaRatingLabel(s),genreLabel(s.genres,SERIES_GENRES)].filter(Boolean).join(" · "),raw:s});
-}
-function tvPlexItem(x,source,label){
-  var pct=Math.max(0,Math.min(100,plexProgress(x)));
-  return tvRegister({kind:"plex",source:source,id:tvStableId(x),title:x.title||"Untitled",art:plexMediaUrl(x.thumb),backdrop:plexMediaUrl(x.art||x.thumb),
-    eyebrow:label||(x.type==="show"?"TV Series":"Movie"),meta:(x.year?x.year+" · ":"")+(pct?pct+"% watched":"Unwatched"),progress:pct,raw:x});
-}
-function tvGameExistingNames(){
-  var out={};[data.rentals,data.playing,data.queue,data.played].forEach(function(list){(list||[]).forEach(function(x){out[norm(x.name)]=1;});});return out;
-}
-function tvRowsForSection(name){
-  var rows=[],items=[],existing;
-  if(name==="home"){
-    items=[];
-    (data.rentals||[]).forEach(function(x){items.push(tvGameItem(x,"rental","Active rental",{plot:true}));});
-    (data.playing||[]).forEach(function(x){items.push(tvGameItem(x,"playing",x.status==="Dropped"?"On hold":"Now playing",{plot:true}));});
-    (data.played||[]).filter(function(x){return x.status==="Playing"||x.status==="Dropped";}).forEach(function(x){items.push(tvGameItem(x,"playing",x.status==="Dropped"?"On hold":"Resume later",{plot:true}));});
-    if(items.length)rows.push({id:"continue-games",title:"Continue Playing",items:tvDedupe(items)});
-    items=(data.rentals||[]).slice().sort(function(a,b){return (tvRentalDue(a)||9999)-(tvRentalDue(b)||9999);}).map(function(x){return tvGameItem(x,"rental","Active rental",{plot:true});});
-    if(items.length)rows.push({id:"rentals-due",title:"Rentals Due Soon",items:items});
-    items=(data.movieWatchlist||[]).map(function(x){return tvFilmItem(x,"watchlist","Watchlist");});
-    if(items.length)rows.push({id:"movie-watchlist",title:"Movie Watchlist",items:items});
-    items=(data.watchingSeries||[]).map(function(x){return tvSeriesItem(x,"serieswatching","Watching");});
-    if(!items.length)items=(data.seriesWatchlist||[]).map(function(x){return tvSeriesItem(x,"serieswatchlist","Watchlist");});
-    if(items.length)rows.push({id:"series-continue",title:"Continue Watching",items:items});
-    items=(plexItems||[]).filter(function(x){var p=plexProgress(x);return p>0&&p<100;}).sort(function(a,b){return (b.lastViewedAt||0)-(a.lastViewedAt||0);}).map(function(x){return tvPlexItem(x,"continue","Continue watching");});
-    if(items.length)rows.push({id:"plex-continue",title:"Continue on Plex",items:items.slice(0,20)});
-    items=(((filmCache.uphw||{}).items)||[]).slice().sort(function(a,b){return String(a.date||"").localeCompare(String(b.date||""));}).map(function(x){return tvFilmItem(x,"uphw","Coming soon");});
-    if(items.length)rows.push({id:"coming-soon",title:"Coming Soon",items:items.slice(0,20)});
-    return rows;
-  }
-  if(name==="games"){
-    items=[];
-    (data.rentals||[]).forEach(function(x){items.push(tvGameItem(x,"rental","Active rental",{plot:true}));});
-    (data.playing||[]).forEach(function(x){items.push(tvGameItem(x,"playing",x.status==="Dropped"?"On hold":"Now playing",{plot:true}));});
-    (data.played||[]).filter(function(x){return x.status==="Playing"||x.status==="Dropped";}).forEach(function(x){items.push(tvGameItem(x,"playing",x.status==="Dropped"?"On hold":"Resume later",{plot:true}));});
-    if(items.length)rows.push({id:"games-playing",title:"Now Playing",items:tvDedupe(items)});
-    items=(data.rentals||[]).map(function(x){return tvGameItem(x,"rental","Active rental",{plot:true});});if(items.length)rows.push({id:"games-rentals",title:"Active Rentals",items:items});
-    items=(data.queue||[]).map(function(x){return tvGameItem(x,"queue","Rental queue");});if(items.length)rows.push({id:"games-queue",title:"Rental Queue",items:items});
-    items=(data.upcoming||[]).slice().sort(function(a,b){return String(a.date||"9999").localeCompare(String(b.date||"9999"));}).map(function(x){return tvGameItem(x,"upcoming",x.date?fmt(x.date):"Date TBC");});if(items.length)rows.push({id:"games-upcoming",title:"Upcoming Releases",items:items.slice(0,30)});
-    items=(data.played||[]).filter(function(x){return x.status!=="Playing"&&x.status!=="Dropped";}).map(function(x){return tvGameItem(x,"completed",x.status||"Completed");});if(items.length)rows.push({id:"games-completed",title:"Completed",items:items});
-    existing=tvGameExistingNames();items=fullCatalog().filter(function(x){return !existing[norm(x.name)]&&!data.dismissedNames[norm(x.name)];}).slice(0,30).map(function(x){return tvGameItem(x,"discover",tierFor(x.name)||"Recommended");});if(items.length)rows.push({id:"games-discover",title:"Recommended",items:items});
-    return rows;
-  }
-  if(name==="films"){
-    items=(data.movieWatchlist||[]).map(function(x){return tvFilmItem(x,"watchlist","Watchlist");});if(items.length)rows.push({id:"films-watchlist",title:"My Watchlist",items:items});
-    items=(data.watchingMovies||[]).map(function(x){return tvFilmItem(x,"watching","Watching");});if(items.length)rows.push({id:"films-watching",title:"Watching",items:items});
-    items=(((filmCache.uphw||{}).items)||[]).slice().sort(function(a,b){return String(a.date||"").localeCompare(String(b.date||""));}).map(function(x){return tvFilmItem(x,"uphw","Coming soon");});if(items.length)rows.push({id:"films-coming",title:"Coming Soon",items:items});
-    items=(((filmCache.bluray||{}).items)||[]).map(function(x){return tvFilmItem(x,"bluray","Blu-ray");});if(items.length)rows.push({id:"films-bluray",title:"New on Blu-ray",items:items});
-    items=(((filmCache.mlott||{}).items)||[]).map(function(x){return tvFilmItem(x,"mlott","Malayalam OTT");});if(items.length)rows.push({id:"films-mlott",title:"Malayalam OTT",items:items});
-    items=(((filmCache.relhw||{}).items)||[]).map(function(x){return tvFilmItem(x,"relhw","Recommended");});if(items.length)rows.push({id:"films-discover",title:"Discover",items:items});
-    items=(data.watchedMovies||[]).map(function(x){return tvFilmItem(x,"watched","Watched");});if(items.length)rows.push({id:"films-watched",title:"Watched",items:items});
-    return rows;
-  }
-  if(name==="series"){
-    items=(data.seriesWatchlist||[]).map(function(x){return tvSeriesItem(x,"serieswatchlist","Watchlist");});if(items.length)rows.push({id:"series-watchlist",title:"My Watchlist",items:items});
-    items=(data.watchingSeries||[]).map(function(x){return tvSeriesItem(x,"serieswatching","Watching");});if(items.length)rows.push({id:"series-watching",title:"Watching",items:items});
-    [["seriesnew","New Episodes"],["seriesupcoming","Upcoming"],["enseries","English"],["mlseries","Malayalam"],["taseries","Tamil"],["hiseries","Hindi"]].forEach(function(def){
-      var list=(((seriesCache[def[0]]||{}).items)||[]).map(function(x){return tvSeriesItem(x,def[0],def[1]);});if(list.length)rows.push({id:"series-"+def[0],title:def[1],items:list});
-    });
-    items=(data.watchedSeries||[]).map(function(x){return tvSeriesItem(x,"serieswatched","Watched");});if(items.length)rows.push({id:"series-watched",title:"Watched",items:items});
-    return rows;
-  }
-  if(name==="plex"){
-    items=(plexItems||[]).filter(function(x){var p=plexProgress(x);return p>0&&p<100;}).sort(function(a,b){return (b.lastViewedAt||0)-(a.lastViewedAt||0);}).map(function(x){return tvPlexItem(x,"continue","Continue watching");});if(items.length)rows.push({id:"plex-continue",title:"Continue Watching",items:items});
-    items=(plexItems||[]).slice().sort(function(a,b){return (b.addedAt||0)-(a.addedAt||0);}).slice(0,30).map(function(x){return tvPlexItem(x,"recent","Recently added");});if(items.length)rows.push({id:"plex-recent",title:"Recently Added",items:items});
-    items=(plexItems||[]).filter(function(x){return x.type==="movie";}).map(function(x){return tvPlexItem(x,"movies","Movie");});if(items.length)rows.push({id:"plex-movies",title:"Movies",items:items});
-    items=(plexItems||[]).filter(function(x){return x.type==="show";}).map(function(x){return tvPlexItem(x,"shows","TV Series");});if(items.length)rows.push({id:"plex-shows",title:"TV Series",items:items});
-    return rows;
-  }
-  return rows;
-}
-function tvRowLayout(row){
-  return row&&(/continue|playing|rentals|upcoming|coming|recent/.test(row.id||""))?"landscape":"portrait";
-}
-function tvCardHtml(item,rowIndex,colIndex,layout){
-  var portrait=item.kind!=="game"&&layout!=="landscape",art=portrait?item.art:(item.backdrop||item.art);
-  var kindLabel=item.kind==="game"?"GAME":item.kind==="series"?"TV":item.kind==="film"?"MOVIE":"PLEX";
-  return '<button class="tv-title-card '+(portrait?'portrait':'landscape')+'" type="button" data-tv-card="1" data-tv-row="'+rowIndex+'" data-tv-col="'+colIndex+'" data-tv-item="'+esc(item.key)+'" data-tv-key="card:'+esc(item.key)+'">'+
-    '<span class="tv-card-art">'+mediaImage(art,item.title,(art?"":"fallback-art"))+'<span class="tv-card-kind">'+kindLabel+'</span>'+(item.progress!=null?'<span class="tv-card-progress"><i style="width:'+item.progress+'%"></i></span>':'')+'</span>'+
-    '<span class="tv-card-copy"><strong>'+esc(item.title)+'</strong><span>'+esc(item.eyebrow||item.meta||"")+'</span></span></button>';
-}
-function tvRowsHtml(rows,startIndex){
-  if(!rows.length)return '<div class="tv-empty-state"><strong>Nothing to show yet</strong><span>Your synced library will appear here automatically.</span></div>';
-  startIndex=Number(startIndex)||0;
-  return rows.map(function(row,ri){
-    var rowIndex=ri+startIndex,layout=tvRowLayout(row);
-    return '<section class="tv-shelf" data-tv-shelf="'+rowIndex+'" data-tv-row-id="'+esc(row.id)+'"><div class="tv-shelf-head"><div><span>CURATED FOR YOU</span><h2>'+esc(row.title)+'</h2></div><b>'+row.items.length+' TITLES</b></div><div class="tv-card-row">'+row.items.slice(0,40).map(function(item,ci){return tvCardHtml(item,rowIndex,ci,layout);}).join("")+'</div></section>';
-  }).join("");
-}
-function tvHeroDescription(item){
-  var x=(item&&item.raw)||{},text=x.overview||x.summary||x.note||"";
-  if(text)return String(text).slice(0,240);
-  if(item&&item.kind==="game")return "Open this title for trailers, reviews, story context and your saved library details.";
-  return "Open this title for trailers, ratings, story context and more details.";
-}
-function tvHeroHtml(item,rowIndex){
-  if(!item)return "";
-  var art=item.backdrop||item.art||"",facts=[item.eyebrow,item.meta].filter(Boolean).join(" · ");
-  return '<button class="tv-feature-hero" type="button" data-tv-card="1" data-tv-row="'+rowIndex+'" data-tv-col="0" data-tv-item="'+esc(item.key)+'" data-tv-key="card:'+esc(item.key)+'">'+
-    '<span class="tv-feature-art" style="background-image:url(&quot;'+esc(art)+'&quot;)"></span><span class="tv-feature-shade"></span>'+
-    '<span class="tv-feature-copy"><span class="tv-feature-kicker">'+esc(tvSection==="home"?"FEATURED FOR YOU":tvSectionLabel(tvSection))+'</span><strong>'+esc(item.title)+'</strong><span class="tv-feature-meta">'+esc(facts)+'</span><span class="tv-feature-summary">'+esc(tvHeroDescription(item))+'</span><span class="tv-feature-action"><b>View details</b><small>Press OK</small></span></span></button>';
-}
-function tvHomeSummaryHtml(){
-  var playing=tvDedupe([].concat((data.rentals||[]).map(function(x){return {kind:"game",title:x.name};}),(data.playing||[]).map(function(x){return {kind:"game",title:x.name};}))).length;
-  var watchlist=(data.movieWatchlist||[]).length+(data.seriesWatchlist||[]).length;
-  var plexContinue=(plexItems||[]).filter(function(x){var p=plexProgress(x);return p>0&&p<100;}).length;
-  var activeDownloads=(biglyItems||[]).filter(function(x){return biglyPct(x.progress!=null?x.progress:x.percentDone)<100;}).length;
-  return '<div class="tv-home-summary"><div><span>CONTINUE</span><strong>'+playing+'</strong><small>games in progress</small></div><div><span>WATCHLIST</span><strong>'+watchlist+'</strong><small>saved movies & shows</small></div><div><span>PLEX</span><strong>'+plexContinue+'</strong><small>ready to resume</small></div><div><span>DOWNLOADS</span><strong>'+activeDownloads+'</strong><small>active right now</small></div></div>';
-}
-function tvRailHtml(){
-  return '<aside class="tv-rail" aria-label="GameVault TV navigation"><div class="tv-rail-brand"><span>GV</span><b>GAMEVAULT</b></div><nav>'+tvSectionDefs().map(function(def){
-    return '<button type="button" class="tv-nav-item '+(tvSection===def[0]?'on':'')+'" data-tv-nav="'+def[0]+'" data-tv-key="nav:'+def[0]+'"><span>'+def[1]+'</span><b>'+def[2]+'</b></button>';
-  }).join("")+'</nav><div class="tv-rail-foot"><span class="tv-status-dot '+(navigator.onLine?'online':'')+'"></span><b>'+esc(navigator.onLine?"ONLINE":"OFFLINE")+'</b></div></aside>';
-}
-function tvSyncLabel(){
-  if(cloudMode()==="drive")return gdTok()?"Google Drive connected":"Drive sign-in required";
-  if(cloudMode()==="jsonbin")return "JSONBin fallback";
-  return "Local data";
-}
-function tvHeaderHtml(){
-  var now=new Date(),clock=now.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
-  return '<header class="tv-page-head"><div><span class="tv-breadcrumb">SINU GAME VAULT</span><h1>'+esc(tvSectionLabel(tvSection))+'</h1></div><div class="tv-head-status"><span>'+esc(tvSyncLabel())+'</span><b>'+esc(clock)+'</b><em>v'+APP_VERSION+'</em></div></header>';
-}
-function tvSystemHtml(){
-  var syncTime=lastSyncedAt?new Date(lastSyncedAt).toLocaleString():"Not synced in this session";
-  var connected=gdConnected(),tvReady=!!gdTvClientId();
-  var drivePanel='<section class="tv-drive-login"><div class="tv-drive-copy"><span>Google Drive</span><strong>'+(connected?'Connected':'Connect this TV')+'</strong><small id="tvGdStatus">'+esc(connected?'Your library syncs automatically.':(tvReady?'Scan a QR code with your phone to restore your library.':'TV OAuth login is not configured on this device.'))+'</small></div><div class="tv-drive-actions">'+
-    (connected?'<button type="button" data-tv-system="drive-disconnect" data-tv-key="system:drive-disconnect">Disconnect Drive</button>':(tvReady?'<button type="button" data-tv-system="drive-login" data-tv-key="system:drive-login">Login with phone QR</button>':'<div class="tv-drive-setup"><input id="tvGdClientInput" type="text" placeholder="TV OAuth Client ID" autocomplete="off" data-tv-key="system:drive-client"><input id="tvGdSecretInput" type="password" placeholder="Client Secret (optional)" autocomplete="off" data-tv-key="system:drive-secret"><button type="button" data-tv-system="drive-save" data-tv-key="system:drive-save">Save and show QR</button></div>'))+
-    '<button type="button" id="tvGdCancelBtn" data-tv-system="drive-cancel" data-tv-key="system:drive-cancel" style="display:none">Cancel QR login</button></div><div class="tv-drive-qr" id="tvGdQrBox" style="display:none"></div></section>';
-  return '<div class="tv-system-grid"><div class="tv-system-card"><span>Cloud</span><strong>'+esc(tvSyncLabel())+'</strong><small>'+esc(syncTime)+'</small></div>'+
-    '<div class="tv-system-card"><span>Library</span><strong>'+vaultSize(data)+' saved items</strong><small>View-only on this TV</small></div>'+
-    '<div class="tv-system-card"><span>Display</span><strong>'+Math.round(tvZoomValue()*100)+'%</strong><small>Optimized for 4K television</small></div></div>'+
-    drivePanel+'<div class="tv-system-actions"><button type="button" data-tv-system="sync" data-tv-key="system:sync">↻ Sync now</button><button type="button" data-tv-system="zoom-out" data-tv-key="system:zoom-out">− Smaller</button><button type="button" data-tv-system="zoom-reset" data-tv-key="system:zoom-reset">Reset size</button><button type="button" data-tv-system="zoom-in" data-tv-key="system:zoom-in">+ Larger</button><button type="button" data-tv-system="reload" data-tv-key="system:reload">Reload app</button></div><p class="tv-system-note">Library editing, API keys, backup and advanced settings remain available on your phone and PC.</p>';
-}
-function tvBiglyHtml(){
-  if(!biglyProxyUrl())return '<div class="tv-empty-state"><strong>BiglyBT is not configured</strong><span>Configure the secure gateway on your phone or PC. TV access is view-only.</span></div>';
-  if(!biglyToken)return '<div class="tv-empty-state"><strong>Native BiglyBT status is not connected</strong><span>Sign in to the native dashboard once on this device, or use GameVault on your phone or PC.</span></div>';
-  if(biglyErr)return '<div class="tv-empty-state"><strong>BiglyBT is unavailable</strong><span>'+esc(biglyErr)+'</span><button type="button" data-tv-system="bigly-refresh" data-tv-key="bigly:refresh">Try again</button></div>';
-  if(!biglyItems.length)return '<div class="tv-empty-state"><strong>'+(biglyBusy?'Refreshing BiglyBT…':'No active torrents')+'</strong><span>Downloads will appear here automatically.</span>'+(biglyBusy?'':'<button type="button" data-tv-system="bigly-refresh" data-tv-key="bigly:refresh">Refresh</button>')+'</div>';
-  return '<div class="tv-download-list">'+biglyItems.map(function(t,i){
-    var pct=biglyPct(t.progress!=null?t.progress:t.percentDone),total=Number(t.totalSize||t.size||0),downloaded=Number(t.downloaded||t.haveValid||t.downloadedEver||0);if(!downloaded&&total)downloaded=total*pct/100;
-    return '<div class="tv-download-card"><div><strong>'+esc(t.name||"Untitled torrent")+'</strong><span>'+esc(t.status||t.state||"Unknown")+' · '+biglyBytes(downloaded)+' / '+biglyBytes(total)+'</span></div><b>'+pct.toFixed(1)+'%</b><div class="tv-download-meter"><i style="width:'+pct+'%"></i></div><small>↓ '+biglySpeed(t.downloadSpeed||t.downSpeed||0)+' · ↑ '+biglySpeed(t.uploadSpeed||t.upSpeed||0)+' · ETA '+esc(t.eta||t.remaining||"TBC")+'</small></div>';
-  }).join("")+'</div>';
-}
-function tvDetailLinks(item){
-  var x=item.raw||{},q=item.title+" "+(x.year||"");
-  if(item.kind==="game"){
-    var out='<a href="https://www.youtube.com/results?search_query='+encodeURIComponent(item.title+' PS5 trailer')+'">▶ Trailer</a><a href="https://www.youtube.com/results?search_query='+encodeURIComponent(item.title+' review IGN')+'">★ IGN Review</a><a href="https://www.google.com/search?q='+encodeURIComponent(item.title+' PS5')+'">Google</a>';
-    if(item.plot)out+=fandomBtn(item.title);return out;
-  }
-  if(item.kind==="film")return '<a href="https://www.youtube.com/results?search_query='+encodeURIComponent(q+' trailer')+'">▶ Trailer</a>'+reeloadReviewLink(item.title,x.year,"movie")+imdbLink(x)+'<a href="https://en.wikipedia.org/wiki/Special:Search?search='+encodeURIComponent(q+' film')+'">Wikipedia</a>';
-  if(item.kind==="series")return '<a href="https://www.youtube.com/results?search_query='+encodeURIComponent(q+' trailer')+'">▶ Trailer</a>'+reeloadReviewLink(item.title,x.year,"series")+seriesImdbLink(x)+'<a href="https://en.wikipedia.org/wiki/Special:Search?search='+encodeURIComponent(q+' TV series')+'">Wikipedia</a>';
-  return "";
-}
-function tvDetailFacts(item){
-  var x=item.raw||{},facts=[];
-  if(item.kind==="game"){
-    if(x.genre)facts.push(x.genre);if(x.score)facts.push("Critic "+x.score);if(x.rating)facts.push(x.rating+"★");if(tierFor(item.title))facts.push(tierFor(item.title));
-    if(item.source==="rental"){var due=tvRentalDue(x);facts.push(due==null?"Return date TBC":due<0?"Return overdue":due===0?"Return today":due+" days remaining");if(x.vendor)facts.push(x.vendor);}
-  }else if(item.kind==="plex"){
-    if(x.year)facts.push(String(x.year));facts.push(x.type==="show"?"TV Series":"Movie");facts.push(Math.round(plexProgress(x))+"% watched");
-  }else{
-    if(x.year)facts.push(String(x.year));facts.push(mediaRatingLabel(x));facts.push(genreLabel(x.genres,item.kind==="film"?MOVIE_GENRES:SERIES_GENRES));
-  }
-  return facts.filter(Boolean).map(function(f){return '<span>'+esc(f)+'</span>';}).join("");
-}
-function tvDetailPlot(item){
-  var x=item.raw||{};
-  if(item.kind==="game"&&item.plot)return plotBlock(item.title,"video game");
-  if(item.kind==="film")return plotBlock(moviePlotName(x),"film");
-  if(item.kind==="series")return plotBlock(seriesPlotName(x),"TV series");
-  return x.summary?'<div class="tv-detail-overview">'+esc(x.summary)+'</div>':"";
-}
-function tvDetailHtml(item){
-  var x=item.raw||{},overview=x.overview||x.note||"";
-  return '<div class="tv-detail" data-tv-detail="1"><div class="tv-detail-backdrop" style="background-image:url(&quot;'+esc(item.backdrop||item.art||"")+'&quot;)"></div><div class="tv-detail-shade"></div><button class="tv-detail-close" type="button" data-tv-close="1" data-tv-key="detail:close" aria-label="Close">×</button><div class="tv-detail-content">'+
-    '<div class="tv-detail-copy"><span class="tv-detail-kicker">'+esc(item.eyebrow||tvSectionLabel(tvSection))+'</span><h1>'+esc(item.title)+'</h1><div class="tv-detail-facts">'+tvDetailFacts(item)+'</div>'+(overview?'<p>'+esc(overview)+'</p>':'')+'<div class="tv-detail-actions">'+tvDetailLinks(item)+'</div></div><div class="tv-detail-poster '+((item.kind==="game")?'landscape':'portrait')+'">'+mediaImage(item.art,item.title,(item.art?"":"fallback-art"))+'</div></div><div class="tv-detail-story">'+tvDetailPlot(item)+'</div></div>';
-}
-function tvEnsureShell(){
-  var shell=document.getElementById("tvShell");if(shell)return shell;
-  shell=document.createElement("div");shell.id="tvShell";shell.className="tv-shell";document.body.appendChild(shell);document.body.classList.add("tv-shell-ready");
-  shell.addEventListener("click",function(e){
-    var nav=e.target.closest("[data-tv-nav]");if(nav){tvOpenSection(nav.getAttribute("data-tv-nav"));return;}
-    var card=e.target.closest("[data-tv-item]");if(card){tvOpenDetail(card.getAttribute("data-tv-item"));return;}
-    if(e.target.closest("[data-tv-close]")){tvCloseDetail();return;}
-    var action=e.target.closest("[data-tv-system]");if(action)tvSystemAction(action.getAttribute("data-tv-system"));
-  });
-  shell.addEventListener("focusin",function(e){
-    var card=e.target.closest&&e.target.closest("[data-tv-item]");if(card){
-      var item=tvItemRegistry[card.getAttribute("data-tv-item")];if(item)tvSetAmbient(item);
-      tvLastCardBySection[tvSection]=card.getAttribute("data-tv-key")||"";tvLastRowBySection[tvSection]=Number(card.getAttribute("data-tv-row"))||0;
-    }
-  });
-  return shell;
-}
-function tvSetAmbient(item){
-  var ambient=document.getElementById("tvAmbient");if(!ambient)return;
-  ambient.style.backgroundImage=item&&item.backdrop?'url("'+String(item.backdrop).replace(/"/g,"%22")+'")':"";
-}
-function tvOpenSection(name){
-  if(TV_SECTIONS.indexOf(name)<0)return;
-  tvSection=name;tvDetail=null;try{localStorage.setItem(TV_HOME_KEY,name);}catch(e){}
-  if(["games","films","series","plex","biglybt"].indexOf(name)>-1)section=name;
-  renderTvApp();tvPrimeSection(name);
-}
-function tvPrimeSection(name){
-  if(name==="home"||name==="films"){
-    ensureFilms("uphw");
-    scheduleMediaWarmup("films","uphw");
-  }
-  if(name==="home"||name==="series"){
-    ensureSeries("seriesnew");
-    scheduleMediaWarmup("series","seriesnew");
-  }
-  if((name==="home"||name==="plex")&&plexServerUrl()&&plexToken()&&!plexItems.length)plexRefresh();
-  if((name==="home"||name==="biglybt")&&biglyToken&&!biglyBusy)biglyRefresh();
-}
-function tvOpenDetail(key){
-  var item=tvItemRegistry[key];if(!item)return;tvDetail=item;
-  if(item.kind==="game"&&item.plot)ensurePlot(item.title,"video game");
-  if(item.kind==="film")ensurePlot(moviePlotName(item.raw),"film");
-  if(item.kind==="series")ensurePlot(seriesPlotName(item.raw),"TV series");
-  renderTvApp("detail:close");
-}
-function tvCloseDetail(){tvDetail=null;renderTvApp(tvLastCardBySection[tvSection]||("nav:"+tvSection));}
-function tvSystemAction(action){
-  if(action==="sync"){silentPullOnLoad();flash("Checking Google Drive…");}
-  else if(action==="drive-save"){
-    var client=document.getElementById("tvGdClientInput"),secret=document.getElementById("tvGdSecretInput");
-    var cid=client?client.value.trim():"",sec=secret?secret.value.trim():"";
-    if(!cid){gdTvSetStatus("Enter the TV OAuth Client ID first.");if(client)tvFocusShell(client);return;}
-    try{localStorage.setItem(GD_TV_CLIENT_STORE,cid);if(sec)localStorage.setItem(GD_TV_SECRET_STORE,sec);else localStorage.removeItem(GD_TV_SECRET_STORE);}catch(e){}
-    renderTvApp("system:drive-login");setTimeout(gdTvStart,100);
-  }
-  else if(action==="drive-login")gdTvStart();
-  else if(action==="drive-cancel"){
-    gdTvStop();gdTvSetStatus("QR login cancelled");
-    var tvBox=document.getElementById("tvGdQrBox");if(tvBox)tvBox.style.display="none";
-  }
-  else if(action==="drive-disconnect"){gdSignOut();renderTvApp("system:drive-login");}
-  else if(action==="reload")location.reload();
-  else if(action==="zoom-out"){setTvZoom(tvZoomValue()-.05);renderTvApp("system:zoom-out");}
-  else if(action==="zoom-reset"){setTvZoom(.90);renderTvApp("system:zoom-reset");}
-  else if(action==="zoom-in"){setTvZoom(tvZoomValue()+.05);renderTvApp("system:zoom-in");}
-  else if(action==="bigly-refresh")biglyRefresh();
-}
-function tvFocusShell(el){
-  if(!el)return false;try{el.focus({preventScroll:true});}catch(e){el.focus();}
-  var row=el.closest&&el.closest(".tv-card-row");if(row){var er=el.getBoundingClientRect(),rr=row.getBoundingClientRect();if(er.left<rr.left+18)row.scrollLeft-=rr.left+18-er.left;else if(er.right>rr.right-24)row.scrollLeft+=er.right-(rr.right-24);}
-  var hero=el.closest&&el.closest(".tv-feature-hero");if(hero){var heroMain=document.getElementById("tvMainScroll");if(heroMain)heroMain.scrollTop=0;}
-  var shelf=el.closest&&el.closest(".tv-shelf");if(shelf){var main=document.getElementById("tvMainScroll"),sr=shelf.getBoundingClientRect(),mr=main&&main.getBoundingClientRect();if(main&&mr){if(sr.top<mr.top+100)main.scrollTop-=mr.top+100-sr.top;else if(sr.bottom>mr.bottom-30)main.scrollTop+=sr.bottom-(mr.bottom-30);}}
-  return true;
-}
-function renderTvApp(preferredKey){
-  if(!TV_MODE)return;
-  var shell=tvEnsureShell(),active=document.activeElement,remember=preferredKey||(active&&active.getAttribute&&active.getAttribute("data-tv-key"))||tvLastCardBySection[tvSection]||("nav:"+tvSection);
-  tvItemRegistry={};document.body.classList.toggle("detail-open",!!tvDetail);
-  if(tvDetail){shell.innerHTML=tvDetailHtml(tvDetail);setTimeout(function(){tvFocusShell(shell.querySelector('[data-tv-key="'+remember+'"]')||shell.querySelector('[data-tv-key="detail:close"]'));},0);return;}
-  var rows=tvRowsForSection(tvSection),first=rows[0]&&rows[0].items[0];
-  var libraryView=(tvSection==="home"?tvHomeSummaryHtml():"")+tvHeroHtml(first,0)+tvRowsHtml(rows,first?1:0);
-  shell.innerHTML='<div class="tv-ambient" id="tvAmbient"></div><div class="tv-ambient-shade"></div>'+tvRailHtml()+'<main class="tv-main" id="tvMainScroll">'+tvHeaderHtml()+'<div class="tv-view">'+(tvSection==="system"?tvSystemHtml():tvSection==="biglybt"?tvBiglyHtml():libraryView)+'</div></main>';
-  tvSetAmbient(first);
-  setTimeout(function(){var target=shell.querySelector('[data-tv-key="'+remember.replace(/"/g,"\\\"")+'"]')||shell.querySelector('[data-tv-key="nav:'+tvSection+'"]')||shell.querySelector('[data-tv-card]');tvFocusShell(target);},0);
-}
+/* Android TV uses the separate native application in android-tv-native. */
 
 function renderContentHtml(html,preservePageScroll){
   var target=document.getElementById("content");
@@ -4498,10 +3478,6 @@ function renderContentHtml(html,preservePageScroll){
   return true;
 }
 function render(){
-  if(TV_MODE){
-    renderTvApp();
-    return;
-  }
   phoneMenuRegistry={};phoneMenuCounter=0;closePhoneSheet();
   document.body.classList.toggle("phone-root-section",section==="library");
   var detailOpen=!!((section==="games"&&gameView==="grid"&&expandedId)||(section==="films"&&filmExpanded)||(section==="series"&&seriesExpanded)||(section==="plex"&&plexExpanded));
@@ -4594,13 +3570,13 @@ function render(){
 var TMDB_KEY_STORE="ps5-tmdb-key", OMDB_KEY_STORE="ps5-omdb-key";
 var SECTION_KEY="ps5-section", FILMTAB_KEY="ps5-filmtab", FILM_CACHE_KEY="ps5-films-cache", MEDIA_CACHE_VERSION_KEY="gamevault-media-cache-version";
 var section="games", filmTab="watchlist", healthTab="healthoverview", healthWeekOffset=0;
-function phoneUi(){ return !TV_MODE&&window.matchMedia&&window.matchMedia("(max-width:720px)").matches; }
+function phoneUi(){ return window.matchMedia&&window.matchMedia("(max-width:720px)").matches; }
 try{ section=localStorage.getItem(SECTION_KEY)||"games"; }catch(e){}
 var requestedSection=new URLSearchParams(location.search).get("section");
 if(["games","films","series","plex","biglybt","health","finance","library"].indexOf(requestedSection)>=0)section=requestedSection;
 if(["games","films","series","plex","biglybt","health","finance","library"].indexOf(section)<0)section="games";
 if(!phoneUi()&&section==="library")section="games";
-if((TV_MODE||phoneUi())&&section==="home")section="games"; // Home dashboard is desktop-only
+if(phoneUi()&&section==="home")section="games"; // Home dashboard is desktop-only
 var requestedHealthTab=new URLSearchParams(location.search).get("healthTab");
 if(["healthoverview","healthfood","healthlabs"].indexOf(requestedHealthTab)>=0)healthTab=requestedHealthTab;
 try{ filmTab=localStorage.getItem(FILMTAB_KEY)||"watchlist"; }catch(e){}
@@ -4658,10 +3634,6 @@ function filmCacheEntry(key){
   var exact=filmCache[filmCacheKey(key)];
   if(exact) return exact;
   return !filmGenre&&!filmYear?(filmCache[key]||null):null;
-}
-function filmCacheAge(key){
-  var entry=filmCacheEntry(key);
-  return entry&&entry.t?Date.now()-entry.t:Infinity;
 }
 var US_STREAMERS=[
   ["","All streamers"],
@@ -4779,7 +3751,6 @@ function mediaArtworkKey(x,kind){ return kind+":"+String((x&&x.id)||norm(x&&x.ti
 function scheduleArtworkRender(){
   clearTimeout(mediaArtworkRenderTimer);
   mediaArtworkRenderTimer=setTimeout(function(){
-    if(TV_MODE){ scheduleTvMediaRender(); return; }
     if(section==="films") filmMaybeRender(filmTab,true);
     else if(section==="series") seriesMaybeRender(seriesTab,true);
     else if(section==="plex") render();
@@ -4859,7 +3830,7 @@ function closeMediaStateDetail(kind,id){
   if(!wasOpen) return false;
   if(kind==="film") filmExpanded=null; else seriesExpanded=null;
   aiOpen=null;
-  if(!TV_MODE&&history.state&&history.state.gameVaultDetail) history.replaceState(null,"",location.href.split("#")[0]);
+  if(history.state&&history.state.gameVaultDetail) history.replaceState(null,"",location.href.split("#")[0]);
   return true;
 }
 function seriesLanguageOptions(selected){
@@ -4951,14 +3922,6 @@ function mapMovie(m){
     poster:tmdbPoster(m.poster_path),
     backdrop:m.backdrop_path?("https://image.tmdb.org/t/p/w1280"+m.backdrop_path):"" },"film");
 }
-/* OMDb exact IMDb rating by title + year */
-function omdbRating(title, year){
-  var k=omdbKey(); if(!k) return Promise.resolve(null);
-  return fetchWithPolicy("https://www.omdbapi.com/?apikey="+encodeURIComponent(k)+"&t="+encodeURIComponent(title)+(year?"&y="+year:""),{},{timeout:12000,retries:1})
-    .then(function(r){ return r.json(); })
-    .then(function(j){ return (j&&j.imdbRating&&j.imdbRating!=="N/A") ? parseFloat(j.imdbRating) : null; })
-    .catch(function(){ return null; });
-}
 var IMDB_CACHE_KEY="gamevault-imdb-cache-v1",imdbCache={},imdbPending={};
 try{imdbCache=JSON.parse(localStorage.getItem(IMDB_CACHE_KEY)||"{}")||{};}catch(e){imdbCache={};}
 function imdbCacheGet(key){
@@ -5028,7 +3991,6 @@ function pooledEach(list, concurrency, gap, fn){
   for(var i=0;i<count;i++) workers.push(worker());
   return Promise.all(workers).then(function(){return list;});
 }
-function imdbBadge(m){ return (typeof m.imdb==="number") ? '<span class="prov imdb">IMDb '+m.imdb.toFixed(1)+'</span> ' : ''; }
 /* OMDb lookup returning both rating and the IMDb id (for a direct IMDb link) */
 function omdbLookup(title, year){
   var k=omdbKey(); if(!k) return Promise.resolve(null);
@@ -5255,15 +4217,7 @@ function ensureFilms(key, force, early){
     return false;
   });
 }
-var tvMediaRenderTimer=null;
-function scheduleTvMediaRender(){
-  clearTimeout(tvMediaRenderTimer);
-  tvMediaRenderTimer=setTimeout(function(){
-    if(TV_MODE&&(tvSection==="home"||tvSection==="films"||tvSection==="series")) renderTvApp();
-  },400);
-}
 function filmsMaybeRender(key){
-  if(TV_MODE){ scheduleTvMediaRender(); return; }
   if(key&&filmTab!==key) return;
   if(section!=="films") return;
   var ae=document.activeElement;
@@ -5308,7 +4262,7 @@ function captureVaultLists(keys){
   return snapshot;
 }
 function confirmDestructive(message,title,callback){
-  if(TV_MODE||phoneUi()){tvConfirm(message,title||"Confirm",callback);return;}
+  if(phoneUi()){tvConfirm(message,title||"Confirm",callback);return;}
   if(window.confirm(message))callback();
 }
 function commitVaultUndo(snapshot,message){
@@ -5393,7 +4347,6 @@ function searchMovies(qs){
 }
 function renderFilmsKeepSearch(){
   if(section!=="films") return;
-  if(TV_MODE){ renderTvApp(); return; }
   var el=document.getElementById("mwSearch");
   var had=el && document.activeElement===el, pos=had?el.selectionStart:0;
   renderContentHtml(renderFilms());
@@ -5728,10 +4681,6 @@ function seriesCacheEntry(key){
   var languageRelevant=key==="seriesupcoming"||key==="seriesdiscover";
   return !seriesGenre&&!seriesYear&&!seriesProvider&&(!languageRelevant||!seriesLanguage)?(seriesCache[key]||null):null;
 }
-function seriesCacheAge(key){
-  var entry=seriesCacheEntry(key);
-  return entry&&entry.t?Date.now()-entry.t:Infinity;
-}
 var seriesEpisodeCache={}, seriesSeasonSel={}, seriesEpisodeSel={}, seriesEpisodeBusy={};
 function mapSeries(s){
   return normalizeStoredRecord({ id:s.id, title:s.name||s.original_name||"Untitled",
@@ -5911,7 +4860,6 @@ function ensureSeries(key, force){
   });
 }
 function seriesMaybeRender(key){
-  if(TV_MODE){ scheduleTvMediaRender(); return; }
   if(key&&seriesTab!==key) return;
   if(section!=="series") return;
   var ae=document.activeElement;
@@ -6138,16 +5086,6 @@ function seriesEpisodeBlock(s){
   }
   return h+'</section>';
 }
-function seriesMeta(s, key){
-  var parts=[];
-  if(typeof s.imdb==="number") parts.push('<span class="prov imdb">IMDb '+s.imdb.toFixed(1)+'</span>');
-  if(s.tmdb) parts.push('<span class="prov">TMDB '+s.tmdb+'</span>');
-  if(s.year) parts.push(esc(s.year));
-  if(s.seasons) parts.push(esc(s.seasons)+" season"+(Number(s.seasons)===1?"":"s"));
-  if(s.providers&&s.providers.length) parts.push('<br>'+provChips(s.providers));
-  if(key==="serieswatched") parts.unshift('<span style="color:#9AA6BC">✓ Watched</span>');
-  return parts.join(" ");
-}
 function seriesReleaseMeta(s){
   var releases=normalizedReleases(s||{},"series");
   var next=releases.nextEpisode&&releases.nextEpisode.date||s&&s.nextEpisode&&s.nextEpisode.date||"";
@@ -6187,7 +5125,6 @@ function searchSeries(qs){
 }
 function renderSeriesKeepSearch(){
   if(section!=="series") return;
-  if(TV_MODE){ renderTvApp(); return; }
   var el=document.getElementById("swSearch");
   var had=el && document.activeElement===el, pos=had?el.selectionStart:0;
   renderContentHtml(renderSeries());
@@ -6375,7 +5312,6 @@ function switchSection(s,userGesture){
   if(section==="series"){ ensureSeries(seriesTab); scheduleMediaWarmup("series",seriesTab); }
   if(section==="games") scheduleGameWarmup(tab);
   if(section==="plex" && plexServerUrl() && plexToken() && !plexItems.length) plexRefresh();
-  if(section==="biglybt" && biglyToken) biglyRefresh();
 }
 document.getElementById("sectionSw").addEventListener("click",function(e){
   var b=e.target.closest("[data-section]"); if(b) switchSection(b.getAttribute("data-section"),true);
@@ -6587,13 +5523,8 @@ function toggleSettings(force){
     document.getElementById("tmdbKeyInput").value=tmdbKey();
     document.getElementById("omdbKeyInput").value=omdbKey();
     document.getElementById("gdClientInput").value=gdClientId();
-    var tvClient=document.getElementById("gdTvClientInput"), tvSecret=document.getElementById("gdTvSecretInput");
-    if(tvClient) tvClient.value=gdTvClientId();
-    if(tvSecret) tvSecret.value=gdTvSecret();
     var biglyProxy=document.getElementById("biglyProxyInput");
     if(biglyProxy) biglyProxy.value=biglyProxyUrl();
-    var biglyModeSel=document.getElementById("biglyModeInput");
-    if(biglyModeSel) biglyModeSel.value=biglyMode();
     var biglyFolderIn=document.getElementById("biglyFolderInput");
     if(biglyFolderIn) biglyFolderIn.value=biglyFolder();
     var plexUrlInput=document.getElementById("plexUrlInput"), plexTokenInput=document.getElementById("plexTokenInput"), plexStatus=document.getElementById("plexSettingsStatus");
@@ -6601,9 +5532,6 @@ function toggleSettings(force){
     if(plexTokenInput) plexTokenInput.value=plexToken();
     if(plexStatus) plexStatus.textContent=plexServerUrl()&&plexToken()?(plexConnected?"Connected to Plex on this device.":"Plex is configured; refresh when the Shield is reachable."):"Not configured.";
     gdSetStatus();
-    var jb=getJB();
-    document.getElementById("jbKeyInput").value=jb.key;
-    document.getElementById("jbBinInput").value=jb.bin;
     var densityInput=document.getElementById("densityInput"); if(densityInput) densityInput.value=uiDensity;
     var healthCloudInput=document.getElementById("healthCloudInput"); if(healthCloudInput) healthCloudInput.checked=healthCloudSyncEnabled();
     var alertsChk=document.getElementById("alertsInput"); if(alertsChk) alertsChk.checked=alertsOn();
@@ -6613,7 +5541,6 @@ function toggleSettings(force){
     if(show)setTimeout(function(){var close=document.getElementById("settingsCloseBtn");if(close)close.focus();},0);
     else{var menu=document.getElementById("menuBtn");if(menu&&document.activeElement&&document.activeElement.closest&&document.activeElement.closest("#settingsBox"))menu.focus();}
   }
-  if(TV_MODE) setTimeout(tvEnsureFocus,0);
 }
 
 function setMenuOpen(show){
@@ -6622,7 +5549,6 @@ function setMenuOpen(show){
   document.body.classList.toggle("menu-open",!!show);
   document.getElementById("menuBtn").setAttribute("aria-expanded",show?"true":"false");
   if(show&&desktopMode())setTimeout(function(){var first=panel.querySelector("button:not([style*='display:none'])");if(first)first.focus();},0);
-  if(TV_MODE) setTimeout(tvEnsureFocus,0);
 }
 document.getElementById("menuBtn").setAttribute("aria-expanded","false");
 document.getElementById("menuBtn").addEventListener("click",function(){
@@ -6662,18 +5588,6 @@ document.getElementById("stats").addEventListener("click",function(e){
 });
 
 document.getElementById("settingsBtn").addEventListener("click",function(){ toggleSettings(); });
-var tvZoomOutBtn=document.getElementById("tvZoomOutBtn");
-if(tvZoomOutBtn) tvZoomOutBtn.addEventListener("click",function(){ setTvZoom(tvZoomValue()-0.05); });
-var tvZoomInBtn=document.getElementById("tvZoomInBtn");
-if(tvZoomInBtn) tvZoomInBtn.addEventListener("click",function(){ setTvZoom(tvZoomValue()+0.05); });
-var tvZoomResetBtn=document.getElementById("tvZoomResetBtn");
-if(tvZoomResetBtn) tvZoomResetBtn.addEventListener("click",function(){ setTvZoom(0.90); });
-var tvSettingsZoomOutBtn=document.getElementById("tvSettingsZoomOutBtn");
-if(tvSettingsZoomOutBtn) tvSettingsZoomOutBtn.addEventListener("click",function(){ setTvZoom(tvZoomValue()-0.05); });
-var tvSettingsZoomInBtn=document.getElementById("tvSettingsZoomInBtn");
-if(tvSettingsZoomInBtn) tvSettingsZoomInBtn.addEventListener("click",function(){ setTvZoom(tvZoomValue()+0.05); });
-var tvSettingsZoomResetBtn=document.getElementById("tvSettingsZoomResetBtn");
-if(tvSettingsZoomResetBtn) tvSettingsZoomResetBtn.addEventListener("click",function(){ setTvZoom(0.90); });
 document.getElementById("saveKeyBtn").addEventListener("click",function(){
   var v=document.getElementById("apiKeyInput").value.trim();
   setSyncedKey("rawg", v);
@@ -6682,16 +5596,6 @@ document.getElementById("saveKeyBtn").addEventListener("click",function(){
   render();
   if(v) setTimeout(backfillImages,600);
 });
-document.getElementById("saveSyncBtn").addEventListener("click",function(){
-  try{
-    localStorage.setItem(JB_KEY_STORE,document.getElementById("jbKeyInput").value.trim());
-    localStorage.setItem(JB_BIN_STORE,document.getElementById("jbBinInput").value.trim());
-  }catch(e){}
-  flash("Sync settings saved — syncing now…");
-  silentPullOnLoad();
-});
-document.getElementById("pushBtn").addEventListener("click",pushCloud);
-document.getElementById("pullBtn").addEventListener("click",pullCloud);
 document.getElementById("gdSaveBtn").addEventListener("click",function(){
   var v=document.getElementById("gdClientInput").value.trim();
   try{ localStorage.setItem(GD_CLIENT_STORE,v); }catch(e){}
@@ -6705,42 +5609,6 @@ var secureConfigSaveBtn=document.getElementById("secureConfigSaveBtn");
 if(secureConfigSaveBtn)secureConfigSaveBtn.addEventListener("click",secureConfigEncrypt);
 var secureConfigUnlockBtn=document.getElementById("secureConfigUnlockBtn");
 if(secureConfigUnlockBtn)secureConfigUnlockBtn.addEventListener("click",secureConfigUnlock);
-var appLockEnableBtn=document.getElementById("appLockEnableBtn");
-if(appLockEnableBtn)appLockEnableBtn.addEventListener("click",appLockEnable);
-var appLockFaceBtn=document.getElementById("appLockFaceBtn");
-if(appLockFaceBtn)appLockFaceBtn.addEventListener("click",appLockRegisterBiometric);
-var appLockNowBtn=document.getElementById("appLockNowBtn");
-if(appLockNowBtn)appLockNowBtn.addEventListener("click",function(){
-  if(appLockConfig()&&appLockConfig().pin)appLockShow();
-  else appLockSetMessage("Enable the app lock first.",true);
-});
-var appLockDisableBtn=document.getElementById("appLockDisableBtn");
-if(appLockDisableBtn)appLockDisableBtn.addEventListener("click",function(){
-  confirmDestructive("Disable the whole-app lock on this browser?","Disable app lock",appLockDisable);
-});
-var appLockUnlockBtn=document.getElementById("appLockUnlockBtn");
-if(appLockUnlockBtn)appLockUnlockBtn.addEventListener("click",appLockUnlockPin);
-var appLockBiometricBtn=document.getElementById("appLockBiometricBtn");
-if(appLockBiometricBtn)appLockBiometricBtn.addEventListener("click",appLockBiometric);
-var appLockPin=document.getElementById("appLockPin");
-if(appLockPin)appLockPin.addEventListener("keydown",function(event){if(event.key==="Enter"){event.preventDefault();appLockUnlockPin();}});
-var gdTvSaveBtn=document.getElementById("gdTvSaveBtn");
-if(gdTvSaveBtn) gdTvSaveBtn.addEventListener("click",function(){
-  try{
-    localStorage.setItem(GD_TV_CLIENT_STORE,document.getElementById("gdTvClientInput").value.trim());
-    localStorage.setItem(GD_TV_SECRET_STORE,document.getElementById("gdTvSecretInput").value.trim());
-  }catch(e){}
-  gdTvSetStatus("TV login saved. Press Login with phone QR.");
-  flash("TV Google login saved");
-});
-var gdTvLoginBtn=document.getElementById("gdTvLoginBtn");
-if(gdTvLoginBtn) gdTvLoginBtn.addEventListener("click",gdTvStart);
-var gdTvCancelBtn=document.getElementById("gdTvCancelBtn");
-if(gdTvCancelBtn) gdTvCancelBtn.addEventListener("click",function(){
-  gdTvStop();
-  gdTvSetStatus("QR login cancelled");
-  var box=document.getElementById("gdTvBox"); if(box) box.style.display="none";
-});
 document.getElementById("saveFilmKeysBtn").addEventListener("click",function(){
   setSyncedKey("tmdb", document.getElementById("tmdbKeyInput").value.trim());
   setSyncedKey("omdb", document.getElementById("omdbKeyInput").value.trim());
@@ -6754,7 +5622,6 @@ document.getElementById("saveFilmKeysBtn").addEventListener("click",function(){
 var saveBiglyProxyBtn=document.getElementById("saveBiglyProxyBtn");
 if(saveBiglyProxyBtn) saveBiglyProxyBtn.addEventListener("click",function(){
   setBiglyProxyUrl(document.getElementById("biglyProxyInput").value);
-  var mSel=document.getElementById("biglyModeInput"); if(mSel) setBiglyMode(mSel.value);
   var fSel=document.getElementById("biglyFolderInput"); if(fSel) setBiglyFolder(fSel.value);
   var existingBigly=document.getElementById("biglyBrowser"); if(existingBigly) existingBigly.remove();
   biglyLogout();
@@ -6836,7 +5703,7 @@ function collectAlerts(){
   return out.filter(function(a){ return !seen[a.k]; });
 }
 function runAlerts(){
-  if(TV_MODE || !alertsOn()) return;
+  if(!alertsOn()) return;
   var list=collectAlerts();
   if(!list.length) return;
   list.slice(0,4).forEach(function(a){
@@ -6859,10 +5726,8 @@ if(alertsInput) alertsInput.addEventListener("change",function(){
     setTimeout(runAlerts,400);
   } else flash("Alerts off");
 });
-if(!TV_MODE){
-  setTimeout(runAlerts,2500);
-  setInterval(runAlerts,3600000);
-}
+setTimeout(runAlerts,2500);
+setInterval(runAlerts,3600000);
 
 var healthCloudInput=document.getElementById("healthCloudInput");
 if(healthCloudInput) healthCloudInput.addEventListener("change",function(){
@@ -6937,17 +5802,12 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="plex-open"){
     if(String(plexExpanded)!==String(id)) plexDetailReturnY=window.scrollY;
     plexExpanded=String(id); var pi=plexFindItem(id); if(pi){ var pm=plexAsMedia(pi); rememberViewed(pi.type==="show"?"series":"film",pm.id,pm.title,plexTab); plexEnrichItem(pi); if(pi.type!=="show") ensurePlot(moviePlotName(pm),"film"); }
-    if(!TV_MODE) history.pushState({gameVaultDetail:"plex",id:id},"",location.href.split("#")[0]+"#plex-detail");
+    history.pushState({gameVaultDetail:"plex",id:id},"",location.href.split("#")[0]+"#plex-detail");
     render(); window.scrollTo(0,0); return;
   }
   if(act==="plex-delete"){ plexDeleteItem(id); return; }
   if(act==="bigly-settings"){ toggleSettings(true); return; }
   if(act==="bigly-home"){ var bh=document.getElementById("biglyFrame"); if(bh) bh.src=biglyFrameUrl(); return; }
-  if(act==="bigly-mode"){
-    setBiglyMode(b.getAttribute("data-mode")==="iframe"?"iframe":"api");
-    render();
-    return;
-  }
   if(act==="bigly-folder"){ biglyOpenFolder(); return; }
   if(act==="bigly-reload"){ var bf=document.getElementById("biglyFrame"); if(bf) bf.src=bf.src; return; }
   if(act==="bigly-fullscreen"){
@@ -6955,20 +5815,6 @@ document.getElementById("content").addEventListener("click",function(e){
     if(browser && browser.requestFullscreen) browser.requestFullscreen().catch(function(){ flash("Full screen is not supported by this browser"); });
     return;
   }
-  if(act==="bigly-login"){
-    var user=(document.getElementById("biglyUser")||{}).value||"";
-    var pass=(document.getElementById("biglyPass")||{}).value||"";
-    biglyLogin(user.trim(),pass);
-    return;
-  }
-  if(act==="bigly-refresh"){ biglyRefresh(); return; }
-  if(act==="bigly-logout"){ biglyLogout(); return; }
-  if(act==="bigly-action"){ biglyAction(id,b.getAttribute("data-bigly")); return; }
-  if(TV_MODE && tab==="rentals" && /^(toggle-form|add-rental|return-played|return-only|remove-rental|hist-again|hist-del|extend)$/.test(act)){
-    flash("Rental tab is view-only on TV");
-    return;
-  }
-
   if(act==="home-goto"){
     var hs=b.getAttribute("data-sec")||"games", ht=b.getAttribute("data-tab")||"";
     switchSection(hs);
@@ -6997,11 +5843,11 @@ document.getElementById("content").addEventListener("click",function(e){
     }else{
       expandedId=id; var ng=gameFindById(id); if(ng){rememberViewed("game",id,ng.name,tab);if(tab==="playing")ensurePlot(ng.name);}
     }
-    if(!TV_MODE && history.state && history.state.gameVaultDetail) history.replaceState({gameVaultDetail:neighborKind,id:id},"",location.href);
+    if(history.state && history.state.gameVaultDetail) history.replaceState({gameVaultDetail:neighborKind,id:id},"",location.href);
     render(); window.scrollTo(0,0); return;
   }
   if(act==="media-close"){
-    if(!TV_MODE && history.state && history.state.gameVaultDetail){ history.back(); return; }
+    if(history.state && history.state.gameVaultDetail){ history.back(); return; }
     var mk=b.getAttribute("data-kind");
     var returnY=mk==="film"?filmDetailReturnY:mk==="series"?seriesDetailReturnY:mk==="plex"?plexDetailReturnY:gameDetailReturnY;
     if(mk==="film") filmExpanded=null;
@@ -7030,7 +5876,7 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="game-open"){
     if(!expandedId) gameDetailReturnY=window.scrollY;
     expandedId=b.getAttribute("data-id");
-    if(!TV_MODE) history.pushState({gameVaultDetail:"game",id:expandedId},"",location.href.split("#")[0]+"#game-detail");
+    history.pushState({gameVaultDetail:"game",id:expandedId},"",location.href.split("#")[0]+"#game-detail");
     var gx=gameFindById(expandedId);
     if(gx){ rememberViewed("game",expandedId,gx.name,tab); ensurePlot(gx.name); }
     render(); window.scrollTo(0,0);
@@ -7085,7 +5931,7 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="mw-toggle"){
     if(String(filmExpanded)!==String(id)) filmDetailReturnY=window.scrollY;
     filmExpanded = String(filmExpanded)===String(id) ? null : id;
-    if(filmExpanded && !TV_MODE) history.pushState({gameVaultDetail:"film",id:id},"",location.href.split("#")[0]+"#film-detail");
+    if(filmExpanded) history.pushState({gameVaultDetail:"film",id:id},"",location.href.split("#")[0]+"#film-detail");
     var wm=findMovieAny(id);
     if(filmExpanded && wm){ rememberViewed("film",id,wm.title,filmTab); ensurePlot(moviePlotName(wm),"film"); }
     render(); if(filmExpanded) window.scrollTo(0,0); return;
@@ -7124,7 +5970,7 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="sr-toggle"){
     if(String(seriesExpanded)!==String(id)) seriesDetailReturnY=window.scrollY;
     seriesExpanded = String(seriesExpanded)===String(id) ? null : id;
-    if(seriesExpanded && !TV_MODE) history.pushState({gameVaultDetail:"series",id:id},"",location.href.split("#")[0]+"#series-detail");
+    if(seriesExpanded) history.pushState({gameVaultDetail:"series",id:id},"",location.href.split("#")[0]+"#series-detail");
     var ss=findSeriesAny(id)||(data.watchedSeries||[]).filter(function(x){ return String(x.id)===String(id); })[0];
     if(seriesExpanded && ss) rememberViewed("series",id,ss.title,seriesTab);
     if(seriesExpanded && ss && (!ss.seasonList || !ss.seasonList.length || !ss.providers)){
@@ -7413,11 +6259,6 @@ function handleVendorNew(sel){
 
 document.getElementById("content").addEventListener("change",function(e){
   if(financeHandleChange(e.target))return;
-  var bp=e.target.closest(".bigly-priority");
-  if(bp && bp.value){
-    biglyAction(bp.getAttribute("data-id"),"priority",{priority:bp.value});
-    return;
-  }
   var fs=e.target.closest(".film-sort");
   if(fs){ filmSort=fs.value; try{localStorage.setItem(FILM_SORT_KEY,filmSort);}catch(err){} render(); return; }
   var ssrt=e.target.closest(".series-sort");
@@ -7678,604 +6519,9 @@ document.getElementById("content").addEventListener("input",function(e){
   if(inp) handleAc(inp);
 });
 
-/* ---------- Android TV remote navigation (?tv=1 only) ---------- */
-var tvReturnFocus=null;
-var tvReturnFocusKey="";
-var tvEditingInput=null;
-var tvFocusMemory={};
-var tvLastMoveAt=0;
-var tvSelectReturnKey="";
-var TV_MOVE_DELAY=135;
-function tvIsEditable(el){
-  return !!(el && /^(INPUT|TEXTAREA|SELECT)$/i.test(el.tagName));
-}
-function tvIsTextInput(el){
-  return !!(el && /^(INPUT|TEXTAREA)$/i.test(el.tagName));
-}
-function tvIsSearchInput(el){
-  if(!tvIsTextInput(el)) return false;
-  var text=((el.id||"")+" "+(el.name||"")+" "+(el.placeholder||"")+" "+(el.getAttribute("aria-label")||"")).toLowerCase();
-  return /search|find title|autocomplete/.test(text);
-}
-function tvViewKey(){
-  if(section==="films") return "films:"+filmTab;
-  if(section==="series") return "series:"+seriesTab;
-  if(section==="plex") return "plex:"+plexTab;
-  if(section==="biglybt") return "biglybt";
-  return "games:"+tab;
-}
-function tvElementKey(el){
-  if(!el) return "";
-  if(el.getAttribute("data-tv-key")) return el.getAttribute("data-tv-key");
-  var names=["id","data-section","data-tab","data-ftab","data-stab","data-ptab","data-act","data-id","data-view","data-key","data-vendor","data-genre","data-tier","href"];
-  var bits=[];
-  names.forEach(function(name){ var value=el.getAttribute&&el.getAttribute(name); if(value) bits.push(name+"="+value); });
-  if(!bits.length){
-    var label=(el.getAttribute&&el.getAttribute("aria-label"))||el.textContent||el.tagName||"item";
-    bits.push("label="+label.trim().replace(/\s+/g," ").slice(0,80));
-  }
-  var key=bits.join("|");
-  try{ el.setAttribute("data-tv-key",key); }catch(e){}
-  return key;
-}
-function tvFindByKey(key,list){
-  if(!key) return null;
-  list=list||tvFocusable();
-  for(var i=0;i<list.length;i++) if(tvElementKey(list[i])===key) return list[i];
-  return null;
-}
-function tvPrepareInputs(){
-  if(!TV_MODE) return;
-  [].forEach.call(document.querySelectorAll("input,textarea"),function(el){
-    if(tvIsSearchInput(el)){
-      el.setAttribute("data-tv-search","1");
-      el.setAttribute("data-tv-skip","1");
-      el.tabIndex=-1;
-      return;
-    }
-    if(el===tvEditingInput) return;
-    if(!el.hasAttribute("data-tv-readonly")){
-      el.setAttribute("data-tv-readonly","1");
-      el.readOnly=true;
-    }
-  });
-}
-function tvStartInputEdit(el){
-  if(!TV_MODE || !tvIsTextInput(el)) return false;
-  tvEditingInput=el;
-  el.readOnly=false;
-  el.removeAttribute("data-tv-readonly");
-  try{ el.focus(); }catch(e){}
-  try{
-    var n=(el.value||"").length;
-    el.setSelectionRange(n,n);
-  }catch(e){}
-  el.click();
-  return true;
-}
-function tvStopInputEdit(el){
-  if(!TV_MODE || !tvIsTextInput(el)) return false;
-  el.readOnly=true;
-  el.setAttribute("data-tv-readonly","1");
-  if(tvEditingInput===el) tvEditingInput=null;
-  el.blur();
-  return true;
-}
-function tvCloseSelect(){
-  var old=document.getElementById("tvSelectMenu");
-  if(old) old.remove();
-}
-function tvOpenSelect(sel){
-  if(!TV_MODE || !sel || sel.tagName!=="SELECT") return false;
-  tvCloseSelect();
-  tvSelectReturnKey=tvElementKey(sel);
-  var overlay=document.createElement("div");
-  overlay.id="tvSelectMenu";
-  overlay.className="tv-select-menu";
-  var panel=document.createElement("div");
-  panel.className="tv-select-panel";
-  [].forEach.call(sel.options,function(opt){
-    var btn=document.createElement("button");
-    btn.type="button";
-    btn.className="btn"+(opt.selected?" on":"");
-    btn.textContent=opt.textContent || opt.value || "Option";
-    btn.addEventListener("click",function(){
-      sel.value=opt.value;
-      tvCloseSelect();
-      sel.dispatchEvent(new Event("change",{bubbles:true}));
-      setTimeout(function(){ var target=tvFindByKey(tvSelectReturnKey); if(target) tvFocus(target); else tvEnsureFocus(); },0);
-    });
-    panel.appendChild(btn);
-  });
-  overlay.appendChild(panel);
-  overlay.addEventListener("click",function(e){
-    if(e.target===overlay){ tvCloseSelect(); var target=tvFindByKey(tvSelectReturnKey); if(target) tvFocus(target); else tvEnsureFocus(); }
-  });
-  document.body.appendChild(overlay);
-  setTimeout(function(){
-    var on=panel.querySelector(".on") || panel.querySelector("button");
-    if(on) tvFocus(on);
-  },0);
-  return true;
-}
-function tvRememberFocus(el){
-  if(!TV_MODE || !el || tvIsEditable(el)) return;
-  tvReturnFocus=el;
-  tvReturnFocusKey=tvElementKey(el);
-  tvFocusMemory[tvViewKey()]=tvReturnFocusKey;
-}
-function tvFocusRoot(){
-  var overlay=document.getElementById("tvSelectMenu")||document.getElementById("tvConfirmMenu");
-  if(overlay) return overlay;
-  var settings=document.getElementById("settingsBox");
-  if(document.body.classList.contains("settings-open")&&settings) return settings;
-  var menu=document.getElementById("menuPanel");
-  if(document.body.classList.contains("menu-open")&&menu) return menu;
-  if(document.body.classList.contains("detail-open")) return document.getElementById("content")||document;
-  return document;
-}
-function tvBringIntoView(el){
-  if(!el) return;
-  var horizontal=el.closest&&el.closest(".tabs,.recent-strip,.viewbar");
-  if(horizontal){
-    var er=el.getBoundingClientRect(), hr=horizontal.getBoundingClientRect();
-    if(er.left<hr.left+16) horizontal.scrollLeft-=hr.left+16-er.left;
-    else if(er.right>hr.right-16) horizontal.scrollLeft+=er.right-(hr.right-16);
-  }
-  var r=el.getBoundingClientRect();
-  var topSafe=Math.max(72,window.innerHeight*.10), bottomSafe=window.innerHeight-Math.max(72,window.innerHeight*.10);
-  var delta=0;
-  if(r.top<topSafe) delta=r.top-topSafe;
-  else if(r.bottom>bottomSafe) delta=r.bottom-bottomSafe;
-  if(delta) window.scrollBy({top:Math.round(delta),behavior:"auto"});
-}
-function tvFocus(el, opts){
-  if(!TV_MODE || !el) return false;
-  try{ el.focus({preventScroll:!!(opts&&opts.preventScroll)}); }catch(e){ try{ el.focus(); }catch(err){} }
-  [].forEach.call(document.querySelectorAll(".tv-focus"),function(x){ if(x!==el) x.classList.remove("tv-focus"); });
-  el.classList.add("tv-focus");
-  if(!(opts&&opts.preventScroll)) tvBringIntoView(el);
-  if(!tvIsEditable(el)) tvReturnFocus=el;
-  if(!tvIsEditable(el)) tvRememberFocus(el);
-  return true;
-}
-function tvFocusable(){
-  if(!TV_MODE) return [];
-  var sel='button,a[href],input,select,textarea,summary,[role="button"],[data-act],.clickrow,[tabindex="0"]';
-  var root=tvFocusRoot();
-  return [].filter.call(root.querySelectorAll(sel),function(el){
-    if(el.disabled || el.getAttribute("aria-hidden")==="true" || el.getAttribute("data-tv-skip")==="1" || el.tabIndex<0) return false;
-    var closed=el.closest&&el.closest("details:not([open])");
-    if(closed && el.tagName!=="SUMMARY") return false;
-    var st=getComputedStyle(el), r=el.getBoundingClientRect();
-    return st.display!=="none" && st.visibility!=="hidden" && st.pointerEvents!=="none" && r.width>0 && r.height>0;
-  });
-}
-function tvMakeFocusable(){
-  if(!TV_MODE) return;
-  tvPrepareInputs();
-  [].forEach.call(document.querySelectorAll('.clickrow,[data-act],summary,[role="button"]'),function(el){
-    if(!/^(BUTTON|A|INPUT|SELECT|TEXTAREA)$/i.test(el.tagName)){
-      el.tabIndex=0;
-      el.setAttribute("role","button");
-    }
-  });
-  tvFocusable().forEach(tvElementKey);
-}
-function tvEnsureFocus(){
-  if(!TV_MODE) return;
-  tvMakeFocusable();
-  var list=tvFocusable();
-  if(!list.length) return;
-  if(document.activeElement && list.indexOf(document.activeElement)>-1) return;
-  var activeTab=document.querySelector(".tab.on"),activeSection=document.querySelector("#sectionSw button.on");
-  var preferred=tvFindByKey(tvFocusMemory[tvViewKey()],list)||tvFindByKey(tvReturnFocusKey,list)||(tvReturnFocus&&list.indexOf(tvReturnFocus)>-1&&tvReturnFocus)||(list.indexOf(activeTab)>-1&&activeTab)||(list.indexOf(activeSection)>-1&&activeSection)||list[0];
-  setTimeout(function(){ tvFocus(preferred,{preventScroll:true}); },0);
-}
-function tvAfterRender(){
-  if(!TV_MODE) return;
-  requestAnimationFrame(function(){ requestAnimationFrame(tvEnsureFocus); });
-}
-function tvRectGap(a1,a2,b1,b2){
-  if(a2>=b1 && b2>=a1) return 0;
-  return a2<b1 ? b1-a2 : a1-b2;
-}
-function tvDirectionalScore(curRect, nextRect, dir){
-  var cx=curRect.left+curRect.width/2,cy=curRect.top+curRect.height/2;
-  var nx=nextRect.left+nextRect.width/2,ny=nextRect.top+nextRect.height/2;
-  var primary, secondary, overlap;
-  if(dir==="left"){
-    if(nx>=cx-3) return Infinity;
-    primary=cx-nx;
-    secondary=tvRectGap(curRect.top,curRect.bottom,nextRect.top,nextRect.bottom);
-    overlap=secondary===0;
-  } else if(dir==="right"){
-    if(nx<=cx+3) return Infinity;
-    primary=nx-cx;
-    secondary=tvRectGap(curRect.top,curRect.bottom,nextRect.top,nextRect.bottom);
-    overlap=secondary===0;
-  } else if(dir==="up"){
-    if(ny>=cy-3) return Infinity;
-    primary=cy-ny;
-    secondary=tvRectGap(curRect.left,curRect.right,nextRect.left,nextRect.right);
-    overlap=secondary===0;
-  } else {
-    if(ny<=cy+3) return Infinity;
-    primary=ny-cy;
-    secondary=tvRectGap(curRect.left,curRect.right,nextRect.left,nextRect.right);
-    overlap=secondary===0;
-  }
-  return primary + secondary*3 + (overlap?0:420);
-}
-function tvGroup(el){
-  if(!el||!el.closest) return document;
-  return el.closest("#sectionSw,#tabs,.stats,.toolbar,.viewbar,.media-grid,.game-grid,.plex-grid,.torrent-grid,.actions,.title-menu-pop,.menupanel,.settings-group,.settings,.tv-select-panel,.tv-confirm-actions,.tv-confirm-panel")||document;
-}
-function tvGroupAxis(group){
-  if(!group||group===document) return "spatial";
-  if(group.matches("#sectionSw,.settings,.settings-group,.title-menu-pop,.tv-select-panel")) return "vertical";
-  if(group.matches("#tabs,.viewbar,.actions,.tv-confirm-actions")) return "horizontal";
-  return "spatial";
-}
-function tvOrderedMove(cur,list,dir,axis){
-  if(!list.length) return null;
-  var forward=(axis==="horizontal"&&(dir==="right"))||(axis==="vertical"&&(dir==="down"));
-  var backward=(axis==="horizontal"&&(dir==="left"))||(axis==="vertical"&&(dir==="up"));
-  if(!forward&&!backward) return null;
-  var idx=list.indexOf(cur),next=idx+(forward?1:-1);
-  return next>=0&&next<list.length?list[next]:null;
-}
-function tvBestDirectional(cur,list,dir){
-  var cr=cur.getBoundingClientRect(),best=null,bestScore=Infinity;
-  list.forEach(function(el){
-    if(el===cur) return;
-    var score=tvDirectionalScore(cr,el.getBoundingClientRect(),dir);
-    if(score<bestScore){bestScore=score;best=el;}
-  });
-  return best;
-}
-function tvPreferredTransition(cur,group,list,dir){
-  if(group&&group.id==="sectionSw"&&dir==="right"){
-    return document.querySelector("#tabs .tab.on")||document.querySelector("#tabs .tab")||document.querySelector("#content button,#content [data-act],#content .clickrow");
-  }
-  if(group&&group.id==="tabs"&&dir==="up") return document.querySelector("#sectionSw button.on");
-  if(group&&group.id==="tabs"&&dir==="down"){
-    var below=[].filter.call(document.querySelectorAll(".toolbar button,.toolbar select,.viewbar button,#content button,#content select,#content [data-act],#content .clickrow"),function(el){return list.indexOf(el)>-1;});
-    return tvBestDirectional(cur,below,"down")||below[0]||null;
-  }
-  return null;
-}
-function tvMove(dir){
-  var now=Date.now();
-  if(now-tvLastMoveAt<TV_MOVE_DELAY) return;
-  tvLastMoveAt=now;
-  var list=tvFocusable();
-  if(!list.length) return;
-  var cur=document.activeElement;
-  if(list.indexOf(cur)<0){ tvEnsureFocus(); return; }
-  var group=tvGroup(cur);
-  var same=list.filter(function(el){return tvGroup(el)===group;});
-  var axis=tvGroupAxis(group);
-  var best=tvOrderedMove(cur,same,dir,axis)||tvPreferredTransition(cur,group,list,dir)||tvBestDirectional(cur,same,dir);
-  if(!best){
-    var outside=list.filter(function(el){return tvGroup(el)!==group;});
-    best=tvBestDirectional(cur,outside,dir);
-  }
-  if(!best && dir==="left" && group!==document){
-    var activeSection=document.querySelector("#sectionSw button.on");
-    if(activeSection&&list.indexOf(activeSection)>-1) best=activeSection;
-  }
-  if(!best && dir==="up" && group!==document){
-    var activeTab=document.querySelector("#tabs .tab.on");
-    if(activeTab&&list.indexOf(activeTab)>-1) best=activeTab;
-  }
-  if(best) tvFocus(best);
-}
-function tvMoveTextCursor(el,dir){
-  if(!el || typeof el.selectionStart!=="number") return;
-  var start=el.selectionStart,end=el.selectionEnd;
-  var pos=dir==="left"?Math.max(0,start-1):Math.min((el.value||"").length,end+1);
-  try{el.setSelectionRange(pos,pos);}catch(e){}
-}
-function tvCloseConfirm(result){
-  var overlay=document.getElementById("tvConfirmMenu");
-  if(!overlay) return;
-  var callback=overlay._confirmCallback,returnKey=overlay._returnKey;
-  overlay.remove();
-  if(result&&callback) callback();
-  setTimeout(function(){var target=tvFindByKey(returnKey);if(target)tvFocus(target);else tvEnsureFocus();},0);
-}
-var phoneConfirmCallback=null;
-function tvConfirm(message,confirmLabel,callback){
-  if(phoneUi()){
-    phoneConfirmCallback=callback;
-    openPhoneSheet("Confirm action",'<p class="phone-confirm-copy">'+esc(message)+'</p><div class="phone-confirm-actions"><button type="button" data-phone-confirm="no">Cancel</button><button type="button" class="danger" data-phone-confirm="yes">'+esc(confirmLabel||"Confirm")+'</button></div>');
-    return;
-  }
-  if(!TV_MODE){if(window.confirm(message))callback();return;}
-  tvCloseConfirm(false);
-  var overlay=document.createElement("div");
-  overlay.id="tvConfirmMenu";overlay.className="tv-confirm-menu";overlay._confirmCallback=callback;overlay._returnKey=tvElementKey(document.activeElement);
-  var panel=document.createElement("div");panel.className="tv-confirm-panel";
-  var title=document.createElement("h2");title.textContent="Confirm action";
-  var copy=document.createElement("p");copy.textContent=message;
-  var actions=document.createElement("div");actions.className="tv-confirm-actions";
-  var cancel=document.createElement("button");cancel.className="btn blue";cancel.type="button";cancel.textContent="Cancel";cancel.addEventListener("click",function(){tvCloseConfirm(false);});
-  var accept=document.createElement("button");accept.className="btn ghost danger";accept.type="button";accept.textContent=confirmLabel||"Confirm";accept.addEventListener("click",function(){tvCloseConfirm(true);});
-  actions.appendChild(cancel);actions.appendChild(accept);panel.appendChild(title);panel.appendChild(copy);panel.appendChild(actions);overlay.appendChild(panel);document.body.appendChild(overlay);
-  tvMakeFocusable();setTimeout(function(){tvFocus(cancel);},0);
-}
-function gameVaultTvBack(){
-  if(!TV_MODE) return "clear";
-  if(document.getElementById("tvShell")){
-    var qrOverlay=document.getElementById("tvGdQrBox");
-    if(qrOverlay&&qrOverlay.style.display!=="none"){
-      gdTvStop();gdTvSetStatus("QR login cancelled");qrOverlay.style.display="none";
-      tvFocusShell(document.querySelector('[data-tv-key="system:drive-login"]'));
-      return "handled";
-    }
-    var shellActive=document.activeElement;
-    if(tvIsTextInput(shellActive)){
-      if(tvEditingInput===shellActive)tvStopInputEdit(shellActive);
-      tvFocusShell(shellActive);
-      return "handled";
-    }
-    if(tvDetail){tvCloseDetail();return "handled";}
-    if(tvSection!=="home"){tvOpenSection("home");return "handled";}
-    return "clear";
-  }
-  if(document.getElementById("tvConfirmMenu")){
-    tvCloseConfirm(false);
-    return "handled";
-  }
-  if(document.getElementById("tvSelectMenu")){
-    tvCloseSelect();
-    var selectReturn=tvFindByKey(tvSelectReturnKey);if(selectReturn)tvFocus(selectReturn);else tvEnsureFocus();
-    return "handled";
-  }
-  var el=document.activeElement;
-  if(tvIsEditable(el)){
-    if(tvIsTextInput(el)) tvStopInputEdit(el);
-    else el.blur();
-    var list=tvFocusable();
-    var returnTarget=tvFindByKey(tvReturnFocusKey,list);
-    if(returnTarget) tvFocus(returnTarget);
-    else if(tvReturnFocus && list.indexOf(tvReturnFocus)>-1) tvFocus(tvReturnFocus);
-    else tvEnsureFocus();
-    return "handled";
-  }
-  var panel=document.getElementById("menuPanel");
-  if(panel && panel.classList.contains("open")){
-    setMenuOpen(false);
-    tvEnsureFocus();
-    return "handled";
-  }
-  var settings=document.getElementById("settingsBox");
-  if(settings && settings.style.display!=="none"){
-    toggleSettings(false);
-    tvEnsureFocus();
-    return "handled";
-  }
-  if(section==="films" && filmExpanded){
-    filmExpanded=null; aiOpen=null; render(); restoreDetailScroll(filmDetailReturnY);
-    return "handled";
-  }
-  if(section==="series" && seriesExpanded){
-    seriesExpanded=null; aiOpen=null; render(); restoreDetailScroll(seriesDetailReturnY);
-    return "handled";
-  }
-  if(section==="plex" && plexExpanded){
-    plexExpanded=null; aiOpen=null; render(); restoreDetailScroll(plexDetailReturnY);
-    return "handled";
-  }
-  if(section==="games" && expandedId){
-    expandedId=null; aiOpen=null; render(); restoreDetailScroll(gameDetailReturnY);
-    return "handled";
-  }
-  return "clear";
-}
-window.gameVaultTvBack=gameVaultTvBack;
-
-window.addEventListener("popstate",function(){
-  if(filmExpanded){ filmExpanded=null; aiOpen=null; render(); restoreDetailScroll(filmDetailReturnY); return; }
-  if(seriesExpanded){ seriesExpanded=null; aiOpen=null; render(); restoreDetailScroll(seriesDetailReturnY); return; }
-  if(plexExpanded){ plexExpanded=null; aiOpen=null; render(); restoreDetailScroll(plexDetailReturnY); return; }
-  if(expandedId){ expandedId=null; aiOpen=null; render(); restoreDetailScroll(gameDetailReturnY); }
-});
-document.addEventListener("click",function(e){
-  if(!TV_MODE) return;
-  var a=e.target.closest&&e.target.closest("a[href]");
-  if(!a) return;
-  var href=a.getAttribute("href")||"";
-  if(!/^https?:\/\//i.test(href)) return;
-  e.preventDefault();
-  window.location.href=a.href;
-},true);
-document.addEventListener("focusin",function(e){
-  if(!TV_MODE) return;
-  if(tvIsEditable(e.target)) return;
-  tvRememberFocus(e.target);
-},true);
-document.addEventListener("focusout",function(e){
-  if(!TV_MODE || !e.target || !e.target.classList) return;
-  if(tvIsTextInput(e.target)){
-    if(e.target===tvEditingInput){
-      e.target.readOnly=true;
-      e.target.classList.remove("tv-editing");
-      tvEditingInput=null;
-    }else if(!e.target.readOnly){
-      e.target.readOnly=true;
-    }
-  }
-  e.target.classList.remove("tv-focus");
-},true);
-function tvShellFocusables(){
-  var shell=document.getElementById("tvShell");if(!shell)return [];
-  var qr=document.getElementById("tvGdQrBox"),root=(qr&&qr.style.display!=="none")?qr:shell;
-  return [].filter.call(root.querySelectorAll("button,a[href],input"),function(el){
-    var r=el.getBoundingClientRect(),s=getComputedStyle(el);return !el.disabled&&s.display!=="none"&&s.visibility!=="hidden"&&r.width>0&&r.height>0;
-  });
-}
-function tvShellMove(dir){
-  var list=tvShellFocusables();if(!list.length)return true;
-  var cur=document.activeElement;if(list.indexOf(cur)<0){tvFocusShell(list[0]);return true;}
-  var nav=cur.closest&&cur.closest("[data-tv-nav]");
-  if(nav){
-    var navs=[].slice.call(document.querySelectorAll("#tvShell [data-tv-nav]")),ni=navs.indexOf(nav);
-    if(dir==="up"&&ni>0)tvFocusShell(navs[ni-1]);
-    else if(dir==="down"&&ni<navs.length-1)tvFocusShell(navs[ni+1]);
-    else if(dir==="right"){
-      var remembered=document.querySelector('#tvShell [data-tv-key="'+String(tvLastCardBySection[tvSection]||"").replace(/"/g,'\\"')+'"]');
-      var rowIndex=tvLastRowBySection[tvSection]||0;
-      tvFocusShell(remembered||document.querySelector('#tvShell [data-tv-row="'+rowIndex+'"][data-tv-card]')||document.querySelector("#tvShell [data-tv-card],#tvShell [data-tv-system]"));
-    }
-    return true;
-  }
-  var card=cur.closest&&cur.closest("[data-tv-card]");
-  if(card){
-    var row=Number(card.getAttribute("data-tv-row"))||0,col=Number(card.getAttribute("data-tv-col"))||0,target=null;
-    if(dir==="left")target=col>0?document.querySelector('#tvShell [data-tv-row="'+row+'"][data-tv-col="'+(col-1)+'"]'):document.querySelector('#tvShell [data-tv-nav="'+tvSection+'"]');
-    else if(dir==="right")target=document.querySelector('#tvShell [data-tv-row="'+row+'"][data-tv-col="'+(col+1)+'"]');
-    else if(dir==="up"&&row>0){
-      var prev=[].slice.call(document.querySelectorAll('#tvShell [data-tv-row="'+(row-1)+'"][data-tv-card]'));target=prev[Math.min(col,prev.length-1)]||null;
-    }else if(dir==="down"){
-      var next=[].slice.call(document.querySelectorAll('#tvShell [data-tv-row="'+(row+1)+'"][data-tv-card]'));target=next[Math.min(col,next.length-1)]||null;
-    }
-    if(target)tvFocusShell(target);return true;
-  }
-  var best=tvBestDirectional(cur,list,dir);
-  if(!best&&dir==="left")best=document.querySelector('#tvShell [data-tv-nav="'+tvSection+'"]');
-  if(best)tvFocusShell(best);return true;
-}
-function tvHandleShellKey(key){
-  if(!document.getElementById("tvShell"))return false;
-  var active=document.activeElement;
-  if(tvIsTextInput(active)){
-    if((key==="Enter"||key===" ")&&active!==tvEditingInput){tvStartInputEdit(active);return true;}
-    if(active===tvEditingInput&&key.indexOf("Arrow")===0){
-      if(key==="ArrowLeft"||key==="ArrowRight")tvMoveTextCursor(active,key==="ArrowLeft"?"left":"right");
-      else{tvStopInputEdit(active);tvFocusShell(active);tvShellMove(key.replace("Arrow","").toLowerCase());}
-      return true;
-    }
-  }
-  if(key.indexOf("Arrow")===0)return tvShellMove(key.replace("Arrow","").toLowerCase());
-  if((key==="Enter"||key===" ")&&active&&active.matches("button,a[href]")){active.click();return true;}
-  return false;
-}
-function tvHandleTvKey(key){
-  if(!TV_MODE) return false;
-  if(document.getElementById("tvShell")) return tvHandleShellKey(key);
-  var tag=(document.activeElement&&document.activeElement.tagName)||"";
-  var editingText=tvEditingInput&&document.activeElement===tvEditingInput;
-  var editing=/^(INPUT|TEXTAREA|SELECT)$/i.test(tag);
-  if(key==="ArrowLeft"||key==="ArrowRight"||key==="ArrowUp"||key==="ArrowDown"){
-    if(editingText){
-      if(key==="ArrowLeft"||key==="ArrowRight") tvMoveTextCursor(document.activeElement,key==="ArrowLeft"?"left":"right");
-      else{
-        var editEl=document.activeElement;
-        tvStopInputEdit(editEl);
-        var editReturn=tvFindByKey(tvReturnFocusKey);if(editReturn)tvFocus(editReturn,{preventScroll:true});else tvEnsureFocus();
-        tvMove(key==="ArrowUp"?"up":"down");
-      }
-      return true;
-    }
-    tvMove(key.replace("Arrow","").toLowerCase());
-    return true;
-  }
-  if((key==="Enter"||key===" ") && document.activeElement && tvIsTextInput(document.activeElement)){
-    if(document.activeElement!==tvEditingInput || document.activeElement.readOnly){
-      tvStartInputEdit(document.activeElement);
-    }
-    return true;
-  }
-  if((key==="Enter"||key===" ") && document.activeElement && document.activeElement.tagName==="SELECT"){
-    tvOpenSelect(document.activeElement);
-    return true;
-  }
-  if((key==="Enter"||key===" ") && document.activeElement && !editing){
-    var el=document.activeElement;
-    if(el.matches && el.matches('[data-act],.clickrow,button,a[href],summary,[role="button"]')){
-      el.click();
-      if(el.tagName==="SUMMARY") setTimeout(tvAfterRender,0);
-      return true;
-    }
-  }
-  return false;
-}
-window.gameVaultTvKey=tvHandleTvKey;
-document.addEventListener("keydown",function(e){
-  if(!TV_MODE) return;
-  if(tvAmbientWake()){ e.preventDefault(); e.stopPropagation(); return; } // key only wakes the ambient screen
-  if(tvHandleTvKey(e.key)){
-    e.preventDefault();
-    e.stopPropagation();
-  }
-},true);
-document.addEventListener("toggle",function(e){
-  if(TV_MODE && e.target && e.target.tagName==="DETAILS") tvAfterRender();
-},true);
-
-/* ---------- OLED protection: idle dim + ambient art (TV only) ----------
-   A 55" OLED showing a static rail/hero for hours risks burn-in. After 3 min
-   without input the whole UI dims; after 6 min a slow poster slideshow with a
-   drifting pan takes over. Any remote key or pointer wakes it — the waking
-   key is swallowed only when the ambient screen was up. */
-var TV_DIM_MS=3*60000, TV_AMBIENT_MS=6*60000, TV_AMBIENT_CYCLE=12000;
-var tvLastInput=Date.now(), tvAmbientOn=false, tvAmbientTimer=null;
-function tvMarkInput(){
-  tvLastInput=Date.now();
-  if(!TV_MODE) return;
-  document.documentElement.classList.remove("tv-dim");
-  if(tvAmbientOn) tvAmbientStop();
-}
-function tvAmbientArt(){
-  var urls=[];
-  function push(u){ if(u && typeof u==="string" && urls.indexOf(u)<0) urls.push(u); }
-  try{
-    for(var k in filmCache){ (((filmCache[k]||{}).items)||[]).forEach(function(m){ push(m.poster); }); }
-    for(var s in seriesCache){ (((seriesCache[s]||{}).items)||[]).forEach(function(m){ push(m.poster); }); }
-    (data.upcoming||[]).forEach(function(g){ push(g.img||(data.covers||{})[norm(g.name)]); });
-    Object.keys(data.covers||{}).slice(0,120).forEach(function(n){ push(data.covers[n]); });
-  }catch(e){}
-  for(var i=urls.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=urls[i]; urls[i]=urls[j]; urls[j]=t; }
-  return urls.slice(0,40);
-}
-function tvAmbientStart(){
-  if(tvAmbientOn) return;
-  var art=tvAmbientArt();
-  var ov=document.getElementById("tvAmbient");
-  if(!ov){ ov=document.createElement("div"); ov.id="tvAmbient"; document.body.appendChild(ov); }
-  tvAmbientOn=true; ov.className="on";
-  var i=0;
-  (function cycle(){
-    if(!tvAmbientOn) return;
-    var u=art.length ? art[i++ % art.length] : "";
-    ov.innerHTML='<div class="amb-art" style="background-image:'+(u?"url('"+u+"')":"none")+'"></div>'+
-      '<div class="amb-scrim"></div>'+
-      '<div class="amb-clock">'+new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})+'</div>';
-    tvAmbientTimer=setTimeout(cycle,TV_AMBIENT_CYCLE);
-  })();
-}
-function tvAmbientStop(){
-  tvAmbientOn=false;
-  clearTimeout(tvAmbientTimer);
-  var ov=document.getElementById("tvAmbient");
-  if(ov){ ov.className=""; ov.innerHTML=""; }
-}
-/* called from the TV key handler: true = swallow this key (it only woke the screen) */
-function tvAmbientWake(){
-  var wasAmbient=tvAmbientOn;
-  tvMarkInput();
-  return wasAmbient;
-}
-if(TV_MODE){
-  ["pointerdown","mousemove","wheel"].forEach(function(ev){ document.addEventListener(ev,tvMarkInput,{passive:true}); });
-  setInterval(function(){
-    var idle=Date.now()-tvLastInput;
-    if(idle>=TV_AMBIENT_MS){ if(!tvAmbientOn) tvAmbientStart(); }
-    else if(idle>=TV_DIM_MS) document.documentElement.classList.add("tv-dim");
-  },15000);
-}
+/* Android TV navigation is handled by the native Shield application. */
+function tvAfterRender(){}
+function tvConfirm(message,confirmLabel,callback){ if(window.confirm(message)) callback(); }
 
 /* ---------- autocomplete ---------- */
 var AC_LIMIT=7, acTimer=null, acSeq=0;
@@ -8368,10 +6614,9 @@ function decryptVault(envelope,password){
 function refreshRecoveryUi(){
   var sel=document.getElementById("snapshotSelect"),summary=document.getElementById("systemSummary"),grid=document.getElementById("connectionGrid"),activity=document.getElementById("recentActivity");
   if(!sel) return;
-  appLockRefreshStatus();
   var snaps=readRecoverySnapshots();
   sel.innerHTML=snaps.length?snaps.map(function(s,i){ return '<option value="'+i+'">'+esc(new Date(s.createdAt).toLocaleString()+" - "+s.reason+" ("+s.size+" items)")+'</option>'; }).join(""):'<option value="">No recovery points yet</option>';
-  if(summary) summary.textContent="Version "+APP_VERSION+" · "+APP_RELEASE_CHANNEL+" · build "+APP_BUILD_DATE+" · data schema "+SCHEMA_VERSION+" · "+vaultSize(data)+" saved items · "+snaps.length+" recovery points · "+(cloudMode()==="drive"?"Google Drive primary":cloudMode()==="jsonbin"?"JSONBin fallback":"local only");
+  if(summary) summary.textContent="Version "+APP_VERSION+" · "+APP_RELEASE_CHANNEL+" · build "+APP_BUILD_DATE+" · data schema "+SCHEMA_VERSION+" · "+vaultSize(data)+" saved items · "+snaps.length+" recovery points · "+(cloudMode()==="drive"?"Google Drive primary":"local only");
   if(grid){
     var services=[
       ["Google Drive",!!gdTok(),cloudMode()==="drive"?"Primary sync":"Not connected"],
@@ -8388,7 +6633,7 @@ function refreshRecoveryUi(){
   }
 }
 function exportDiagnostics(){
-  var report={app:"Sinu Game Vault",version:APP_VERSION,buildDate:APP_BUILD_DATE,releaseChannel:APP_RELEASE_CHANNEL,schema:SCHEMA_VERSION,generatedAt:new Date().toISOString(),device:deviceId(),userAgent:navigator.userAgent,online:navigator.onLine,storageItems:vaultSize(data),revision:data.revision||0,updatedAt:data.updatedAt||0,cloudMode:cloudMode()||"none",connections:{drive:!!gdTok(),jsonBin:!!getJB().bin,rawg:!!getKey(),tmdb:!!tmdbKey(),omdb:!!omdbKey(),plex:!!(plexServerUrl()&&plexToken()),biglybt:!!biglyProxyUrl()},collections:{},runtimeErrors:runtimeErrors.slice(),requestDiagnostics:window.GameVaultCore?GameVaultCore.diagnostics.list():[],recentAudit:(data.audit||[]).slice(0,50)};
+  var report={app:"Sinu Game Vault",version:APP_VERSION,buildDate:APP_BUILD_DATE,releaseChannel:APP_RELEASE_CHANNEL,schema:SCHEMA_VERSION,generatedAt:new Date().toISOString(),device:deviceId(),userAgent:navigator.userAgent,online:navigator.onLine,storageItems:vaultSize(data),revision:data.revision||0,updatedAt:data.updatedAt||0,cloudMode:cloudMode()||"none",connections:{drive:!!gdTok(),rawg:!!getKey(),tmdb:!!tmdbKey(),omdb:!!omdbKey(),plex:!!(plexServerUrl()&&plexToken()),biglybt:!!biglyProxyUrl()},collections:{},runtimeErrors:runtimeErrors.slice(),requestDiagnostics:window.GameVaultCore?GameVaultCore.diagnostics.list():[],recentAudit:(data.audit||[]).slice(0,50)};
   VAULT_ARRAY_FIELDS.forEach(function(k){ report.collections[k]=(data[k]||[]).length; });
   downloadBlob(new Blob([JSON.stringify(report,null,2)],{type:"application/json"}),"game-vault-diagnostics-"+localISO()+".json");
 }
@@ -8396,22 +6641,8 @@ document.getElementById("exportBtn").addEventListener("click",function(){
   createRecoverySnapshot("Before manual export",data);
   downloadBlob(new Blob([JSON.stringify(vaultCopyForExport(),null,2)],{type:"application/json"}),"game-vault-backup-"+localISO()+".json");
   if(cloudMode()==="drive"){ silentPush(); flash("Backup downloaded — Google Drive copy refreshed too"); }
-  flash("Backup downloaded");
+  else flash("Backup downloaded");
 });
-function shareGameVault(){
-  var payload={title:"Sinu Game Vault",text:"My private dashboard for games, movies, TV shows, Plex and personal tracking.",url:"https://sinuksml.github.io/gamevault/"};
-  setMenuOpen(false);
-  if(navigator.share){
-    navigator.share(payload).catch(function(e){if(e&&e.name!=="AbortError")flash("Could not open the share menu");});
-    return;
-  }
-  if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(payload.url).then(function(){flash("GameVault link copied");}).catch(function(){flash("Share link: "+payload.url);});
-    return;
-  }
-  flash("Share link: "+payload.url);
-}
-document.getElementById("shareBtn").addEventListener("click",shareGameVault);
 document.getElementById("importBtn").addEventListener("click",function(){ document.getElementById("importFile").click(); });
 document.getElementById("importFile").addEventListener("change",function(e){
   var f=e.target.files[0]; if(!f) return;
@@ -8437,7 +6668,7 @@ document.getElementById("restoreSnapshotBtn").addEventListener("click",function(
   var sel=document.getElementById("snapshotSelect"); if(!sel.value && sel.value!=="0"){ flash("No recovery point selected"); return; }
   function restoreSelected(){try{restoreRecoverySnapshot(sel.value);refreshRecoveryUi();flash("Recovery point restored");}catch(e){flash(e.message);}}
   var warning="Replace the current vault with this recovery point? A copy of the current vault will be kept first.";
-  if(TV_MODE||phoneUi()){tvConfirm(warning,"Restore recovery point",restoreSelected);return;}
+  if(phoneUi()){tvConfirm(warning,"Restore recovery point",restoreSelected);return;}
   if(confirm(warning)) restoreSelected();
 });
 document.getElementById("encryptedExportBtn").addEventListener("click",function(){
@@ -8493,8 +6724,7 @@ function globalRefresh(){
   if(section==="plex"&&plexServerUrl() && plexToken()) plexRefresh();
   if(section==="biglybt"){
     var biglyFrame=document.getElementById("biglyFrame");
-    if(biglyMode()==="api") biglyRefresh();
-    else if(biglyFrame) biglyFrame.src=biglyFrame.src;
+    if(biglyFrame) biglyFrame.src=biglyFrame.src;
   }
   applyBackground();
   if(!phoneUi())render();
@@ -8520,8 +6750,12 @@ function refreshAllData(){
   setTimeout(backfillImages,600);
 }
 document.getElementById("refreshBtn").addEventListener("click",globalRefresh);
-var menuRefreshBtn=document.getElementById("menuRefreshBtn");
-if(menuRefreshBtn) menuRefreshBtn.addEventListener("click",function(){ setMenuOpen(false); refreshAllData(); });
+var syncNowBtn=document.getElementById("syncNowBtn");
+if(syncNowBtn) syncNowBtn.addEventListener("click",function(){
+  setMenuOpen(false);
+  if(!gdConnected()){flash("Connect Google Drive in Settings first");toggleSettings(true);return;}
+  refreshAllData();
+});
 
 /* ---------- swipe between tabs (phone) ---------- */
 var TAB_ORDER=["rentals","playing","queue","upcoming","suggest","played"];
@@ -8752,12 +6986,8 @@ function hydrateIndexedStorage(){
 }
 document.addEventListener("visibilitychange",function(){
   if(document.visibilityState==="visible"){
-    var config=appLockConfig();
-    if(config&&config.pin&&appLockHiddenAt&&Date.now()-appLockHiddenAt>=Math.max(1,Number(config.minutes)||5)*60000)appLockShow();
-    appLockHiddenAt=0;
     silentPullOnLoad();warmVisibleContent();
   }else{
-    appLockHiddenAt=Date.now();
     flushPendingPush();
   }
 });
@@ -8776,7 +7006,6 @@ if("serviceWorker" in navigator && location.protocol.indexOf("http")===0 && !/^(
   navigator.serviceWorker.register("sw.js?v="+APP_VERSION,{updateViaCache:"none"}).then(function(reg){
     function offerUpdate(worker){
       if(!worker) return;
-      if(TV_MODE){worker.postMessage({type:"SKIP_WAITING"});return;}
       if(phoneUi()){pendingPhoneWorker=worker;setPhoneStatus("GameVault "+APP_VERSION+" is ready to install","update","update");return;}
       flash("A GameVault update is ready - tap here to install",function(){ worker.postMessage({type:"SKIP_WAITING"}); });
     }
@@ -8808,7 +7037,6 @@ setTimeout(function(){
    so iOS Shortcuts / bookmarks can open any page directly (view-only; the
    saved default tab is not overwritten until the user taps a tab) */
 (function(){
-  if(TV_MODE) return;
   var wanted="";
   try{ wanted=new URLSearchParams(location.search).get("tab")||""; }catch(e){}
   if(!wanted) return;
@@ -8834,8 +7062,6 @@ hydrateIndexedStorage().then(function(){
 decoratePhonePlots();
 updatePhoneConnectionStatus();
 refreshRecoveryUi();
-appLockInitialCheck();
-if(TV_MODE) setTimeout(function(){tvPrimeSection(tvSection);},80);
 if(plexServerUrl() && plexToken()) setTimeout(plexRefresh,500);
 silentPullOnLoad();
 setTimeout(backfillImages,1500);

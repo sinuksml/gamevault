@@ -11,21 +11,13 @@
 <meta name="color-scheme" content="dark light">
 <meta name="description" content="A private personal dashboard for games, movies, TV shows, Plex, BiglyBT, health, finance tracking and cloud backup.">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<meta property="og:type" content="website">
-<meta property="og:title" content="Sinu Game Vault">
-<meta property="og:description" content="Games, movies, TV shows, Plex, downloads and personal tracking in one private dashboard.">
-<meta property="og:url" content="https://sinuksml.github.io/gamevault/">
-<meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Sinu Game Vault">
-<meta name="twitter:description" content="Games, movies, TV shows, Plex, downloads and personal tracking in one private dashboard.">
-<link rel="canonical" href="https://sinuksml.github.io/gamevault/">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash-portrait.png">
 <link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" href="splash-landscape.png">
 <link rel="apple-touch-startup-image" href="splash-portrait.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Sinu Game Vault — PS5 Tracker</title>
-<link rel="stylesheet" href="app.css?v=1.27.0">
+<link rel="stylesheet" href="app.css?v=1.28.0">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -39,11 +31,6 @@
     <button class="desktop-command-btn desktop-only" id="commandBtn" type="button" title="Search and quick actions (Ctrl+K)"><span aria-hidden="true">&#8981;</span><span>Search</span><kbd>Ctrl K</kbd></button>
     <span class="desktop-sync-pill desktop-only" id="desktopSyncPill" role="status" aria-live="polite">Local data</span>
     <span class="version-badge version-badge-top" id="appVersionBadge" aria-label="Application version"></span>
-    <div class="tvzoom" aria-label="TV zoom controls">
-      <button class="iconbtn" id="tvZoomOutBtn" title="Zoom out">-</button>
-      <button class="iconbtn" id="tvZoomResetBtn" title="Reset zoom">90%</button>
-      <button class="iconbtn" id="tvZoomInBtn" title="Zoom in">+</button>
-    </div>
     <button class="iconbtn" id="refreshBtn" title="Refresh current section" aria-label="Refresh current section">&#8635;</button>
     <button class="iconbtn" id="themeBtn" title="Switch light / dark mode" aria-label="Switch light or dark mode">&#9788;</button>
     <button class="iconbtn" id="menuBtn" title="Cloud, backup &amp; settings" aria-label="Open cloud, backup and settings">&#8943;</button>
@@ -72,12 +59,9 @@
   <div id="hero"></div>
   <div class="menupanel" id="menuPanel">
     <div class="mobile-sheet-head"><strong>Quick actions</strong><button class="btn ghost" id="menuCloseBtn">Done</button></div>
-    <button class="btn" id="menuRefreshBtn">&#8635; Refresh all data</button>
-    <button class="btn" id="pushBtn">&#8657; Push to cloud</button>
-    <button class="btn" id="pullBtn">&#8659; Pull from cloud</button>
+    <button class="btn blue" id="syncNowBtn">&#8635; Sync now</button>
     <button class="btn" id="exportBtn">Export backup</button>
     <button class="btn" id="importBtn">Restore backup</button>
-    <button class="btn" id="shareBtn">Share GameVault</button>
     <button class="btn" id="settingsBtn">Settings</button>
     <input type="file" id="importFile" accept=".json" style="display:none">
   </div>
@@ -85,7 +69,7 @@
     <div class="settings-mobile-head"><div><span>GAMEVAULT</span><h2>Settings</h2></div><button class="detail-close settings-close" id="settingsCloseBtn" aria-label="Close Settings" title="Close Settings">&times;</button></div>
     <details class="settings-group" open>
     <summary>Google Drive sync</summary>
-    <p><b style="color:var(--text)">Google Drive sync (primary).</b> For Google Drive backup, click <b>Sign in with Google</b> below. Your library syncs automatically to <b>game-vault-backup.json</b>. API keys always stay on this device, and health records stay local unless you explicitly enable health sync under System, recovery &amp; diagnostics. One-time setup: open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">console.cloud.google.com</a> &rarr; create a project &rarr; enable the <b>Google Drive API</b> &rarr; configure the OAuth consent screen (External, then <b>Publish</b>) &rarr; Create Credentials &rarr; <b>OAuth client ID</b> &rarr; Web application &rarr; add <b>https://sinuksml.github.io</b> under Authorized JavaScript origins &rarr; copy the Client ID below.</p>
+    <p><b style="color:var(--text)">Automatic backup and cross-device synchronization.</b> Your library is stored in <b>game-vault-backup.json</b> in Google Drive. Health records remain local unless cloud sync is enabled below.</p>
     <div class="fields">
       <input class="f-name" id="gdClientInput" placeholder="Google OAuth Client ID (…apps.googleusercontent.com)" autocomplete="off">
       <button class="btn blue" id="gdSaveBtn">Save Client ID</button>
@@ -96,48 +80,34 @@
       <span class="syncnote" id="gdStatus" style="align-self:center"></span>
     </div>
     <div class="syncnote" id="gdUsage" style="margin-top:8px">GameVault Drive storage: not connected.</div>
-    <div id="gdTvSection">
-      <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
-      <p><b style="color:var(--text)">Android TV phone login.</b> If normal Google sign-in does not open on the TV browser, create a Google OAuth client with application type <b>TVs and Limited Input devices</b>, paste it below, then use the QR login. Scan the QR on your phone, approve access, and the TV will connect to the same Drive backup.</p>
-      <div class="fields">
-        <input class="f-name" id="gdTvClientInput" placeholder="TV OAuth Client ID" autocomplete="off">
-        <input class="f-name" id="gdTvSecretInput" type="password" placeholder="TV OAuth Client Secret, if Google shows one" autocomplete="off">
-        <button class="btn blue" id="gdTvSaveBtn">Save TV login</button>
-      </div>
-      <div class="fields" style="margin-top:8px">
-        <button class="btn blue" id="gdTvLoginBtn">Login with phone QR</button>
-        <button class="btn ghost danger" id="gdTvCancelBtn" style="display:none">Cancel QR login</button>
-        <span class="syncnote" id="gdTvStatus" style="align-self:center"></span>
-      </div>
-      <div class="tv-login" id="gdTvBox" style="display:none"></div>
-    </div>
+    <details class="setup-help"><summary>Google Drive setup help</summary><p>Open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud credentials</a>, enable Google Drive API, configure the OAuth consent screen, create a Web application OAuth client, and add <b>https://sinuksml.github.io</b> as an authorized JavaScript origin. The native Android TV app manages its own TV login.</p></details>
     </details>
     <details class="settings-group">
     <summary>Games, movies &amp; TV data services</summary>
-    <p><b style="color:var(--text)">Live internet updates (optional).</b> Get a free API key from <a href="https://rawg.io/apidocs" target="_blank" rel="noopener">rawg.io/apidocs</a> (sign up &rarr; Get API Key), paste it below, and the app can fetch cover art, scores, autocomplete and live lists for Upcoming Releases and Discover from the RAWG games database. Without a key, the built-in curated lists still work fully offline.</p>
+    <p><b style="color:var(--text)">RAWG</b> supplies current game releases, artwork and recommendations.</p>
     <div class="fields">
       <input class="f-name" id="apiKeyInput" type="password" placeholder="Paste RAWG API key here" autocomplete="off">
       <button class="btn blue" id="saveKeyBtn">Save key</button>
     </div>
     <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
-    <p><b style="color:var(--text)">Movies &amp; TV Shows sections (TMDB + IMDb).</b> These sections pull live data from <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">TMDB</a> &mdash; sign up free &rarr; Settings &rarr; API &rarr; copy the <b>API Key (v3 auth)</b>. For exact IMDb ratings where available, also get a free key from <a href="https://www.omdbapi.com/apikey.aspx" target="_blank" rel="noopener">OMDb</a> (activate the link they email you). Paste both below.</p>
+    <p><b style="color:var(--text)">TMDB and OMDb</b> supply movie and TV artwork, release information and IMDb ratings.</p>
     <div class="fields">
       <input class="f-name" id="tmdbKeyInput" type="password" placeholder="TMDB API key (v3 auth)" autocomplete="off">
       <input class="f-name" id="omdbKeyInput" type="password" placeholder="OMDb API key (for IMDb ratings)" autocomplete="off">
       <button class="btn blue" id="saveFilmKeysBtn">Save film keys</button>
     </div>
+    <details class="setup-help"><summary>Data-service setup help</summary><p>Create a RAWG key at <a href="https://rawg.io/apidocs" target="_blank" rel="noopener">rawg.io/apidocs</a>, a TMDB v3 key under <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">TMDB settings</a>, and an OMDb key at <a href="https://www.omdbapi.com/apikey.aspx" target="_blank" rel="noopener">omdbapi.com</a>.</p></details>
     </details>
     <details class="settings-group">
     <summary>BiglyBT &amp; Plex</summary>
-    <p><b style="color:var(--text)">BiglyBT secure dashboard.</b> Paste your HTTPS Cloudflare Worker URL. The streamlined Native Dashboard is recommended; the original Web UI remains available from the BiglyBT mode switch. The raw <b>http://</b> public-IP address cannot be embedded because GameVault uses HTTPS.</p>
+    <p><b style="color:var(--text)">BiglyBT native dashboard.</b> Connect through the HTTPS Cloudflare gateway.</p>
     <div class="fields">
       <input class="f-name" id="biglyProxyInput" placeholder="HTTPS gateway URL, e.g. https://gamevault-biglybt.yourname.workers.dev" autocomplete="off">
-      <select class="f-sm" id="biglyModeInput"><option value="api">Native dashboard (recommended)</option><option value="iframe">Original Web UI</option></select>
       <input class="f-name" id="biglyFolderInput" placeholder="Downloads folder (this device) — e.g. Z:\Downloads or \\192.168.0.100\Elements" autocomplete="off">
       <button class="btn blue" id="saveBiglyProxyBtn">Save BiglyBT gateway</button>
     </div>
     <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
-    <p><b style="color:var(--text)">Plex library.</b> Enter an owner <a href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/" target="_blank" rel="noopener">X-Plex-Token</a> and either your secure Plex Media Server URL or use Discover Server. The token stays only in this browser and is never included in Drive/JSONBin backups. For deletion, enable <b>Settings &rarr; Server &rarr; Library &rarr; Allow media deletion</b> in Plex. Use an HTTPS <b>plex.direct</b> connection when opening GameVault from GitHub Pages.</p>
+    <p><b style="color:var(--text)">Plex library.</b> Connect using a secure Plex server URL and owner token.</p>
     <div class="fields">
       <input class="f-name" id="plexUrlInput" placeholder="Secure Plex server URL (https://...plex.direct:32400)" autocomplete="off">
       <input class="f-name" id="plexTokenInput" type="password" placeholder="X-Plex-Token" autocomplete="off">
@@ -146,15 +116,7 @@
       <button class="btn ghost danger" id="clearPlexBtn">Disconnect</button>
     </div>
     <div class="syncnote" id="plexSettingsStatus" style="margin-top:7px"></div>
-    </details>
-    <details class="settings-group">
-    <summary>JSONBin fallback</summary>
-    <p><b style="color:var(--text)">JSONBin sync (optional fallback).</b> Used only when Google Drive is not connected. Get a free account at <a href="https://jsonbin.io" target="_blank" rel="noopener">jsonbin.io</a> &rarr; open <b>API Keys</b> &rarr; copy your <b>Master Key</b> and paste it below on <b>this device</b>, then Save. Every change you make here now saves to the cloud automatically a couple of seconds after you type &mdash; no button to press. On your <b>other device</b> (phone or PC), open the app, paste the <b>same Master Key</b>, then copy the <b>Bin ID</b> shown here into that device's Settings too, and Save. From then on both devices silently stay in sync: whichever has the newest change wins, checked every time the app opens. The Push/Pull buttons in the &#8943; menu still work if you ever want to force a sync manually.</p>
-    <div class="fields">
-      <input class="f-name" id="jbKeyInput" type="password" placeholder="JSONBin Master Key" autocomplete="off">
-      <input class="f-name" id="jbBinInput" placeholder="Bin ID (auto-filled after first push)" autocomplete="off">
-      <button class="btn blue" id="saveSyncBtn">Save sync settings</button>
-    </div>
+    <details class="setup-help"><summary>Plex and BiglyBT setup help</summary><p>Use an HTTPS <b>plex.direct</b> connection for Plex. Find the owner token in the <a href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/" target="_blank" rel="noopener">Plex token guide</a>. For BiglyBT, the raw public-IP address cannot be embedded because GameVault uses HTTPS.</p></details>
     </details>
     <details class="settings-group" open>
       <summary>System, recovery &amp; diagnostics</summary>
@@ -173,12 +135,6 @@
           <input id="alertsInput" type="checkbox">
           Alerts: rentals due &amp; new releases
         </label>
-        <div class="tv-settings-zoom tv-only" aria-label="TV display size">
-          <span>TV display size</span>
-          <button class="btn" id="tvSettingsZoomOutBtn" type="button">Smaller</button>
-          <button class="btn" id="tvSettingsZoomResetBtn" type="button">90%</button>
-          <button class="btn" id="tvSettingsZoomInBtn" type="button">Larger</button>
-        </div>
         <button class="btn" id="snapshotBtn">Create recovery point</button>
         <select class="f-name" id="snapshotSelect" aria-label="Recovery point"></select>
         <button class="btn" id="restoreSnapshotBtn">Restore selected</button>
@@ -197,22 +153,7 @@
           <span class="syncnote" id="secureConfigStatus"></span>
         </div>
       </div>
-      <div class="security-settings">
-        <div>
-          <strong>Optional whole-app lock</strong>
-          <p class="syncnote">Protect GameVault on this browser with a PIN. Supported Apple devices can additionally use Face ID through a passkey.</p>
-        </div>
-        <div class="fields">
-          <input class="f-sm" id="appLockPinSetup" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="12" placeholder="New 4–12 digit PIN" autocomplete="new-password">
-          <select class="f-sm" id="appLockMinutes"><option value="1">Lock after 1 minute</option><option value="5">Lock after 5 minutes</option><option value="15">Lock after 15 minutes</option><option value="30">Lock after 30 minutes</option></select>
-          <button class="btn blue" id="appLockEnableBtn" type="button">Enable app lock</button>
-          <button class="btn" id="appLockFaceBtn" type="button">Enable Face ID / passkey</button>
-          <button class="btn" id="appLockNowBtn" type="button">Lock now</button>
-          <button class="btn ghost danger" id="appLockDisableBtn" type="button">Disable app lock</button>
-          <span class="syncnote" id="appLockStatus"></span>
-        </div>
-      </div>
-      <p class="syncnote privacy-note">Health sync is off by default. If enabled, health records are included in your normal Drive or JSONBin backup. Finance records are always stored as a separately PIN-encrypted envelope; the PIN is never saved or uploaded. Use Encrypted backup for a password-protected portable copy of the remaining vault.</p>
+      <p class="syncnote privacy-note">Health sync is off by default. If enabled, health records are included in your Google Drive backup. Finance remains protected by its dedicated PIN and Face ID lock. Use Encrypted backup for a password-protected portable copy of the remaining vault.</p>
       <div class="recent-activity" id="recentActivity"></div>
       <p class="syncnote">GameVault keeps up to eight local recovery points and up to five daily Drive history copies. Diagnostics never include passwords, OAuth tokens, Plex tokens, or API keys.</p>
     </details>
@@ -231,19 +172,6 @@
   <button type="button" data-keyboard="done">Done</button>
 </div>
 
-<div class="app-lock-overlay" id="appLockOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="appLockTitle">
-  <div class="app-lock-panel">
-    <span class="app-lock-mark" aria-hidden="true">GV</span>
-    <p class="eyebrow">SINU GAME VAULT</p>
-    <h2 id="appLockTitle">Unlock GameVault</h2>
-    <p>Your library and private dashboards are locked on this device.</p>
-    <input id="appLockPin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="12" placeholder="Enter PIN" autocomplete="current-password" aria-label="GameVault PIN">
-    <button class="btn blue" id="appLockUnlockBtn" type="button">Unlock</button>
-    <button class="btn" id="appLockBiometricBtn" type="button">Use Face ID / passkey</button>
-    <span class="syncnote" id="appLockMessage" role="status" aria-live="polite"></span>
-  </div>
-</div>
-
 <div class="command-palette" id="commandPalette" role="dialog" aria-modal="true" aria-labelledby="commandTitle" hidden>
   <div class="command-panel">
     <div class="command-head">
@@ -256,7 +184,7 @@
   </div>
 </div>
 
-<script src="core.js?v=1.27.0"></script>
-<script src="finance.js?v=1.27.0"></script>
-<script src="app.js?v=1.27.0"></script></body>
+<script src="core.js?v=1.28.0"></script>
+<script src="finance.js?v=1.28.0"></script>
+<script src="app.js?v=1.28.0"></script></body>
 </html>

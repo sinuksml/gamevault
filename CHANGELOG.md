@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.28.0 - 2026-07-24
+
+- Made Google Drive the only primary cloud workflow and removed the obsolete JSONBin controls and implementation.
+- Removed the redundant whole-app lock while retaining the independently encrypted Finance vault and its PIN/biometric protection.
+- Simplified Settings, recovery diagnostics, cloud actions and the top quick menu around one clear Sync now workflow.
+- Removed the retired browser-based Android TV interface from the web bundle; NVIDIA Shield remains supported by the dedicated native TV app.
+- Consolidated PC and iPhone styling after removing TV-only browser selectors and controls.
+- Standardized BiglyBT on its secure native dashboard and removed its duplicate legacy renderer and Web UI switch.
+- Removed stale bundled upcoming-game dates so internet refreshes remain the source of current release information.
+
 ## v1.27.0 - 2026-07-24
 
 - Added conflict-safe record-level cloud merging with tombstones so simultaneous edits from PC and iPhone converge without replacing the entire newer library.
