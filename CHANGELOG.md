@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.0.0 - 2026-07-25
+
+- Redesigned the PC, 2K and iPhone workspaces around one responsive layout system without changing application workflows.
+- Added a centered wide-screen content canvas, calmer desktop navigation, compact hierarchy, bounded card grids and more consistent detail pages.
+- Improved iPhone 17 Pro spacing, touch targets, two-column title grids, action layouts and safe-area behavior.
+- Standardized control, panel, card and pill radii with consistent elevation and stronger light-mode separation.
+- Added Playwright screenshot regression coverage and a Figma design-system review file for future visual changes.
+
 ## v1.28.0 - 2026-07-24
 
 - Made Google Drive the only primary cloud workflow and removed the obsolete JSONBin controls and implementation.

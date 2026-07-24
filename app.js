@@ -1,6 +1,6 @@
 "use strict";
-var APP_VERSION = "1.28.0";
-var APP_BUILD_DATE = "2026-07-24";
+var APP_VERSION = "2.0.0";
+var APP_BUILD_DATE = "2026-07-25";
 var APP_RELEASE_CHANNEL = "Stable";
 
 if(/iPhone|iPad|iPod/i.test(navigator.userAgent)){

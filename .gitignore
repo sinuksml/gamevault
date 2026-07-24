@@ -12,6 +12,8 @@ android-tv-native/local.properties
 node_modules/
 screenshots/
 test-results/
+playwright-report/
+blob-report/
 # local-only working files — never publish to the public repo
 *.apk
 shield-termux*.png

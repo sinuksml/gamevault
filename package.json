@@ -1,9 +1,17 @@
 {
   "name": "sinu-game-vault",
-  "version": "1.28.0",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
     "test": "node tests/smoke.mjs",
-    "test:smoke": "node tests/smoke.mjs"
+    "test:smoke": "node tests/smoke.mjs",
+    "test:visual": "playwright test",
+    "test:visual:update": "playwright test --update-snapshots",
+    "test:visual:ui": "playwright test --ui",
+    "test:all": "npm run test:smoke && npm run test:visual",
+    "test:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
   }
 }
