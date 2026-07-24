@@ -159,8 +159,15 @@ assert.match(js,/watchingSeries/);
 assert.match(js,/PLEX_ORDER=\["home","continue","movies","shows","recent"\]/);
 assert.match(html,/id="desktopRailBtn"/);
 assert.match(html,/id="commandPalette"/);
+assert.match(html,/class="workspace-main"/);
+for(const group of ["Library","Connected","Personal"]){
+  assert.ok(html.includes(`>${group}</span>`),`desktop navigation must include the ${group} group`);
+}
+assert.doesNotMatch(html,/data-section="home"/);
 assert.match(css,/@media \(min-width:900px\)/);
 assert.match(css,/html \.sectionsw/);
+assert.match(css,/html \.workspace-main/);
+assert.match(css,/html \.empty-state/);
 assert.match(js,/function openCommandPalette\(/);
 assert.match(js,/function applyDesktopShell\(/);
 assert.match(js,/document\.body\.classList\.remove\("command-open"\)/);

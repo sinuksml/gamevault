@@ -14,6 +14,7 @@ screenshots/
 test-results/
 playwright-report/
 blob-report/
+storybook-static/
 # local-only working files — never publish to the public repo
 *.apk
 shield-termux*.png

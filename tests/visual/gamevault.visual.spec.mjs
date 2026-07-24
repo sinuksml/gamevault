@@ -79,6 +79,9 @@ test.describe("desktop visual system", () => {
   test("games rentals - dark @visual", async ({page}) => {
     await prepare(page, {section: "games", tab: "rentals"});
     await expect(page.locator(".game-tile")).toHaveCount(3);
+    await expect(page.locator(".rail-group-label")).toHaveCount(3);
+    await expect(page.locator('[data-section="home"]')).toHaveCount(0);
+    await expect(page.locator(".stat").first()).toHaveCSS("flex-direction", "column");
     await expectNoPageOverflow(page);
     await expect(page).toHaveScreenshot("desktop-1080-games-rentals-dark.png", {fullPage: true});
   });
@@ -125,6 +128,9 @@ test.describe("iPhone 17 Pro visual system", () => {
   test("rentals - dark @visual", async ({page}) => {
     await prepare(page, {section: "games", tab: "rentals"});
     await expect(page.locator(".game-tile")).toHaveCount(3);
+    await expect(page.locator("#sectionSw button:visible")).toHaveCount(6);
+    await expect(page.locator(".rail-group-label:visible")).toHaveCount(0);
+    await expect(page.locator(".stat").first()).toHaveCSS("flex-direction", "column");
     await expectNoPageOverflow(page);
     await expect(page).toHaveScreenshot("iphone-17-pro-games-rentals-dark.png", {fullPage: true});
   });

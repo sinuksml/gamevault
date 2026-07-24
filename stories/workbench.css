@@ -1,0 +1,108 @@
+body{
+  margin:0;
+  color:var(--text);
+  background:var(--bg);
+  font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+}
+
+.workbench{
+  min-height:100vh;
+  padding:32px;
+  background:var(--bg);
+}
+
+.workbench-stage{
+  width:min(100%,1180px);
+  margin:0 auto;
+}
+
+.workbench-label{
+  display:block;
+  margin-bottom:14px;
+  color:var(--accent);
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+
+.workbench-row{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:flex-start;
+  gap:16px;
+}
+
+.workbench .sectionsw{
+  position:relative;
+  inset:auto;
+  display:flex;
+  width:236px;
+  height:720px;
+  padding:72px 10px 12px;
+}
+
+.workbench .sectionsw::before{
+  content:"GV";
+}
+
+.workbench .sectionsw .rail-group-label{
+  display:block!important;
+  margin:13px 11px 5px;
+}
+
+.workbench .sectionsw .desktop-rail-tools{
+  display:flex!important;
+}
+
+.workbench .stats{
+  display:grid;
+  width:min(100%,720px);
+  grid-template-columns:repeat(4,minmax(120px,1fr));
+  gap:10px;
+}
+
+.workbench .stat{
+  min-height:62px;
+}
+
+.workbench .media-card{
+  width:240px;
+}
+
+.workbench-poster{
+  display:grid;
+  min-height:342px;
+  place-items:center;
+  background:#152538;
+}
+
+.workbench-poster img{
+  width:104px;
+  height:104px;
+  object-fit:cover;
+  border-radius:18px;
+}
+
+.workbench .detail-actionbar{
+  position:relative;
+  inset:auto;
+  display:grid;
+  width:min(100%,960px);
+  grid-template-columns:repeat(4,minmax(0,1fr));
+}
+
+.workbench .empty-state{
+  width:min(100%,760px);
+}
+
+@media (max-width:620px){
+  .workbench{
+    padding:16px;
+  }
+
+  .workbench .stats,
+  .workbench .detail-actionbar{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}

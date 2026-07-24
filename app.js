@@ -1,5 +1,5 @@
 "use strict";
-var APP_VERSION = "2.0.1";
+var APP_VERSION = "2.1.0";
 var APP_BUILD_DATE = "2026-07-25";
 var APP_RELEASE_CHANNEL = "Stable";
 
@@ -1764,12 +1764,25 @@ function toolbar(addLabel, searchPh){
     (q()?'<button class="sclear" data-act="clear-search" title="Clear">✕</button>':'')+
     '</div></div>'+gameViewToggle();
 }
-function noMatch(){ return '<div class="empty">No games match “'+esc(q())+'” in this tab.</div>'; }
+function noMatch(){ return uiEmptyState("No matching games",'Nothing in this tab matches "'+q()+'".',""); }
 function loadingSkeletons(kind,count){
   count=count||6;
   var cls=kind==="game"?"game-grid":"media-grid",out='<div class="'+cls+' skeleton-grid" aria-label="Loading content">';
   for(var i=0;i<count;i++) out+='<div class="skeleton-card"><div class="skeleton-art"></div><div class="skeleton-line wide"></div><div class="skeleton-line"></div></div>';
   return out+'</div>';
+}
+function uiEmptyState(title,copy,actionHtml){
+  return '<div class="empty-state" role="status">'+
+    '<span class="empty-state-icon" aria-hidden="true">&#9671;</span>'+
+    '<div><strong>'+esc(title)+'</strong>'+(copy?'<p>'+esc(copy)+'</p>':'')+'</div>'+
+    (actionHtml||"")+
+  '</div>';
+}
+function uiStatTile(value,label,dest,color){
+  return '<button class="stat" type="button" data-tab="'+dest+'" title="Open '+esc(label)+'">'+
+    '<span class="v"'+(color?' style="color:'+color+'"':'')+'>'+esc(String(value))+'</span>'+
+    '<span class="k">'+esc(label)+'</span>'+
+  '</button>';
 }
 /* find a game by name (norm-equal) in any list — the duplicate gate */
 function inList(list,name){
@@ -1783,29 +1796,28 @@ function renderStats(){
   var active=data.rentals.filter(function(r){ return r.days-daysBetween(parseD(r.start),t0)>0; }).length;
   var urgent=data.rentals.some(function(r){ var l=r.days-daysBetween(parseD(r.start),t0); return l>0&&l<=3; });
   var totalRented=data.rentals.length+data.rentalHistory.length;
-  function tile(value,label,dest,color){ return '<div class="stat" data-tab="'+dest+'" role="button" tabindex="0" title="Open '+esc(label)+'"><div class="v"'+(color?' style="color:'+color+'"':'')+'>'+esc(String(value))+'</div><div class="k">'+esc(label)+'</div></div>'; }
   var html="";
   if(tab==="rentals"){
     var due=data.rentals.map(function(r){ return r.days-daysBetween(parseD(r.start),t0); }).filter(function(n){ return n>=0; }).sort(function(a,b){return a-b;})[0];
-    html=tile(active,"Active rentals","rentals",urgent?"var(--danger)":"var(--text)")+tile(due==null?"-":due+"d","Nearest return","rentals",due!=null&&due<=3?"var(--danger)":"var(--text)")+tile(totalRented,"Total rented","rentals")+tile(fmtMoney(totalSpent()),"Total spent","rentals","var(--warning)");
+    html=uiStatTile(active,"Active rentals","rentals",urgent?"var(--danger)":"var(--text)")+uiStatTile(due==null?"-":due+"d","Nearest return","rentals",due!=null&&due<=3?"var(--danger)":"var(--text)")+uiStatTile(totalRented,"Total rented","rentals")+uiStatTile(fmtMoney(totalSpent()),"Total spent","rentals","var(--warning)");
   }else if(tab==="playing"){
     var resume=data.played.filter(function(x){return x.status==="Playing";}).length;
     var hold=data.played.filter(function(x){return x.status==="Dropped";}).length;
-    html=tile(active,"Active rentals","rentals")+tile(data.playing.length,"Playing now","playing","var(--success)")+tile(resume,"Resume later","playing")+tile(hold,"On hold","playing","var(--warning)");
+    html=uiStatTile(active,"Active rentals","rentals")+uiStatTile(data.playing.length,"Playing now","playing","var(--success)")+uiStatTile(resume,"Resume later","playing")+uiStatTile(hold,"On hold","playing","var(--warning)");
   }else if(tab==="queue"){
     var dated=data.queue.filter(function(x){return !!x.availableFrom;}).length;
-    html=tile(data.queue.length,"Queued","queue")+tile(dated,"Dates tracked","queue","var(--accent)")+tile(data.queue.length?1:0,"Top priority","queue")+tile(active,"Active rentals","rentals");
+    html=uiStatTile(data.queue.length,"Queued","queue")+uiStatTile(dated,"Dates tracked","queue","var(--accent)")+uiStatTile(data.queue.length?1:0,"Top priority","queue")+uiStatTile(active,"Active rentals","rentals");
   }else if(tab==="upcoming"){
     var soon=data.upcoming.filter(function(x){var d=parseD(x.date);return d&&daysBetween(t0,d)>=0&&daysBetween(t0,d)<=30;}).length;
     var wanted=data.upcoming.filter(function(x){return !!x.want;}).length;
-    html=tile(data.upcoming.length,"Upcoming","upcoming")+tile(soon,"Next 30 days","upcoming","var(--warning)")+tile(wanted,"Wanted","upcoming","var(--success)")+tile((data.upcomingRemoved||[]).length,"Removed","upcoming");
+    html=uiStatTile(data.upcoming.length,"Upcoming","upcoming")+uiStatTile(soon,"Next 30 days","upcoming","var(--warning)")+uiStatTile(wanted,"Wanted","upcoming","var(--success)")+uiStatTile((data.upcomingRemoved||[]).length,"Removed","upcoming");
   }else if(tab==="suggest"){
     var rated=data.played.filter(function(x){return Number(x.rating)>0;}).length;
-    html=tile(fullCatalog().length,"Curated titles","suggest")+tile(rated,"Ratings used","played","var(--success)")+tile((data.dismissed||[]).length,"Hidden","suggest")+tile(data.queue.length,"In queue","queue");
+    html=uiStatTile(fullCatalog().length,"Curated titles","suggest")+uiStatTile(rated,"Ratings used","played","var(--success)")+uiStatTile((data.dismissed||[]).length,"Hidden","suggest")+uiStatTile(data.queue.length,"In queue","queue");
   }else{
     var ratings=data.played.map(function(x){return Number(x.rating)||0;}).filter(Boolean);
     var avg=ratings.length?(ratings.reduce(function(a,b){return a+b;},0)/ratings.length).toFixed(1):"-";
-    html=tile(data.played.length,"Played","played")+tile(avg,"Average rating","played","var(--warning)")+tile(data.played.filter(function(x){return x.status==="Platinum";}).length,"Platinum","played","var(--success)")+tile(data.played.filter(function(x){return x.status==="Dropped";}).length,"On hold","playing");
+    html=uiStatTile(data.played.length,"Played","played")+uiStatTile(avg,"Average rating","played","var(--warning)")+uiStatTile(data.played.filter(function(x){return x.status==="Platinum";}).length,"Platinum","played","var(--success)")+uiStatTile(data.played.filter(function(x){return x.status==="Dropped";}).length,"On hold","playing");
   }
   document.getElementById("stats").innerHTML=html;
 }
@@ -3320,6 +3332,12 @@ function renderPageContext(){
   if(section==="games"){
     var counts={rentals:data.rentals.length,playing:data.playing.length+data.rentals.length,queue:data.queue.length,upcoming:data.upcoming.length,suggest:fullCatalog().length,played:data.played.length};
     count=(counts[key]!=null?counts[key]:"")+" "+(counts[key]===1?"item":"items");
+  }else if(section==="films"){
+    var fc=tabCount("film",key);
+    if(fc) count=fc+" "+(fc===1?"title":"titles");
+  }else if(section==="series"){
+    var sc=tabCount("series",key);
+    if(sc) count=sc+" "+(sc===1?"show":"shows");
   }else if(section==="plex"){
     var pc=plexItems;
     if(plexTab==="movies") pc=pc.filter(function(x){return x.type==="movie";});
@@ -3329,7 +3347,7 @@ function renderPageContext(){
     count=pc.length+" items";
   }
   if((section==="games"&&expandedId)||(section==="films"&&filmExpanded)||(section==="series"&&seriesExpanded)||(section==="plex"&&plexExpanded)) desc="Full details and available actions";
-  el.innerHTML='<div><div class="context-path">'+esc(parent)+' / '+esc(title)+'</div><h2>'+esc(title)+'</h2><p>'+esc(desc)+'</p></div>'+(count?'<span class="context-count">'+esc(count)+'</span>':'');
+  el.innerHTML='<div class="context-copy"><div class="context-path"><span>'+esc(parent)+'</span><i aria-hidden="true">/</i><b>'+esc(title)+'</b></div><div class="context-title-row"><h2>'+esc(title)+'</h2>'+(count?'<span class="context-count">'+esc(count)+'</span>':'')+'</div><p>'+esc(desc)+'</p></div>';
 }
 var RECENT_VIEWED_KEY="gamevault-recent-viewed";
 function recentViewed(){ try{ var a=JSON.parse(localStorage.getItem(RECENT_VIEWED_KEY)||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; } }

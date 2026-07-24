@@ -1,6 +1,6 @@
 {
   "name": "sinu-game-vault",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "private": true,
   "scripts": {
     "test": "node tests/smoke.mjs",
@@ -9,9 +9,14 @@
     "test:visual:update": "playwright test --update-snapshots",
     "test:visual:ui": "playwright test --ui",
     "test:all": "npm run test:smoke && npm run test:visual",
-    "test:report": "playwright show-report"
+    "test:report": "playwright show-report",
+    "storybook": "storybook dev -p 6006",
+    "storybook:build": "storybook build"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.1"
+    "@playwright/test": "^1.61.1",
+    "@storybook/addon-a11y": "^10.5.4",
+    "@storybook/html-vite": "^10.5.4",
+    "storybook": "^10.5.4"
   }
 }

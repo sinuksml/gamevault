@@ -2051,6 +2051,103 @@ html body{
   text-rendering:optimizeLegibility;
 }
 
+html .workspace-main{
+  min-width:0;
+}
+
+html .rail-group-label{
+  color:var(--dim);
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.12em;
+  line-height:1;
+  text-transform:uppercase;
+}
+
+html .context-copy{
+  min-width:0;
+}
+
+html .context-path{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+
+html .context-path i{
+  color:var(--faint);
+  font-style:normal;
+}
+
+html .context-path b{
+  color:var(--muted);
+  font-weight:700;
+}
+
+html .context-title-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:0;
+}
+
+html .context-title-row h2{
+  min-width:0;
+}
+
+html .context-count{
+  margin:0;
+}
+
+html .stat{
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+  flex-direction:column;
+  color:var(--text);
+  text-align:left;
+}
+
+html .stat .v,
+html .stat .k{
+  display:block;
+}
+
+html .empty-state{
+  display:grid;
+  grid-template-columns:40px minmax(0,1fr) auto;
+  align-items:center;
+  gap:14px;
+  min-height:108px;
+  margin:12px 0;
+  padding:18px;
+  border:1px dashed color-mix(in srgb,var(--border2) 82%,transparent);
+  border-radius:var(--radius-panel);
+  color:var(--text);
+  background:color-mix(in srgb,var(--surface) 88%,transparent);
+}
+
+html .empty-state-icon{
+  display:grid;
+  width:40px;
+  height:40px;
+  place-items:center;
+  border-radius:50%;
+  color:var(--accent);
+  background:color-mix(in srgb,var(--accent) 12%,var(--surface-raised));
+}
+
+html .empty-state strong{
+  display:block;
+  font-size:15px;
+}
+
+html .empty-state p{
+  margin-top:4px;
+  color:var(--muted);
+  font-size:12px;
+}
+
 html #bg::after{
   background:
     linear-gradient(180deg,rgba(4,8,14,.56) 0%,rgba(4,8,14,.72) 46%,var(--bg) 94%),
@@ -2165,7 +2262,7 @@ html.light .plex-card:hover{
 
 @media (min-width:900px){
   html{
-    --desktop-rail:clamp(214px,14vw,228px);
+    --desktop-rail:clamp(220px,14vw,236px);
   }
 
   html.desktop-nav-collapsed{
@@ -2202,8 +2299,11 @@ html.light .plex-card:hover{
   }
 
   html .sectionsw::before{
+    content:"SINU GV";
     top:24px;
     left:20px;
+    color:var(--accent);
+    font-size:10px;
   }
 
   html .sectionsw button{
@@ -2211,6 +2311,20 @@ html.light .plex-card:hover{
     padding:8px 11px;
     border-radius:10px;
     font-size:13px;
+  }
+
+  html .sectionsw .rail-group-label.desktop-only{
+    display:block!important;
+    width:auto;
+    margin:13px 11px 5px;
+  }
+
+  html .sectionsw .rail-group-label:first-of-type{
+    margin-top:3px;
+  }
+
+  html .sectionsw .phone-only{
+    display:none!important;
   }
 
   html .sectionsw button:hover{
@@ -2236,6 +2350,10 @@ html.light .plex-card:hover{
   html.desktop-nav-collapsed .sectionsw button{
     justify-content:center;
     padding-inline:7px;
+  }
+
+  html.desktop-nav-collapsed .sectionsw .rail-group-label{
+    display:none!important;
   }
 
   html .app-header{
@@ -2268,22 +2386,22 @@ html.light .plex-card:hover{
   }
 
   html .page-context{
-    min-height:82px;
+    min-height:68px;
     align-items:center;
-    margin-bottom:4px;
-    padding:17px 4px 13px;
+    margin-bottom:2px;
+    padding:12px 4px 10px;
     border-bottom:0;
   }
 
   html .page-context h2{
-    font-size:28px;
+    font-size:26px;
     font-weight:800;
     line-height:1.15;
   }
 
   html .page-context p{
     max-width:76ch;
-    margin-top:5px;
+    margin-top:4px;
     font-size:13px;
   }
 
@@ -2305,15 +2423,15 @@ html.light .plex-card:hover{
   }
 
   html .stat{
-    min-height:66px;
-    padding:11px 14px;
+    min-height:58px;
+    padding:9px 13px;
     border:1px solid color-mix(in srgb,var(--border2) 78%,transparent);
     background:color-mix(in srgb,var(--surface) 94%,transparent);
     box-shadow:var(--shadow-panel);
   }
 
   html .stat .v{
-    font-size:22px;
+    font-size:20px;
     font-weight:800;
     font-variant-numeric:tabular-nums;
   }
@@ -2478,6 +2596,42 @@ html.light .plex-card:hover{
   }
 }
 
+@media (min-width:1280px){
+  html .workspace-main{
+    display:grid;
+    grid-template-columns:minmax(320px,1fr) minmax(520px,auto);
+    column-gap:18px;
+    align-items:center;
+    width:min(100%,var(--workspace-max));
+    margin:0 auto;
+  }
+
+  html .workspace-main>.page-context{
+    grid-column:1;
+    grid-row:1;
+    width:auto;
+    margin:0;
+  }
+
+  html .workspace-main>.stats{
+    grid-column:2;
+    grid-row:1;
+    grid-template-columns:repeat(4,minmax(120px,1fr));
+    width:auto;
+    min-width:520px;
+    margin:8px 0;
+  }
+
+  html .workspace-main>.recent-strip,
+  html .workspace-main>#hero,
+  html .workspace-main>.menupanel,
+  html .workspace-main>.settings,
+  html .workspace-main>.tabsticky,
+  html .workspace-main>#content{
+    grid-column:1 / -1;
+  }
+}
+
 @media (min-width:2200px){
   :root{
     --workspace-max:1880px;
@@ -2561,6 +2715,11 @@ html.light .plex-card:hover{
     border-bottom:0;
   }
 
+  html .context-title-row{
+    align-items:flex-start;
+    justify-content:space-between;
+  }
+
   html .page-context h2{
     font-size:20px;
     line-height:1.15;
@@ -2606,6 +2765,22 @@ html.light .plex-card:hover{
   html .stat .k{
     margin-top:2px;
     font-size:10px;
+  }
+
+  html .empty-state{
+    grid-template-columns:36px minmax(0,1fr);
+    gap:11px;
+    min-height:94px;
+    padding:14px;
+  }
+
+  html .empty-state-icon{
+    width:36px;
+    height:36px;
+  }
+
+  html .empty-state>.btn{
+    grid-column:1 / -1;
   }
 
   html .tabsticky{

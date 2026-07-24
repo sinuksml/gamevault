@@ -1,7 +1,7 @@
 # GameVault UI Design-System Review
 
-Version: 1.0  
-Application baseline: GameVault 2.0.0  
+Version: 1.1
+Application baseline: GameVault 2.1.0
 Reviewed: 25 July 2026
 
 Editable Figma review:
@@ -17,6 +17,26 @@ The visual regression baselines in `tests/visual/__screenshots__` are the
 reference views for checking implementation changes.
 
 ## Review Summary
+
+### Implemented Information Architecture
+
+- Desktop navigation is grouped into Library, Connected, and Personal areas.
+- Home is no longer a primary destination; each library opens directly to its
+  most useful working view.
+- The page title and contextual game statistics share one row on wide desktop
+  screens, reducing stacked chrome above the content.
+- iPhone retains six stable bottom destinations. Finance, Health, sync, backup,
+  and settings remain available through Library.
+- Page counts now sit beside the title rather than floating at the opposite
+  edge of the workspace.
+
+### Component Workbench
+
+Run `npm.cmd run storybook` to review reusable GameVault patterns at
+`http://localhost:6006`. The workbench includes the grouped navigation rail,
+context statistics, media card, wrapped detail actions, and empty state. Run
+`npm.cmd run storybook:build` before release to verify that the static
+workbench compiles.
 
 ### Keep
 
