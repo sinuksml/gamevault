@@ -385,7 +385,8 @@ function financeGmailAuthorize(){
   });
 }
 function financeGmailApi(path,token){
-  return fetch("https://gmail.googleapis.com/gmail/v1/users/me/"+path,{headers:{Authorization:"Bearer "+token}}).then(function(response){
+  var request=window.GameVaultCore?GameVaultCore.request:fetch;
+  return request("https://gmail.googleapis.com/gmail/v1/users/me/"+path,{headers:{Authorization:"Bearer "+token}},{scope:"gmail:statements",timeout:20000,retries:2}).then(function(response){
     if(response.status===401){financeGmailToken=null;throw new Error("Gmail session expired - tap Sync Gmail again");}
     return response.json().then(function(json){if(!response.ok)throw new Error((json.error&&json.error.message)||("Gmail HTTP "+response.status));return json;});
   });

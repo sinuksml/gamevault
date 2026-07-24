@@ -1,8 +1,15 @@
 ﻿"use strict";
-var APP_VERSION = "1.26.3";
-var APP_BUILD_DATE = "2026-07-22";
+var APP_VERSION = "1.27.0";
+var APP_BUILD_DATE = "2026-07-24";
 var APP_RELEASE_CHANNEL = "Stable";
 var APP_RELEASE_NOTES = [
+  "Added a modular core runtime for IndexedDB, requests, encryption, diagnostics, cloud merging and stable rendering",
+  "Replaced plaintext cloud credential copies with optional passphrase-encrypted credential synchronization",
+  "Added record-level merge metadata and deletion tombstones to protect concurrent PC and phone edits",
+  "Mirrored the vault and media caches into IndexedDB for larger, non-blocking durable storage",
+  "Added an optional whole-app PIN lock with Face ID or passkey support on compatible devices",
+  "Improved responsive typography, minimum touch targets, focus visibility and Home priority alerts",
+  "Added atomic PWA asset versioning and broader behavioral regression tests",
   "Added a PIN-encrypted Finance workspace for expenses, statements, loans and EMI tracking",
   "Added optional iPhone Face ID unlock using a hardware-backed WebAuthn credential",
   "Added local CSV, TXT and text-based PDF statement parsing with review and duplicate detection",
@@ -170,6 +177,7 @@ var runtimeErrors=[];
 function reportError(scope,error){
   runtimeErrors.unshift({at:new Date().toISOString(),scope:String(scope||"app"),message:String(error&&error.message||error||"Unknown error")});
   runtimeErrors=runtimeErrors.slice(0,40);
+  if(window.GameVaultCore)GameVaultCore.diagnostics.add(scope,error);
   try{ console.error("[GameVault] "+scope,error); }catch(e){}
 }
 
@@ -256,7 +264,7 @@ var BUILTIN_CATALOG = [
 
 /* ---------- storage ---------- */
 var VAULT_ARRAY_FIELDS = ["rentals","upcoming","played","dismissed","catalogExtra","vendors","queue","rentalHistory","playing","upcomingRemoved","watchedMovies","movieWatchlist","watchingMovies","hiddenMovies","watchedSeries","seriesWatchlist","watchingSeries","hiddenSeries","biglyHistory"];
-var VAULT_OBJECT_FIELDS = ["covers","dismissedNames","fandom","hubkeys","keys","seriesRatings","aiChats","health","finance"];
+var VAULT_OBJECT_FIELDS = ["covers","dismissedNames","fandom","hubkeys","keys","seriesRatings","aiChats","health","finance","secureConfig","_sync"];
 var HEALTH_SYNC_STORE="gamevault-sync-health-v1";
 function healthDefaults(){
   return {
@@ -334,6 +342,7 @@ function adoptVault(incoming,reason,options){
   var previousHealth=data&&data.health?JSON.parse(JSON.stringify(data.health)):null;
   if(data && vaultSize(data)) createRecoverySnapshot("Before "+(reason||"data restore"),data);
   data=migrate(incoming);
+  syncShadow=window.GameVaultCore?GameVaultCore.sync.snapshot(data,SYNC_COLLECTIONS):{};
   if(typeof financeLock==="function") financeLock(true);
   if(options&&options.preserveLocalHealth&&healthHasUserData(previousHealth)) data.health=normalizeHealth(previousHealth);
   applyKeysFromData();
@@ -348,6 +357,7 @@ function restoreRecoverySnapshot(index){
   if(!checked.ok) throw new Error(checked.errors.join(" "));
   createRecoverySnapshot("Before recovery restore",data);
   data=migrate(incoming);
+  syncShadow=window.GameVaultCore?GameVaultCore.sync.snapshot(data,SYNC_COLLECTIONS):{};
   if(typeof financeLock==="function") financeLock(true);
   data.updatedAt=Date.now();
   addAudit("recovery-restored",snap.reason||"Recovery snapshot");
@@ -376,7 +386,58 @@ function vaultSize(d){
 }
 /* Schema migrations: bump SCHEMA_VERSION when structure changes and add an
    upgrade step below. Old data is always upgraded in place, never recreated. */
-var SCHEMA_VERSION = 10;
+var SCHEMA_VERSION = 11;
+var SYNC_COLLECTIONS=VAULT_ARRAY_FIELDS.slice();
+function mediaCanonicalId(item,kind){
+  if(!item)return "";
+  if(item.canonicalId)return item.canonicalId;
+  if(kind==="film"){
+    if(item.tmdbId!=null||item.id!=null)return "tmdb:movie:"+(item.tmdbId!=null?item.tmdbId:item.id);
+    if(item.imdbId)return "imdb:"+item.imdbId;
+    return "movie:title:"+norm(item.title||item.name)+"|"+String(item.year||"");
+  }
+  if(kind==="series"){
+    if(item.tmdbId!=null||item.id!=null)return "tmdb:tv:"+(item.tmdbId!=null?item.tmdbId:item.id);
+    if(item.imdbId)return "imdb:"+item.imdbId;
+    return "series:title:"+norm(item.title||item.name)+"|"+String(item.year||"");
+  }
+  if(item.rawgId!=null)return "rawg:"+item.rawgId;
+  return "game:title:"+norm(item.name||item.title)+"|"+String(item.year||"");
+}
+function normalizedReleases(item,kind){
+  var current=item&&item.releases&&typeof item.releases==="object"?item.releases:{};
+  var out=Object.assign({},current);
+  if(kind==="film"){
+    if(item.date&&!out.theatrical)out.theatrical={date:item.date,region:item.releaseRegion||"US",source:item.releaseSource||"TMDB"};
+    if(item.ottDate&&!out.digital)out.digital={date:item.ottDate,region:"IN",provider:(item.providers||[])[0]||"",source:item.releaseSource||"TMDB"};
+    if(item.blurayDate&&!out.physical)out.physical={date:item.blurayDate,region:"US",source:item.releaseSource||"TMDB"};
+  }else if(kind==="series"){
+    if(item.date&&!out.firstAir)out.firstAir={date:item.date,region:item.releaseRegion||"",source:item.releaseSource||"TMDB"};
+    if(item.ottDate&&!out.digital)out.digital={date:item.ottDate,region:"IN",provider:(item.providers||[])[0]||"",source:item.releaseSource||"TMDB"};
+    if(item.latestDate&&!out.latestEpisode)out.latestEpisode={date:item.latestDate,source:"TMDB"};
+    if(item.nextEpisode&&item.nextEpisode.date&&!out.nextEpisode)out.nextEpisode={date:item.nextEpisode.date,source:"TMDB"};
+  }else if(item.date&&!out.launch){
+    out.launch={date:item.date,platform:"PS5",region:item.releaseRegion||"",source:item.src==="seed"?"Curated":item.releaseSource||"RAWG"};
+  }
+  return out;
+}
+function normalizeStoredRecord(item,kind){
+  if(!item||typeof item!=="object")return item;
+  item.canonicalId=mediaCanonicalId(item,kind);
+  item.releases=normalizedReleases(item,kind);
+  return item;
+}
+function normalizeStoredLibrary(d){
+  ["rentals","upcoming","played","queue","rentalHistory","playing","upcomingRemoved","catalogExtra"].forEach(function(k){
+    (d[k]||[]).forEach(function(item){normalizeStoredRecord(item,"game");});
+  });
+  ["watchedMovies","movieWatchlist","watchingMovies","hiddenMovies"].forEach(function(k){
+    (d[k]||[]).forEach(function(item){normalizeStoredRecord(item,"film");});
+  });
+  ["watchedSeries","seriesWatchlist","watchingSeries","hiddenSeries"].forEach(function(k){
+    (d[k]||[]).forEach(function(item){normalizeStoredRecord(item,"series");});
+  });
+}
 function migrate(d){
   if(!d || typeof d!=="object" || Array.isArray(d)) d={};
   VAULT_ARRAY_FIELDS.forEach(function(k){ if(!Array.isArray(d[k])) d[k]=[]; });
@@ -424,6 +485,8 @@ function migrate(d){
   if(!Array.isArray(d.audit)) d.audit=[];
   d.revision=Math.max(0,Number(d.revision)||0);
   if(!d.updatedAt) d.updatedAt = Date.now();
+  normalizeStoredLibrary(d);
+  if(window.GameVaultCore)GameVaultCore.sync.ensure(d,SYNC_COLLECTIONS);
   d.version = SCHEMA_VERSION;
   return d;
 }
@@ -447,6 +510,7 @@ function dedupeList(arr){
   return out;
 }
 var data = load();
+var syncShadow=window.GameVaultCore?GameVaultCore.sync.snapshot(data,SYNC_COLLECTIONS):{};
 function vaultCopyForExport(){
   var copy=JSON.parse(JSON.stringify(data));
   delete copy.keys;
@@ -456,8 +520,8 @@ function vaultCopyForCloud(){
   var copy=vaultCopyForExport();
   if(!healthCloudSyncEnabled()) delete copy.health;
   copy.nativeTvCatalog=nativeTvCatalogSnapshot();
-  copy.trustedDeviceConfig=trustedDeviceConfigSnapshot();
-  copy.cloudPrivacy={apiKeysExcluded:false,trustedDeviceConfig:true,healthIncluded:healthCloudSyncEnabled()};
+  delete copy.trustedDeviceConfig;
+  copy.cloudPrivacy={apiKeysExcluded:true,encryptedCredentials:!!(copy.secureConfig&&copy.secureConfig.cipher),healthIncluded:healthCloudSyncEnabled()};
   return copy;
 }
 function trustedDeviceConfigSnapshot(){
@@ -474,6 +538,178 @@ function trustedDeviceConfigSnapshot(){
     plex:{url:plexUrl,token:plexKey},
     bigly:{url:biglyUrl,token:biglyToken}
   };
+}
+var SECURE_CONFIG_SESSION="gamevault-secure-config-pass-v1";
+function applySecureConfigPayload(cfg){
+  if(!cfg||typeof cfg!=="object")return false;
+  function put(key,value){if(typeof value!=="string"||!value)return;try{localStorage.setItem(key,value);}catch(e){}}
+  var api=cfg.api||{},plex=cfg.plex||{},bigly=cfg.bigly||{};
+  put(KEY_STORE,api.rawg||"");put("ps5-tmdb-key",api.tmdb||"");put("ps5-omdb-key",api.omdb||"");
+  put("gamevault-plex-url",plex.url||"");put("gamevault-plex-token",plex.token||"");
+  put("gamevault-biglybt-proxy",bigly.url||"");put("gamevault-biglybt-native-token",bigly.token||"");
+  return true;
+}
+function secureConfigSetStatus(message,error){
+  var el=document.getElementById("secureConfigStatus");
+  if(el){el.textContent=message||"";el.style.color=error?"var(--danger)":"var(--success)";}
+}
+function secureConfigPassphrase(){
+  var input=document.getElementById("secureConfigPass"),value=input&&input.value||"";
+  if(value)return value;
+  try{return sessionStorage.getItem(SECURE_CONFIG_SESSION)||"";}catch(e){return "";}
+}
+function secureConfigEncrypt(){
+  if(!window.GameVaultCore)return;
+  var pass=secureConfigPassphrase();
+  secureConfigSetStatus("Encrypting credentials…");
+  GameVaultCore.crypto.seal(trustedDeviceConfigSnapshot(),pass).then(function(envelope){
+    data.secureConfig=envelope;
+    delete data.trustedDeviceConfig;
+    try{sessionStorage.setItem(SECURE_CONFIG_SESSION,pass);}catch(e){}
+    persist();
+    secureConfigSetStatus("Encrypted credentials are included in Drive sync.");
+    flash("Credentials encrypted and queued for secure sync");
+  }).catch(function(error){secureConfigSetStatus(error.message,true);});
+}
+function secureConfigUnlock(){
+  if(!window.GameVaultCore||!data.secureConfig||!data.secureConfig.cipher){secureConfigSetStatus("No encrypted credential copy is stored yet.",true);return;}
+  var pass=secureConfigPassphrase();
+  secureConfigSetStatus("Unlocking credentials…");
+  GameVaultCore.crypto.open(data.secureConfig,pass).then(function(cfg){
+    applySecureConfigPayload(cfg);
+    try{sessionStorage.setItem(SECURE_CONFIG_SESSION,pass);}catch(e){}
+    secureConfigSetStatus("Synced credentials unlocked on this device.");
+    render();refreshRecoveryUi();
+    if(getKey())scheduleGameWarmup(tab);
+    if(tmdbKey()){ensureFilms(filmTab);ensureSeries(seriesTab);}
+  }).catch(function(error){secureConfigSetStatus(error.message,true);});
+}
+function secureConfigAutoUnlock(){
+  var pass="";try{pass=sessionStorage.getItem(SECURE_CONFIG_SESSION)||"";}catch(e){}
+  if(!pass||!data.secureConfig||!data.secureConfig.cipher||!window.GameVaultCore)return;
+  GameVaultCore.crypto.open(data.secureConfig,pass).then(applySecureConfigPayload).catch(function(){});
+}
+var APP_LOCK_CONFIG_KEY="gamevault-app-lock-v1";
+var APP_LOCK_SESSION_KEY="gamevault-app-unlocked-v1";
+var appLockHiddenAt=0;
+function appLockConfig(){
+  try{return JSON.parse(localStorage.getItem(APP_LOCK_CONFIG_KEY)||"null")||null;}catch(e){return null;}
+}
+function appLockSaveConfig(config){
+  try{localStorage.setItem(APP_LOCK_CONFIG_KEY,JSON.stringify(config));}catch(e){}
+}
+function appLockSetMessage(message,error){
+  var overlay=document.getElementById("appLockMessage"),settings=document.getElementById("appLockStatus");
+  [overlay,settings].forEach(function(el){if(el){el.textContent=message||"";el.style.color=error?"var(--danger)":"var(--success)";}});
+}
+function appLockSessionUnlocked(){
+  try{return sessionStorage.getItem(APP_LOCK_SESSION_KEY)==="1";}catch(e){return false;}
+}
+function appLockSetSession(value){
+  try{if(value)sessionStorage.setItem(APP_LOCK_SESSION_KEY,"1");else sessionStorage.removeItem(APP_LOCK_SESSION_KEY);}catch(e){}
+}
+function appLockShow(){
+  if(TV_MODE)return;
+  var config=appLockConfig(),overlay=document.getElementById("appLockOverlay");
+  if(!config||!config.pin||!overlay)return;
+  appLockSetSession(false);
+  overlay.hidden=false;
+  document.body.classList.add("app-locked");
+  var app=document.querySelector(".wrap");if(app)app.inert=true;
+  var biometric=document.getElementById("appLockBiometricBtn");
+  if(biometric)biometric.hidden=!(config.credentialId&&window.PublicKeyCredential);
+  var pin=document.getElementById("appLockPin");
+  if(pin){pin.value="";setTimeout(function(){pin.focus();},30);}
+  appLockSetMessage("");
+}
+function appLockHide(){
+  var overlay=document.getElementById("appLockOverlay");
+  if(overlay)overlay.hidden=true;
+  document.body.classList.remove("app-locked");
+  var app=document.querySelector(".wrap");if(app)app.inert=false;
+  appLockSetSession(true);
+  appLockSetMessage("");
+}
+function appLockUnlockPin(){
+  var config=appLockConfig(),input=document.getElementById("appLockPin");
+  if(!config||!config.pin||!window.GameVaultCore)return;
+  appLockSetMessage("Checking PIN…");
+  GameVaultCore.crypto.verifyPin(input&&input.value||"",config.pin).then(function(ok){
+    if(ok){appLockHide();return;}
+    if(input){input.value="";input.focus();}
+    appLockSetMessage("Incorrect PIN.",true);
+  });
+}
+function appLockEnable(){
+  if(!window.GameVaultCore)return;
+  var input=document.getElementById("appLockPinSetup"),pin=input&&input.value||"";
+  var minutes=Math.max(1,Number((document.getElementById("appLockMinutes")||{}).value)||5);
+  appLockSetMessage("Securing this browser…");
+  GameVaultCore.crypto.pinVerifier(pin).then(function(verifier){
+    var existing=appLockConfig()||{};
+    appLockSaveConfig({version:1,pin:verifier,minutes:minutes,credentialId:existing.credentialId||"",createdAt:existing.createdAt||Date.now(),updatedAt:Date.now()});
+    if(input)input.value="";
+    appLockSetSession(true);
+    appLockSetMessage("App lock enabled. GameVault locks after "+minutes+" minute"+(minutes===1?"":"s")+" away.");
+    flash("App lock enabled on this browser");
+  }).catch(function(error){appLockSetMessage(error.message,true);});
+}
+function appLockBytes(value){
+  var bytes=new Uint8Array(value);return GameVaultCore.crypto.bytesToB64(bytes);
+}
+function appLockCredentialBytes(value){
+  return GameVaultCore.crypto.b64ToBytes(value);
+}
+function appLockRegisterBiometric(){
+  var config=appLockConfig();
+  if(!config||!config.pin){appLockSetMessage("Enable the PIN lock first.",true);return;}
+  if(!window.PublicKeyCredential||!navigator.credentials){appLockSetMessage("Face ID / passkeys are not available in this browser.",true);return;}
+  var userId=GameVaultCore.crypto.randomBytes(24),challenge=GameVaultCore.crypto.randomBytes(32);
+  appLockSetMessage("Follow the Face ID / passkey prompt…");
+  navigator.credentials.create({publicKey:{
+    challenge:challenge,
+    rp:{name:"Sinu Game Vault"},
+    user:{id:userId,name:"gamevault-owner",displayName:"GameVault owner"},
+    pubKeyCredParams:[{type:"public-key",alg:-7},{type:"public-key",alg:-257}],
+    authenticatorSelection:{residentKey:"preferred",userVerification:"required"},
+    timeout:60000,
+    attestation:"none"
+  }}).then(function(credential){
+    config.credentialId=appLockBytes(credential.rawId);
+    config.updatedAt=Date.now();
+    appLockSaveConfig(config);
+    appLockSetMessage("Face ID / passkey unlock is enabled on this device.");
+    flash("Face ID / passkey enabled");
+  }).catch(function(error){if(error&&error.name!=="NotAllowedError")reportError("app-lock-register",error);appLockSetMessage("Face ID / passkey setup was cancelled or unavailable.",true);});
+}
+function appLockBiometric(){
+  var config=appLockConfig();
+  if(!config||!config.credentialId||!navigator.credentials)return;
+  appLockSetMessage("Waiting for Face ID / passkey…");
+  navigator.credentials.get({publicKey:{
+    challenge:GameVaultCore.crypto.randomBytes(32),
+    allowCredentials:[{type:"public-key",id:appLockCredentialBytes(config.credentialId)}],
+    userVerification:"required",
+    timeout:60000
+  }}).then(function(){appLockHide();}).catch(function(error){if(error&&error.name!=="NotAllowedError")reportError("app-lock-unlock",error);appLockSetMessage("Face ID / passkey did not unlock GameVault.",true);});
+}
+function appLockDisable(){
+  try{localStorage.removeItem(APP_LOCK_CONFIG_KEY);}catch(e){}
+  appLockSetSession(true);
+  appLockHide();
+  appLockSetMessage("App lock is disabled on this browser.");
+  flash("App lock disabled");
+}
+function appLockRefreshStatus(){
+  var config=appLockConfig(),el=document.getElementById("appLockStatus");
+  if(!el)return;
+  el.textContent=config&&config.pin?"Enabled · locks after "+(config.minutes||5)+" min"+(config.credentialId?" · Face ID / passkey ready":""):"Not enabled on this browser.";
+  el.style.color=config&&config.pin?"var(--success)":"";
+}
+function appLockInitialCheck(){
+  var config=appLockConfig();
+  appLockRefreshStatus();
+  if(config&&config.pin&&!appLockSessionUnlocked())appLockShow();
 }
 function nativeTvCatalogSnapshot(){
   function snapshot(cache,keys){
@@ -494,6 +730,7 @@ function cloudVaultJson(){return JSON.stringify(vaultCopyForCloud());}
 function cloudNeedsPrivacyScrub(incoming){
   if(!incoming||typeof incoming!=="object")return false;
   if(incoming.keys&&Object.keys(incoming.keys).length)return true;
+  if(incoming.trustedDeviceConfig&&Object.keys(incoming.trustedDeviceConfig).length)return true;
   return !healthCloudSyncEnabled()&&Object.prototype.hasOwnProperty.call(incoming,"health");
 }
 function vaultFingerprint(d){
@@ -502,7 +739,10 @@ function vaultFingerprint(d){
 var lastAuditFingerprint=vaultFingerprint(data);
 function getKey(){ try { return localStorage.getItem(KEY_STORE) || ""; } catch(e){ return ""; } }
 function persist(){
-  data.updatedAt = Date.now();
+  var changedAt=Date.now();
+  normalizeStoredLibrary(data);
+  if(window.GameVaultCore)syncShadow=GameVaultCore.sync.track(data,syncShadow,SYNC_COLLECTIONS,changedAt);
+  data.updatedAt = changedAt;
   data.revision=(Number(data.revision)||0)+1;
   data.lastDevice=deviceId();
   var fingerprint=vaultFingerprint(data);
@@ -510,6 +750,7 @@ function persist(){
   var snaps=readRecoverySnapshots();
   if(vaultSize(data) && (!snaps.length || Date.now()-snaps[0].createdAt>21600000)) createRecoverySnapshot("Automatic checkpoint",data);
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){ flash("Local storage is full - export a backup now"); }
+  if(window.GameVaultCore)GameVaultCore.storage.put("vault",data);
   scheduleAutoPush();
 }
 function save(){ persist(); render(); }
@@ -517,7 +758,9 @@ function save(){ persist(); render(); }
    idle device backfilling artwork can never out-timestamp real edits made on
    another device and roll them back via cloud sync */
 function persistSilent(){
+  normalizeStoredLibrary(data);
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
+  if(window.GameVaultCore)GameVaultCore.storage.put("vault",data);
 }
 
 /* ---------- device-local API keys (RAWG / TMDB / OMDb) ----------
@@ -546,11 +789,9 @@ function applyKeysFromData(){
 }
 function applyTrustedDeviceConfig(){
   var cfg=data&&data.trustedDeviceConfig;if(!cfg||typeof cfg!=="object")return;
-  function put(key,value){if(!key||typeof value!=="string"||!value)return;try{localStorage.setItem(key,value);}catch(e){}}
-  var api=cfg.api||{},plex=cfg.plex||{},bigly=cfg.bigly||{};
-  put(KEY_STORE,api.rawg||"");put("ps5-tmdb-key",api.tmdb||"");put("ps5-omdb-key",api.omdb||"");
-  put("gamevault-plex-url",plex.url||"");put("gamevault-plex-token",plex.token||"");
-  put("gamevault-biglybt-proxy",bigly.url||"");put("gamevault-biglybt-native-token",bigly.token||"");
+  applySecureConfigPayload(cfg);
+  delete data.trustedDeviceConfig;
+  persistSilent();
 }
 function backfillKeysToData(){
   if(data.keys&&Object.keys(data.keys).length){data.keys={};persistSilent();}
@@ -588,6 +829,7 @@ document.getElementById("toast").addEventListener("click",function(e){
 
 /* ---------- fetch helper ---------- */
 function fetchWithPolicy(url,options,policy){
+  if(window.GameVaultCore)return GameVaultCore.request(url,options,policy);
   options=options||{}; policy=policy||{};
   var attempts=Math.max(1,(policy.retries==null?1:policy.retries)+1);
   var timeout=Math.max(1000,policy.timeout||15000);
@@ -629,7 +871,7 @@ function jbPushCloud(){
   var url=isNew?"https://api.jsonbin.io/v3/b":"https://api.jsonbin.io/v3/b/"+jb.bin;
   var headers={ "Content-Type":"application/json", "X-Master-Key":jb.key };
   if(isNew){ headers["X-Bin-Private"]="true"; headers["X-Bin-Name"]="game-vault"; }
-  fetch(url,{ method:isNew?"POST":"PUT", headers:headers, body:cloudVaultJson() })
+  fetchWithPolicy(url,{ method:isNew?"POST":"PUT", headers:headers, body:cloudVaultJson() },{scope:"jsonbin:push",timeout:20000,retries:0})
   .then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return res.json(); })
   .then(function(json){
     if(isNew && json.metadata && json.metadata.id){
@@ -653,7 +895,7 @@ function jbPullCloud(confirmed){
     if(!confirm("Replace the data on THIS device with the cloud copy?")) return;
   }
   busy=true;
-  fetch("https://api.jsonbin.io/v3/b/"+jb.bin+"/latest",{ headers:{ "X-Master-Key":jb.key } })
+  fetchWithPolicy("https://api.jsonbin.io/v3/b/"+jb.bin+"/latest",{ headers:{ "X-Master-Key":jb.key } },{scope:"jsonbin:pull",timeout:16000,retries:1})
   .then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return res.json(); })
   .then(function(json){
     var d=json.record;
@@ -700,6 +942,38 @@ function scheduleAutoPush(){
   setSyncStatus("Saving…");
   autoPushTimer=setTimeout(function(){ silentPush(); }, 2500);
 }
+function prepareCloudVault(incoming){
+  var copy=JSON.parse(JSON.stringify(incoming||{}));
+  delete copy.nativeTvCatalog;
+  delete copy.cloudPrivacy;
+  return migrate(copy);
+}
+function mergeAutomaticCloud(incoming,reason){
+  var remote=prepareCloudVault(incoming);
+  var localSize=vaultSize(data),remoteSize=vaultSize(remote);
+  if(remoteSize===0&&localSize>0)return {changedLocal:false,needsPush:true};
+  if(localSize===0&&remoteSize>0){
+    adoptVault(remote,reason,{preserveLocalHealth:!healthCloudSyncEnabled()});
+    return {changedLocal:true,needsPush:false};
+  }
+  if(!window.GameVaultCore){
+    if(Number(remote.updatedAt||0)>Number(data.updatedAt||0)){
+      adoptVault(remote,reason,{preserveLocalHealth:!healthCloudSyncEnabled()});
+      return {changedLocal:true,needsPush:false};
+    }
+    return {changedLocal:false,needsPush:Number(data.updatedAt||0)>Number(remote.updatedAt||0)};
+  }
+  var localBefore=GameVaultCore.stable(data),remoteBefore=GameVaultCore.stable(remote);
+  var merged=GameVaultCore.sync.merge(data,remote,SYNC_COLLECTIONS);
+  if(!healthCloudSyncEnabled()&&healthHasUserData(data.health))merged.health=JSON.parse(JSON.stringify(data.health));
+  var changedLocal=GameVaultCore.stable(merged)!==localBefore;
+  var needsPush=GameVaultCore.stable(merged)!==remoteBefore;
+  if(changedLocal){
+    adoptVault(merged,reason,{preserveLocalHealth:!healthCloudSyncEnabled()});
+    syncShadow=GameVaultCore.sync.snapshot(data,SYNC_COLLECTIONS);
+  }
+  return {changedLocal:changedLocal,needsPush:needsPush};
+}
 function jbSilentPush(keepalive){
   var jb=getJB();
   if(!jb.key) return;
@@ -708,7 +982,7 @@ function jbSilentPush(keepalive){
   var headers={ "Content-Type":"application/json", "X-Master-Key":jb.key };
   if(isNew){ headers["X-Bin-Private"]="true"; headers["X-Bin-Name"]="game-vault"; }
   var snapshot=cloudVaultJson();
-  fetch(url,{ method:isNew?"POST":"PUT", headers:headers, body:snapshot, keepalive:!!keepalive })
+  fetchWithPolicy(url,{ method:isNew?"POST":"PUT", headers:headers, body:snapshot, keepalive:!!keepalive },{scope:"jsonbin:auto-push",timeout:20000,retries:0})
   .then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return res.json(); })
   .then(function(json){
     if(isNew && json.metadata && json.metadata.id){
@@ -724,27 +998,22 @@ function jbSilentPullOnLoad(){
   var jb=getJB();
   if(!jb.key||!jb.bin) return;
   setSyncStatus("Checking for updates…");
-  fetch("https://api.jsonbin.io/v3/b/"+jb.bin+"/latest",{ headers:{ "X-Master-Key":jb.key } })
+  fetchWithPolicy("https://api.jsonbin.io/v3/b/"+jb.bin+"/latest",{ headers:{ "X-Master-Key":jb.key } },{scope:"jsonbin:auto-pull",timeout:16000,retries:1})
   .then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return res.json(); })
   .then(function(json){
     var d=json.record;
     cloudChecked=true;
     if(!d||!d.rentals||!d.upcoming||!d.played){ setSyncStatus(""); return; }
     var cloudTime=d.updatedAt||0, localTime=data.updatedAt||0,privacyScrub=cloudNeedsPrivacyScrub(d);
-    if(cloudTime>localTime || (vaultSize(data)===0 && vaultSize(d)>0)){
-      adoptVault(d,"JSONBin automatic pull",{preserveLocalHealth:!healthCloudSyncEnabled()});
+    var different=cloudTime!==localTime||(window.GameVaultCore&&GameVaultCore.stable(prepareCloudVault(d))!==GameVaultCore.stable(data));
+    if(different || (vaultSize(data)===0 && vaultSize(d)>0)){
+      var mergeResult=mergeAutomaticCloud(d,"JSONBin automatic merge");
       lastSyncedAt=data.updatedAt;
-      render();
-      setSyncStatus("Synced from your other device");
-      flash("Pulled the newer data from your other device");
-      setTimeout(backfillImages,800);
-      if(privacyScrub)persist();
-    } else if(localTime>cloudTime){
-      lastSyncedAt=cloudTime;
-      silentPush(); // this device is ahead, push it up
+      if(mergeResult.changedLocal){render();setSyncStatus("Merged updates from your other device");flash("Merged newer data from your other device");setTimeout(backfillImages,800);}
+      if(mergeResult.needsPush||privacyScrub)persist();else setSyncStatus("Up to date");
     } else if(privacyScrub){
       lastSyncedAt=cloudTime;
-      silentPush();
+      persist();
     } else {
       lastSyncedAt=cloudTime;
       setSyncStatus("Up to date");
@@ -820,11 +1089,11 @@ function gdRefreshFromDeviceToken(t){
   if(gdTvSecret()) body.set("client_secret",gdTvSecret());
   body.set("refresh_token",t.refresh_token);
   body.set("grant_type","refresh_token");
-  return fetch("https://oauth2.googleapis.com/token",{
+  return fetchWithPolicy("https://oauth2.googleapis.com/token",{
     method:"POST",
     headers:{"Content-Type":"application/x-www-form-urlencoded"},
     body:body.toString()
-  }).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error_description||j.error||("Drive token refresh failed "+r.status)); return j; }); })
+  },{scope:"drive:token-refresh",timeout:16000,retries:0}).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error_description||j.error||("Drive token refresh failed "+r.status)); return j; }); })
   .then(function(j){
     var nt={access_token:j.access_token, exp:Date.now()+(Number(j.expires_in)||3600)*1000, refresh_token:t.refresh_token, tv:true};
     gdSaveTok(nt); gdSetStatus();
@@ -862,7 +1131,7 @@ function gdToken(){
 function gdApi(url,opts,tok){
   opts=opts||{}; opts.headers=opts.headers||{};
   opts.headers.Authorization="Bearer "+tok;
-  return fetch(url,opts).then(function(r){
+  return fetchWithPolicy(url,opts,{scope:"drive:api",timeout:20000,retries:opts.method&&opts.method!=="GET"?0:1}).then(function(r){
     if(r.status===401){ gdSaveTok(null); gdSetStatus(); throw new Error("Google session expired — sign in again"); }
     if(!r.ok) throw new Error("Drive HTTP "+r.status);
     return r;
@@ -891,9 +1160,19 @@ function gdFind(tok){
 var gdUploadQueue=Promise.resolve();
 function gdUpload(keepalive){
   function runUpload(){
-    var body=cloudVaultJson(),uploadedAt=Number(data.updatedAt)||0;
+    var body="",uploadedAt=0;
     return gdToken().then(function(tok){
       return gdFind(tok).then(function(fid){
+        var reconcile=fid?gdApi("https://www.googleapis.com/drive/v3/files/"+fid+"?alt=media",{},tok)
+          .then(function(response){return response.json();})
+          .then(function(remote){
+            if(remote&&remote.rentals&&remote.upcoming&&remote.played&&remote.lastDevice!==deviceId()){
+              var result=mergeAutomaticCloud(remote,"Google Drive pre-upload merge");
+              if(result.changedLocal)render();
+            }
+          }).catch(function(error){reportError("drive:pre-upload-merge",error);}):Promise.resolve();
+        return reconcile.then(function(){
+          body=cloudVaultJson();uploadedAt=Number(data.updatedAt)||0;
         if(fid){
           return gdApi("https://www.googleapis.com/upload/drive/v3/files/"+fid+"?uploadType=media",
             {method:"PATCH",headers:{"Content-Type":"application/json"},body:body,keepalive:!!keepalive},tok);
@@ -906,6 +1185,7 @@ function gdUpload(keepalive){
           {method:"POST",headers:{"Content-Type":"multipart/related; boundary="+boundary},body:mp},tok)
         .then(function(r){ return r.json(); })
         .then(function(j){ try{ localStorage.setItem(GD_FILE_STORE,j.id); }catch(e){} });
+        });
       }).then(function(){ return gdMaybeHistory(tok,body); })
       .then(function(){ return gdRefreshUsage(tok); })
       .then(function(){ return uploadedAt; });
@@ -1000,11 +1280,11 @@ function gdTvPoll(deviceCode, interval, expiresAt){
   if(gdTvSecret()) body.set("client_secret",gdTvSecret());
   body.set("device_code",deviceCode);
   body.set("grant_type","urn:ietf:params:oauth:grant-type:device_code");
-  fetch("https://oauth2.googleapis.com/token",{
+  fetchWithPolicy("https://oauth2.googleapis.com/token",{
     method:"POST",
     headers:{"Content-Type":"application/x-www-form-urlencoded"},
     body:body.toString()
-  }).then(function(r){ return r.json().then(function(j){ j._ok=r.ok; return j; }); })
+  },{scope:"drive:tv-token",timeout:16000,retries:0}).then(function(r){ return r.json().then(function(j){ j._ok=r.ok; return j; }); })
   .then(function(j){
     if(j._ok && j.access_token){
       gdTvStop();
@@ -1040,11 +1320,11 @@ function gdTvStart(){
   var body=new URLSearchParams();
   body.set("client_id",cid);
   body.set("scope",GD_SCOPE);
-  fetch("https://oauth2.googleapis.com/device/code",{
+  fetchWithPolicy("https://oauth2.googleapis.com/device/code",{
     method:"POST",
     headers:{"Content-Type":"application/x-www-form-urlencoded"},
     body:body.toString()
-  }).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error_description||j.error||("Device login failed "+r.status)); return j; }); })
+  },{scope:"drive:tv-device-code",timeout:16000,retries:0}).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error_description||j.error||("Device login failed "+r.status)); return j; }); })
   .then(function(info){
     gdTvRenderCode(info);
     gdTvSetStatus("Scan the QR with your phone.");
@@ -1099,18 +1379,12 @@ function silentPullOnLoad(){
       // empty-vault guard: whatever the timestamps say, a device holding no
       // games must adopt a cloud copy that has them — never the reverse
       var mustAdopt = vaultSize(data)===0 && vaultSize(d)>0;
-      if(cloudTime>localTime || mustAdopt){
-        adoptVault(d,"Google Drive automatic pull",{preserveLocalHealth:!healthCloudSyncEnabled()}); var rkA=reconcileKeys(d);
+      var different=cloudTime!==localTime||(window.GameVaultCore&&GameVaultCore.stable(prepareCloudVault(d))!==GameVaultCore.stable(data));
+      if(different || mustAdopt){
+        var mergeResult=mergeAutomaticCloud(d,"Google Drive automatic merge"),rkA=reconcileKeys(d);
         lastSyncedAt=data.updatedAt;
-        render();
-        setSyncStatus("Synced from Google Drive");
-        flash("Pulled the newer data from Google Drive");
-        setTimeout(backfillImages,800);
-        if(rkA.push||privacyScrub) persist(); // scrub legacy sensitive fields from the cloud copy
-      } else if(localTime>cloudTime){
-        lastSyncedAt=cloudTime;
-        reconcileKeys(d);
-        silentPush(); // this device is ahead (incl. its keys), push it up
+        if(mergeResult.changedLocal){render();setSyncStatus("Merged updates from Google Drive");flash("Merged newer data from Google Drive");setTimeout(backfillImages,800);}
+        if(mergeResult.needsPush||rkA.push||privacyScrub)persist();else setSyncStatus("Up to date");
       } else {
         lastSyncedAt=cloudTime;
         var rkC=reconcileKeys(d);
@@ -1734,7 +2008,13 @@ var plotCache={};
 try{ plotCache=JSON.parse(localStorage.getItem(PLOTS_KEY)||"{}")||{}; }catch(e){ plotCache={}; }
 var plotPending={};
 var plotErr={};
-function savePlots(){ try{ localStorage.setItem(PLOTS_KEY, JSON.stringify(plotCache)); }catch(e){} }
+function savePlots(){
+  if(window.GameVaultCore){
+    GameVaultCore.storage.put("plots",plotCache).then(function(result){if(result!==false)try{localStorage.removeItem(PLOTS_KEY);}catch(e){}});
+    return;
+  }
+  try{localStorage.setItem(PLOTS_KEY,JSON.stringify(plotCache));}catch(e){}
+}
 function plotKey(name, kind){ return (kind==="film"?"f:":kind==="TV series"?"tv:":"")+norm(name); }
 function pickWikiHit(results, name, kind){
   results=results||[];
@@ -2183,10 +2463,20 @@ function renderHome(){
   var overdue=(data.rentals||[]).filter(function(r){return r.days-daysBetween(parseD(r.start),t0)<0;}).length;
   var continuing=(data.playing||[]).length+(data.watchingMovies||[]).length+(data.watchingSeries||[]).length;
   var activeDownloads=(typeof biglyItems!=="undefined"?biglyItems:[]).filter(function(t){var p=Number(t.progress)||0;return p<1&&p<100;}).length;
+  var nearDue=(data.rentals||[]).map(function(r){return {name:r.name,left:r.days-daysBetween(parseD(r.start),t0)};}).filter(function(r){return r.left>=0&&r.left<=3;}).sort(function(a,b){return a.left-b.left;});
+  var nearestGame=(data.upcoming||[]).map(function(g){return {name:g.name,left:g.date?daysBetween(t0,parseD(g.date)):9999};}).filter(function(g){return g.left>=0&&g.left<=7;}).sort(function(a,b){return a.left-b.left;})[0];
+  var priority=overdue
+    ? {tone:"danger",title:overdue+" overdue rental"+(overdue===1?"":"s"),copy:"Return or update these rentals first.",label:"Review rentals",sec:"games",tab:"rentals"}
+    : nearDue.length
+      ? {tone:"warning",title:nearDue[0].left===0?nearDue[0].name+" is due today":nearDue[0].name+" is due in "+nearDue[0].left+" days",copy:"Your next rental deadline is approaching.",label:"Open rentals",sec:"games",tab:"rentals"}
+      : nearestGame
+        ? {tone:"accent",title:nearestGame.name+" releases "+(nearestGame.left===0?"today":"in "+nearestGame.left+" days"),copy:"A saved upcoming game is almost here.",label:"View releases",sec:"games",tab:"upcoming"}
+        : {tone:"clear",title:"You are all caught up",copy:"No urgent rentals or saved releases in the next seven days.",label:"Continue watching",sec:"home",tab:""};
   var html='<section class="home-overview" aria-label="Today at a glance"><div><span>Today</span><strong>'+t0.toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long"})+'</strong></div>'+
     '<div class="home-overview-stat '+(overdue?'alert':'')+'"><b>'+overdue+'</b><span>overdue rental'+(overdue===1?'':'s')+'</span></div>'+
     '<div class="home-overview-stat"><b>'+continuing+'</b><span>in progress</span></div>'+
-    '<div class="home-overview-stat"><b>'+activeDownloads+'</b><span>active downloads</span></div></section><div class="home-grid">';
+    '<div class="home-overview-stat"><b>'+activeDownloads+'</b><span>active downloads</span></div></section>'+
+    '<section class="card home-priority '+priority.tone+'" aria-label="Priority"><div><span class="eyebrow">NEXT UP</span><div class="home-title">'+esc(priority.title)+'</div><p>'+esc(priority.copy)+'</p></div>'+homeGoBtn(priority.label,priority.sec,priority.tab)+'</section><div class="home-grid">';
 
   // rentals expiring within 7 days
   var due=(data.rentals||[]).map(function(r){
@@ -2610,7 +2900,7 @@ var PROXIES=["https://api.allorigins.win/raw?url=","https://corsproxy.io/?url="]
 function proxyFetch(url,pi){
   pi=pi||0;
   if(pi>=PROXIES.length) return Promise.reject(new Error("all proxies failed"));
-  return fetch(PROXIES[pi]+encodeURIComponent(url))
+  return fetchWithPolicy(PROXIES[pi]+encodeURIComponent(url),{},{scope:"availability:proxy",timeout:12000,retries:1})
     .then(function(r){ if(!r.ok) throw new Error("HTTP "+r.status); return r.text(); })
     .then(function(t){ if(t.length<500) throw new Error("stub response"); return t; })
     .catch(function(){ return proxyFetch(url,pi+1); });
@@ -2648,7 +2938,7 @@ function scheduleAvailChain(){
 }
 function gpCheck(name){
   var u="https://api.mydukaan.io/api/product/buyer/"+GP_STORE+"/product-list/v2/?search="+encodeURIComponent(name)+"&pop_fields=category_data";
-  return fetch(u).then(function(r){ return r.json(); }).then(function(j){
+  return fetchWithPolicy(u,{},{scope:"availability:hub",timeout:12000,retries:1}).then(function(r){ return r.json(); }).then(function(j){
     var q=foldName(name);
     var cands=(j.results||[]).filter(function(p){
       if(!p||!p.name) return false;
@@ -2706,7 +2996,7 @@ function hubCheck(name){
   });
 }
 function hubRows(sku,url,title){
-  return fetch("https://n8n.thegamehub.in/webhook/availability?internal_game_key="+encodeURIComponent(sku))
+  return fetchWithPolicy("https://n8n.thegamehub.in/webhook/availability?internal_game_key="+encodeURIComponent(sku),{},{scope:"availability:game-hub",timeout:12000,retries:1})
   .then(function(r){ return r.text(); })
   .then(function(tx){
     var rows=[]; try{ rows=JSON.parse(tx); }catch(e){}
@@ -3417,12 +3707,12 @@ function renderBiglyBT(){
 
 /* ---------- Plex library (direct secure Plex Media Server API) ---------- */
 var PLEX_URL_KEY="gamevault-plex-url", PLEX_TOKEN_KEY="gamevault-plex-token", PLEX_CACHE_KEY="gamevault-plex-cache";
-var PLEX_ORDER=["home","continue","movies","shows","recent"], plexTab="home", plexItems=[], plexBusy=false, plexErr="", plexConnected=false, plexAllowDelete=false, plexSearch="", plexExpanded=null, plexDetailReturnY=0, plexEnriched={}, plexEnrichBusy={};
+var PLEX_ORDER=["home","continue","movies","shows","recent"], plexTab="home", plexItems=[], plexBusy=false, plexErr="", plexConnected=false, plexAllowDelete=false, plexSearch="", plexExpanded=null, plexDetailReturnY=0, plexEnriched={}, plexEnrichBusy={},plexCacheAt=0;
 try{
   plexTab=localStorage.getItem("gamevault-plex-tab")||"home";
   if(PLEX_ORDER.indexOf(plexTab)<0) plexTab="home";
   var savedPlex=JSON.parse(localStorage.getItem(PLEX_CACHE_KEY)||"null");
-  if(savedPlex&&Array.isArray(savedPlex.items)) plexItems=savedPlex.items;
+  if(savedPlex&&Array.isArray(savedPlex.items)){plexItems=savedPlex.items;plexCacheAt=Number(savedPlex.at)||0;}
 }catch(e){}
 function plexServerUrl(){ try{ return (localStorage.getItem(PLEX_URL_KEY)||"").trim().replace(/\/+$/,""); }catch(e){ return ""; } }
 function plexToken(){ try{ return localStorage.getItem(PLEX_TOKEN_KEY)||""; }catch(e){ return ""; } }
@@ -3484,7 +3774,9 @@ function plexMapItem(x,kind){
     rating:Number(x.audienceRating||x.rating)||null,date:x.originallyAvailableAt||""};
 }
 function plexSaveCache(){
-  try{ localStorage.setItem(PLEX_CACHE_KEY,JSON.stringify({at:Date.now(),items:plexItems})); }catch(e){}
+  var plexStored={at:Date.now(),items:plexItems};
+  if(window.GameVaultCore)GameVaultCore.storage.put("plex-cache",plexStored).then(function(result){if(result!==false)try{localStorage.removeItem(PLEX_CACHE_KEY);}catch(e){}});
+  else try{localStorage.setItem(PLEX_CACHE_KEY,JSON.stringify(plexStored));}catch(e){}
 }
 function plexMediaUrl(path){ return path&&plexServerUrl()&&plexToken()?plexWithToken(path):""; }
 function plexRefresh(){
@@ -3510,7 +3802,7 @@ function plexDiscover(){
   var status=document.getElementById("plexSettingsStatus");
   if(!token){ if(status) status.textContent="Enter your X-Plex-Token first."; return; }
   if(status) status.textContent="Discovering your Plex Media Server...";
-  fetch("https://plex.tv/api/resources?includeHttps=1&includeRelay=1&X-Plex-Token="+encodeURIComponent(token),{headers:{Accept:"application/xml"}}).then(function(r){ if(!r.ok) throw new Error("Plex account rejected the token"); return r.text(); }).then(function(t){
+  fetchWithPolicy("https://plex.tv/api/resources?includeHttps=1&includeRelay=1&X-Plex-Token="+encodeURIComponent(token),{headers:{Accept:"application/xml"}},{scope:"plex:resources",timeout:16000,retries:1}).then(function(r){ if(!r.ok) throw new Error("Plex account rejected the token"); return r.text(); }).then(function(t){
     var doc=new DOMParser().parseFromString(t,"application/xml");
     var devices=[].slice.call(doc.querySelectorAll("Device")).filter(function(d){ return (d.getAttribute("provides")||"").split(",").indexOf("server")>-1&&d.getAttribute("owned")!=="0"; });
     if(!devices.length) throw new Error("No owned Plex server was found on this account");
@@ -4199,6 +4491,12 @@ function renderTvApp(preferredKey){
   setTimeout(function(){var target=shell.querySelector('[data-tv-key="'+remember.replace(/"/g,"\\\"")+'"]')||shell.querySelector('[data-tv-key="nav:'+tvSection+'"]')||shell.querySelector('[data-tv-card]');tvFocusShell(target);},0);
 }
 
+function renderContentHtml(html,preservePageScroll){
+  var target=document.getElementById("content");
+  if(window.GameVaultCore)return GameVaultCore.renderInto(target,html,{preservePageScroll:preservePageScroll!==false});
+  target.innerHTML=html;
+  return true;
+}
 function render(){
   if(TV_MODE){
     renderTvApp();
@@ -4215,28 +4513,28 @@ function render(){
   if(section==="home"){
     statsEl.style.display="none";
     renderTabs();
-    document.getElementById("content").innerHTML=renderHome();
+    renderContentHtml(renderHome());
     applyBackground();
     return;
   }
   if(section==="library"){
     statsEl.style.display="none";
     renderTabs();
-    document.getElementById("content").innerHTML=renderPhoneLibrary();
+    renderContentHtml(renderPhoneLibrary());
     applyBackground();
     return;
   }
   if(section==="health"){
     statsEl.style.display="none";
     renderTabs();
-    document.getElementById("content").innerHTML=renderHealth();
+    renderContentHtml(renderHealth());
     applyBackground();
     return;
   }
   if(section==="finance"){
     statsEl.style.display="none";
     renderTabs();
-    document.getElementById("content").innerHTML=renderFinance();
+    renderContentHtml(renderFinance());
     applyBackground();
     return;
   }
@@ -4248,7 +4546,7 @@ function render(){
       tvAfterRender();
       return;
     }
-    document.getElementById("content").innerHTML=renderBiglyBT();
+    renderContentHtml(renderBiglyBT());
     applyBackground();
     tvAfterRender();
     return;
@@ -4256,7 +4554,7 @@ function render(){
   if(section==="plex"){
     statsEl.style.display="none";
     renderTabs();
-    document.getElementById("content").innerHTML=renderPlex();
+    renderContentHtml(renderPlex());
     applyBackground();
     tvAfterRender();
     return;
@@ -4264,7 +4562,7 @@ function render(){
   if(section==="films" || section==="series"){
     statsEl.style.display="none";
     renderTabs();
-    document.getElementById("content").innerHTML=section==="films" ? renderFilms() : renderSeries();
+    renderContentHtml(section==="films" ? renderFilms() : renderSeries());
     applyBackground();
     tvAfterRender();
     return;
@@ -4272,19 +4570,19 @@ function render(){
   statsEl.style.display="";
   renderStats();
   renderTabs();
-  var c=document.getElementById("content");
   if(gameView==="grid" && expandedId){
-    c.innerHTML=renderGameDetail();
+    renderContentHtml(renderGameDetail());
     applyBackground();
     tvAfterRender();
     return;
   }
-  c.innerHTML =
+  renderContentHtml(
     tab==="rentals" ? renderRentals() :
     tab==="playing" ? renderPlaying() :
     tab==="queue"   ? renderQueue() :
     tab==="upcoming"? renderUpcoming() :
-    tab==="suggest" ? renderSuggest() : renderPlayed();
+    tab==="suggest" ? renderSuggest() : renderPlayed()
+  );
   applyBackground();
   tvAfterRender();
 }
@@ -4324,7 +4622,14 @@ function pruneMediaCache(cache,limit){
   queryKeys.sort(function(a,b){return Number((cache[b]||{}).t||0)-Number((cache[a]||{}).t||0);});
   queryKeys.slice(limit).forEach(function(k){delete cache[k];});
 }
-function saveFilmCache(){ try{ pruneMediaCache(filmCache,24);localStorage.setItem(FILM_CACHE_KEY, JSON.stringify(filmCache)); }catch(e){} }
+function saveFilmCache(){
+  pruneMediaCache(filmCache,24);
+  if(window.GameVaultCore){
+    GameVaultCore.storage.put("film-cache",filmCache).then(function(result){if(result!==false)try{localStorage.removeItem(FILM_CACHE_KEY);}catch(e){}});
+    return;
+  }
+  try{localStorage.setItem(FILM_CACHE_KEY,JSON.stringify(filmCache));}catch(e){}
+}
 var FILM_GENRE_KEY="ps5-film-genre", SERIES_GENRE_KEY="ps5-series-genre";
 var FILM_YEAR_KEY="ps5-film-year", SERIES_YEAR_KEY="ps5-series-year";
 var filmGenre="", seriesGenre="";
@@ -4637,14 +4942,14 @@ function ensureMediaDetails(x,kind){
   }).catch(function(){x._detailBusy=false;x._detailCheckedAt=Date.now();});
 }
 function mapMovie(m){
-  return { id:m.id, title:m.title||m.name||"Untitled",
+  return normalizeStoredRecord({ id:m.id, title:m.title||m.name||"Untitled",
     date:m.release_date||"", originalDate:m.release_date||"", year:(m.release_date||"").slice(0,4),
     originalLanguage:m.original_language||"",
     overview:m.overview||"", tmdb:Math.round((m.vote_average||0)*10)/10,
     genres:m.genre_ids||[],
     votes:m.vote_count||0, popularity:m.popularity||0,
     poster:tmdbPoster(m.poster_path),
-    backdrop:m.backdrop_path?("https://image.tmdb.org/t/p/w1280"+m.backdrop_path):"" };
+    backdrop:m.backdrop_path?("https://image.tmdb.org/t/p/w1280"+m.backdrop_path):"" },"film");
 }
 /* OMDb exact IMDb rating by title + year */
 function omdbRating(title, year){
@@ -4964,7 +5269,7 @@ function filmsMaybeRender(key){
   var ae=document.activeElement;
   if(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
   var y=window.scrollY;
-  document.getElementById("content").innerHTML=renderFilms();
+  renderContentHtml(renderFilms());
   applyBackground();
   if(y) window.scrollTo(0,y);
 }
@@ -5091,7 +5396,7 @@ function renderFilmsKeepSearch(){
   if(TV_MODE){ renderTvApp(); return; }
   var el=document.getElementById("mwSearch");
   var had=el && document.activeElement===el, pos=had?el.selectionStart:0;
-  document.getElementById("content").innerHTML=renderFilms();
+  renderContentHtml(renderFilms());
   if(had){ var n=document.getElementById("mwSearch"); if(n){ n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} } }
   tvAfterRender();
 }
@@ -5105,9 +5410,9 @@ function addToWatchlist(m){
   data.hiddenMovies=(data.hiddenMovies||[]).filter(function(x){ return movieWatchKey(x)!==movieWatchKey(m); });
   data.watchingMovies=(data.watchingMovies||[]).filter(function(x){ return movieWatchKey(x)!==movieWatchKey(m); });
   if(inWatchlist(m)){ flash("Already in your watchlist"); return; }
-  data.movieWatchlist.unshift({key:movieWatchKey(m), id:m.id, title:m.title, year:m.year||"", poster:m.poster||"",
+  data.movieWatchlist.unshift(normalizeStoredRecord({key:movieWatchKey(m), id:m.id, title:m.title, year:m.year||"", poster:m.poster||"",
     imdb:(typeof m.imdb==="number"?m.imdb:null), imdbId:m.imdbId||null, tmdb:m.tmdb||null, date:m.date||"", ottDate:m.ottDate||"",
-    runtime:m.runtime||null, providers:m.providers||[], overview:m.overview||"", genres:m.genres||[], added:Date.now()});
+    runtime:m.runtime||null, providers:m.providers||[], overview:m.overview||"", genres:m.genres||[], releases:normalizedReleases(m,"film"), added:Date.now()},"film"));
   commitVaultUndo(undo,"Added to your watchlist");
 }
 function removeFromWatchlist(id){
@@ -5177,6 +5482,7 @@ function releaseCountdown(date){
   return '<div class="release-countdown '+cls+'">'+label+'</div>';
 }
 function gameKnownReleaseDate(g){
+  if(g&&g.releases&&g.releases.launch&&g.releases.launch.date)return g.releases.launch.date;
   if(g&&g.date)return g.date;
   var name=norm(g&&g.name||"");if(!name)return "";
   var lists=[data.upcoming||[],data.upcomingRemoved||[],fullCatalog()];
@@ -5190,12 +5496,15 @@ function gameReleaseMeta(g){
   return '<div class="media-release game-release">Release date: '+esc(fmt(date))+(status?'<br>'+status:'')+'</div>';
 }
 function filmReleaseMeta(m,key){
-  if(key==="uphw") return '<div class="media-release">Theatrical release: '+esc(m.date?fmt(m.date):"Date TBC")+'<br>'+releaseCountdown(m.date)+'</div>';
-  if(key==="bluray") return '<div class="media-release">Blu-ray release: '+esc(m.date?fmt(m.date):"Date TBC")+'</div>';
-  if(key==="mlott") return '<div class="media-release">OTT release: '+esc(m.ottDate?fmt(m.ottDate):"Date TBC")+'</div>';
-  if(key==="mlup") return '<div class="media-release">OTT release: '+esc(m.ottDate?fmt(m.ottDate):"Date TBC")+'<br>'+releaseCountdown(m.ottDate)+'</div>';
+  var releases=normalizedReleases(m,"film"),theatrical=releases.theatrical&&releases.theatrical.date||m.date||"";
+  var digital=releases.digital&&releases.digital.date||m.ottDate||"";
+  var physical=releases.physical&&releases.physical.date||m.blurayDate||(key==="bluray"?m.date:"")||"";
+  if(key==="uphw") return '<div class="media-release">Theatrical release: '+esc(theatrical?fmt(theatrical):"Date TBC")+'<br>'+releaseCountdown(theatrical)+'</div>';
+  if(key==="bluray") return '<div class="media-release">Blu-ray release: '+esc(physical?fmt(physical):"Date TBC")+'</div>';
+  if(key==="mlott") return '<div class="media-release">OTT release: '+esc(digital?fmt(digital):"Date TBC")+'</div>';
+  if(key==="mlup") return '<div class="media-release">OTT release: '+esc(digital?fmt(digital):"Date TBC")+'<br>'+releaseCountdown(digital)+'</div>';
   var cached=(!m.date&&!m.ottDate)?findCachedMovie(m.id):null;
-  var date=m.date||(cached&&cached.date)||"",ott=m.ottDate||(cached&&cached.ottDate)||"";
+  var date=theatrical||(cached&&cached.date)||"",ott=digital||(cached&&cached.ottDate)||"";
   var selected=ott||date,label=ott?"OTT release":"Release date";
   if(selected) return '<div class="media-release">'+label+': '+esc(fmt(selected))+(daysBetween(today(),parseD(selected))>=0?'<br>'+releaseCountdown(selected):'')+'</div>';
   return "";
@@ -5400,7 +5709,14 @@ if(SERIES_ORDER.indexOf(seriesTab)<0) seriesTab="serieswatchlist";
 var SERIES_TTL={enseries:18*3600*1000,mlseries:12*3600*1000,taseries:12*3600*1000,hiseries:12*3600*1000,seriesdiscover:18*3600*1000,seriesupcoming:6*3600*1000};
 var seriesCache={}, seriesBusy={}, seriesErr={}, seriesRequestVersion={};
 try{ seriesCache=JSON.parse(localStorage.getItem(SERIES_CACHE_KEY)||"{}")||{}; }catch(e){ seriesCache={}; }
-function saveSeriesCache(){ try{ pruneMediaCache(seriesCache,36);localStorage.setItem(SERIES_CACHE_KEY, JSON.stringify(seriesCache)); }catch(e){} }
+function saveSeriesCache(){
+  pruneMediaCache(seriesCache,36);
+  if(window.GameVaultCore){
+    GameVaultCore.storage.put("series-cache",seriesCache).then(function(result){if(result!==false)try{localStorage.removeItem(SERIES_CACHE_KEY);}catch(e){}});
+    return;
+  }
+  try{localStorage.setItem(SERIES_CACHE_KEY,JSON.stringify(seriesCache));}catch(e){}
+}
 function seriesCacheKey(key){
   var language=(key==="seriesupcoming"||key==="seriesdiscover")?seriesLanguage:"";
   return key+"|genre="+mediaCachePart(seriesGenre)+"|year="+mediaCachePart(seriesYear)+
@@ -5418,12 +5734,12 @@ function seriesCacheAge(key){
 }
 var seriesEpisodeCache={}, seriesSeasonSel={}, seriesEpisodeSel={}, seriesEpisodeBusy={};
 function mapSeries(s){
-  return { id:s.id, title:s.name||s.original_name||"Untitled",
+  return normalizeStoredRecord({ id:s.id, title:s.name||s.original_name||"Untitled",
     date:s.first_air_date||"", firstAirDate:s.first_air_date||"", latestDate:s.last_air_date||"", year:(s.first_air_date||"").slice(0,4),
     overview:s.overview||"", tmdb:Math.round((s.vote_average||0)*10)/10,
     votes:s.vote_count||0, popularity:s.popularity||0, genres:s.genre_ids||[], originalLanguage:s.original_language||"",
     poster:tmdbPoster(s.poster_path),
-    backdrop:s.backdrop_path?("https://image.tmdb.org/t/p/w1280"+s.backdrop_path):"" };
+    backdrop:s.backdrop_path?("https://image.tmdb.org/t/p/w1280"+s.backdrop_path):"" },"series");
 }
 function enrichSeriesIds(s){
   return tmdbGet("/tv/"+s.id, {append_to_response:"external_ids,watch/providers"}).then(function(d){
@@ -5601,7 +5917,7 @@ function seriesMaybeRender(key){
   var ae=document.activeElement;
   if(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
   var y=window.scrollY;
-  document.getElementById("content").innerHTML=renderSeries();
+  renderContentHtml(renderSeries());
   applyBackground();
   if(y) window.scrollTo(0,y);
 }
@@ -5833,10 +6149,15 @@ function seriesMeta(s, key){
   return parts.join(" ");
 }
 function seriesReleaseMeta(s){
-  var date=s&&(s.nextEpisode&&s.nextEpisode.date||s.ottDate||s.latestDate||s.date);
+  var releases=normalizedReleases(s||{},"series");
+  var next=releases.nextEpisode&&releases.nextEpisode.date||s&&s.nextEpisode&&s.nextEpisode.date||"";
+  var digital=releases.digital&&releases.digital.date||s&&s.ottDate||"";
+  var latest=releases.latestEpisode&&releases.latestEpisode.date||s&&s.latestDate||"";
+  var first=releases.firstAir&&releases.firstAir.date||s&&s.date||"";
+  var date=next||digital||latest||first;
   if(!date) return "";
   var day=parseD(date).toLocaleDateString("en-IN",{weekday:"long"});
-  var label=s.nextEpisode&&s.nextEpisode.date?"Next episode":s.ottDate?"OTT premiere":s.latestDate?"Latest episode":"First aired";
+  var label=next?"Next episode":digital?"OTT premiere":latest?"Latest episode":"First aired";
   var countdown=daysBetween(today(),parseD(date))>=0?releaseCountdown(date):"";
   return '<div class="media-release">'+label+': '+esc(fmt(date))+' · '+esc(day)+(countdown?'<br>'+countdown:'')+'</div>';
 }
@@ -5869,7 +6190,7 @@ function renderSeriesKeepSearch(){
   if(TV_MODE){ renderTvApp(); return; }
   var el=document.getElementById("swSearch");
   var had=el && document.activeElement===el, pos=had?el.selectionStart:0;
-  document.getElementById("content").innerHTML=renderSeries();
+  renderContentHtml(renderSeries());
   if(had){ var n=document.getElementById("swSearch"); if(n){ n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} } }
   tvAfterRender();
 }
@@ -5883,9 +6204,9 @@ function addSeriesWatchlist(s){
   data.hiddenSeries=(data.hiddenSeries||[]).filter(function(x){ return seriesKey(x)!==seriesKey(s); });
   data.watchingSeries=(data.watchingSeries||[]).filter(function(x){ return seriesKey(x)!==seriesKey(s); });
   if(inSeriesWatchlist(s)){ flash("Already in your series watchlist"); return; }
-  data.seriesWatchlist.unshift({key:seriesKey(s), id:s.id, title:s.title, year:s.year||"", poster:s.poster||"",
+  data.seriesWatchlist.unshift(normalizeStoredRecord({key:seriesKey(s), id:s.id, title:s.title, year:s.year||"", poster:s.poster||"",
     imdb:(typeof s.imdb==="number"?s.imdb:null), imdbId:s.imdbId||null, tmdb:s.tmdb||null,
-    overview:s.overview||"", genres:s.genres||[], date:s.date||"", latestDate:s.latestDate||"", seasons:s.seasons||"", seasonList:s.seasonList||[], providers:s.providers||[], added:Date.now()});
+    overview:s.overview||"", genres:s.genres||[], date:s.date||"", latestDate:s.latestDate||"", seasons:s.seasons||"", seasonList:s.seasonList||[], providers:s.providers||[], releases:normalizedReleases(s,"series"), added:Date.now()},"series"));
   commitVaultUndo(undo,"Added to your series watchlist");
 }
 function removeSeriesWatchlist(id){
@@ -6380,6 +6701,29 @@ document.getElementById("gdSaveBtn").addEventListener("click",function(){
 });
 document.getElementById("gdSignInBtn").addEventListener("click",gdSignIn);
 document.getElementById("gdSignOutBtn").addEventListener("click",function(){confirmDestructive("Disconnect Google Drive on this device? Your Drive backup will not be deleted.","Disconnect Drive",gdSignOut);});
+var secureConfigSaveBtn=document.getElementById("secureConfigSaveBtn");
+if(secureConfigSaveBtn)secureConfigSaveBtn.addEventListener("click",secureConfigEncrypt);
+var secureConfigUnlockBtn=document.getElementById("secureConfigUnlockBtn");
+if(secureConfigUnlockBtn)secureConfigUnlockBtn.addEventListener("click",secureConfigUnlock);
+var appLockEnableBtn=document.getElementById("appLockEnableBtn");
+if(appLockEnableBtn)appLockEnableBtn.addEventListener("click",appLockEnable);
+var appLockFaceBtn=document.getElementById("appLockFaceBtn");
+if(appLockFaceBtn)appLockFaceBtn.addEventListener("click",appLockRegisterBiometric);
+var appLockNowBtn=document.getElementById("appLockNowBtn");
+if(appLockNowBtn)appLockNowBtn.addEventListener("click",function(){
+  if(appLockConfig()&&appLockConfig().pin)appLockShow();
+  else appLockSetMessage("Enable the app lock first.",true);
+});
+var appLockDisableBtn=document.getElementById("appLockDisableBtn");
+if(appLockDisableBtn)appLockDisableBtn.addEventListener("click",function(){
+  confirmDestructive("Disable the whole-app lock on this browser?","Disable app lock",appLockDisable);
+});
+var appLockUnlockBtn=document.getElementById("appLockUnlockBtn");
+if(appLockUnlockBtn)appLockUnlockBtn.addEventListener("click",appLockUnlockPin);
+var appLockBiometricBtn=document.getElementById("appLockBiometricBtn");
+if(appLockBiometricBtn)appLockBiometricBtn.addEventListener("click",appLockBiometric);
+var appLockPin=document.getElementById("appLockPin");
+if(appLockPin)appLockPin.addEventListener("keydown",function(event){if(event.key==="Enter"){event.preventDefault();appLockUnlockPin();}});
 var gdTvSaveBtn=document.getElementById("gdTvSaveBtn");
 if(gdTvSaveBtn) gdTvSaveBtn.addEventListener("click",function(){
   try{
@@ -8024,6 +8368,7 @@ function decryptVault(envelope,password){
 function refreshRecoveryUi(){
   var sel=document.getElementById("snapshotSelect"),summary=document.getElementById("systemSummary"),grid=document.getElementById("connectionGrid"),activity=document.getElementById("recentActivity");
   if(!sel) return;
+  appLockRefreshStatus();
   var snaps=readRecoverySnapshots();
   sel.innerHTML=snaps.length?snaps.map(function(s,i){ return '<option value="'+i+'">'+esc(new Date(s.createdAt).toLocaleString()+" - "+s.reason+" ("+s.size+" items)")+'</option>'; }).join(""):'<option value="">No recovery points yet</option>';
   if(summary) summary.textContent="Version "+APP_VERSION+" · "+APP_RELEASE_CHANNEL+" · build "+APP_BUILD_DATE+" · data schema "+SCHEMA_VERSION+" · "+vaultSize(data)+" saved items · "+snaps.length+" recovery points · "+(cloudMode()==="drive"?"Google Drive primary":cloudMode()==="jsonbin"?"JSONBin fallback":"local only");
@@ -8043,7 +8388,7 @@ function refreshRecoveryUi(){
   }
 }
 function exportDiagnostics(){
-  var report={app:"Sinu Game Vault",version:APP_VERSION,buildDate:APP_BUILD_DATE,releaseChannel:APP_RELEASE_CHANNEL,schema:SCHEMA_VERSION,generatedAt:new Date().toISOString(),device:deviceId(),userAgent:navigator.userAgent,online:navigator.onLine,storageItems:vaultSize(data),revision:data.revision||0,updatedAt:data.updatedAt||0,cloudMode:cloudMode()||"none",connections:{drive:!!gdTok(),jsonBin:!!getJB().bin,rawg:!!getKey(),tmdb:!!tmdbKey(),omdb:!!omdbKey(),plex:!!(plexServerUrl()&&plexToken()),biglybt:!!biglyProxyUrl()},collections:{},runtimeErrors:runtimeErrors.slice(),recentAudit:(data.audit||[]).slice(0,50)};
+  var report={app:"Sinu Game Vault",version:APP_VERSION,buildDate:APP_BUILD_DATE,releaseChannel:APP_RELEASE_CHANNEL,schema:SCHEMA_VERSION,generatedAt:new Date().toISOString(),device:deviceId(),userAgent:navigator.userAgent,online:navigator.onLine,storageItems:vaultSize(data),revision:data.revision||0,updatedAt:data.updatedAt||0,cloudMode:cloudMode()||"none",connections:{drive:!!gdTok(),jsonBin:!!getJB().bin,rawg:!!getKey(),tmdb:!!tmdbKey(),omdb:!!omdbKey(),plex:!!(plexServerUrl()&&plexToken()),biglybt:!!biglyProxyUrl()},collections:{},runtimeErrors:runtimeErrors.slice(),requestDiagnostics:window.GameVaultCore?GameVaultCore.diagnostics.list():[],recentAudit:(data.audit||[]).slice(0,50)};
   VAULT_ARRAY_FIELDS.forEach(function(k){ report.collections[k]=(data[k]||[]).length; });
   downloadBlob(new Blob([JSON.stringify(report,null,2)],{type:"application/json"}),"game-vault-diagnostics-"+localISO()+".json");
 }
@@ -8350,15 +8695,71 @@ function flushPendingPush(){
   if(!cloudMode()) return;
   if(data.updatedAt>lastSyncedAt){ clearTimeout(autoPushTimer); silentPush(true); }
 }
+var releaseCheckAt=0;
+function versionNumber(value){
+  return String(value||"0").split(".").reduce(function(total,part,index){return total+(Number(part)||0)*Math.pow(100,2-index);},0);
+}
+function checkReleaseVersion(force){
+  if(location.protocol.indexOf("http")!==0||/^(localhost|127\.0\.0\.1)$/.test(location.hostname))return;
+  if(!force&&Date.now()-releaseCheckAt<30*60*1000)return;
+  releaseCheckAt=Date.now();
+  fetchWithPolicy("./release.json?check="+releaseCheckAt,{cache:"no-store"},{scope:"release-check",timeout:8000,retries:0,noDedupe:true})
+    .then(function(response){return response.json();})
+    .then(function(remote){
+      if(versionNumber(remote.version)<=versionNumber(APP_VERSION))return;
+      if(phoneUi())setPhoneStatus("GameVault "+remote.version+" is available","update","update");
+      if("serviceWorker" in navigator)navigator.serviceWorker.getRegistration().then(function(reg){if(reg)reg.update();});
+    }).catch(function(){});
+}
 function warmVisibleContent(){
   if(document.visibilityState==="hidden") return;
+  checkReleaseVersion(false);
   if(section==="films"){ensureFilms(filmTab);scheduleMediaWarmup("films",filmTab);}
   else if(section==="series"){ensureSeries(seriesTab);scheduleMediaWarmup("series",seriesTab);}
   else if(section==="games")scheduleGameWarmup(tab);
 }
+function hydrateIndexedStorage(){
+  if(!window.GameVaultCore)return Promise.resolve(false);
+  function newestCacheTime(cache){
+    var newest=0;Object.keys(cache||{}).forEach(function(key){var item=cache[key];if(item&&item.t)newest=Math.max(newest,Number(item.t)||0);});return newest;
+  }
+  return Promise.all([
+    GameVaultCore.storage.get("vault"),
+    GameVaultCore.storage.get("film-cache"),
+    GameVaultCore.storage.get("series-cache"),
+    GameVaultCore.storage.get("plots"),
+    GameVaultCore.storage.get("plex-cache")
+  ]).then(function(values){
+    var changed=false,idbVault=values[0];
+    if(idbVault&&validateVault(idbVault).ok&&(Number(idbVault.updatedAt)||0)>(Number(data.updatedAt)||0)){
+      var result=mergeAutomaticCloud(idbVault,"IndexedDB recovery");
+      changed=changed||result.changedLocal;
+    }
+    if(values[1]&&newestCacheTime(values[1])>newestCacheTime(filmCache)){filmCache=values[1];changed=true;}
+    if(values[2]&&newestCacheTime(values[2])>newestCacheTime(seriesCache)){seriesCache=values[2];changed=true;}
+    if(values[3]&&Object.keys(values[3]).length>Object.keys(plotCache||{}).length){plotCache=values[3];changed=true;}
+    if(values[4]&&values[4].at>plexCacheAt){plexCacheAt=values[4].at;plexItems=values[4].items||[];changed=true;}
+    if(!values[1]&&Object.keys(filmCache||{}).length)saveFilmCache();
+    if(!values[2]&&Object.keys(seriesCache||{}).length)saveSeriesCache();
+    if(!values[3]&&Object.keys(plotCache||{}).length)savePlots();
+    if(!values[4]&&plexItems.length){
+      var initialPlex={at:plexCacheAt||Date.now(),items:plexItems};
+      GameVaultCore.storage.put("plex-cache",initialPlex).then(function(result){if(result!==false)try{localStorage.removeItem(PLEX_CACHE_KEY);}catch(e){}});
+    }
+    if(changed){persistSilent();render();}
+    return changed;
+  }).catch(function(error){reportError("indexeddb:hydrate",error);return false;});
+}
 document.addEventListener("visibilitychange",function(){
-  if(document.visibilityState==="visible"){silentPullOnLoad();warmVisibleContent();}
-  else flushPendingPush();
+  if(document.visibilityState==="visible"){
+    var config=appLockConfig();
+    if(config&&config.pin&&appLockHiddenAt&&Date.now()-appLockHiddenAt>=Math.max(1,Number(config.minutes)||5)*60000)appLockShow();
+    appLockHiddenAt=0;
+    silentPullOnLoad();warmVisibleContent();
+  }else{
+    appLockHiddenAt=Date.now();
+    flushPendingPush();
+  }
 });
 window.addEventListener("online",warmVisibleContent);
 window.addEventListener("pagehide",flushPendingPush);
@@ -8370,6 +8771,7 @@ window.addEventListener("pageshow",function(e){
 
 applyKeysFromData();     // migrate legacy cached keys into device-local storage
 backfillKeysToData();    // scrub any remaining key material from the vault object
+secureConfigAutoUnlock();
 if("serviceWorker" in navigator && location.protocol.indexOf("http")===0 && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)){
   navigator.serviceWorker.register("sw.js?v="+APP_VERSION,{updateViaCache:"none"}).then(function(reg){
     function offerUpdate(worker){
@@ -8400,6 +8802,7 @@ setTimeout(function(){
   if(gdClientId()) gdLoadGoogleIdentity().catch(function(){});
   var token=gdTok();
   if(token && token.access_token && Date.now()<(token.exp||0)-60000) gdRefreshUsage(token.access_token);
+  checkReleaseVersion(true);
 },1000);
 /* deep link: ?section=films&tab=mlott — completes the existing ?section support
    so iOS Shortcuts / bookmarks can open any page directly (view-only; the
@@ -8422,13 +8825,17 @@ setTimeout(function(){
   if(active) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current");
 });
 render();
+hydrateIndexedStorage().then(function(){
+  secureConfigAutoUnlock();
+  if(section==="films"){ensureFilms(filmTab);scheduleMediaWarmup("films",filmTab);}
+  if(section==="series"){ensureSeries(seriesTab);scheduleMediaWarmup("series",seriesTab);}
+  if(section==="games")scheduleGameWarmup(tab);
+});
 decoratePhonePlots();
 updatePhoneConnectionStatus();
 refreshRecoveryUi();
+appLockInitialCheck();
 if(TV_MODE) setTimeout(function(){tvPrimeSection(tvSection);},80);
-if(section==="films"){ ensureFilms(filmTab); scheduleMediaWarmup("films",filmTab); }
-if(section==="series"){ ensureSeries(seriesTab); scheduleMediaWarmup("series",seriesTab); }
-if(section==="games") scheduleGameWarmup(tab);
 if(plexServerUrl() && plexToken()) setTimeout(plexRefresh,500);
 silentPullOnLoad();
 setTimeout(backfillImages,1500);

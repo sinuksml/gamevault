@@ -1,11 +1,13 @@
-const CACHE_NAME = "gamevault-shell-v66";
+const CACHE_NAME = "gamevault-shell-v67";
 const IMAGE_CACHE = "gamevault-images-v1";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./app.css",
-  "./app.js",
-  "./finance.js",
+  "./app.css?v=1.27.0",
+  "./core.js?v=1.27.0",
+  "./finance.js?v=1.27.0",
+  "./app.js?v=1.27.0",
+  "./release.json",
   "./icon.png",
   "./manifest.webmanifest"
 ];
@@ -51,6 +53,10 @@ self.addEventListener("fetch", event => {
     return;
   }
   if (url.origin === location.origin) {
+    if (url.pathname.endsWith("/release.json")) {
+      event.respondWith(fetch(req, {cache:"no-store"}).catch(() => caches.match("./release.json")));
+      return;
+    }
     if (req.mode === "navigate") {
       event.respondWith(
         fetch(req).then(res => {

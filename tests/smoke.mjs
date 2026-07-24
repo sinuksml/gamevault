@@ -1,12 +1,15 @@
 import fs from "node:fs";
 import vm from "node:vm";
 import assert from "node:assert/strict";
+import {webcrypto} from "node:crypto";
 
 const html=fs.readFileSync("index.html","utf8");
 const js=fs.readFileSync("app.js","utf8");
+const coreJs=fs.readFileSync("core.js","utf8");
 const financeJs=fs.readFileSync("finance.js","utf8");
 const css=fs.readFileSync("app.css","utf8");
 const sw=fs.readFileSync("sw.js","utf8");
+const release=JSON.parse(fs.readFileSync("release.json","utf8"));
 const biglyWorker=fs.readFileSync("biglybt-worker/worker.js","utf8");
 const manifest=JSON.parse(fs.readFileSync("manifest.webmanifest","utf8"));
 const pkg=JSON.parse(fs.readFileSync("package.json","utf8"));
@@ -31,6 +34,7 @@ assert.ok(html.length<50000,"index.html should stay a small application shell");
 assert.ok(css.length>10000,"application styles are unexpectedly empty");
 assert.ok(js.length>100000,"application script is unexpectedly empty");
 new vm.Script(js,{filename:"app.js"});
+new vm.Script(coreJs,{filename:"core.js"});
 new vm.Script(financeJs,{filename:"finance.js"});
 new vm.Script(sw,{filename:"sw.js"});
 const biglyDashboardStart=biglyWorker.indexOf("function nativeDashboardPage() {");
@@ -53,9 +57,15 @@ for(const name of ["movieCard","watchlistCard","watchlistSearchCard","seriesCard
   const count=(js.match(new RegExp("function\\s+"+name+"\\s*\\(","g"))||[]).length;
   assert.equal(count,1,`${name} should have one canonical implementation`);
 }
-for(const asset of ["./index.html","./app.css","./app.js","./finance.js","./manifest.webmanifest"]){
+for(const asset of ["./index.html","./release.json","./manifest.webmanifest"]){
   assert.ok(sw.includes(`"${asset}"`),`service worker must cache ${asset}`);
 }
+for(const asset of ["app.css","core.js","finance.js","app.js"]){
+  assert.ok(sw.includes(`"./${asset}?v=${version}"`),`service worker must cache the exact ${asset} release asset`);
+}
+assert.ok(html.includes(`core.js?v=${version}`),"Core asset version must match APP_VERSION");
+assert.equal(release.version,version,"release manifest version must match APP_VERSION");
+assert.equal(release.schema,11,"release manifest must expose the current data schema");
 assert.equal(manifest.name,"Sinu Game Vault");
 assert.match(html,/name="description"/);
 assert.match(html,/property="og:title"/);
@@ -205,7 +215,57 @@ assert.match(js,/function renderHealth\(/);
 assert.match(js,/healthfood/);
 assert.match(js,/function vaultCopyForCloud\(/);
 assert.match(js,/delete copy\.keys/);
+assert.match(js,/delete copy\.trustedDeviceConfig/);
+assert.doesNotMatch(js,/copy\.trustedDeviceConfig\s*=/);
 assert.match(js,/if\(!healthCloudSyncEnabled\(\)\) delete copy\.health/);
 assert.match(html,/id="healthCloudInput"/);
 assert.doesNotMatch(js,/Absolute eosinophils were/);
+
+assert.match(html,/id="appLockOverlay"/);
+assert.match(html,/id="secureConfigSaveBtn"/);
+for(const marker of ["function appLockEnable(","function appLockBiometric(","function appLockInitialCheck(","function normalizeStoredLibrary(","function mergeAutomaticCloud(","function hydrateIndexedStorage(","function checkReleaseVersion("]){
+  assert.ok(js.includes(marker),`application must include ${marker}`);
+}
+assert.match(js,/if\(remoteSize===0&&localSize>0\)return \{changedLocal:false,needsPush:true\}/,"an empty cloud file must never replace a populated device");
+assert.match(coreJs,/indexedDB\.open/);
+assert.match(coreJs,/AES-GCM/);
+assert.match(coreJs,/function mergeVault\(/);
+assert.match(coreJs,/function renderInto\(/);
+assert.equal((js.match(/\bfetch\(/g)||[]).length,1,"all application requests except the fetch-helper fallback must use the request manager");
+assert.doesNotMatch(js,/\bc\.innerHTML\s*=/,"game views must use focus-preserving partial rendering");
+for(const legacyKey of ["PLOTS_KEY","FILM_CACHE_KEY","SERIES_CACHE_KEY","PLEX_CACHE_KEY"]){
+  assert.ok(js.includes(`localStorage.removeItem(${legacyKey})`),`${legacyKey} must migrate out of localStorage after IndexedDB persistence`);
+}
+
+const coreContext={
+  window:{crypto:webcrypto},
+  crypto:webcrypto,
+  TextEncoder,
+  TextDecoder,
+  Uint8Array,
+  Date,
+  Math,
+  JSON,
+  Promise,
+  setTimeout,
+  clearTimeout,
+  btoa:value=>Buffer.from(value,"binary").toString("base64"),
+  atob:value=>Buffer.from(value,"base64").toString("binary")
+};
+vm.createContext(coreContext);
+new vm.Script(coreJs,{filename:"core.js"}).runInContext(coreContext);
+const core=coreContext.window.GameVaultCore;
+const collections=["queue"];
+const local={updatedAt:200,revision:2,queue:[{id:"a",name:"Alpha"},{id:"local",name:"Local edit"}],_sync:{version:1,records:{queue:{"id:a":100,"id:local":200}},tombstones:{queue:{}}}};
+const remote={updatedAt:210,revision:3,queue:[{id:"a",name:"Alpha"},{id:"remote",name:"Remote edit"}],_sync:{version:1,records:{queue:{"id:a":100,"id:remote":210}},tombstones:{queue:{}}}};
+const merged=core.sync.merge(local,remote,collections);
+assert.deepEqual(Array.from(merged.queue,x=>x.name).sort(),["Alpha","Local edit","Remote edit"],"concurrent device additions must converge");
+const deleted=core.sync.merge({...merged,updatedAt:300,queue:merged.queue.filter(x=>x.id!=="remote"),_sync:{version:1,records:{queue:{"id:a":100,"id:local":200}},tombstones:{queue:{"id:remote":300}}}},remote,collections);
+assert.ok(!deleted.queue.some(x=>x.id==="remote"),"newer tombstones must prevent deleted records from returning");
+const envelope=await core.crypto.seal({token:"private-value"},"correct horse battery staple");
+assert.ok(!JSON.stringify(envelope).includes("private-value"),"encrypted configuration must not contain plaintext credentials");
+assert.deepEqual(await core.crypto.open(envelope,"correct horse battery staple"),{token:"private-value"},"encrypted configuration must round-trip");
+const verifier=await core.crypto.pinVerifier("2468");
+assert.equal(await core.crypto.verifyPin("2468",verifier),true,"correct app-lock PIN must verify");
+assert.equal(await core.crypto.verifyPin("1357",verifier),false,"incorrect app-lock PIN must fail");
 console.log("GameVault smoke checks passed");

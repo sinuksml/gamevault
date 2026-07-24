@@ -1,0 +1,12 @@
+{
+  "version": "1.27.0",
+  "buildDate": "2026-07-24",
+  "schema": 11,
+  "minimumCompatibleSchema": 1,
+  "assets": {
+    "css": "app.css?v=1.27.0",
+    "core": "core.js?v=1.27.0",
+    "finance": "finance.js?v=1.27.0",
+    "app": "app.js?v=1.27.0"
+  }
+}

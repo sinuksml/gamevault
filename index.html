@@ -25,7 +25,7 @@
 <link rel="apple-touch-startup-image" href="splash-portrait.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Sinu Game Vault — PS5 Tracker</title>
-<link rel="stylesheet" href="app.css?v=1.26.3">
+<link rel="stylesheet" href="app.css?v=1.27.0">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -185,6 +185,33 @@
         <button class="btn" id="encryptedExportBtn">Encrypted backup</button>
         <button class="btn" id="diagnosticsBtn">Export diagnostics</button>
       </div>
+      <div class="security-settings">
+        <div>
+          <strong>Encrypted credential sync</strong>
+          <p class="syncnote">Protect API keys and Plex/BiglyBT access with a separate passphrase before storing them in Drive. Enter the same passphrase once on each trusted device.</p>
+        </div>
+        <div class="fields">
+          <input class="f-name" id="secureConfigPass" type="password" minlength="8" placeholder="Secure-sync passphrase (8+ characters)" autocomplete="new-password">
+          <button class="btn blue" id="secureConfigSaveBtn" type="button">Encrypt &amp; sync credentials</button>
+          <button class="btn" id="secureConfigUnlockBtn" type="button">Unlock synced credentials</button>
+          <span class="syncnote" id="secureConfigStatus"></span>
+        </div>
+      </div>
+      <div class="security-settings">
+        <div>
+          <strong>Optional whole-app lock</strong>
+          <p class="syncnote">Protect GameVault on this browser with a PIN. Supported Apple devices can additionally use Face ID through a passkey.</p>
+        </div>
+        <div class="fields">
+          <input class="f-sm" id="appLockPinSetup" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="12" placeholder="New 4–12 digit PIN" autocomplete="new-password">
+          <select class="f-sm" id="appLockMinutes"><option value="1">Lock after 1 minute</option><option value="5">Lock after 5 minutes</option><option value="15">Lock after 15 minutes</option><option value="30">Lock after 30 minutes</option></select>
+          <button class="btn blue" id="appLockEnableBtn" type="button">Enable app lock</button>
+          <button class="btn" id="appLockFaceBtn" type="button">Enable Face ID / passkey</button>
+          <button class="btn" id="appLockNowBtn" type="button">Lock now</button>
+          <button class="btn ghost danger" id="appLockDisableBtn" type="button">Disable app lock</button>
+          <span class="syncnote" id="appLockStatus"></span>
+        </div>
+      </div>
       <p class="syncnote privacy-note">Health sync is off by default. If enabled, health records are included in your normal Drive or JSONBin backup. Finance records are always stored as a separately PIN-encrypted envelope; the PIN is never saved or uploaded. Use Encrypted backup for a password-protected portable copy of the remaining vault.</p>
       <div class="recent-activity" id="recentActivity"></div>
       <p class="syncnote">GameVault keeps up to eight local recovery points and up to five daily Drive history copies. Diagnostics never include passwords, OAuth tokens, Plex tokens, or API keys.</p>
@@ -204,6 +231,19 @@
   <button type="button" data-keyboard="done">Done</button>
 </div>
 
+<div class="app-lock-overlay" id="appLockOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="appLockTitle">
+  <div class="app-lock-panel">
+    <span class="app-lock-mark" aria-hidden="true">GV</span>
+    <p class="eyebrow">SINU GAME VAULT</p>
+    <h2 id="appLockTitle">Unlock GameVault</h2>
+    <p>Your library and private dashboards are locked on this device.</p>
+    <input id="appLockPin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="12" placeholder="Enter PIN" autocomplete="current-password" aria-label="GameVault PIN">
+    <button class="btn blue" id="appLockUnlockBtn" type="button">Unlock</button>
+    <button class="btn" id="appLockBiometricBtn" type="button">Use Face ID / passkey</button>
+    <span class="syncnote" id="appLockMessage" role="status" aria-live="polite"></span>
+  </div>
+</div>
+
 <div class="command-palette" id="commandPalette" role="dialog" aria-modal="true" aria-labelledby="commandTitle" hidden>
   <div class="command-panel">
     <div class="command-head">
@@ -216,6 +256,7 @@
   </div>
 </div>
 
-<script src="finance.js?v=1.26.3"></script>
-<script src="app.js?v=1.26.3"></script></body>
+<script src="core.js?v=1.27.0"></script>
+<script src="finance.js?v=1.27.0"></script>
+<script src="app.js?v=1.27.0"></script></body>
 </html>

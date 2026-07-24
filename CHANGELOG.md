@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.27.0 - 2026-07-24
+
+- Added conflict-safe record-level cloud merging with tombstones so simultaneous edits from PC and iPhone converge without replacing the entire newer library.
+- Added IndexedDB persistence for the vault and large public caches, while retaining localStorage compatibility for existing installations.
+- Removed plaintext service credentials from Drive and JSONBin backups; credentials can now be encrypted with a separate secure-sync passphrase.
+- Added an optional whole-app PIN lock with Face ID/passkey support on compatible secure browsers.
+- Added canonical media IDs and normalized theatrical, digital, physical, episode and game-release metadata.
+- Centralized requests with timeout, retry, in-flight deduplication and diagnostics, and reduced visible refresh jumps by preserving focus and scroll state.
+- Added a priority-first Home panel, stronger focus/tap behavior, responsive type tokens, improved light-mode surfaces and accessible security controls.
+- Hardened PWA asset versioning and expanded automated checks for synchronization, privacy, storage and release integrity.
+
 ## v1.26.3 - 2026-07-22
 
 - Moved Coming to Malayalam OTT above Now Streaming so confirmed future premieres appear first.
