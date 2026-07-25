@@ -17,7 +17,7 @@
 <link rel="apple-touch-startup-image" href="splash-portrait.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Sinu Game Vault — PS5 Tracker</title>
-<link rel="stylesheet" href="app.css?v=2.1.0">
+<link rel="stylesheet" href="app.css?v=2.1.1">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -118,6 +118,15 @@
       <button class="btn blue" id="savePlexBtn">Save Plex</button>
       <button class="btn ghost danger" id="clearPlexBtn">Disconnect</button>
     </div>
+    <label class="setting-control" style="margin-top:10px">
+      <input id="plexDeleteEnabledInput" type="checkbox">
+      Allow permanent media deletion from GameVault
+    </label>
+    <label class="setting-control" style="margin-top:8px">
+      <input id="plexPlaybackSyncInput" type="checkbox">
+      Synchronize Plex playback with GameVault Watching and Watched lists
+    </label>
+    <p class="syncnote">Deletion is locked by default on each device. Plex library data is loaded only while the Plex section is open and is cached for 30 minutes.</p>
     <div class="syncnote" id="plexSettingsStatus" style="margin-top:7px"></div>
     <details class="setup-help"><summary>Plex and BiglyBT setup help</summary><p>Use an HTTPS <b>plex.direct</b> connection for Plex. Find the owner token in the <a href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/" target="_blank" rel="noopener">Plex token guide</a>. For BiglyBT, the raw public-IP address cannot be embedded because GameVault uses HTTPS.</p></details>
     </details>
@@ -188,7 +197,7 @@
   </div>
 </div>
 
-<script src="core.js?v=2.1.0"></script>
-<script src="finance.js?v=2.1.0"></script>
-<script src="app.js?v=2.1.0"></script></body>
+<script src="core.js?v=2.1.1"></script>
+<script src="finance.js?v=2.1.1"></script>
+<script src="app.js?v=2.1.1"></script></body>
 </html>

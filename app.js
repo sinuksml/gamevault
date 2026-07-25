@@ -1,5 +1,5 @@
 "use strict";
-var APP_VERSION = "2.1.0";
+var APP_VERSION = "2.1.1";
 var APP_BUILD_DATE = "2026-07-25";
 var APP_RELEASE_CHANNEL = "Stable";
 
@@ -3025,7 +3025,8 @@ function renderBiglyBT(){
 }
 
 /* ---------- Plex library (direct secure Plex Media Server API) ---------- */
-var PLEX_URL_KEY="gamevault-plex-url", PLEX_TOKEN_KEY="gamevault-plex-token", PLEX_CACHE_KEY="gamevault-plex-cache";
+var PLEX_URL_KEY="gamevault-plex-url", PLEX_TOKEN_KEY="gamevault-plex-token", PLEX_CACHE_KEY="gamevault-plex-cache", PLEX_DELETE_KEY="gamevault-plex-delete-enabled", PLEX_PLAYBACK_SYNC_KEY="gamevault-plex-playback-sync";
+var PLEX_CACHE_TTL=30*60*1000, PLEX_PAGE_SIZE=250, PLEX_MAX_PAGES=100;
 var PLEX_ORDER=["home","continue","movies","shows","recent"], plexTab="home", plexItems=[], plexBusy=false, plexErr="", plexConnected=false, plexAllowDelete=false, plexSearch="", plexExpanded=null, plexDetailReturnY=0, plexEnriched={}, plexEnrichBusy={},plexCacheAt=0;
 try{
   plexTab=localStorage.getItem("gamevault-plex-tab")||"home";
@@ -3035,6 +3036,10 @@ try{
 }catch(e){}
 function plexServerUrl(){ try{ return (localStorage.getItem(PLEX_URL_KEY)||"").trim().replace(/\/+$/,""); }catch(e){ return ""; } }
 function plexToken(){ try{ return localStorage.getItem(PLEX_TOKEN_KEY)||""; }catch(e){ return ""; } }
+function plexDeletionEnabled(){ try{ return localStorage.getItem(PLEX_DELETE_KEY)==="1"; }catch(e){ return false; } }
+function setPlexDeletionEnabled(enabled){ try{ localStorage.setItem(PLEX_DELETE_KEY,enabled?"1":"0"); }catch(e){} }
+function plexPlaybackSyncEnabled(){ try{ return localStorage.getItem(PLEX_PLAYBACK_SYNC_KEY)!=="0"; }catch(e){ return true; } }
+function setPlexPlaybackSyncEnabled(enabled){ try{ localStorage.setItem(PLEX_PLAYBACK_SYNC_KEY,enabled?"1":"0"); }catch(e){} }
 function setPlexConfig(url,token){
   try{
     localStorage.setItem(PLEX_URL_KEY,(url||"").trim().replace(/\/+$/,""));
@@ -3098,22 +3103,42 @@ function plexSaveCache(){
   else try{localStorage.setItem(PLEX_CACHE_KEY,JSON.stringify(plexStored));}catch(e){}
 }
 function plexMediaUrl(path){ return path&&plexServerUrl()&&plexToken()?plexWithToken(path):""; }
-function plexRefresh(){
+function plexFetchSection(sectionInfo){
+  var collected=[], page=0;
+  function next(){
+    var start=page*PLEX_PAGE_SIZE;
+    return plexRequest("/library/sections/"+encodeURIComponent(sectionInfo.key)+"/all?sort=titleSort&X-Plex-Container-Start="+start+"&X-Plex-Container-Size="+PLEX_PAGE_SIZE).then(function(payload){
+      var batch=plexObjects(payload,["Metadata","Video","Directory"]);
+      collected=collected.concat(batch);
+      var total=Number(plexContainerAttr(payload,"totalSize"))||0;
+      page++;
+      if(batch.length===PLEX_PAGE_SIZE && page<PLEX_MAX_PAGES && (!total||collected.length<total)) return next();
+      return collected.map(function(x){ return plexMapItem(x,sectionInfo.type); });
+    });
+  }
+  return next();
+}
+function plexRefresh(force){
   if(plexBusy) return Promise.resolve();
+  if(section!=="plex") return Promise.resolve();
+  if(!force && plexItems.length && plexCacheAt && Date.now()-plexCacheAt<PLEX_CACHE_TTL){
+    render();
+    return Promise.resolve(plexItems);
+  }
   plexBusy=true; plexErr=""; render();
   return Promise.all([plexRequest("/"),plexRequest("/library/sections")]).then(function(res){
     var allowDelete=plexContainerAttr(res[0],"allowMediaDeletion");
     plexAllowDelete=allowDelete===true||Number(allowDelete)===1;
     var sections=plexObjects(res[1],["Directory"]).filter(function(s){ return s.type==="movie"||s.type==="show"; });
-    return Promise.all(sections.map(function(s){
-      return plexRequest("/library/sections/"+encodeURIComponent(s.key)+"/all?sort=titleSort&X-Plex-Container-Start=0&X-Plex-Container-Size=5000").then(function(p){
-        return plexObjects(p,["Metadata","Video","Directory"]).map(function(x){ return plexMapItem(x,s.type); });
-      });
-    }));
+    var groups=[], chain=Promise.resolve();
+    sections.forEach(function(s){
+      chain=chain.then(function(){ return plexFetchSection(s); }).then(function(items){ groups.push(items); });
+    });
+    return chain.then(function(){ return groups; });
   }).then(function(groups){
     plexItems=[].concat.apply([],groups).filter(function(x){ return x.ratingKey; });
     plexItems.sort(function(a,b){ return a.title.localeCompare(b.title); });
-    plexConnected=true; plexBusy=false; plexSaveCache(); plexReconcilePlayback(plexItems); render();
+    plexConnected=true; plexBusy=false; plexCacheAt=Date.now(); plexSaveCache(); if(plexPlaybackSyncEnabled()) plexReconcilePlayback(plexItems); render();
   }).catch(function(e){ plexConnected=false; plexBusy=false; plexErr=e.message||"Plex is unavailable"; render(); });
 }
 function plexDiscover(){
@@ -3257,7 +3282,7 @@ function plexDetailPage(item){
     var mk=plexMovieState(m);
     actions+=moviePrimaryAction(m,mk,false)+movieMoreMenu(m,mk)+movieLinks(m.title,m.year)+imdbLink(m)+reeloadReviewLink(m.title,m.year,"movie")+(m.tmdbId?'<a class="btn" href="https://www.themoviedb.org/movie/'+m.tmdbId+'" target="_blank" rel="noopener">TMDB</a>':'')+'<button class="btn" data-act="ai-open" data-ai-type="film" data-id="'+esc(String(m.id))+'">AI Assistant</button>';
   }
-  actions+='<button class="btn ghost danger" data-act="plex-delete" data-id="'+esc(item.ratingKey)+'">Permanently delete from Plex</button></div>';
+  actions+=(plexDeletionEnabled()?'<button class="btn ghost danger" data-act="plex-delete" data-id="'+esc(item.ratingKey)+'">Permanently delete from Plex</button>':'<button class="btn ghost" data-act="plex-settings">Deletion locked in Settings</button>')+'</div>';
   return '<div class="media-page plex-detail">'+plexHero(item,m)+actions+mediaProvidersBlock(m)+(item.type==="show"?(seriesEpisodeBlock(m)||plotBlock(seriesPlotName(m),"TV series")):plotBlock(moviePlotName(m),"film"))+aiPanel(item.type==="show"?"series":"film",m)+'</div>';
 }
 function plexCard(item){
@@ -3271,7 +3296,8 @@ function renderPlex(){
   if(plexExpanded){ var selected=plexFindItem(plexExpanded); if(selected){ plexEnrichItem(selected); return plexDetailPage(selected); } plexExpanded=null; }
   var configured=plexServerUrl()&&plexToken();
   var searchLabel=plexTab==="shows"?"TV shows":plexTab==="movies"?"movies":"library";
-  var html='<div class="toolbar" style="margin-top:14px"><div class="searchwrap"><span class="sic">⌕</span><input class="tab-search" id="plexSearch" placeholder="Search Plex '+searchLabel+'..." value="'+esc(plexSearch)+'" autocomplete="off"></div><button class="btn blue" data-act="plex-refresh"'+(plexBusy?' disabled':'')+'>'+(plexBusy?'Connecting...':'Refresh Plex')+'</button><button class="btn" data-act="plex-settings">Settings</button></div>';
+  var cacheNote=plexCacheAt?("Cached "+new Date(plexCacheAt).toLocaleString()):"Not cached";
+  var html='<div class="toolbar" style="margin-top:14px"><div class="searchwrap"><span class="sic">⌕</span><input class="tab-search" id="plexSearch" placeholder="Search Plex '+searchLabel+'..." value="'+esc(plexSearch)+'" autocomplete="off"></div><button class="btn blue" data-act="plex-refresh"'+(plexBusy?' disabled':'')+'>'+(plexBusy?'Refreshing...':'Refresh Plex')+'</button><button class="btn" data-act="plex-settings">Settings</button><span class="meta">'+esc(cacheNote)+'</span></div>';
   if(!configured) return html+'<div class="empty">Connect your Plex owner account in Settings. Your token stays only on this device.</div>';
   if(plexErr) html+='<div class="empty">'+esc(plexErr)+'</div>';
   if(plexConnected && !plexAllowDelete) html+='<div class="meta" style="margin-bottom:10px">Viewing is connected. To permanently delete media, enable <b>Allow media deletion</b> in Plex Server Settings → Library.</div>';
@@ -3295,6 +3321,7 @@ function renderPlex(){
 function plexDeleteItem(id,confirmed){
   var item=plexItems.filter(function(x){ return x.ratingKey===String(id); })[0];
   if(!item) return;
+  if(!plexDeletionEnabled()){ flash("Permanent Plex deletion is locked in Settings"); return; }
   if(!plexConnected){ flash("Reconnect Plex before deleting media"); return; }
   if(!plexAllowDelete){ flash("Enable Allow media deletion in Plex Server Settings first"); return; }
   var what=item.type==="show"?"the entire TV series and all of its media files":"this movie and its media file";
@@ -5329,7 +5356,7 @@ function switchSection(s,userGesture){
   if(section==="films") scheduleMediaWarmup("films",filmTab);
   if(section==="series"){ ensureSeries(seriesTab); scheduleMediaWarmup("series",seriesTab); }
   if(section==="games") scheduleGameWarmup(tab);
-  if(section==="plex" && plexServerUrl() && plexToken() && !plexItems.length) plexRefresh();
+  if(section==="plex" && plexServerUrl() && plexToken()) plexRefresh(false);
 }
 document.getElementById("sectionSw").addEventListener("click",function(e){
   var b=e.target.closest("[data-section]"); if(b) switchSection(b.getAttribute("data-section"),true);
@@ -5545,9 +5572,11 @@ function toggleSettings(force){
     if(biglyProxy) biglyProxy.value=biglyProxyUrl();
     var biglyFolderIn=document.getElementById("biglyFolderInput");
     if(biglyFolderIn) biglyFolderIn.value=biglyFolder();
-    var plexUrlInput=document.getElementById("plexUrlInput"), plexTokenInput=document.getElementById("plexTokenInput"), plexStatus=document.getElementById("plexSettingsStatus");
+    var plexUrlInput=document.getElementById("plexUrlInput"), plexTokenInput=document.getElementById("plexTokenInput"), plexStatus=document.getElementById("plexSettingsStatus"), plexDeleteInput=document.getElementById("plexDeleteEnabledInput"), plexPlaybackInput=document.getElementById("plexPlaybackSyncInput");
     if(plexUrlInput) plexUrlInput.value=plexServerUrl();
     if(plexTokenInput) plexTokenInput.value=plexToken();
+    if(plexDeleteInput) plexDeleteInput.checked=plexDeletionEnabled();
+    if(plexPlaybackInput) plexPlaybackInput.checked=plexPlaybackSyncEnabled();
     if(plexStatus) plexStatus.textContent=plexServerUrl()&&plexToken()?(plexConnected?"Connected to Plex on this device.":"Plex is configured; refresh when the Shield is reachable."):"Not configured.";
     gdSetStatus();
     var densityInput=document.getElementById("densityInput"); if(densityInput) densityInput.value=uiDensity;
@@ -5673,12 +5702,14 @@ if(plexDiscoverBtn) plexDiscoverBtn.addEventListener("click",plexDiscover);
 var savePlexBtn=document.getElementById("savePlexBtn");
 if(savePlexBtn) savePlexBtn.addEventListener("click",function(){
   setPlexConfig(document.getElementById("plexUrlInput").value,document.getElementById("plexTokenInput").value);
+  setPlexDeletionEnabled(!!document.getElementById("plexDeleteEnabledInput").checked);
+  setPlexPlaybackSyncEnabled(!!document.getElementById("plexPlaybackSyncInput").checked);
   plexErr=""; plexConnected=false; toggleSettings(false); flash("Plex saved on this device");
-  if(section==="plex") plexRefresh();
+  if(section==="plex") plexRefresh(true);
 });
 var clearPlexBtn=document.getElementById("clearPlexBtn");
 if(clearPlexBtn) clearPlexBtn.addEventListener("click",function(){
-  confirmDestructive("Disconnect Plex on this device? Cached titles will be kept.","Disconnect Plex",function(){setPlexConfig("",""); plexConnected=false; plexAllowDelete=false; plexErr=""; toggleSettings(false); render(); flash("Plex disconnected; cached titles were kept");});
+  confirmDestructive("Disconnect Plex on this device? Cached titles will be kept.","Disconnect Plex",function(){setPlexConfig("",""); setPlexDeletionEnabled(false); plexConnected=false; plexAllowDelete=false; plexErr=""; toggleSettings(false); render(); flash("Plex disconnected; cached titles were kept");});
 });
 var densityInput=document.getElementById("densityInput");
 if(densityInput) densityInput.addEventListener("change",function(){
@@ -5816,7 +5847,7 @@ document.getElementById("content").addEventListener("click",function(e){
     openRecent(b.getAttribute("data-kind"),id,b.getAttribute("data-subtab")||""); return;
   }
   if(act==="plex-settings"){ toggleSettings(true); return; }
-  if(act==="plex-refresh"){ plexRefresh(); return; }
+  if(act==="plex-refresh"){ plexRefresh(true); return; }
   if(act==="plex-open"){
     if(String(plexExpanded)!==String(id)) plexDetailReturnY=window.scrollY;
     plexExpanded=String(id); var pi=plexFindItem(id); if(pi){ var pm=plexAsMedia(pi); rememberViewed(pi.type==="show"?"series":"film",pm.id,pm.title,plexTab); plexEnrichItem(pi); if(pi.type!=="show") ensurePlot(moviePlotName(pm),"film"); }
@@ -6739,7 +6770,7 @@ function globalRefresh(){
     if(tab==="upcoming") refreshUpcoming();
     else if(tab==="suggest") refreshCatalog();
   }
-  if(section==="plex"&&plexServerUrl() && plexToken()) plexRefresh();
+  if(section==="plex"&&plexServerUrl() && plexToken()) plexRefresh(true);
   if(section==="biglybt"){
     var biglyFrame=document.getElementById("biglyFrame");
     if(biglyFrame) biglyFrame.src=biglyFrame.src;
@@ -6764,7 +6795,7 @@ function refreshAllData(){
   var chain=Promise.resolve();
   tasks.forEach(function(task){chain=chain.then(task);});
   chain.then(function(){flash("All title lists are up to date");});
-  if(plexServerUrl()&&plexToken())plexRefresh();
+  if(section==="plex"&&plexServerUrl()&&plexToken())plexRefresh(true);
   setTimeout(backfillImages,600);
 }
 document.getElementById("refreshBtn").addEventListener("click",globalRefresh);
@@ -7083,6 +7114,5 @@ hydrateIndexedStorage().then(function(){
 decoratePhonePlots();
 updatePhoneConnectionStatus();
 refreshRecoveryUi();
-if(plexServerUrl() && plexToken()) setTimeout(plexRefresh,500);
 silentPullOnLoad();
 setTimeout(backfillImages,1500);
