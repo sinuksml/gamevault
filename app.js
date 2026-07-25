@@ -1,5 +1,5 @@
 "use strict";
-var APP_VERSION = "2.4.0";
+var APP_VERSION = "2.4.1";
 var APP_BUILD_DATE = "2026-07-25";
 var APP_RELEASE_CHANNEL = "Stable";
 
@@ -3163,6 +3163,30 @@ function renderBiglyBT(){
 /* ---------- Plex library (direct secure Plex Media Server API) ---------- */
 var PLEX_URL_KEY="gamevault-plex-url", PLEX_TOKEN_KEY="gamevault-plex-token", PLEX_CACHE_KEY="gamevault-plex-cache", PLEX_DELETE_KEY="gamevault-plex-delete-enabled", PLEX_PLAYBACK_SYNC_KEY="gamevault-plex-playback-sync";
 var PLEX_CACHE_TTL=30*60*1000, PLEX_PAGE_SIZE=250, PLEX_MAX_PAGES=100;
+/* Plex runs on the Shield alongside transcoding, so GameVault paces itself:
+   every request goes through one serialized queue with a minimum gap, a full
+   library scan cannot restart more often than the cooldown, and a stale
+   plex.direct URL is re-resolved automatically instead of failing until the
+   Discover Server button is pressed by hand. */
+var PLEX_REQUEST_GAP=350, PLEX_REFRESH_COOLDOWN=20*1000, PLEX_REDISCOVER_COOLDOWN=5*60*1000;
+var PLEX_CLIENT_ID_KEY="gamevault-plex-client-id";
+var plexQueue=Promise.resolve(), plexLastRequestAt=0, plexLastRefreshAt=0, plexLastRediscoverAt=0, plexRediscovering=false;
+function plexClientId(){
+  try{
+    var id=localStorage.getItem(PLEX_CLIENT_ID_KEY);
+    if(!id){ id="gamevault-"+Math.random().toString(36).slice(2,10)+Date.now().toString(36); localStorage.setItem(PLEX_CLIENT_ID_KEY,id); }
+    return id;
+  }catch(e){ return "gamevault-web"; }
+}
+/* Serializes every Plex call and keeps at least PLEX_REQUEST_GAP between them,
+   so a large library scan trickles instead of bursting at the server. */
+function plexThrottle(){
+  plexQueue=plexQueue.then(function(){
+    var wait=Math.max(0,PLEX_REQUEST_GAP-(Date.now()-plexLastRequestAt));
+    return new Promise(function(resolve){ setTimeout(resolve,wait); });
+  },function(){ return null; }).then(function(){ plexLastRequestAt=Date.now(); });
+  return plexQueue;
+}
 var PLEX_ORDER=["home","continue","movies","shows","recent"], plexTab="home", plexItems=[], plexBusy=false, plexErr="", plexConnected=false, plexAllowDelete=false, plexSearch="", plexExpanded=null, plexDetailReturnY=0, plexEnriched={}, plexEnrichBusy={},plexCacheAt=0;
 try{
   plexTab=localStorage.getItem("gamevault-plex-tab")||"home";
@@ -3192,7 +3216,13 @@ function plexRequest(path,opts){
   if(!base||!token) return Promise.reject(new Error("Add your Plex server URL and owner token in Settings first."));
   if(location.protocol==="https:" && /^http:\/\//i.test(base)) return Promise.reject(new Error("GameVault is using HTTPS, so the browser blocks an HTTP Plex server. Use the server's secure plex.direct URL."));
   opts=opts||{};
-  opts.headers=Object.assign({"Accept":"application/json"},opts.headers||{});
+  opts.headers=Object.assign({
+    "Accept":"application/json",
+    "X-Plex-Client-Identifier":plexClientId(),
+    "X-Plex-Product":"GameVault",
+    "X-Plex-Device":"GameVault Web"
+  },opts.headers||{});
+  return plexThrottle().then(function(){
   return fetchWithPolicy(plexWithToken(path),opts,{timeout:18000,retries:opts.method?0:1}).then(function(r){
     return r.text().then(function(t){
       if(!r.ok) throw new Error(r.status===401?"Plex rejected the token.":r.status===403?"Plex denied this action. Confirm this is the owner token and Allow media deletion is enabled.":("Plex returned "+r.status));
@@ -3201,7 +3231,10 @@ function plexRequest(path,opts){
     });
   }).catch(function(e){
     if(e&&e.message&&e.message!=="Failed to fetch") throw e;
-    throw new Error("Plex is offline or unreachable. Cached library items remain visible until the Shield is available again.");
+    var offline=new Error("Plex is offline or unreachable. Cached library items remain visible until the Shield is available again.");
+    offline.plexUnreachable=true;
+    throw offline;
+  });
   });
 }
 function plexObjects(payload,names){
@@ -3254,14 +3287,21 @@ function plexFetchSection(sectionInfo){
   }
   return next();
 }
-function plexRefresh(force){
+function plexRefresh(force,retrying){
   if(plexBusy) return Promise.resolve();
   if(section!=="plex") return Promise.resolve();
   if(!force && plexItems.length && plexCacheAt && Date.now()-plexCacheAt<PLEX_CACHE_TTL){
     render();
     return Promise.resolve(plexItems);
   }
-  plexBusy=true; plexErr=""; render();
+  /* A full scan walks every page of every library, so repeated taps must not
+     stack scans on top of each other. */
+  if(force && !retrying && plexItems.length && Date.now()-plexLastRefreshAt<PLEX_REFRESH_COOLDOWN){
+    flash("Plex was refreshed a moment ago — showing the current library");
+    render();
+    return Promise.resolve(plexItems);
+  }
+  plexBusy=true; plexErr=""; plexLastRefreshAt=Date.now(); render();
   return Promise.all([plexRequest("/"),plexRequest("/library/sections")]).then(function(res){
     var allowDelete=plexContainerAttr(res[0],"allowMediaDeletion");
     plexAllowDelete=allowDelete===true||Number(allowDelete)===1;
@@ -3275,14 +3315,26 @@ function plexRefresh(force){
     plexItems=[].concat.apply([],groups).filter(function(x){ return x.ratingKey; });
     plexItems.sort(function(a,b){ return a.title.localeCompare(b.title); });
     plexConnected=true; plexBusy=false; plexCacheAt=Date.now(); plexSaveCache(); if(plexPlaybackSyncEnabled()) plexReconcilePlayback(plexItems); render();
-  }).catch(function(e){ plexConnected=false; plexBusy=false; plexErr=e.message||"Plex is unavailable"; render(); });
+  }).catch(function(e){
+    plexConnected=false; plexBusy=false;
+    /* Unreachable usually means the plex.direct address moved with the IP.
+       Re-resolve it once and retry before showing an error. */
+    if(e&&e.plexUnreachable&&!retrying){
+      plexErr="Plex did not answer — checking for a new server address…"; render();
+      return plexAutoRediscover().then(function(changed){
+        if(changed) return plexRefresh(true,true);
+        plexErr=e.message||"Plex is unavailable"; render();
+      });
+    }
+    plexErr=e.message||"Plex is unavailable"; render();
+  });
 }
-function plexDiscover(){
-  var input=document.getElementById("plexTokenInput"), token=(input&&input.value.trim())||plexToken();
-  var status=document.getElementById("plexSettingsStatus");
-  if(!token){ if(status) status.textContent="Enter your X-Plex-Token first."; return; }
-  if(status) status.textContent="Discovering your Plex Media Server...";
-  fetchWithPolicy("https://plex.tv/api/resources?includeHttps=1&includeRelay=1&X-Plex-Token="+encodeURIComponent(token),{headers:{Accept:"application/xml"}},{scope:"plex:resources",timeout:16000,retries:1}).then(function(r){ if(!r.ok) throw new Error("Plex account rejected the token"); return r.text(); }).then(function(t){
+/* Resolves the current secure server address from the Plex account. Shared by
+   the Discover Server button and the automatic recovery path, because a
+   plex.direct hostname embeds the server IP and goes stale whenever the home
+   WAN or LAN address changes. */
+function plexResolveConnection(token){
+  return fetchWithPolicy("https://plex.tv/api/resources?includeHttps=1&includeRelay=1&X-Plex-Token="+encodeURIComponent(token),{headers:{Accept:"application/xml"}},{scope:"plex:resources",timeout:16000,retries:1}).then(function(r){ if(!r.ok) throw new Error("Plex account rejected the token"); return r.text(); }).then(function(t){
     var doc=new DOMParser().parseFromString(t,"application/xml");
     var devices=[].slice.call(doc.querySelectorAll("Device")).filter(function(d){ return (d.getAttribute("provides")||"").split(",").indexOf("server")>-1&&d.getAttribute("owned")!=="0"; });
     if(!devices.length) throw new Error("No owned Plex server was found on this account");
@@ -3291,10 +3343,34 @@ function plexDiscover(){
       conns.filter(function(c){ return c.getAttribute("protocol")==="https"&&c.getAttribute("relay")!=="1"; })[0]||
       conns.filter(function(c){ return c.getAttribute("protocol")==="https"; })[0];
     if(!conn) throw new Error("Plex did not publish a secure server connection");
-    document.getElementById("plexUrlInput").value=conn.getAttribute("uri")||"";
-    document.getElementById("plexTokenInput").value=devices[0].getAttribute("accessToken")||token;
+    return {uri:conn.getAttribute("uri")||"", token:devices[0].getAttribute("accessToken")||token};
+  });
+}
+function plexDiscover(){
+  var input=document.getElementById("plexTokenInput"), token=(input&&input.value.trim())||plexToken();
+  var status=document.getElementById("plexSettingsStatus");
+  if(!token){ if(status) status.textContent="Enter your X-Plex-Token first."; return; }
+  if(status) status.textContent="Discovering your Plex Media Server...";
+  plexResolveConnection(token).then(function(found){
+    document.getElementById("plexUrlInput").value=found.uri;
+    document.getElementById("plexTokenInput").value=found.token;
     if(status) status.textContent="Server found. Press Save Plex to connect.";
   }).catch(function(e){ if(status) status.textContent=e.message||"Server discovery failed"; });
+}
+/* Silently re-resolves the server address after an unreachable error, so a
+   changed IP recovers on its own instead of needing Discover Server by hand. */
+function plexAutoRediscover(){
+  var token=plexToken();
+  if(!token||plexRediscovering) return Promise.resolve(false);
+  if(Date.now()-plexLastRediscoverAt<PLEX_REDISCOVER_COOLDOWN) return Promise.resolve(false);
+  plexRediscovering=true; plexLastRediscoverAt=Date.now();
+  return plexResolveConnection(token).then(function(found){
+    plexRediscovering=false;
+    if(!found.uri||found.uri===plexServerUrl()) return false;
+    setPlexConfig(found.uri,found.token);
+    addAudit("plex-address-updated","Plex server address re-resolved automatically");
+    return true;
+  }).catch(function(){ plexRediscovering=false; return false; });
 }
 function plexProgress(item){
   if(item.watched) return 100;
@@ -7113,7 +7189,9 @@ function refreshAllData(){
   var chain=Promise.resolve();
   tasks.forEach(function(task){chain=chain.then(task);});
   chain.then(function(){flash("All title lists are up to date");});
-  if(section==="plex"&&plexServerUrl()&&plexToken())plexRefresh(true);
+  /* Refresh-all is mostly vault and title-list work; reuse the cached Plex
+     library rather than making the Shield walk every section again. */
+  if(section==="plex"&&plexServerUrl()&&plexToken())plexRefresh(false);
   setTimeout(backfillImages,600);
 }
 document.getElementById("refreshBtn").addEventListener("click",globalRefresh);

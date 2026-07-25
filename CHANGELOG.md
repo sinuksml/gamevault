@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.4.1 - 2026-07-25
+
+- Plex requests are now paced through a single queue with a minimum gap between calls, so a full library scan trickles to the Shield instead of firing every page back to back.
+- A forced library refresh can no longer restart while a recent one is still current, preventing repeated taps from stacking full scans on the server.
+- "Refresh all data" now reuses the cached Plex library instead of forcing a fresh full scan, since it is mainly a vault and title-list operation.
+- A stale plex.direct address is re-resolved automatically when the server stops answering, then the sync retries — this removes the need to press Discover Server by hand after the home IP changes. Automatic re-resolution is itself rate limited.
+- GameVault now identifies itself to Plex with a stable client identifier and product name, so its requests are attributable in the Plex dashboard instead of appearing as an unknown client.
+
 ## v2.4.0 - 2026-07-25
 
 - Added Grid view to the Subscriptions tab, which previously only rendered as a list: each tile leads with the days-left countdown, cycle progress, cost, renewal date and a Renew action. The Grid/List toggle now works there like every other Games tab.
