@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.4.3 - 2026-07-25
+
+- The phone header no longer shrinks while scrolling. It is a sticky element in normal flow, so every collapse moved the whole page by about 70 pixels underneath your finger — that shift, not the scrolling itself, was the remaining shake. The header now keeps one constant height and nothing on the page reacts to scroll position, so scrolling never triggers layout.
+- Fixed the heavy shake when swiping left or right between tabs. Switching a tab replaced the content and then jumped to a scroll offset saved from a different list, which the browser could also clamp — two separate movements per swipe. Phone tab changes now land at the top: one position, nothing to clamp. Desktop keeps its per-tab scroll memory.
+- Made the BiglyBT page smooth. Its embedded view was taller than the space available (a 520 pixel floor inside roughly 400 pixels), so the page scrolled about 330 pixels at the same time as the view scrolled internally and the two fought each other on every drag. The view is now pinned between the header and the bottom navigation, leaving exactly one scrolling surface.
+
 ## v2.4.2 - 2026-07-25
 
 - Fixed the shaking and jumping while scrolling on mobile. The compact header collapsed on any one-pixel scroll movement, and because it is a sticky element in normal flow, each collapse shifted the whole page — which produced another scroll event and flipped it straight back. On a normal momentum scroll that fired about fifteen times per flick.

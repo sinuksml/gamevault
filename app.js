@@ -1,5 +1,5 @@
 "use strict";
-var APP_VERSION = "2.4.2";
+var APP_VERSION = "2.4.3";
 var APP_BUILD_DATE = "2026-07-25";
 var APP_RELEASE_CHANNEL = "Stable";
 
@@ -1830,11 +1830,17 @@ function renderStats(){
 
 /* Per-tab scroll memory: leaving a tab saves its position, returning restores it */
 var tabScroll={};
+/* Restoring a per-tab scroll offset on phone reads as two separate movements:
+   the content is replaced (which the browser may clamp if the new tab is
+   shorter), and then the page jumps again to an offset that belongs to a
+   different list. Phone tab changes land at the top instead — one deterministic
+   position, nothing to clamp, no second jump. Desktop keeps the restore. */
+function tabScrollTarget(key){ return phoneUi()?0:(tabScroll[key]||0); }
 function switchTab(next){
   tabScroll[tab]=window.scrollY;
   tab=next; expandedId=null;
   render();
-  window.scrollTo(0, tabScroll[next]||0);
+  window.scrollTo(0, tabScrollTarget(next));
   scheduleGameWarmup(next);
 }
 
@@ -5616,7 +5622,7 @@ function switchSeriesTab(next){
   tabScroll["series:"+seriesTab]=window.scrollY;
   seriesTab=next; seriesExpanded=null; try{ localStorage.setItem(SERIESTAB_KEY,next); }catch(e){}
   render();
-  window.scrollTo(0, tabScroll["series:"+next]||0);
+  window.scrollTo(0, tabScrollTarget("series:"+next));
   ensureSeries(next);
   scheduleMediaWarmup("series",next);
 }
@@ -5624,7 +5630,7 @@ function switchFilmTab(next){
   tabScroll["film:"+filmTab]=window.scrollY;
   filmTab=next; filmExpanded=null; try{ localStorage.setItem(FILMTAB_KEY,next); }catch(e){}
   render();
-  window.scrollTo(0, tabScroll["film:"+next]||0);
+  window.scrollTo(0, tabScrollTarget("film:"+next));
   ensureFilms(next);
   if(next==="mlott") ensureFilms("mlup");
   scheduleMediaWarmup("films",next);
@@ -5633,7 +5639,7 @@ function switchPlexTab(next){
   tabScroll["plex:"+plexTab]=window.scrollY;
   plexTab=next; plexExpanded=null; try{ localStorage.setItem("gamevault-plex-tab",next); }catch(e){}
   render();
-  window.scrollTo(0,tabScroll["plex:"+next]||0);
+  window.scrollTo(0,tabScrollTarget("plex:"+next));
 }
 function switchSection(s,userGesture){
   if(section===s) return;
@@ -5944,7 +5950,7 @@ var settingsCloseBtn=document.getElementById("settingsCloseBtn");
 if(settingsCloseBtn) settingsCloseBtn.addEventListener("click",function(){toggleSettings(false);});
 document.getElementById("tabs").addEventListener("click",function(e){
   var fin=e.target.closest("[data-fin-tab]");
-  if(fin){tabScroll["finance:"+financeTab]=window.scrollY;financeTab=fin.getAttribute("data-fin-tab");render();window.scrollTo(0,tabScroll["finance:"+financeTab]||0);return;}
+  if(fin){tabScroll["finance:"+financeTab]=window.scrollY;financeTab=fin.getAttribute("data-fin-tab");render();window.scrollTo(0,tabScrollTarget("finance:"+financeTab));return;}
   var more=e.target.closest("[data-phone-series-tabs]");
   if(more){
     var all=[["serieswatchlist","My Watchlist"],["serieswatching","Watching"],["seriesnew","New Episodes"],["seriesupcoming","Upcoming"],["enseries","English"],["mlseries","Malayalam"],["taseries","Tamil"],["hiseries","Hindi"],["serieswatched","Watched"]];
@@ -5952,7 +5958,7 @@ document.getElementById("tabs").addEventListener("click",function(e){
     return;
   }
   var hb=e.target.closest("[data-htab]");
-  if(hb){tabScroll["health:"+healthTab]=window.scrollY;healthTab=hb.getAttribute("data-htab");render();window.scrollTo(0,tabScroll["health:"+healthTab]||0);return;}
+  if(hb){tabScroll["health:"+healthTab]=window.scrollY;healthTab=hb.getAttribute("data-htab");render();window.scrollTo(0,tabScrollTarget("health:"+healthTab));return;}
   var pb=e.target.closest("[data-ptab]");
   if(pb){ switchPlexTab(pb.getAttribute("data-ptab")); return; }
   var sb=e.target.closest("[data-stab]");
@@ -7297,52 +7303,11 @@ document.addEventListener("touchend",function(){
   else setPhoneRefreshing(false);
 },{passive:true});
 
-/* Compact header with hysteresis. Collapsing shrinks a sticky, in-flow header,
-   which shifts the page and fires another scroll event — with no dead zone that
-   feedback made the header flip back and forth and the whole page shake. The
-   delta below is deliberately larger than the height the header gives up, and
-   it is measured from the point where the scroll direction last changed, so
-   momentum wobble on iOS cannot toggle it. */
-/* The collapse reclaims ~70px of sticky header, so the page content shifts by
-   that much. The dead zone is deliberately larger than the shift: near the end
-   of a page the shorter document clamps the scroll position, and a dead zone
-   smaller than the shift would let that clamp immediately toggle the header
-   back. Collapsing therefore needs a clearly deliberate swipe. */
-var PHONE_HEADER_COLLAPSE_AT=140, PHONE_HEADER_EXPAND_AT=48, PHONE_HEADER_DELTA=84;
-var phoneLastScroll=0,phoneScrollTick=false,phoneScrollTickAt=0,phoneHeaderCompact=false,phoneHeaderAnchor=0,phoneGoingDown=false;
-function setPhoneHeaderCompact(on){
-  on=!!on;
-  if(on===phoneHeaderCompact) return;
-  phoneHeaderCompact=on;
-  document.body.classList.toggle("phone-header-compact",on);
-}
-window.addEventListener("scroll",function(){
-  if(!phoneUi())return;
-  /* iOS suspends rAF when the tab goes to the background. If a frame is
-     dropped while a tick is pending the flag would latch forever and the
-     header would stop responding for the rest of the session, so the pending
-     tick expires instead of blocking. */
-  if(phoneScrollTick&&Date.now()-phoneScrollTickAt<400)return;
-  phoneScrollTick=true;phoneScrollTickAt=Date.now();
-  requestAnimationFrame(function(){
-    phoneScrollTick=false;
-    var y=Math.max(0,window.scrollY);
-    /* Always full height near the top and inside a detail overlay. */
-    if(y<=PHONE_HEADER_EXPAND_AT||document.body.classList.contains("detail-open")){
-      setPhoneHeaderCompact(false);
-      phoneHeaderAnchor=y;phoneLastScroll=y;
-      return;
-    }
-    if(y!==phoneLastScroll){
-      var goingDown=y>phoneLastScroll;
-      if(goingDown!==phoneGoingDown){ phoneGoingDown=goingDown; phoneHeaderAnchor=phoneLastScroll; }
-    }
-    var moved=y-phoneHeaderAnchor;
-    if(!phoneHeaderCompact&&moved>PHONE_HEADER_DELTA&&y>PHONE_HEADER_COLLAPSE_AT){ setPhoneHeaderCompact(true); phoneHeaderAnchor=y; }
-    else if(phoneHeaderCompact&&moved<-PHONE_HEADER_DELTA){ setPhoneHeaderCompact(false); phoneHeaderAnchor=y; }
-    phoneLastScroll=y;
-  });
-},{passive:true});
+/* The phone header no longer resizes while scrolling. It is sticky and in
+   normal flow, so any height change moved every row on the page underneath the
+   finger, and that shift — not the scroll itself — was the shake. Nothing on
+   the page is now driven by scroll position, so scrolling never triggers
+   layout. */
 
 function phoneFocusableFields(){
   return [].slice.call(document.querySelectorAll('input:not([disabled]):not([type="hidden"]),textarea:not([disabled]),select:not([disabled])')).filter(function(x){return x.offsetParent!==null;});

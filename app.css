@@ -489,7 +489,20 @@ html.density-compact .toolbar{margin:9px 0}
   .media-info,.game-tile-info,.grow,.meta,.syncnote,.media-release,.plex-status{min-width:0;max-width:100%;overflow-wrap:anywhere;word-break:normal}
   .viewbar{max-width:100%;flex-wrap:wrap}
   .settings-group select{min-width:0;width:100%}
-  .bigly-browser-frame{height:calc(100dvh - 185px)}
+  /* The BiglyBT view is a pane, not a document. Previously the iframe was
+     taller than the space available (a 520px floor inside ~400px), so the outer
+     page scrolled ~330px at the same time as the iframe scrolled internally and
+     the two fought each other on every drag. Pinning the card between the
+     header and the bottom navigation leaves exactly one scrolling surface. */
+  html body.bigly-active .bigly-browser{
+    position:fixed;left:0;right:0;top:var(--header-height);
+    bottom:calc(72px + env(safe-area-inset-bottom));
+    z-index:20;display:flex;flex-direction:column;
+    height:auto;min-height:0;margin:0;border-radius:0;border-left:0;border-right:0;
+  }
+  html body.bigly-active .bigly-browser-frame{flex:1;height:auto;min-height:0}
+  html body.bigly-active .page-context,
+  html body.bigly-active .recent-strip{display:none}
   .torrent-card{display:block}.torrent-card .torrent-meter{margin:9px 0}.torrent-card .torrent-meta{margin:8px 0}.torrent-card .actions{max-width:none;justify-content:flex-start}
 }
 
@@ -1010,16 +1023,13 @@ html.light .detail-actionbar{background:rgba(238,243,249,.94);border-color:rgba(
   html .sectionsw .section-label{font-size:9px}
   html .empty{font-size:11.5px;line-height:1.5}
   html .sectionsw button.on{box-shadow:inset 0 2px 0 color-mix(in srgb,var(--accent) 72%,transparent)}
-  /* Never animate the header's height or padding: it is a sticky element in
-     normal flow, so animating those reflows every row on the page for the
-     duration of the transition. The collapse is applied in one step instead. */
+  /* The phone header keeps one fixed height while scrolling. It is a sticky
+     element in normal flow, so shrinking it moved every row on the page by
+     ~70px, and that shift was the scroll shake. Hiding it with a transform is
+     not an option either: the fixed bottom navigation lives inside the header,
+     and a transformed ancestor would make the nav position against the header
+     instead of the viewport. A constant height is what keeps scrolling stable. */
   html .app-header{transition:none}
-  html body.phone-header-compact .app-header{min-height:calc(43px + env(safe-area-inset-top));padding-bottom:1px}
-  html body.phone-header-compact .topbar{min-height:36px}
-  html body.phone-header-compact .topbar>.iconbtn{min-height:38px;height:38px}
-  html body.phone-header-compact .brand h1{font-size:13px}
-  html body.phone-header-compact .version-badge-top{display:none}
-  html body.phone-header-compact .tabsticky{top:calc(43px + env(safe-area-inset-top))}
 
   html .phone-more{display:flex;flex-direction:column;gap:20px;padding:4px 0 18px}
   html .phone-more-group{display:flex;flex-direction:column;gap:8px}
