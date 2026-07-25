@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.4.2 - 2026-07-25
+
+- Fixed the shaking and jumping while scrolling on mobile. The compact header collapsed on any one-pixel scroll movement, and because it is a sticky element in normal flow, each collapse shifted the whole page — which produced another scroll event and flipped it straight back. On a normal momentum scroll that fired about fifteen times per flick.
+- The header now collapses only on a deliberate swipe, using a dead zone larger than the layout shift it causes, measured from the point where the scroll direction last changed. A normal flick still collapses it exactly once.
+- Stopped animating the header's height and padding. Animating those on a sticky element reflowed every row on the page for the duration of the transition.
+- Fixed the compact header silently dying for the rest of a session: if iOS suspended a frame while a scroll update was pending, the pending flag latched permanently and no further scroll updates ran. The pending update now expires and recovers.
+- Tapping a form field no longer yanks the page. GameVault was re-centring the field 220ms after focus, fighting iOS Safari's own keyboard scroll; it now only scrolls a field into view when it is actually out of view.
+
 ## v2.4.1 - 2026-07-25
 
 - Plex requests are now paced through a single queue with a minimum gap between calls, so a full library scan trickles to the Shield instead of firing every page back to back.

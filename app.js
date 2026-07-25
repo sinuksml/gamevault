@@ -1,5 +1,5 @@
 "use strict";
-var APP_VERSION = "2.4.1";
+var APP_VERSION = "2.4.2";
 var APP_BUILD_DATE = "2026-07-25";
 var APP_RELEASE_CHANNEL = "Stable";
 
@@ -7297,13 +7297,50 @@ document.addEventListener("touchend",function(){
   else setPhoneRefreshing(false);
 },{passive:true});
 
-var phoneLastScroll=0,phoneScrollTick=false;
+/* Compact header with hysteresis. Collapsing shrinks a sticky, in-flow header,
+   which shifts the page and fires another scroll event — with no dead zone that
+   feedback made the header flip back and forth and the whole page shake. The
+   delta below is deliberately larger than the height the header gives up, and
+   it is measured from the point where the scroll direction last changed, so
+   momentum wobble on iOS cannot toggle it. */
+/* The collapse reclaims ~70px of sticky header, so the page content shifts by
+   that much. The dead zone is deliberately larger than the shift: near the end
+   of a page the shorter document clamps the scroll position, and a dead zone
+   smaller than the shift would let that clamp immediately toggle the header
+   back. Collapsing therefore needs a clearly deliberate swipe. */
+var PHONE_HEADER_COLLAPSE_AT=140, PHONE_HEADER_EXPAND_AT=48, PHONE_HEADER_DELTA=84;
+var phoneLastScroll=0,phoneScrollTick=false,phoneScrollTickAt=0,phoneHeaderCompact=false,phoneHeaderAnchor=0,phoneGoingDown=false;
+function setPhoneHeaderCompact(on){
+  on=!!on;
+  if(on===phoneHeaderCompact) return;
+  phoneHeaderCompact=on;
+  document.body.classList.toggle("phone-header-compact",on);
+}
 window.addEventListener("scroll",function(){
-  if(!phoneUi()||phoneScrollTick)return;phoneScrollTick=true;
+  if(!phoneUi())return;
+  /* iOS suspends rAF when the tab goes to the background. If a frame is
+     dropped while a tick is pending the flag would latch forever and the
+     header would stop responding for the rest of the session, so the pending
+     tick expires instead of blocking. */
+  if(phoneScrollTick&&Date.now()-phoneScrollTickAt<400)return;
+  phoneScrollTick=true;phoneScrollTickAt=Date.now();
   requestAnimationFrame(function(){
-    var y=window.scrollY,down=y>phoneLastScroll&&y>70;
-    document.body.classList.toggle("phone-header-compact",down&&!document.body.classList.contains("detail-open"));
-    phoneLastScroll=y;phoneScrollTick=false;
+    phoneScrollTick=false;
+    var y=Math.max(0,window.scrollY);
+    /* Always full height near the top and inside a detail overlay. */
+    if(y<=PHONE_HEADER_EXPAND_AT||document.body.classList.contains("detail-open")){
+      setPhoneHeaderCompact(false);
+      phoneHeaderAnchor=y;phoneLastScroll=y;
+      return;
+    }
+    if(y!==phoneLastScroll){
+      var goingDown=y>phoneLastScroll;
+      if(goingDown!==phoneGoingDown){ phoneGoingDown=goingDown; phoneHeaderAnchor=phoneLastScroll; }
+    }
+    var moved=y-phoneHeaderAnchor;
+    if(!phoneHeaderCompact&&moved>PHONE_HEADER_DELTA&&y>PHONE_HEADER_COLLAPSE_AT){ setPhoneHeaderCompact(true); phoneHeaderAnchor=y; }
+    else if(phoneHeaderCompact&&moved<-PHONE_HEADER_DELTA){ setPhoneHeaderCompact(false); phoneHeaderAnchor=y; }
+    phoneLastScroll=y;
   });
 },{passive:true});
 
@@ -7313,7 +7350,9 @@ function phoneFocusableFields(){
 document.addEventListener("focusin",function(e){
   if(!phoneUi()||!e.target.matches("input,textarea,select"))return;
   var bar=document.getElementById("phoneKeyboardBar");if(bar)bar.hidden=false;
-  setTimeout(function(){e.target.scrollIntoView({block:"center",behavior:"smooth"});},220);
+  /* "nearest" leaves an already-visible field alone. Centring it fought iOS
+     Safari's own keyboard scroll and yanked the page on every field tap. */
+  setTimeout(function(){ if(document.activeElement===e.target) e.target.scrollIntoView({block:"nearest",behavior:"smooth"}); },220);
 });
 document.addEventListener("focusout",function(){
   if(!phoneUi())return;

@@ -1,12 +1,12 @@
 {
-  "version": "2.4.1",
+  "version": "2.4.2",
   "buildDate": "2026-07-25",
   "schema": 11,
   "minimumCompatibleSchema": 1,
   "assets": {
-    "css": "app.css?v=2.4.1",
-    "core": "core.js?v=2.4.1",
-    "finance": "finance.js?v=2.4.1",
-    "app": "app.js?v=2.4.1"
+    "css": "app.css?v=2.4.2",
+    "core": "core.js?v=2.4.2",
+    "finance": "finance.js?v=2.4.2",
+    "app": "app.js?v=2.4.2"
   }
 }
