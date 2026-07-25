@@ -3002,3 +3002,25 @@ html.light .plex-card:hover{
 /* v2.3.0 — Subscriptions tab */
 .check-inline{display:flex;flex-direction:row;align-items:center;gap:7px;min-height:42px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text2);font-size:12px;font-weight:700}
 .check-inline input{width:auto}
+
+/* v2.4.0 — Subscription grid tiles */
+.sub-tile .sub-tile-hero{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;aspect-ratio:16/10;padding:12px;border-bottom:1px solid var(--border);background:linear-gradient(150deg,color-mix(in srgb,var(--accent) 10%,var(--btnbg)),var(--card2))}
+.sub-tile-num{font-size:40px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.sub-tile-lab{color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.sub-tile-track{width:72%;height:5px;overflow:hidden;margin-top:9px;border-radius:999px;background:var(--inset)}
+.sub-tile-track i{display:block;height:100%;border-radius:inherit}
+.sub-tile-paid{margin-top:6px;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+.sub-tile.closed{opacity:.65}
+@media (max-width:720px){html .sub-tile-num{font-size:32px}}
+
+/* v2.4.0 — inline amount dialog (rental cost capture) */
+.amount-prompt{position:fixed;inset:0;z-index:180;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(3,6,11,.66);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+.amount-prompt-panel{width:min(420px,100%);padding:20px;border:1px solid var(--border2);border-radius:12px;background:var(--surface-raised);box-shadow:0 30px 90px rgba(0,0,0,.55)}
+.amount-prompt-panel h3{margin:0;font-size:17px;font-weight:800}
+.amount-prompt-panel p{margin:7px 0 0;color:var(--muted);font-size:12px;line-height:1.5}
+.amount-prompt-field{display:flex;flex-direction:column;gap:5px;margin-top:16px;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.amount-prompt-field input,.amount-prompt-field select{width:100%;min-height:46px;font-size:16px}
+.amount-prompt-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:18px}
+.amount-prompt-actions .btn{min-height:46px;justify-content:center}
+body.amount-prompt-open{overflow:hidden}
+@media (max-width:720px){html .amount-prompt{align-items:flex-end;padding:0}html .amount-prompt-panel{width:100%;border-radius:16px 16px 0 0;padding:20px 16px calc(20px + env(safe-area-inset-bottom))}}

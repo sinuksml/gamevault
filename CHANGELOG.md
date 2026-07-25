@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.4.0 - 2026-07-25
+
+- Added Grid view to the Subscriptions tab, which previously only rendered as a list: each tile leads with the days-left countdown, cycle progress, cost, renewal date and a Renew action. The Grid/List toggle now works there like every other Games tab.
+- Starting a rental (from Rental Queue or "Rent again") now opens a dialog to enter the amount paid and vendor straight away, so the cost lands in Total spent without scrolling to the inline edit row. "Rent again" pre-fills the previous cost and vendor; Skip and Escape still start the rental with no cost.
+- Global search (Ctrl+K) now offers "Search the internet" for Games, Movies and TV Shows on any query of two or more letters, opening the matching tab with the search already run so a title that isn't in the vault yet can be found and added.
+- Fixed the Subscriptions tab showing the generic "Library / Your personal media library" heading and no item count instead of its own title, description and active-subscription count.
+
 ## v2.3.0 - 2026-07-25
 
 - Added a Subscriptions tab in Games (next to Rentals) to track paid gaming services like Xbox Game Pass and NVIDIA GeForce NOW: service name, cost per billing cycle, and a live days-left countdown identical in style to rental due dates.

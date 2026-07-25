@@ -1,5 +1,5 @@
 "use strict";
-var APP_VERSION = "2.3.0";
+var APP_VERSION = "2.4.0";
 var APP_BUILD_DATE = "2026-07-25";
 var APP_RELEASE_CHANNEL = "Stable";
 
@@ -2288,7 +2288,7 @@ function renderSubscriptions(){
     '<div class="searchwrap"><span class="sic">⌕</span>'+
     '<input class="tab-search" id="tabSearch" placeholder="Search subscriptions…" value="'+esc(q())+'" autocomplete="off">'+
     (q()?'<button class="sclear" data-act="clear-search" title="Clear">✕</button>':'')+
-    '</div></div>';
+    '</div></div>'+gameViewToggle();
 
   if(formOpen[tab]){
     html+=
@@ -2341,10 +2341,38 @@ function renderSubscriptions(){
     '</div>';
   }
 
-  html+='<div class="cards">'+activeList.map(subCard).join("")+'</div>';
+  function subTile(s){
+    var c=urgency(s.left);
+    var cycle=Math.max(1,Number(s.cycleDays)||30);
+    var usedFrac=Math.min(1,Math.max(0,(cycle-s.left)/cycle));
+    var state=s.active===false?["CANCELLED","history"]:(s.left<=0?["RENEWAL DUE","rental"]:["ACTIVE","rental"]);
+    return '<div class="card game-tile sub-tile'+(s.active===false?' closed':'')+'">'+
+      '<span class="title-state state-game-'+state[1]+'">'+state[0]+'</span>'+
+      '<div class="sub-tile-hero">'+
+        '<div class="sub-tile-num" style="color:'+c+'">'+(s.active===false?"--":(s.left>0?s.left:0))+'</div>'+
+        '<div class="sub-tile-lab">'+(s.active===false?"Cancelled":s.left<=0?"Renewal due":(s.left===1?"Day left":"Days left"))+'</div>'+
+        (s.active===false?"":'<div class="sub-tile-track"><i style="width:'+Math.round(usedFrac*100)+'%;background:'+c+'"></i></div>')+
+      '</div>'+
+      '<div class="game-tile-info"><div class="game-tile-title" title="'+esc(s.service)+'">'+esc(s.service)+'</div>'+
+      '<div class="game-tile-meta"><span class="game-pill">'+(Number(s.cost)?esc(fmtMoney(s.cost))+' / cycle':cycle+'-day cycle')+'</span>'+
+      '<span class="game-pill">Renews '+esc(fmt(s.renewsAt))+'</span>'+
+      (s.autoRenew?'<span class="game-pill">Auto</span>':'')+'</div>'+
+      (Number(s.totalPaid)?'<div class="sub-tile-paid">'+esc(fmtMoney(s.totalPaid))+' paid to date</div>':'')+'</div>'+
+      '<div class="game-card-actions">'+
+        (s.active===false?
+          '<button class="btn blue game-primary" data-act="reactivate-subscription" data-id="'+s.id+'">Reactivate</button>':
+          '<button class="btn blue game-primary" data-act="renew-subscription" data-id="'+s.id+'">&#8635; Renew (+'+cycle+'d)</button>')+
+      '</div></div>';
+  }
+
+  var listRender=gameView==="grid"
+    ? function(items){ return '<div class="game-grid">'+items.map(subTile).join("")+'</div>'; }
+    : function(items){ return '<div class="cards">'+items.map(subCard).join("")+'</div>'; };
+
+  html+=listRender(activeList);
 
   if(endedList.length){
-    html+='<div class="sechead">Cancelled subscriptions · '+endedList.length+'</div><div class="cards">'+endedList.map(subCard).join("")+'</div>';
+    html+='<div class="sechead">Cancelled subscriptions · '+endedList.length+'</div>'+listRender(endedList);
   }
 
   if(list.length){
@@ -3448,8 +3476,8 @@ function plexDeleteItem(id,confirmed){
 function renderPageContext(){
   var el=document.getElementById("pageContext"); if(!el) return;
   var parent="Games",key=tab,title="",desc="",count="";
-  var labels={rentals:"Rentals",playing:"Now Playing",queue:"Rental Queue",upcoming:"Upcoming Releases",suggest:"Discover",played:"Completed",watchlist:"My Watchlist",watching:"Watching",bluray:"New on Blu-ray",uphw:"Coming Soon",relhw:"Discover",mlott:"Malayalam OTT",watched:"Watched",serieswatchlist:"My Watchlist",serieswatching:"Watching",seriesnew:"New Episodes",seriesupcoming:"Upcoming",enseries:"English",mlseries:"Malayalam",taseries:"Tamil",hiseries:"Hindi",serieswatched:"Watched",home:"Home",continue:"Continue Watching",movies:"Movies",shows:"TV Shows",recent:"Recently Added",healthoverview:"Overview",healthfood:"Food & Activity",healthlabs:"Lab Trends",financeoverview:"Monthly Summary",financetransactions:"Details",financeloans:"EMI & Recurring",financestatements:"Gmail Sync"};
-  var descriptions={rentals:"Active rentals, return dates and complete history",playing:"Games in progress, saved for later, or on hold",queue:"Your prioritized rental queue and vendor availability",upcoming:"Upcoming game releases and release countdowns",suggest:"Recommendations shaped by your ratings and library",played:"Finished games, ratings and personal history",watchlist:"Movies saved for later",watching:"Movies you have started watching",bluray:"Major new Hollywood physical-media releases",uphw:"Major movies in every language with a confirmed U.S. theatrical release",relhw:"Critically acclaimed Hollywood movies to discover",mlott:"Latest and upcoming Malayalam streaming releases",watched:"Your completed movie library",serieswatchlist:"TV shows saved for later",serieswatching:"TV shows you are currently watching",seriesnew:"Latest episodes from shows you are watching",seriesupcoming:"New and returning TV shows coming soon",enseries:"Highly rated English TV shows",mlseries:"Malayalam TV shows, newest first",taseries:"Tamil TV shows, newest first",hiseries:"Hindi TV shows, newest first",serieswatched:"Watched",home:"A summary of your Plex library",continue:"Partially watched movies and TV shows",movies:"Movies available on your Plex server",shows:"TV shows available on your Plex server",recent:"The latest media added to your Plex server",healthoverview:"Your July 2026 report priorities and this week's progress",healthfood:"Track vegetarian and non-vegetarian meals, activity and recovery",healthlabs:"Compare future blood-test results with your July 2026 baseline",financeoverview:"Monthly credits, spending, cash flow and key insights",financetransactions:"Statement transactions, collapsed by category",financeloans:"Detected EMI schedules, subscriptions and upcoming payments",financestatements:"Secure Gmail statement synchronization and import review"};
+  var labels={rentals:"Rentals",subscriptions:"Subscriptions",playing:"Now Playing",queue:"Rental Queue",upcoming:"Upcoming Releases",suggest:"Discover",played:"Completed",watchlist:"My Watchlist",watching:"Watching",bluray:"New on Blu-ray",uphw:"Coming Soon",relhw:"Discover",mlott:"Malayalam OTT",watched:"Watched",serieswatchlist:"My Watchlist",serieswatching:"Watching",seriesnew:"New Episodes",seriesupcoming:"Upcoming",enseries:"English",mlseries:"Malayalam",taseries:"Tamil",hiseries:"Hindi",serieswatched:"Watched",home:"Home",continue:"Continue Watching",movies:"Movies",shows:"TV Shows",recent:"Recently Added",healthoverview:"Overview",healthfood:"Food & Activity",healthlabs:"Lab Trends",financeoverview:"Monthly Summary",financetransactions:"Details",financeloans:"EMI & Recurring",financestatements:"Gmail Sync"};
+  var descriptions={rentals:"Active rentals, return dates and complete history",subscriptions:"Gaming subscriptions, renewal countdowns and spend",playing:"Games in progress, saved for later, or on hold",queue:"Your prioritized rental queue and vendor availability",upcoming:"Upcoming game releases and release countdowns",suggest:"Recommendations shaped by your ratings and library",played:"Finished games, ratings and personal history",watchlist:"Movies saved for later",watching:"Movies you have started watching",bluray:"Major new Hollywood physical-media releases",uphw:"Major movies in every language with a confirmed U.S. theatrical release",relhw:"Critically acclaimed Hollywood movies to discover",mlott:"Latest and upcoming Malayalam streaming releases",watched:"Your completed movie library",serieswatchlist:"TV shows saved for later",serieswatching:"TV shows you are currently watching",seriesnew:"Latest episodes from shows you are watching",seriesupcoming:"New and returning TV shows coming soon",enseries:"Highly rated English TV shows",mlseries:"Malayalam TV shows, newest first",taseries:"Tamil TV shows, newest first",hiseries:"Hindi TV shows, newest first",serieswatched:"Watched",home:"A summary of your Plex library",continue:"Partially watched movies and TV shows",movies:"Movies available on your Plex server",shows:"TV shows available on your Plex server",recent:"The latest media added to your Plex server",healthoverview:"Your July 2026 report priorities and this week's progress",healthfood:"Track vegetarian and non-vegetarian meals, activity and recovery",healthlabs:"Compare future blood-test results with your July 2026 baseline",financeoverview:"Monthly credits, spending, cash flow and key insights",financetransactions:"Statement transactions, collapsed by category",financeloans:"Detected EMI schedules, subscriptions and upcoming payments",financestatements:"Secure Gmail statement synchronization and import review"};
   if(section==="films"){ parent="Movies"; key=filmTab; }
   else if(section==="series"){ parent="TV Shows"; key=seriesTab; }
   else if(section==="plex"){ parent="Plex Library"; key=plexTab; }
@@ -3465,7 +3493,7 @@ function renderPageContext(){
   desc=descriptions[key]||(section==="biglybt"?"Downloads, progress, speed and torrent controls":"Your personal media library");
   }
   if(section==="games"){
-    var counts={rentals:data.rentals.length,playing:data.playing.length+data.rentals.length,queue:data.queue.length,upcoming:data.upcoming.length,suggest:fullCatalog().length,played:data.played.length};
+    var counts={rentals:data.rentals.length,subscriptions:(data.subscriptions||[]).filter(function(x){return x.active!==false;}).length,playing:data.playing.length+data.rentals.length,queue:data.queue.length,upcoming:data.upcoming.length,suggest:fullCatalog().length,played:data.played.length};
     count=(counts[key]!=null?counts[key]:"")+" "+(counts[key]===1?"item":"items");
   }else if(section==="films"){
     var fc=tabCount("film",key);
@@ -4431,6 +4459,81 @@ function captureVaultLists(keys){
 function confirmDestructive(message,title,callback){
   if(phoneUi()){tvConfirm(message,title||"Confirm",callback);return;}
   if(window.confirm(message))callback();
+}
+/* Small amount dialog — lets a cost (and optional vendor) be entered right after
+   a rental starts, instead of scrolling down to the inline edit row. */
+var amountPromptCb=null;
+function closeAmountPrompt(){
+  var el=document.getElementById("amountPrompt"); if(el) el.remove();
+  document.body.classList.remove("amount-prompt-open");
+  amountPromptCb=null;
+}
+function openAmountPrompt(opts,onSave){
+  closeAmountPrompt();
+  opts=opts||{}; amountPromptCb=onSave||null;
+  var vendorHtml="";
+  if(opts.vendor){
+    var opts2='<option value="">Vendor…</option>'+(data.vendors||[]).map(function(v){return '<option'+(v===opts.vendorValue?' selected':'')+'>'+esc(v)+'</option>';}).join("");
+    vendorHtml='<label class="amount-prompt-field">Vendor<select id="amountPromptVendor">'+opts2+'</select></label>';
+  }
+  document.body.insertAdjacentHTML("beforeend",
+    '<div class="amount-prompt" id="amountPrompt" role="dialog" aria-modal="true" aria-label="'+esc(opts.title||"Add amount")+'">'+
+      '<div class="amount-prompt-panel">'+
+        '<h3>'+esc(opts.title||"Add amount")+'</h3>'+
+        (opts.subtitle?'<p>'+esc(opts.subtitle)+'</p>':'')+
+        '<label class="amount-prompt-field">'+esc(opts.label||"Amount paid (₹)")+
+          '<input id="amountPromptValue" type="number" min="0" inputmode="decimal" placeholder="0" value="'+(Number(opts.amount)?Number(opts.amount):"")+'"></label>'+
+        vendorHtml+
+        '<div class="amount-prompt-actions">'+
+          '<button class="btn" type="button" data-amount-prompt="skip">Skip for now</button>'+
+          '<button class="btn blue" type="button" data-amount-prompt="save">'+esc(opts.confirmLabel||"Save amount")+'</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>');
+  document.body.classList.add("amount-prompt-open");
+  var input=document.getElementById("amountPromptValue");
+  if(input){ input.focus(); try{ input.select(); }catch(e){} }
+}
+document.addEventListener("click",function(e){
+  var host=document.getElementById("amountPrompt"); if(!host) return;
+  var choice=e.target.closest&&e.target.closest("[data-amount-prompt]");
+  if(choice){
+    var save=choice.getAttribute("data-amount-prompt")==="save",cb=amountPromptCb;
+    var amountEl=document.getElementById("amountPromptValue"),vendorEl=document.getElementById("amountPromptVendor");
+    var amount=Number(amountEl&&amountEl.value)||0,vendor=vendorEl?vendorEl.value:"";
+    closeAmountPrompt();
+    if(save&&cb) cb(amount,vendor);
+    return;
+  }
+  if(e.target===host) closeAmountPrompt();
+});
+document.addEventListener("keydown",function(e){
+  if(!document.getElementById("amountPrompt")) return;
+  if(e.key==="Escape"){ e.preventDefault(); closeAmountPrompt(); return; }
+  if(e.key==="Enter"&&e.target&&e.target.id==="amountPromptValue"){
+    e.preventDefault();
+    var btn=document.querySelector('[data-amount-prompt="save"]'); if(btn) btn.click();
+  }
+});
+/* Asks for the rental cost immediately after a rental starts, so it lands in
+   Total spent without hunting for the inline edit row. */
+function promptRentalCost(rentalId,name,vendorValue,amount){
+  flash("Rental started today — 30-day countdown running");
+  openAmountPrompt({
+    title:"Add the rental amount",
+    subtitle:(name?name+" — ":"")+"Enter what you paid so it counts towards your total games cost. You can always edit it later.",
+    label:"Amount paid (₹)",
+    amount:amount||0,
+    vendor:true,
+    vendorValue:vendorValue||"",
+    confirmLabel:"Save amount"
+  },function(cost,vendor){
+    var r=byId(data.rentals,rentalId); if(!r) return;
+    r.cost=Number(cost)||0;
+    if(vendor) r.vendor=vendor;
+    save();
+    flash(r.cost?(fmtMoney(r.cost)+" saved — added to total spent"):"Rental saved without a cost");
+  });
 }
 function commitVaultUndo(snapshot,message){
   save();
@@ -5542,8 +5645,18 @@ function renderCommandPalette(query){
     return tokens.every(function(t){return hay.indexOf(t)>=0;});
   });
   commandVisibleItems=items.slice(0,tokens.length?18:12);
+  /* Nothing saved matches (or the saved match is not the one wanted) — offer to
+     search the internet and add the title, instead of a dead end. */
+  var raw=String(query||"").trim();
+  if(raw.length>=2){
+    commandVisibleItems=commandVisibleItems.concat([
+      {kind:"websearch",target:"games",query:raw,icon:"🎮",title:'Search the internet for "'+raw+'"',meta:"Find a game on RAWG and add it to your vault",label:"Games"},
+      {kind:"websearch",target:"films",query:raw,icon:"🎬",title:'Search the internet for "'+raw+'"',meta:"Find a movie on TMDB and add it to your watchlist",label:"Movies"},
+      {kind:"websearch",target:"series",query:raw,icon:"📺",title:'Search the internet for "'+raw+'"',meta:"Find a TV show on TMDB and add it to your watchlist",label:"TV"}
+    ]);
+  }
   commandSelection=Math.max(0,Math.min(commandSelection,commandVisibleItems.length-1));
-  if(!commandVisibleItems.length){box.innerHTML='<div class="command-empty">No matching page or saved title</div>';return;}
+  if(!commandVisibleItems.length){box.innerHTML='<div class="command-empty">Type at least two letters to search your vault or the internet</div>';return;}
   box.innerHTML=commandVisibleItems.map(function(item,i){return '<button class="command-item'+(i===commandSelection?' on':'')+'" type="button" role="option" aria-selected="'+(i===commandSelection?'true':'false')+'" data-command-index="'+i+'"><span class="command-item-icon">'+item.icon+'</span><span><span class="command-item-title">'+esc(item.title)+'</span><span class="command-item-meta">'+esc(item.meta||"")+'</span></span><span class="command-item-kind">'+esc(item.label||item.kind)+'</span></button>';}).join("");
   var selected=box.querySelector(".command-item.on");if(selected)selected.scrollIntoView({block:"nearest"});
 }
@@ -5586,6 +5699,26 @@ function openCommandItem(item){
   }
   if(item.kind==="plex"){
     if(section!=="plex")switchSection("plex");plexSearch=item.title;switchPlexTab(item.tab);return;
+  }
+  if(item.kind==="websearch"){
+    var query=item.query||"";
+    if(item.target==="games"){
+      if(section!=="games")switchSection("games");
+      searchQ.suggest=query; switchTab("suggest");
+      if(!getKey()) flash("Add your free RAWG API key in Settings to search the games database");
+      else searchWeb(query);
+      return;
+    }
+    if(item.target==="films"){
+      if(section!=="films")switchSection("films");
+      movieSearchQ=query; switchFilmTab("watchlist"); searchMovies(query);
+      return;
+    }
+    if(item.target==="series"){
+      if(section!=="series")switchSection("series");
+      seriesSearchQ=query; switchSeriesTab("serieswatchlist"); searchSeries(query);
+      return;
+    }
   }
 }
 function desktopTabs(){return section==="films"?FILM_ORDER:section==="series"?SERIES_ORDER:section==="plex"?PLEX_ORDER:section==="health"?["healthoverview","healthfood","healthlabs"]:section==="finance"?["financeoverview","financetransactions","financeloans","financestatements"]:section==="biglybt"?[]:TAB_ORDER;}
@@ -6183,8 +6316,9 @@ document.getElementById("content").addEventListener("click",function(e){
       if(inList(data.rentals,h.name)){ flash("Already an active rental"); return; }
       var rid2=uid();
       data.rentals.push({id:rid2,name:h.name,start:localISO(),days:30,cost:0,vendor:h.vendor||"",note:"",img:h.img||undefined});
-      save(); flash("Rented again — 30-day countdown started today");
+      save();
       enrichScore("rentals",rid2);
+      promptRentalCost(rid2,h.name,h.vendor||"",Number(h.cost)||0);
     }
   }
   else if(act==="hist-del"){
@@ -6343,8 +6477,8 @@ document.getElementById("content").addEventListener("click",function(e){
       var rid=uid();
       data.rentals.push({id:rid,name:qr.name,start:localISO(),days:30,cost:0,vendor:"",note:qr.note||"",score:qr.score||null,rrating:qr.rrating||null,date:qr.date||gameKnownReleaseDate(qr)||null,img:coverUrl(qr)||undefined});
       tabScroll[tab]=window.scrollY; tab="rentals"; save(); window.scrollTo(0,0);
-      flash("Rental started today — set the cost and vendor below");
       enrichScore("rentals",rid);
+      promptRentalCost(rid,qr.name);
     }
   }
   else if(act==="q-del"){ var qd=byId(data.queue,id);confirmDestructive('Remove "'+(qd?qd.name:"this game")+'" from the rental queue?',"Remove queued game",function(){data.queue=data.queue.filter(function(x){return x.id!==id;});save();flash("Removed from Queue");}); }
