@@ -1,5 +1,5 @@
 "use strict";
-var APP_VERSION = "2.2.0";
+var APP_VERSION = "2.3.0";
 var APP_BUILD_DATE = "2026-07-25";
 var APP_RELEASE_CHANNEL = "Stable";
 
@@ -137,7 +137,7 @@ var BUILTIN_CATALOG = [
 ].map(function(g){ return {name:g[0], year:g[1], score:g[2], genre:g[3], note:g[4], rem:g[5]||""}; });
 
 /* ---------- storage ---------- */
-var VAULT_ARRAY_FIELDS = ["rentals","upcoming","played","dismissed","catalogExtra","vendors","queue","rentalHistory","playing","upcomingRemoved","watchedMovies","movieWatchlist","watchingMovies","hiddenMovies","watchedSeries","seriesWatchlist","watchingSeries","hiddenSeries","biglyHistory"];
+var VAULT_ARRAY_FIELDS = ["rentals","upcoming","played","dismissed","catalogExtra","vendors","queue","rentalHistory","playing","upcomingRemoved","watchedMovies","movieWatchlist","watchingMovies","hiddenMovies","watchedSeries","seriesWatchlist","watchingSeries","hiddenSeries","biglyHistory","subscriptions"];
 var VAULT_OBJECT_FIELDS = ["covers","dismissedNames","fandom","hubkeys","keys","seriesRatings","aiChats","health","finance","secureConfig","_sync"];
 var HEALTH_SYNC_STORE="gamevault-sync-health-v1";
 function healthDefaults(){
@@ -255,7 +255,7 @@ function vaultSize(d){
          ((d&&d.playing)||[]).length + ((d&&d.movieWatchlist)||[]).length + ((d&&d.watchingMovies)||[]).length +
          ((d&&d.watchedMovies)||[]).length + ((d&&d.hiddenMovies)||[]).length +
          ((d&&d.seriesWatchlist)||[]).length + ((d&&d.watchingSeries)||[]).length + ((d&&d.watchedSeries)||[]).length +
-         ((d&&d.hiddenSeries)||[]).length + ((d&&d.biglyHistory)||[]).length +
+         ((d&&d.hiddenSeries)||[]).length + ((d&&d.biglyHistory)||[]).length + ((d&&d.subscriptions)||[]).length +
          ((((d&&d.health)||{}).foodLog)||[]).length + ((d&&d.finance&&d.finance.cipher)?1:0);
 }
 /* Schema migrations: bump SCHEMA_VERSION when structure changes and add an
@@ -1029,6 +1029,7 @@ function totalSpent(){
   data.rentals.forEach(function(r){ t+=Number(r.cost)||0; });
   data.rentalHistory.forEach(function(h){ t+=Number(h.cost)||0; });
   data.played.forEach(function(p){ t+=Number(p.cost)||0; });
+  (data.subscriptions||[]).forEach(function(s){ t+=Number(s.totalPaid)||0; });
   return t;
 }
 function scoreBits(x){
@@ -1800,6 +1801,11 @@ function renderStats(){
   if(tab==="rentals"){
     var due=data.rentals.map(function(r){ return r.days-daysBetween(parseD(r.start),t0); }).filter(function(n){ return n>=0; }).sort(function(a,b){return a-b;})[0];
     html=uiStatTile(active,"Active rentals","rentals",urgent?"var(--danger)":"var(--text)")+uiStatTile(due==null?"-":due+"d","Nearest return","rentals",due!=null&&due<=3?"var(--danger)":"var(--text)")+uiStatTile(totalRented,"Total rented","rentals")+uiStatTile(fmtMoney(totalSpent()),"Total spent","rentals","var(--warning)");
+  }else if(tab==="subscriptions"){
+    var subsActive=(data.subscriptions||[]).filter(function(x){return x.active!==false;});
+    var subsDue=subsActive.map(function(x){return daysBetween(t0,parseD(x.renewsAt));}).sort(function(a,b){return a-b;})[0];
+    var monthlyCost=subsActive.reduce(function(a,x){return a+(Number(x.cost)||0)/Math.max(1,Number(x.cycleDays)||30)*30;},0);
+    html=uiStatTile(subsActive.length,"Active subscriptions","subscriptions")+uiStatTile(subsDue==null?"-":subsDue+"d","Nearest renewal","subscriptions",subsDue!=null&&subsDue<=3?"var(--danger)":"var(--text)")+uiStatTile(fmtMoney(Math.round(monthlyCost)),"~ Per month","subscriptions","var(--accent)")+uiStatTile(fmtMoney(totalSpent()),"Total games cost","rentals","var(--warning)");
   }else if(tab==="playing"){
     var resume=data.played.filter(function(x){return x.status==="Playing";}).length;
     var hold=data.played.filter(function(x){return x.status==="Dropped";}).length;
@@ -1850,6 +1856,7 @@ function finishTabRender(){
 function tabCount(kind,key){
   if(kind==="game"){
     if(key==="rentals") return (data.rentals||[]).length;
+    if(key==="subscriptions") return (data.subscriptions||[]).filter(function(x){return x.active!==false;}).length;
     if(key==="playing") return (data.rentals||[]).length+(data.playing||[]).length+(data.played||[]).filter(function(x){return x.status==="Playing"||x.status==="Dropped";}).length;
     if(key==="queue") return (data.queue||[]).length;
     if(key==="upcoming") return (data.upcoming||[]).length;
@@ -1924,7 +1931,7 @@ function renderTabs(){
     finishTabRender();
     return;
   }
-  var defs=[["rentals","✕","Rentals"],["playing","▶","Now Playing"],["queue","◇","Rental Queue"],["upcoming","△","Upcoming Releases"],["suggest","○","Discover"],["played","□","Completed"]];
+  var defs=[["rentals","✕","Rentals"],["subscriptions","⏳","Subscriptions"],["playing","▶","Now Playing"],["queue","◇","Rental Queue"],["upcoming","△","Upcoming Releases"],["suggest","○","Discover"],["played","□","Completed"]];
   document.getElementById("tabs").innerHTML = defs.map(function(d){
     return '<button class="tab '+(tab===d[0]?"on":"")+'" data-tab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+tabCountHtml("game",d[0])+'</button>';
   }).join("");
@@ -1964,14 +1971,17 @@ function renderHome(){
   var continuing=(data.playing||[]).length+(data.watchingMovies||[]).length+(data.watchingSeries||[]).length;
   var activeDownloads=(typeof biglyItems!=="undefined"?biglyItems:[]).filter(function(t){var p=Number(t.progress)||0;return p<1&&p<100;}).length;
   var nearDue=(data.rentals||[]).map(function(r){return {name:r.name,left:r.days-daysBetween(parseD(r.start),t0)};}).filter(function(r){return r.left>=0&&r.left<=3;}).sort(function(a,b){return a.left-b.left;});
+  var subsDueSoon=(data.subscriptions||[]).filter(function(s){return s.active!==false;}).map(function(s){return {name:s.service,left:subDaysLeft(s,t0)};}).filter(function(s){return s.left<=3;}).sort(function(a,b){return a.left-b.left;});
   var nearestGame=(data.upcoming||[]).map(function(g){return {name:g.name,left:g.date?daysBetween(t0,parseD(g.date)):9999};}).filter(function(g){return g.left>=0&&g.left<=7;}).sort(function(a,b){return a.left-b.left;})[0];
   var priority=overdue
     ? {tone:"danger",title:overdue+" overdue rental"+(overdue===1?"":"s"),copy:"Return or update these rentals first.",label:"Review rentals",sec:"games",tab:"rentals"}
     : nearDue.length
       ? {tone:"warning",title:nearDue[0].left===0?nearDue[0].name+" is due today":nearDue[0].name+" is due in "+nearDue[0].left+" days",copy:"Your next rental deadline is approaching.",label:"Open rentals",sec:"games",tab:"rentals"}
-      : nearestGame
-        ? {tone:"accent",title:nearestGame.name+" releases "+(nearestGame.left===0?"today":"in "+nearestGame.left+" days"),copy:"A saved upcoming game is almost here.",label:"View releases",sec:"games",tab:"upcoming"}
-        : {tone:"clear",title:"You are all caught up",copy:"No urgent rentals or saved releases in the next seven days.",label:"Continue watching",sec:"home",tab:""};
+      : subsDueSoon.length
+        ? {tone:"warning",title:subsDueSoon[0].left<=0?subsDueSoon[0].name+" renews today":subsDueSoon[0].name+" renews in "+subsDueSoon[0].left+" days",copy:"A tracked subscription is about to renew or expire.",label:"Open subscriptions",sec:"games",tab:"subscriptions"}
+        : nearestGame
+          ? {tone:"accent",title:nearestGame.name+" releases "+(nearestGame.left===0?"today":"in "+nearestGame.left+" days"),copy:"A saved upcoming game is almost here.",label:"View releases",sec:"games",tab:"upcoming"}
+          : {tone:"clear",title:"You are all caught up",copy:"No urgent rentals or saved releases in the next seven days.",label:"Continue watching",sec:"home",tab:""};
   var html='<section class="home-overview" aria-label="Today at a glance"><div><span>Today</span><strong>'+t0.toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long"})+'</strong></div>'+
     '<div class="home-overview-stat '+(overdue?'alert':'')+'"><b>'+overdue+'</b><span>overdue rental'+(overdue===1?'':'s')+'</span></div>'+
     '<div class="home-overview-stat"><b>'+continuing+'</b><span>in progress</span></div>'+
@@ -1989,6 +1999,18 @@ function renderHome(){
   });
   else html+='<div class="meta">Nothing due in the next 7 days.</div>';
   html+='<div class="home-foot">'+homeGoBtn("Open Rentals","games","rentals")+'</div></div>';
+
+  // subscriptions renewing within 7 days
+  var subsSoon=(data.subscriptions||[]).filter(function(s){return s.active!==false;}).map(function(s){return {name:s.service,left:subDaysLeft(s,t0)};}).filter(function(s){return s.left<=7;}).sort(function(a,b){return a.left-b.left;});
+  if((data.subscriptions||[]).length){
+    html+='<div class="card home-card home-card-subs"><div class="home-title">⏳ Subscriptions renewing soon</div>';
+    if(subsSoon.length) subsSoon.slice(0,5).forEach(function(s){
+      var dueText=s.left<0?Math.abs(s.left)+'d overdue':s.left===0?'Due today':s.left+'d';
+      html+='<div class="home-row"><span class="grow">'+esc(s.name)+'</span><b style="color:'+(s.left<=0?'var(--danger)':urgency(s.left))+'">'+dueText+'</b></div>';
+    });
+    else html+='<div class="meta">Nothing renewing in the next 7 days.</div>';
+    html+='<div class="home-foot">'+homeGoBtn("Open Subscriptions","games","subscriptions")+'</div></div>';
+  }
 
   // next in queue
   var nq=(data.queue||[])[0];
@@ -2250,6 +2272,92 @@ function endRental(id, toPlayed){
   } else {
     save(); flash("Returned — saved to rental history");
   }
+}
+
+/* ---------- Subscriptions tab (Xbox Game Pass, GeForce NOW, PS Plus…) ---------- */
+var SUBSCRIPTION_PRESETS=["Xbox Game Pass Ultimate","Xbox Game Pass","PC Game Pass","NVIDIA GeForce NOW Priority","NVIDIA GeForce NOW Ultimate","PlayStation Plus","EA Play","Ubisoft+"];
+function subDaysLeft(s,t0){ return daysBetween(t0||today(),parseD(s.renewsAt)); }
+function subOptions(){ return SUBSCRIPTION_PRESETS.map(function(x){return '<option value="'+esc(x)+'">';}).join(""); }
+function renderSubscriptions(){
+  var t0=today();
+  var list=data.subscriptions.map(function(s){ return Object.assign({},s,{left:subDaysLeft(s,t0)}); }).filter(function(s){ return matchQ(s.service); });
+  var activeList=list.filter(function(s){ return s.active!==false; }).sort(function(a,b){ return a.left-b.left; });
+  var endedList=list.filter(function(s){ return s.active===false; });
+
+  var html='<div class="toolbar"><button class="btn '+(formOpen[tab]?'':'blue')+'" data-act="toggle-form">'+(formOpen[tab]?"✕ Close":"+ Add subscription")+'</button>'+
+    '<div class="searchwrap"><span class="sic">⌕</span>'+
+    '<input class="tab-search" id="tabSearch" placeholder="Search subscriptions…" value="'+esc(q())+'" autocomplete="off">'+
+    (q()?'<button class="sclear" data-act="clear-search" title="Clear">✕</button>':'')+
+    '</div></div>';
+
+  if(formOpen[tab]){
+    html+=
+    '<div class="form"><h3>Add a subscription</h3><div class="fields">'+
+    '<input class="f-name" id="sService" list="subServiceList" placeholder="Service — e.g. Xbox Game Pass, GeForce NOW" autocomplete="off"><datalist id="subServiceList">'+subOptions()+'</datalist>'+
+    '<input class="f-sm" id="sStart" type="date" value="'+localISO()+'" title="Start date">'+
+    '<input class="f-sm" id="sCycle" type="number" min="1" value="30" title="Billing cycle, in days">'+
+    '<input class="f-sm" id="sCost" type="number" min="0" placeholder="Cost ₹ paid" title="Cost for this period">'+
+    '<label class="check-inline"><input type="checkbox" id="sAutoRenew"> Auto-renews</label>'+
+    '<button class="btn blue" data-act="add-subscription">Add subscription</button>'+
+    '</div></div>';
+  }
+
+  if(!list.length && !q()) html+='<div class="empty">No subscriptions tracked yet. Press <b>+ Add subscription</b> for Xbox Game Pass, GeForce NOW or any other paid gaming service — the renewal countdown starts automatically.</div>';
+  if(!list.length && q()) html+=noMatch();
+
+  function subCard(s){
+    var c=urgency(s.left);
+    var cycle=Math.max(1,Number(s.cycleDays)||30);
+    var segs=Math.min(cycle,40);
+    var startAt=parseD(s.renewsAt); startAt.setDate(startAt.getDate()-cycle);
+    var usedFrac=Math.min(1,Math.max(0,(cycle-s.left)/cycle));
+    var ticks="";
+    for(var i=0;i<segs;i++){ var on=((i+1)/segs)<=usedFrac; ticks+='<div class="tick"'+(on?' style="background:'+c+'"':'')+'></div>'; }
+    return '<div class="card"'+(s.active===false?' style="opacity:.65"':'')+'>'+
+      '<div class="row"><div class="grow">'+
+        '<div class="gname">'+esc(s.service)+'</div>'+
+        '<div class="meta">'+cycle+'-day cycle · renews '+fmt(s.renewsAt)+
+        (s.autoRenew?' · <span style="color:var(--success)">Auto-renews</span>':'')+
+        (Number(s.cost)?' · <span style="color:#F2B84B;font-weight:700">'+fmtMoney(s.cost)+' / cycle</span>':'')+
+        (Number(s.totalPaid)?' · <span style="color:var(--muted)">'+fmtMoney(s.totalPaid)+' paid to date</span>':'')+
+        (s.note?'<br>"'+esc(s.note)+'"':'')+'</div>'+
+      '</div><div>'+
+        '<div class="bignum" style="color:'+c+'">'+(s.active===false?"--":(s.left>0?s.left:0))+'</div>'+
+        '<div class="biglabel">'+(s.active===false?"Cancelled":s.left<=0?"Renewal due":(s.left===1?"Day left":"Days left"))+'</div>'+
+      '</div></div>'+
+      (s.active===false?"":'<div class="ticks">'+ticks+'</div>')+
+      '<div class="actions">'+
+        (s.active===false?
+          '<button class="btn blue" data-act="reactivate-subscription" data-id="'+s.id+'">Reactivate</button>':
+          '<button class="btn blue" data-act="renew-subscription" data-id="'+s.id+'">&#8635; Renew (+'+cycle+'d)</button>'+
+          '<button class="btn" data-act="cancel-subscription" data-id="'+s.id+'">Cancel</button>')+
+        '<button class="btn ghost danger" data-act="remove-subscription" data-id="'+s.id+'">Delete</button>'+
+      '</div>'+
+      '<div class="inline-edit">'+
+        '<input class="note-inp s-note" data-id="'+s.id+'" placeholder="Remark — plan tier, shared with family, promo price…" value="'+esc(s.note||"")+'">'+
+        '<input class="note-inp s-cost" data-id="'+s.id+'" type="number" min="0" placeholder="Cost ₹ / cycle" value="'+(Number(s.cost)?Number(s.cost):"")+'">'+
+        '<label class="dateedit">Renews <input class="s-renews" data-id="'+s.id+'" type="date" value="'+esc(s.renewsAt||"")+'"></label>'+
+      '</div>'+
+    '</div>';
+  }
+
+  html+='<div class="cards">'+activeList.map(subCard).join("")+'</div>';
+
+  if(endedList.length){
+    html+='<div class="sechead">Cancelled subscriptions · '+endedList.length+'</div><div class="cards">'+endedList.map(subCard).join("")+'</div>';
+  }
+
+  if(list.length){
+    html+='<div class="sechead">Subscription spend</div><div class="card">'+
+      '<div class="row" style="padding:5px 0"><div class="grow" style="font-weight:600">Paid to date</div>'+
+      '<div style="color:#F2B84B;font-weight:700;min-width:88px;text-align:right">'+fmtMoney(data.subscriptions.reduce(function(a,x){return a+(Number(x.totalPaid)||0);},0))+'</div></div>'+
+      '<div class="row" style="padding:9px 0 2px;margin-top:4px;border-top:1px solid var(--border)">'+
+      '<div class="grow" style="font-weight:700">Total games cost</div>'+
+      '<div style="color:#F2B84B;font-weight:800">'+fmtMoney(totalSpent())+'</div></div>'+
+    '</div>';
+  }
+
+  return html;
 }
 
 /* ---------- Current Playing tab ---------- */
@@ -3612,6 +3720,7 @@ function render(){
   }
   renderContentHtml(
     tab==="rentals" ? renderRentals() :
+    tab==="subscriptions" ? renderSubscriptions() :
     tab==="playing" ? renderPlaying() :
     tab==="queue"   ? renderQueue() :
     tab==="upcoming"? renderUpcoming() :
@@ -6084,6 +6193,48 @@ document.getElementById("content").addEventListener("click",function(e){
     data.rentalHistory=data.rentalHistory.filter(function(x){return x.id!==id;}); save();
   }
 
+  else if(act==="add-subscription"){
+    var svc=document.getElementById("sService").value.trim(); if(!svc) return;
+    var sstart=document.getElementById("sStart").value||localISO();
+    var scycle=Math.max(1,Number(document.getElementById("sCycle").value)||30);
+    var scost=Number(document.getElementById("sCost").value)||0;
+    var sauto=document.getElementById("sAutoRenew").checked;
+    var srenews=parseD(sstart); srenews.setDate(srenews.getDate()+scycle);
+    data.subscriptions.push({id:uid(),service:svc,start:sstart,cycleDays:scycle,cost:scost,totalPaid:scost,renewsAt:localISO(srenews),autoRenew:sauto,active:true,note:""});
+    formOpen[tab]=false;
+    save(); flash("Subscription added — renewal countdown started");
+  }
+  else if(act==="renew-subscription"){
+    var rs1=byId(data.subscriptions,id);
+    if(rs1){
+      var cyc=Math.max(1,Number(rs1.cycleDays)||30);
+      var base=parseD(rs1.renewsAt); var t0r=today();
+      var from=base>t0r?base:t0r; // if already lapsed, renew from today rather than compounding a stale date
+      from.setDate(from.getDate()+cyc);
+      rs1.renewsAt=localISO(from);
+      rs1.totalPaid=(Number(rs1.totalPaid)||0)+(Number(rs1.cost)||0);
+      save(); flash("Renewed — "+cyc+" more days, "+fmtMoney(rs1.cost)+" added to total spent");
+    }
+  }
+  else if(act==="cancel-subscription"){
+    var cs=byId(data.subscriptions,id); if(cs){ cs.active=false; save(); flash(cs.service+" marked cancelled"); }
+  }
+  else if(act==="reactivate-subscription"){
+    var rs2=byId(data.subscriptions,id);
+    if(rs2){
+      rs2.active=true;
+      var cyc2=Math.max(1,Number(rs2.cycleDays)||30),rn=today(); rn.setDate(rn.getDate()+cyc2);
+      rs2.renewsAt=localISO(rn);
+      save(); flash("Reactivated — "+cyc2+"-day countdown restarted");
+    }
+  }
+  else if(act==="remove-subscription"){
+    var rname=(byId(data.subscriptions,id)||{}).service||"this subscription";
+    if(phoneUi()){tvConfirm('Delete "'+rname+'" and its spending record?',"Delete subscription",function(){data.subscriptions=data.subscriptions.filter(function(x){return x.id!==id;});save();flash("Subscription deleted");});return;}
+    if(!confirm('Delete "'+rname+'" and its spending record?')) return;
+    data.subscriptions=data.subscriptions.filter(function(x){return x.id!==id;}); save(); flash("Subscription deleted");
+  }
+
   else if(act==="sync-upcoming"){ refreshUpcoming(); }
   else if(act==="sync-catalog"){ refreshCatalog(); }
   else if(act==="add-upcoming"){
@@ -6439,6 +6590,24 @@ document.getElementById("content").addEventListener("change",function(e){
       rr4.days=Math.max(1,daysBetween(rs,re));
       save(); flash("Return date updated");
     }
+    return;
+  }
+  var sn=e.target.closest(".s-note");
+  if(sn){
+    var ss1=byId(data.subscriptions,sn.getAttribute("data-id"));
+    if(ss1){ ss1.note=sn.value.trim(); persist(); flash("Remark saved"); }
+    return;
+  }
+  var sc=e.target.closest(".s-cost");
+  if(sc){
+    var ss2=byId(data.subscriptions,sc.getAttribute("data-id"));
+    if(ss2){ ss2.cost=Number(sc.value)||0; persist(); renderStats(); flash("Cost saved — renewing will use this amount"); }
+    return;
+  }
+  var srn=e.target.closest(".s-renews");
+  if(srn){
+    var ss3=byId(data.subscriptions,srn.getAttribute("data-id"));
+    if(ss3 && srn.value){ ss3.renewsAt=srn.value; save(); flash("Renewal date updated"); }
     return;
   }
   if(e.target.id==="rVendor"){
@@ -6822,7 +6991,7 @@ if(syncNowBtn) syncNowBtn.addEventListener("click",function(){
 });
 
 /* ---------- swipe between tabs (phone) ---------- */
-var TAB_ORDER=["rentals","playing","queue","upcoming","suggest","played"];
+var TAB_ORDER=["rentals","subscriptions","playing","queue","upcoming","suggest","played"];
 var swX=null,swY=0,swT=0;
 document.addEventListener("touchstart",function(e){
   if(e.touches.length!==1){ swX=null; return; }

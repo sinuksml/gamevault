@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.3.0 - 2026-07-25
+
+- Added a Subscriptions tab in Games (next to Rentals) to track paid gaming services like Xbox Game Pass and NVIDIA GeForce NOW: service name, cost per billing cycle, and a live days-left countdown identical in style to rental due dates.
+- Subscription cost is now included in "Total spent" / "Total games cost" everywhere it's shown (Games stats, Home), tracked separately from the per-cycle price so renewals accumulate an accurate lifetime total instead of double-counting.
+- Added Renew (extends the countdown and logs the payment), Cancel/Reactivate and Delete actions, plus inline-editable cost, remark and renewal-date fields, matching the existing Rentals editing pattern.
+- Added a "Subscriptions renewing soon" card to Home, and folded urgent renewals (≤3 days) into the existing "Next up" priority banner alongside overdue/due-soon rentals.
+
 ## v2.2.0 - 2026-07-25
 
 - Reduced the iPhone bottom navigation from six tabs to five (Games, Movies, TV Shows, Plex, More) so no label truncates at 402px; BiglyBT moves into a redesigned More page alongside Finance, Health, sync and backup.

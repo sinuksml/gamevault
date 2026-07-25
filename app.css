@@ -1169,7 +1169,7 @@ html.light .finance-summary>button,html.light .finance-panel,html.light .finance
 .home-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-top:14px}
 .home-card{display:flex;flex-direction:column;gap:7px;margin-bottom:0}
 .home-card{--home-tone:#42a5ff;border-color:color-mix(in srgb,var(--home-tone) 52%,var(--border));border-top:3px solid var(--home-tone);background:color-mix(in srgb,var(--card) 88%,var(--home-tone) 12%);box-shadow:0 10px 26px color-mix(in srgb,var(--home-tone) 14%,transparent)}
-.home-card-rentals{--home-tone:#ff6673}.home-card-queue{--home-tone:#ffb23f}.home-card-continue{--home-tone:#9b7cff}.home-card-releases{--home-tone:#3f8cff}.home-card-downloads{--home-tone:#19bfd0}.home-card-watchlist{--home-tone:#ef66b4}.home-card-vault{--home-tone:#43c98b}.home-card-finance{--home-tone:#d9a82e}
+.home-card-rentals{--home-tone:#ff6673}.home-card-subs{--home-tone:#f2914a}.home-card-queue{--home-tone:#ffb23f}.home-card-continue{--home-tone:#9b7cff}.home-card-releases{--home-tone:#3f8cff}.home-card-downloads{--home-tone:#19bfd0}.home-card-watchlist{--home-tone:#ef66b4}.home-card-vault{--home-tone:#43c98b}.home-card-finance{--home-tone:#d9a82e}
 .home-card .home-title{color:var(--home-tone)}
 .home-card .home-foot .btn{border-color:color-mix(in srgb,var(--home-tone) 45%,var(--border));background:color-mix(in srgb,var(--btnbg) 82%,var(--home-tone) 18%)}
 .home-card .home-row b{color:color-mix(in srgb,var(--home-tone) 78%,var(--text))}
@@ -2998,3 +2998,7 @@ html.light .plex-card:hover{
     width:106px;
   }
 }
+
+/* v2.3.0 — Subscriptions tab */
+.check-inline{display:flex;flex-direction:row;align-items:center;gap:7px;min-height:42px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text2);font-size:12px;font-weight:700}
+.check-inline input{width:auto}
