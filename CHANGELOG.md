@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.2.0 - 2026-07-25
+
+- Reduced the iPhone bottom navigation from six tabs to five (Games, Movies, TV Shows, Plex, More) so no label truncates at 402px; BiglyBT moves into a redesigned More page alongside Finance, Health, sync and backup.
+- Rebuilt the More page as a grouped list (Connected / Personal / Vault) with live status tags for BiglyBT, Plex, Finance and cloud sync, matching the card/panel/control token set.
+- On phone, movie and TV show cards now show exactly one primary action plus a single "⋯" overflow button; Trailer and IMDb links moved into that overflow sheet, restoring access to them on phone (they were previously hidden with no way to reach them).
+- Raised secondary-text contrast across the app: metadata that was rendered in the near-invisible `--dim`/`--faint` tones now uses `--muted`, reserving `--dim`/`--faint` for decorative elements only (icons, dividers, status dots).
+- Normalized one-off corner radii (7/10/14/18px) to the four design tokens: 8px controls, 12px panels, 16px cards, 999px pills.
+
 ## v2.0.1 - 2026-07-25
 
 - Made the app activate completed service-worker updates automatically instead of waiting for a hidden update action.

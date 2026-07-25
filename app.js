@@ -1,5 +1,5 @@
 "use strict";
-var APP_VERSION = "2.1.1";
+var APP_VERSION = "2.2.0";
 var APP_BUILD_DATE = "2026-07-25";
 var APP_RELEASE_CHANNEL = "Stable";
 
@@ -3403,15 +3403,28 @@ function openRecent(kind,id,subtab){
   render(); window.scrollTo(0,0);
 }
 
-function libraryStatus(ok){return '<span class="phone-library-status '+(ok?"ok":"")+'">'+(ok?"Connected":"Setup needed")+'</span>';}
+function phoneLibraryRow(act,ds,icon,title,sub,tag,tone){
+  return '<button type="button" class="phone-more-row" data-act="'+act+'"'+(ds?' data-section="'+ds+'"':'')+'><span class="phone-more-icon">'+icon+'</span><span class="phone-more-body"><strong>'+esc(title)+'</strong><small>'+esc(sub)+'</small></span>'+(tag?'<span class="phone-more-tag phone-more-tag-'+(tone||"muted")+'">'+esc(tag)+'</span>':'')+'</button>';
+}
+function phoneLibraryGroup(label,rows){return '<div class="phone-more-group"><span class="phone-more-label">'+esc(label)+'</span><div class="phone-more-card">'+rows.join("")+'</div></div>';}
 function renderPhoneLibrary(){
-  return '<div class="phone-library-grid">'+
-    '<button type="button" data-act="phone-library-open" data-section="finance"><span class="phone-library-icon">&#8377;</span><strong>Finance</strong><small>Encrypted expenses, statements, loans and EMI tracking</small></button>'+
-    '<button type="button" data-act="phone-library-open" data-section="health"><span class="phone-library-icon">&#9829;</span><strong>Health</strong><small>Food, activity, lab trends and weekly progress</small></button>'+
-    '<button type="button" data-act="phone-sync"><span class="phone-library-icon">&#8635;</span><strong>Sync now</strong><small>Check Google Drive for the newest vault</small>'+libraryStatus(!!cloudMode())+'</button>'+
-    '<button type="button" data-act="phone-settings"><span class="phone-library-icon">&#9881;</span><strong>Settings</strong><small>Services, appearance and recovery</small></button>'+
-    '<button type="button" data-act="phone-export"><span class="phone-library-icon">&#8659;</span><strong>Export backup</strong><small>Download a manual JSON backup</small></button>'+
-    '<button type="button" data-act="phone-restore"><span class="phone-library-icon">&#8657;</span><strong>Restore backup</strong><small>Restore an existing GameVault backup</small></button></div>';
+  var biglyOk=!!biglyProxyUrl(), plexOk=!!(plexServerUrl()&&plexToken()), finVault=financeConfigured(), finOpen=financeUnlocked();
+  return '<div class="phone-more">'+
+    phoneLibraryGroup("Connected",[
+      phoneLibraryRow("phone-library-open","biglybt","&#8681;","BiglyBT","Downloads, progress, speed and torrent controls",biglyOk?"Connected":"Setup needed",biglyOk?"ok":"warn"),
+      phoneLibraryRow("phone-library-open","plex","&#9654;","Plex","Continue watching, library and recently added",plexOk?"Connected":"Setup needed",plexOk?"ok":"warn")
+    ])+
+    phoneLibraryGroup("Personal",[
+      phoneLibraryRow("phone-library-open","finance","&#8377;","Finance","Encrypted expenses, statements, loans and EMI tracking",!finVault?"Not set up":(finOpen?"Unlocked":"Locked"),!finVault?"warn":(finOpen?"ok":"muted")),
+      phoneLibraryRow("phone-library-open","health","&#9829;","Health","Food, activity, lab trends and weekly progress","Local","muted")
+    ])+
+    phoneLibraryGroup("Vault",[
+      phoneLibraryRow("phone-sync","","&#8635;","Sync now","Check Google Drive for the newest vault",cloudMode()?"Connected":"Local only",cloudMode()?"ok":"warn"),
+      phoneLibraryRow("phone-export","","&#8659;","Export backup","Download a manual JSON backup","",""),
+      phoneLibraryRow("phone-restore","","&#8657;","Restore backup","Restore an existing GameVault backup","",""),
+      phoneLibraryRow("phone-settings","","&#9881;","Settings","Services, appearance and recovery","","")
+    ])+
+    '</div>';
 }
 
 /* ---------- personal health monitor (PC/mobile only) ---------- */
@@ -4461,6 +4474,7 @@ function movieMoreMenu(m,key){
   if(key==="watchlist") items.push('<button type="button" class="danger" data-act="movie-state" data-state="remove" data-id="'+id+'">Remove from Watchlist</button>');
   if(key==="watching") items.push('<button type="button" data-act="movie-state" data-state="watchlist" data-id="'+id+'">Move back to Watchlist</button>');
   if(key==="watched") items.push('<button type="button" data-act="movie-state" data-state="unwatch" data-id="'+id+'">Restore to suggestions</button>');
+  if(phoneUi()) items.push(movieCompactLinks(m));
   return titleOverflow(m.title,items);
 }
 function movieStateBadge(key){
@@ -4572,7 +4586,7 @@ function watchlistCard(m){
   return movieCard(m,"watchlist");
 }
 function movieQuickActions(m,key){
-  return '<div class="media-card-actions">'+moviePrimaryAction(m,key,true)+movieCompactLinks(m)+movieMoreMenu(m,key)+'</div>';
+  return '<div class="media-card-actions">'+moviePrimaryAction(m,key,true)+(phoneUi()?"":movieCompactLinks(m))+movieMoreMenu(m,key)+'</div>';
 }
 function movieCard(m, key){
   return '<div class="card media-card">'+movieStateBadge(key)+'<div class="media-main clickrow" role="button" tabindex="0" data-act="mw-toggle" data-id="'+esc(String(m.id))+'">'+movieMain(m,key)+'</div>'+movieQuickActions(m,key)+'</div>';
@@ -5048,6 +5062,7 @@ function seriesMoreMenu(s,key){
   if(key!=="serieswatched") items.push('<button type="button" data-act="series-state" data-state="hide" data-id="'+id+'">Not Interested</button>');
   if(key==="serieswatchlist") items.push('<button type="button" class="danger" data-act="series-state" data-state="remove" data-id="'+id+'">Remove from Watchlist</button>');
   if(key==="serieswatched") items.push('<button type="button" data-act="series-state" data-state="unwatch" data-id="'+id+'">Restore to suggestions</button>');
+  if(phoneUi()) items.push(seriesCompactLinks(s));
   return titleOverflow(s.title,items);
 }
 function seriesStateBadge(key){
@@ -5210,7 +5225,7 @@ function seriesSearchCard(s){
   return seriesCard(s,"seriessearch");
 }
 function seriesCard(s, key){
-  return '<div class="card media-card">'+seriesStateBadge(key)+'<div class="media-main clickrow" role="button" tabindex="0" data-act="sr-toggle" data-id="'+esc(String(s.id))+'">'+seriesMain(s)+'</div><div class="media-card-actions">'+seriesPrimaryAction(s,key,true)+seriesCompactLinks(s)+seriesMoreMenu(s,key)+'</div></div>';
+  return '<div class="card media-card">'+seriesStateBadge(key)+'<div class="media-main clickrow" role="button" tabindex="0" data-act="sr-toggle" data-id="'+esc(String(s.id))+'">'+seriesMain(s)+'</div><div class="media-card-actions">'+seriesPrimaryAction(s,key,true)+(phoneUi()?"":seriesCompactLinks(s))+seriesMoreMenu(s,key)+'</div></div>';
 }
 function renderSeries(){
   var key=seriesTab;

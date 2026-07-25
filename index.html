@@ -17,7 +17,7 @@
 <link rel="apple-touch-startup-image" href="splash-portrait.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Sinu Game Vault — PS5 Tracker</title>
-<link rel="stylesheet" href="app.css?v=2.1.1">
+<link rel="stylesheet" href="app.css?v=2.2.0">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -43,11 +43,11 @@
     <button data-section="series"><span class="section-icon">&#128250;</span><span class="section-label">TV Shows</span></button>
     <span class="rail-group-label desktop-only">Connected</span>
     <button data-section="plex"><span class="section-icon">&#9654;</span><span class="section-label"><span class="desktop-label">Plex Library</span><span class="mobile-label">Plex</span></span></button>
-    <button data-section="biglybt"><span class="section-icon">&#8681;</span><span class="section-label">BiglyBT</span></button>
+    <button data-section="biglybt" class="desktop-only"><span class="section-icon">&#8681;</span><span class="section-label">BiglyBT</span></button>
     <span class="rail-group-label desktop-only">Personal</span>
     <button data-section="finance" class="desktop-only"><span class="section-icon" aria-hidden="true">&#8377;</span><span class="section-label">Finance</span></button>
     <button data-section="health" class="desktop-only"><span class="section-icon" aria-hidden="true">&#9829;</span><span class="section-label">Health</span></button>
-    <button data-section="library" class="phone-only"><span class="section-icon">&#8942;</span><span class="section-label">Library</span></button>
+    <button data-section="library" class="phone-only"><span class="section-icon">&#8943;</span><span class="section-label">More</span></button>
     <div class="desktop-rail-tools desktop-only" aria-label="Application utilities">
       <button class="desktop-rail-status" id="desktopRailSync" type="button" title="Cloud sync status"><span class="rail-status-dot" aria-hidden="true"></span><span class="section-label" id="desktopRailSyncText">Local data</span></button>
       <button id="desktopRailTheme" type="button" title="Switch light or dark mode"><span class="section-icon" aria-hidden="true">&#9788;</span><span class="section-label">Appearance</span></button>
@@ -197,7 +197,7 @@
   </div>
 </div>
 
-<script src="core.js?v=2.1.1"></script>
-<script src="finance.js?v=2.1.1"></script>
-<script src="app.js?v=2.1.1"></script></body>
+<script src="core.js?v=2.2.0"></script>
+<script src="finance.js?v=2.2.0"></script>
+<script src="app.js?v=2.2.0"></script></body>
 </html>

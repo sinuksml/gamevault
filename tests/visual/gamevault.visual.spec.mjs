@@ -128,7 +128,7 @@ test.describe("iPhone 17 Pro visual system", () => {
   test("rentals - dark @visual", async ({page}) => {
     await prepare(page, {section: "games", tab: "rentals"});
     await expect(page.locator(".game-tile")).toHaveCount(3);
-    await expect(page.locator("#sectionSw button:visible")).toHaveCount(6);
+    await expect(page.locator("#sectionSw button:visible")).toHaveCount(5);
     await expect(page.locator(".rail-group-label:visible")).toHaveCount(0);
     await expect(page.locator(".stat").first()).toHaveCSS("flex-direction", "column");
     await expectNoPageOverflow(page);
