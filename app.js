@@ -1,6 +1,6 @@
 "use strict";
-var APP_VERSION = "2.4.3";
-var APP_BUILD_DATE = "2026-07-25";
+var APP_VERSION = "2.5.0";
+var APP_BUILD_DATE = "2026-07-30";
 var APP_RELEASE_CHANNEL = "Stable";
 
 if(/iPhone|iPad|iPod/i.test(navigator.userAgent)){
@@ -137,8 +137,8 @@ var BUILTIN_CATALOG = [
 ].map(function(g){ return {name:g[0], year:g[1], score:g[2], genre:g[3], note:g[4], rem:g[5]||""}; });
 
 /* ---------- storage ---------- */
-var VAULT_ARRAY_FIELDS = ["rentals","upcoming","played","dismissed","catalogExtra","vendors","queue","rentalHistory","playing","upcomingRemoved","watchedMovies","movieWatchlist","watchingMovies","hiddenMovies","watchedSeries","seriesWatchlist","watchingSeries","hiddenSeries","biglyHistory","subscriptions"];
-var VAULT_OBJECT_FIELDS = ["covers","dismissedNames","fandom","hubkeys","keys","seriesRatings","aiChats","health","finance","secureConfig","_sync"];
+var VAULT_ARRAY_FIELDS = ["rentals","upcoming","played","dismissed","catalogExtra","vendors","queue","rentalHistory","playing","upcomingRemoved","watchedMovies","movieWatchlist","watchingMovies","hiddenMovies","watchedSeries","seriesWatchlist","watchingSeries","hiddenSeries","biglyHistory","subscriptions","subscriptionGames"];
+var VAULT_OBJECT_FIELDS = ["covers","gamePlatforms","dismissedNames","fandom","hubkeys","keys","seriesRatings","aiChats","health","finance","secureConfig","_sync"];
 var HEALTH_SYNC_STORE="gamevault-sync-health-v1";
 function healthDefaults(){
   return {
@@ -256,11 +256,12 @@ function vaultSize(d){
          ((d&&d.watchedMovies)||[]).length + ((d&&d.hiddenMovies)||[]).length +
          ((d&&d.seriesWatchlist)||[]).length + ((d&&d.watchingSeries)||[]).length + ((d&&d.watchedSeries)||[]).length +
          ((d&&d.hiddenSeries)||[]).length + ((d&&d.biglyHistory)||[]).length + ((d&&d.subscriptions)||[]).length +
+         ((d&&d.subscriptionGames)||[]).length +
          ((((d&&d.health)||{}).foodLog)||[]).length + ((d&&d.finance&&d.finance.cipher)?1:0);
 }
 /* Schema migrations: bump SCHEMA_VERSION when structure changes and add an
    upgrade step below. Old data is always upgraded in place, never recreated. */
-var SCHEMA_VERSION = 11;
+var SCHEMA_VERSION = 12;
 var SYNC_COLLECTIONS=VAULT_ARRAY_FIELDS.slice();
 function mediaCanonicalId(item,kind){
   if(!item)return "";
@@ -291,7 +292,7 @@ function normalizedReleases(item,kind){
     if(item.latestDate&&!out.latestEpisode)out.latestEpisode={date:item.latestDate,source:"TMDB"};
     if(item.nextEpisode&&item.nextEpisode.date&&!out.nextEpisode)out.nextEpisode={date:item.nextEpisode.date,source:"TMDB"};
   }else if(item.date&&!out.launch){
-    out.launch={date:item.date,platform:"PS5",region:item.releaseRegion||"",source:item.src==="seed"?"Curated":item.releaseSource||"RAWG"};
+    out.launch={date:item.date,platform:(item.platforms||[]).join(" / ")||item.platform||"PS5",region:item.releaseRegion||"",source:item.src==="seed"?"Curated":item.releaseSource||"RAWG"};
   }
   return out;
 }
@@ -302,7 +303,7 @@ function normalizeStoredRecord(item,kind){
   return item;
 }
 function normalizeStoredLibrary(d){
-  ["rentals","upcoming","played","queue","rentalHistory","playing","upcomingRemoved","catalogExtra"].forEach(function(k){
+  ["rentals","upcoming","played","queue","rentalHistory","playing","upcomingRemoved","catalogExtra","subscriptionGames"].forEach(function(k){
     (d[k]||[]).forEach(function(item){normalizeStoredRecord(item,"game");});
   });
   ["watchedMovies","movieWatchlist","watchingMovies","hiddenMovies"].forEach(function(k){
@@ -351,6 +352,7 @@ function migrate(d){
   if(!d.hiddenSeries) d.hiddenSeries = []; // TV series marked Not Interested, synced
   if(!d.aiChats) d.aiChats = {}; // saved AI assistant conversation links by title/service, synced
   if(!d.biglyHistory) d.biglyHistory = []; // completed and manually removed torrents, synced
+  if(!d.subscriptionGames) d.subscriptionGames = []; // games playable through an active cloud/subscription service
   if(!d.finance || typeof d.finance!=="object" || Array.isArray(d.finance)) d.finance={}; // encrypted finance envelope only
   d.health=normalizeHealth(d.health);
   // v5: a game appears at most once per library — merge accidental duplicates
@@ -384,6 +386,7 @@ function dedupeList(arr){
   return out;
 }
 var data = load();
+syncSubscriptionPlaying();
 var syncShadow=window.GameVaultCore?GameVaultCore.sync.snapshot(data,SYNC_COLLECTIONS):{};
 function vaultCopyForExport(){
   var copy=JSON.parse(JSON.stringify(data));
@@ -925,20 +928,52 @@ function silentPullOnLoad(){
 }
 
 /* ---------- RAWG live updates ---------- */
+function rawgPlatforms(g){
+  var out=[];
+  (g&&g.platforms||[]).forEach(function(p){
+    var n=String((p.platform||{}).name||"").toLowerCase();
+    if(n.indexOf("playstation 5")>=0&&out.indexOf("PS5")<0)out.push("PS5");
+    else if((n.indexOf("xbox series")>=0||n==="xbox one")&&out.indexOf("Xbox")<0)out.push("Xbox");
+    else if(n==="pc"&&out.indexOf("PC")<0)out.push("PC");
+  });
+  return out;
+}
+function gamePlatforms(x){
+  var p=Array.isArray(x&&x.platforms)?x.platforms.slice():[];
+  if(!p.length&&x&&x.platform)p=[x.platform];
+  if(!p.length&&x&&data.gamePlatforms)p=(data.gamePlatforms[norm(x.name)]||[]).slice();
+  return p.filter(function(v,i,a){return v&&a.indexOf(v)===i;});
+}
+function gameExclusive(x){
+  var p=gamePlatforms(x);
+  if(p.indexOf("Xbox")>=0&&p.indexOf("PS5")<0)return "Xbox Exclusive";
+  if(p.indexOf("PS5")>=0&&p.indexOf("Xbox")<0)return "PS5 Exclusive";
+  return "";
+}
+function gamePlatformBadges(x){
+  var p=gamePlatforms(x),exclusive=gameExclusive(x),h="";
+  p.forEach(function(v){h+='<span class="game-pill platform-'+v.toLowerCase()+'">'+esc(v)+'</span>';});
+  if(exclusive)h+='<span class="game-pill exclusive">'+esc(exclusive)+'</span>';
+  return h;
+}
+function gamePlatformLabel(x){
+  var p=gamePlatforms(x);
+  return p.length?p.join(" · "):"PS5";
+}
 function refreshUpcoming(silent){
   var key=getKey();
   if(!key){ if(!silent){flash("Add your free RAWG API key in Settings first");toggleSettings(true);} return Promise.resolve(false); }
   if(busy) return Promise.resolve(false); busy=true; if(!silent)render();
   var t=today(); var end=new Date(t); end.setFullYear(end.getFullYear()+1);
   var url="https://api.rawg.io/api/games?key="+encodeURIComponent(key)+
-    "&platforms=187&dates="+localISO(t)+","+localISO(end)+
+    "&platforms=187,186,4&dates="+localISO(t)+","+localISO(end)+
     "&ordering=-added&page_size=30";
   return rawgFetch(url).then(function(json){
     var fetched=(json.results||[]).filter(function(g){ return g && g.name; }).map(function(g){
       return {
         id:uid(), name:g.name, date:g.released||null,
-        note:(g.genres||[]).slice(0,3).map(function(x){return x.name;}).join(" · ")||"Upcoming PS5 release",
-        want:false, src:"auto", img:g.background_image||""
+        note:(g.genres||[]).slice(0,3).map(function(x){return x.name;}).join(" · ")||"Upcoming console and PC release",
+        want:false, src:"auto", img:g.background_image||"", platforms:rawgPlatforms(g), rawgId:g.id
       };
     });
     // keep: starred entries, manual entries, seeds the user hasn't removed; replace old auto entries
@@ -949,7 +984,17 @@ function refreshUpcoming(silent){
     var added=0;
     fetched.forEach(function(g){
       if(g.img) data.covers[norm(g.name)]=g.img;
+      if(g.platforms&&g.platforms.length)data.gamePlatforms[norm(g.name)]=g.platforms;
       if(!have[norm(g.name)]){ kept.push(g); have[norm(g.name)]=1; added++; }
+      else {
+        var existing=kept.filter(function(x){return norm(x.name)===norm(g.name);})[0];
+        if(existing){
+          if(g.platforms&&g.platforms.length)existing.platforms=g.platforms;
+          if(g.rawgId)existing.rawgId=g.rawgId;
+          if(g.img&&!existing.img)existing.img=g.img;
+          if(g.date&&!existing.date)existing.date=g.date;
+        }
+      }
     });
     data.upcoming=kept;
     data.lastUpcomingSync=new Date().toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
@@ -970,7 +1015,7 @@ function refreshCatalog(silent){
   if(!key){ if(!silent){flash("Add your free RAWG API key in Settings first");toggleSettings(true);} return Promise.resolve(false); }
   if(busy) return Promise.resolve(false); busy=true; if(!silent)render();
   var url="https://api.rawg.io/api/games?key="+encodeURIComponent(key)+
-    "&platforms=187&dates="+PS5_LAUNCH+","+localISO(today())+
+    "&platforms=187,186,4&dates="+PS5_LAUNCH+","+localISO(today())+
     "&ordering=-metacritic&metacritic=80,100&page_size=40";
   return rawgFetch(url).then(function(json){
     var have={}; BUILTIN_CATALOG.forEach(function(g){ have[norm(g.name)]=1; });
@@ -978,6 +1023,7 @@ function refreshCatalog(silent){
     (json.results||[]).forEach(function(g){
       if(!g || !g.name) return;
       if(g.background_image) data.covers[norm(g.name)]=g.background_image;
+      var knownPlatforms=rawgPlatforms(g);if(knownPlatforms.length)data.gamePlatforms[norm(g.name)]=knownPlatforms;
       if(have[norm(g.name)]) return;
       extra.push({
         name:g.name,
@@ -989,7 +1035,9 @@ function refreshCatalog(silent){
         genre:(g.genres&&g.genres[0]&&g.genres[0].name)||"Other",
         note:(g.genres||[]).slice(0,3).map(function(x){return x.name;}).join(" · "),
         img:g.background_image||"",
-        tier:(g.added>=8000?"AAA":g.added>=2500?"AA":"Indie")
+        tier:(g.added>=8000?"AAA":g.added>=2500?"AA":"Indie"),
+        platforms:rawgPlatforms(g),
+        rawgId:g.id
       });
       have[norm(g.name)]=1; added++;
     });
@@ -1050,8 +1098,16 @@ function enrichScore(list,id){
     if(g.genres&&g.genres[0]&&g.genres[0].name) it.genre=g.genres[0].name;
     if(g.released&&!it.date) it.date=g.released;
     if(g.playtime) it.playtime=g.playtime;
+    var platforms=rawgPlatforms(g); if(platforms.length){it.platforms=platforms;data.gamePlatforms[norm(it.name)]=platforms;}
+    if(g.id) it.rawgId=g.id;
     it.img=g.background_image||"";
     if(it.img) data.covers[norm(it.name)]=it.img;
+    if(list==="subscriptionGames"){
+      (data.playing||[]).forEach(function(p){
+        if(String(p.subscriptionGameId)!==String(it.id))return;
+        ["img","score","rrating","genre","date","platforms","rawgId"].forEach(function(k){if(it[k]!=null)p[k]=it[k];});
+      });
+    }
     persistSilent(); maybeRender();
   }).catch(function(){});
 }
@@ -1095,6 +1151,7 @@ function gameTilePrimary(x,id){
     if(byId(data.rentals,id)) return '<button class="btn blue game-primary" data-act="return-played" data-id="'+sid+'">&#10003; Return &amp; complete</button>';
     return '<button class="btn game-primary" data-act="hist-again" data-id="'+sid+'">Rent again</button>';
   }
+  if(tab==="subscriptions") return '<button class="btn ghost danger" data-act="remove-subscription-game" data-id="'+esc(id)+'">Remove from subscription</button>';
   if(tab==="playing"){
     if(byId(data.rentals,id)) return '<button class="btn blue game-primary" data-act="return-played" data-id="'+sid+'">&#10003; Finish game</button>';
     if(byId(data.playing,id)) return '<button class="btn blue game-primary" data-act="pl-played" data-id="'+sid+'">&#10003; Finish game</button>';
@@ -1112,7 +1169,7 @@ function gameTile(x,id,sub,detailHtml){
   return '<div class="card game-tile">'+(state?'<span class="title-state state-game-'+state[1]+'">'+state[0]+'</span>':'')+'<div class="game-tile-main" role="button" tabindex="0" data-act="game-open" data-id="'+esc(String(id))+'">'+
     '<div class="game-cover-wrap">'+gameCoverHero(x)+'</div>'+
     '<div class="game-tile-info"><div class="game-tile-title" title="'+esc(x.name)+'">'+esc(x.name)+'</div>'+
-    '<div class="game-tile-meta"><span class="game-pill">'+esc(score)+'</span><span class="game-pill">'+esc(x.genre||tierFor(x.name)||"PS5")+'</span>'+(sub?'<span class="game-pill">'+sub+'</span>':'')+'</div>'+
+    '<div class="game-tile-meta"><span class="game-pill">'+esc(score)+'</span><span class="game-pill">'+esc(x.genre||tierFor(x.name)||"Game")+'</span>'+gamePlatformBadges(x)+(sub?'<span class="game-pill">'+sub+'</span>':'')+'</div>'+
     (detailHtml?'<div class="game-tile-detail">'+detailHtml+'</div>':'')+gameReleaseMeta(x)+'</div>'+
   '</div><div class="game-card-actions">'+gameTilePrimary(x,id)+'</div></div>';
 }
@@ -1121,7 +1178,7 @@ function rentalDaysChip(left){
   return '<span class="rent-days" style="color:'+urgency(left)+'">'+esc(label)+'</span>';
 }
 function gameFindById(id){
-  var lists=[data.rentals,data.rentalHistory,data.playing,data.queue,data.upcoming,data.played,fullCatalog(),webResults.items||[]];
+  var lists=[data.rentals,data.rentalHistory,data.playing,data.subscriptionGames,data.queue,data.upcoming,data.played,fullCatalog(),webResults.items||[]];
   for(var li=0; li<lists.length; li++){
     for(var i=0;i<(lists[li]||[]).length;i++){
       var x=lists[li][i];
@@ -1139,9 +1196,9 @@ function gamePage(x,actionsHtml,extraHtml){
   var context={rentals:"RENTAL",playing:"NOW PLAYING",queue:"RENTAL QUEUE",upcoming:"UPCOMING RELEASE",suggest:"DISCOVER",played:"COMPLETED"}[tab]||"GAME";
   return '<div class="game-page">'+detailToolbar("game",x)+(cinematic?'<div class="phone-detail-backdrop landscape" style="background-image:url(&quot;'+esc(cinematic)+'&quot;)"></div>':'')+
     '<div class="game-page-head"><div class="game-page-cover">'+gameCoverHero(x)+'</div>'+
-    '<div class="game-page-info"><div class="game-page-kicker"><span>PLAYSTATION 5</span><span>'+context+'</span></div>'+
+    '<div class="game-page-info"><div class="game-page-kicker"><span>'+esc(gamePlatformLabel(x).toUpperCase())+'</span><span>'+context+'</span></div>'+
     '<div class="game-page-title">'+esc(x.name)+'</div>'+
-    '<div class="game-page-sub game-page-badges">'+badges(x.name)+(x.genre?'<span class="game-pill">'+esc(x.genre)+'</span>':'')+'</div>'+
+    '<div class="game-page-sub game-page-badges">'+badges(x.name)+gamePlatformBadges(x)+(x.genre?'<span class="game-pill">'+esc(x.genre)+'</span>':'')+'</div>'+
     '<div class="game-fact-grid">'+
       '<div class="game-fact"><span>Release</span><b>'+esc(String(release))+'</b></div>'+
       '<div class="game-fact"><span>Genre</span><b>'+esc(x.genre||"Not listed")+'</b></div>'+
@@ -1150,7 +1207,7 @@ function gamePage(x,actionsHtml,extraHtml){
     '</div>'+
     gameReleaseMeta(x)+
     (x.note?'<div class="game-page-overview"><span>Overview</span><p>'+esc(x.note)+'</p></div>':'')+'</div></div>'+
-    gameLibraryDetails(x)+'<div class="detail-section-label">Actions &amp; links</div><div class="actions detail-actionbar">'+(actionsHtml||"")+linkBtns(x.name)+'</div>'+
+    gameLibraryDetails(x)+'<div class="detail-section-label">Actions &amp; links</div><div class="actions detail-actionbar">'+(actionsHtml||"")+linkBtns(x.name)+vendorSiteBtns(x.name)+'</div>'+
     (tab==="playing"?plotBlock(x.name):"")+(extraHtml||"")+'</div>';
 }
 function gameLibraryDetails(x){
@@ -1174,6 +1231,7 @@ function gameLibraryDetails(x){
 }
 function gameDetailActions(x){
   var id=String(expandedId||x.id||("name:"+norm(x.name)));
+  if(tab==="subscriptions") return '<button class="btn ghost danger" data-act="remove-subscription-game" data-id="'+esc(id)+'">Remove from subscription</button>';
   if(tab==="rentals"){
     var active=byId(data.rentals,id), hist=byId(data.rentalHistory,id);
     if(active) return '<button class="btn blue" data-act="return-played" data-id="'+esc(id)+'">Return → Played</button><button class="btn" data-act="return-only" data-id="'+esc(id)+'">Return</button><button class="btn ghost danger" data-act="remove-rental" data-id="'+esc(id)+'">Delete</button>';
@@ -1228,7 +1286,7 @@ function maybeRender(){
 var backfillBusy=false;
 var triedCovers={};
 function coverCandidate(){
-  var lists=[data.rentals,data.playing,data.queue,data.played,data.upcoming,data.rentalHistory,fullCatalog()];
+  var lists=[data.rentals,data.playing,data.subscriptionGames,data.queue,data.played,data.upcoming,data.rentalHistory,fullCatalog()];
   for(var li=0; li<lists.length; li++){
     var arr=lists[li];
     for(var i=0;i<arr.length;i++){
@@ -1314,6 +1372,10 @@ function linkBtns(name){
   return '<a class="btn" href="https://www.google.com/search?q='+encodeURIComponent(name+" PS5")+'" target="_blank" rel="noopener">⌕ Google</a>'+
          '<a class="btn" href="https://www.youtube.com/results?search_query='+encodeURIComponent(name+" PS5 trailer")+'" target="_blank" rel="noopener">▶ Trailer</a>'+
          '<a class="btn" href="https://www.youtube.com/results?search_query='+encodeURIComponent(name+" review IGN")+'" target="_blank" rel="noopener">★ IGN Review</a>';
+}
+function vendorSiteBtns(name){
+  return '<a class="btn vendor-site" href="https://thegamehub.in/?s='+encodeURIComponent(name)+'&post_type=product" target="_blank" rel="noopener">The Game Hub</a>'+
+         '<a class="btn vendor-site" href="https://gamerplanet.in/search?q='+encodeURIComponent(name)+'" target="_blank" rel="noopener">Gamer Planet</a>';
 }
 /* Fandom button + per-game reading-spot editor (shared by all Playing sections) */
 function fandomBtn(name){
@@ -1893,11 +1955,6 @@ function renderTabs(){
     document.getElementById("tabs").innerHTML="";
     return;
   }
-  if(section==="finance"){
-    var findefs=[["financeoverview","&#9636;","Monthly Summary"],["financetransactions","&#8645;","Details"],["financeloans","&#8377;","EMI & Recurring"],["financestatements","&#8682;","Gmail Sync"]];
-    document.getElementById("tabs").innerHTML=findefs.map(function(d){return '<button class="tab '+(financeTab===d[0]?"on":"")+'" data-fin-tab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';}).join("");
-    finishTabRender();return;
-  }
   if(section==="health"){
     var hd=[["healthoverview","&#9829;","Overview"],["healthfood","&#9783;","Food & Activity"],["healthlabs","&#8599;","Lab Trends"]];
     document.getElementById("tabs").innerHTML=hd.map(function(d){return '<button class="tab '+(healthTab===d[0]?"on":"")+'" data-htab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+'</button>';}).join("");
@@ -2088,14 +2145,6 @@ function renderHome(){
     '<div class="home-row"><span class="grow">Total spent</span><b style="color:#F2B84B">'+fmtMoney(totalSpent())+'</b></div>'+
     '<div class="home-foot">'+homeGoBtn("Completed","games","played")+homeGoBtn("Discover","games","suggest")+'</div></div>';
 
-  // private finance snapshot - no values are exposed while the vault is locked
-  html+='<div class="card home-card home-card-finance"><div class="home-title">&#8377; Private finance</div>';
-  if(typeof financeUnlocked==="function"&&financeUnlocked()){
-    var financeHome=financeSummary();
-    html+='<div class="home-row"><span class="grow">This month</span><b>'+financeMoney(financeHome.expense)+'</b></div><div class="home-row"><span class="grow">Monthly EMI</span><b>'+financeMoney(financeHome.emi)+'</b></div><div class="home-row"><span class="grow">Outstanding loans</span><b>'+financeMoney(financeHome.balance)+'</b></div>';
-  }else html+='<div class="meta">Encrypted and locked. Open Finance to review expenses, statements and loans.</div>';
-  html+='<div class="home-foot">'+homeGoBtn("Open Finance","finance")+'</div></div>';
-
   html+='</div>';
   return html;
 }
@@ -2284,9 +2333,39 @@ function endRental(id, toPlayed){
 var SUBSCRIPTION_PRESETS=["Xbox Game Pass Ultimate","Xbox Game Pass","PC Game Pass","NVIDIA GeForce NOW Priority","NVIDIA GeForce NOW Ultimate","PlayStation Plus","EA Play","Ubisoft+"];
 function subDaysLeft(s,t0){ return daysBetween(t0||today(),parseD(s.renewsAt)); }
 function subOptions(){ return SUBSCRIPTION_PRESETS.map(function(x){return '<option value="'+esc(x)+'">';}).join(""); }
+function activeSubscriptionIds(){
+  var ids={};(data.subscriptions||[]).forEach(function(s){if(s.active!==false)ids[String(s.id)]=1;});return ids;
+}
+function subscriptionService(id){
+  var s=byId(data.subscriptions,id);return s?s.service:"Subscription";
+}
+function syncSubscriptionPlaying(){
+  var active=activeSubscriptionIds(),games=data.subscriptionGames||[],linked={};
+  data.playing=(data.playing||[]).filter(function(p){
+    if(p.source!=="subscription")return true;
+    if(!active[String(p.subscriptionId)])return false;
+    var exists=games.some(function(g){return String(g.id)===String(p.subscriptionGameId);});
+    if(exists)linked[String(p.subscriptionGameId)]=p;
+    return exists;
+  });
+  games.forEach(function(g){
+    if(!active[String(g.subscriptionId)]||linked[String(g.id)])return;
+    if(data.playing.some(function(p){return norm(p.name)===norm(g.name);}))return;
+    data.playing.unshift({id:uid(),name:g.name,added:g.added||localISO(),platform:g.platform||"",platforms:g.platforms||[g.platform||"PC"],source:"subscription",subscriptionId:g.subscriptionId,subscriptionGameId:g.id,img:g.img||"",score:g.score||null,rrating:g.rrating||null,genre:g.genre||""});
+  });
+  data.playing=dedupeList(data.playing);
+}
+function subscriptionGameCard(g){
+  return '<div class="card game-tile subscription-game-card"><span class="title-state state-game-playing">PLAYABLE</span>'+
+    '<div class="game-tile-main" role="button" tabindex="0" data-act="game-open" data-id="'+esc(String(g.id))+'">'+
+    '<div class="game-cover-wrap">'+gameCoverHero(g)+'</div><div class="game-tile-info"><div class="game-tile-title">'+esc(g.name)+'</div>'+
+    '<div class="game-tile-meta">'+gamePlatformBadges(g)+'<span class="game-pill">'+esc(subscriptionService(g.subscriptionId))+'</span></div>'+gameReleaseMeta(g)+'</div></div>'+
+    '<div class="game-card-actions"><button class="btn ghost danger" data-act="remove-subscription-game" data-id="'+esc(String(g.id))+'">Remove</button></div></div>';
+}
 function renderSubscriptions(){
   var t0=today();
-  var list=data.subscriptions.map(function(s){ return Object.assign({},s,{left:subDaysLeft(s,t0)}); }).filter(function(s){ return matchQ(s.service); });
+  var gameMatches=(data.subscriptionGames||[]).some(function(g){return matchQ(g.name);});
+  var list=data.subscriptions.map(function(s){ return Object.assign({},s,{left:subDaysLeft(s,t0)}); }).filter(function(s){ return matchQ(s.service)||gameMatches; });
   var activeList=list.filter(function(s){ return s.active!==false; }).sort(function(a,b){ return a.left-b.left; });
   var endedList=list.filter(function(s){ return s.active===false; });
 
@@ -2295,6 +2374,8 @@ function renderSubscriptions(){
     '<input class="tab-search" id="tabSearch" placeholder="Search subscriptions…" value="'+esc(q())+'" autocomplete="off">'+
     (q()?'<button class="sclear" data-act="clear-search" title="Clear">✕</button>':'')+
     '</div></div>'+gameViewToggle();
+
+  html+='<div class="subscription-add-row"><button class="btn blue" data-act="toggle-sub-game-form">+ Add playable game</button><span class="meta">Xbox and PC games playable through GeForce NOW or another active subscription.</span></div>';
 
   if(formOpen[tab]){
     html+=
@@ -2309,6 +2390,16 @@ function renderSubscriptions(){
   }
 
   if(!list.length && !q()) html+='<div class="empty">No subscriptions tracked yet. Press <b>+ Add subscription</b> for Xbox Game Pass, GeForce NOW or any other paid gaming service — the renewal countdown starts automatically.</div>';
+  if(formOpen.subscriptionGame){
+    var activeSubs=(data.subscriptions||[]).filter(function(s){return s.active!==false;});
+    html+='<div class="form subscription-game-form"><h3>Add a GeForce NOW / subscription game</h3>'+
+      '<p class="meta">Add an Xbox or PC title available during this subscription. It will also appear in Now Playing.</p><div class="fields">'+
+      '<div class="ac-wrap f-name"><input id="sgName" class="ac-input" placeholder="Xbox or PC game name" autocomplete="off"><div class="ac-drop"></div></div>'+
+      '<select id="sgSubscription">'+activeSubs.map(function(s){return '<option value="'+esc(String(s.id))+'">'+esc(s.service)+'</option>';}).join("")+'</select>'+
+      '<select id="sgPlatform"><option value="Xbox">Xbox</option><option value="PC">PC</option></select>'+
+      '<button class="btn blue" data-act="add-subscription-game"'+(activeSubs.length?'':' disabled')+'>Add game</button>'+
+      '</div>'+(activeSubs.length?'':'<div class="meta">Add or reactivate a subscription first.</div>')+'</div>';
+  }
   if(!list.length && q()) html+=noMatch();
 
   function subCard(s){
@@ -2379,6 +2470,16 @@ function renderSubscriptions(){
 
   if(endedList.length){
     html+='<div class="sechead">Cancelled subscriptions · '+endedList.length+'</div>'+listRender(endedList);
+  }
+
+  var playable=(data.subscriptionGames||[]).filter(function(g){
+    return activeSubscriptionIds()[String(g.subscriptionId)]&&matchQ(g.name);
+  });
+  if(playable.length){
+    html+='<div class="sechead">Playable through subscriptions · '+playable.length+'</div>'+
+      '<div class="game-grid subscription-game-grid">'+playable.map(subscriptionGameCard).join("")+'</div>';
+  }else if((data.subscriptions||[]).some(function(s){return s.active!==false;})&&!q()){
+    html+='<div class="empty subscription-games-empty">No games added yet. Use <b>+ Add playable game</b> for Xbox or PC titles available through GeForce NOW.</div>';
   }
 
   if(list.length){
@@ -2742,10 +2843,15 @@ function addToQueue(name, note, score, rrating, avail, releaseDate){
 function renderUpcoming(){
   var t0=today();
   var list=data.upcoming.filter(function(g){ return matchQ(g.name); }).sort(function(a,b){
+    var ar=!!(a.date&&parseD(a.date)<t0),br=!!(b.date&&parseD(b.date)<t0);
+    if(ar!==br)return ar?1:-1;
     if(!a.date&&!b.date) return a.name.localeCompare(b.name);
     if(!a.date) return 1; if(!b.date) return -1;
+    if(ar&&br)return a.date>b.date?-1:1;
     return a.date<b.date?-1:1;
   });
+  var upcomingList=list.filter(function(g){return !(g.date&&parseD(g.date)<t0);});
+  var releasedList=list.filter(function(g){return g.date&&parseD(g.date)<t0;});
   var html = toolbar("Watch a release","Search upcoming…");
   if(formOpen[tab]){
     html+=
@@ -2765,23 +2871,28 @@ function renderUpcoming(){
   if(!list.length) html+= q()?noMatch():'<div class="empty">Nothing on the watchlist.</div>';
   if(gameView==="grid"){
     html+='<div class="game-grid">';
-    list.forEach(function(g){
+    upcomingList.forEach(function(g){
       html+=gameTile(g,g.id,"");
     });
     html+='</div>';
+    if(releasedList.length){
+      html+='<div class="sechead">Released · '+releasedList.length+'</div><div class="game-grid">';
+      releasedList.forEach(function(g){html+=gameTile(g,g.id,"Released");});
+      html+='</div>';
+    }
     if((data.upcomingRemoved||[]).length) html+='<div class="sechead">Removed games · '+data.upcomingRemoved.length+'</div>';
     return html;
   }
 
   html+='<div class="cards">';
-  list.forEach(function(g){
+  upcomingList.forEach(function(g){
     var d=g.date?parseD(g.date):null;
     var dleft=d?daysBetween(t0,d):null;
     var out=dleft!==null&&dleft<0;
     html+=
     '<div class="card"><div class="row">'+
       coverImg(g)+
-      '<div class="grow"><div class="gname">'+esc(g.name)+'</div><div class="meta">'+badges(g.name)+(g.note?esc(g.note):'')+'</div>'+gameReleaseMeta(g)+'</div>'+
+      '<div class="grow"><div class="gname">'+esc(g.name)+'</div><div class="meta">'+badges(g.name)+gamePlatformBadges(g)+(g.note?esc(g.note):'')+'</div>'+gameReleaseMeta(g)+'</div>'+
       '<button class="star '+(g.want?"on":"")+'" data-act="want" data-id="'+g.id+'" title="I want this">★</button>'+
     '</div><div class="actions">'+
       '<button class="btn" data-act="up-queue" data-id="'+g.id+'">◇ Add to queue</button>'+
@@ -2791,6 +2902,14 @@ function renderUpcoming(){
     '</div></div>';
   });
   html+='</div>';
+  if(releasedList.length){
+    html+='<div class="sechead">Released · '+releasedList.length+'</div><div class="cards">';
+    releasedList.forEach(function(g){
+      html+='<div class="card"><div class="row">'+coverImg(g)+'<div class="grow"><div class="gname">'+esc(g.name)+'</div><div class="meta">'+badges(g.name)+gamePlatformBadges(g)+(g.note?esc(g.note):"")+'</div>'+gameReleaseMeta(g)+'</div></div>'+
+        '<div class="actions"><button class="btn" data-act="up-queue" data-id="'+g.id+'">Add to queue</button><button class="btn blue" data-act="to-played" data-id="'+g.id+'">Playing it</button>'+linkBtns(g.name)+'<button class="btn ghost danger" data-act="del-upcoming" data-id="'+g.id+'">Remove</button></div></div>';
+    });
+    html+='</div>';
+  }
 
   // ---- removed games (kept out of internet refresh, restorable) ----
   var rem=(data.upcomingRemoved||[]).filter(function(g){ return matchQ(g.name); });
@@ -2800,7 +2919,7 @@ function renderUpcoming(){
     html+='<div class="cards">';
     rem.forEach(function(g){
       html+='<div class="card hist"><div class="row">'+coverImg(g)+
-        '<div class="grow"><div class="gname">'+esc(g.name)+'</div><div class="meta">'+badges(g.name)+(g.date?fmt(g.date):"Date TBC")+(g.note?' · '+esc(g.note):'')+'</div></div>'+
+        '<div class="grow"><div class="gname">'+esc(g.name)+'</div><div class="meta">'+badges(g.name)+gamePlatformBadges(g)+(g.date?fmt(g.date):"Date TBC")+(g.note?' · '+esc(g.note):'')+'</div></div>'+
       '</div><div class="actions">'+
         '<button class="btn blue" data-act="up-restore" data-id="'+g.id+'">↩ Restore</button>'+
         '<button class="btn ghost danger" data-act="up-purge" data-id="'+g.id+'">Delete for good</button>'+
@@ -2897,7 +3016,7 @@ function renderSuggest(){
     (q()?'<button class="sclear" data-act="clear-search" title="Clear">✕</button>':'')+
     '</div></div>'+
     '<div class="syncbar"><span class="syncnote">'+(data.lastCatalogSync?("Last updated "+esc(data.lastCatalogSync)):"Built-in top 40 — add API key in Settings for live data")+'</span></div>'+
-    '<div class="meta" style="margin-bottom:10px">'+(tops.length?('<span style="color:var(--text)">Personalised from your ratings</span> — more <b style="color:#2BD46B">'+esc(tops.slice(0,2).join(" & "))+'</b> up top. '):'')+'Top-rated released PS5 games — best matches first, minus everything you’ve played, rented or queued.</div>'+
+    '<div class="meta" style="margin-bottom:10px">'+(tops.length?('<span style="color:var(--text)">Personalised from your ratings</span> — more <b style="color:#2BD46B">'+esc(tops.slice(0,2).join(" & "))+'</b> up top. '):'')+'Top-rated PS5, Xbox and PC games — best matches first, minus everything you’ve played, rented or queued.</div>'+
     '<div class="chipbar">'+["All","AAA","AA","Indie"].map(function(t){
       return '<button class="gchip '+(t===sugTier?"on":"")+'" data-tier="'+t+'">'+(t==="All"?"All tiers":t)+'</button>';
     }).join("")+'</div>'+
@@ -2914,7 +3033,7 @@ function renderSuggest(){
       coverImg(g)+
       '<div class="grow">'+
         '<div class="gname">'+esc(g.name)+'</div>'+
-        '<div class="meta">'+prefChip+tierHtml+'<span style="color:'+scoreColor(g.score)+';font-weight:700">'+(g.score?("Critic "+g.score):"Unrated")+'</span> · '+(g.year||"")+' · '+esc(g.genre||"")+(g.rating?' · '+(Math.round(g.rating*10)/10)+'★ users':'')+(g.note?'<br>'+esc(g.note):'')+'</div>'+gameReleaseMeta(g)+
+        '<div class="meta">'+prefChip+tierHtml+gamePlatformBadges(g)+'<span style="color:'+scoreColor(g.score)+';font-weight:700">'+(g.score?("Critic "+g.score):"Unrated")+'</span> · '+(g.year||"")+' · '+esc(g.genre||"")+(g.rating?' · '+(Math.round(g.rating*10)/10)+'★ users':'')+(g.note?'<br>'+esc(g.note):'')+'</div>'+gameReleaseMeta(g)+
       '</div>'+
     '</div><div class="actions">'+
       '<button class="btn blue" data-act="sug-queue" data-name="'+esc(g.name)+'">◇ Add to queue</button>'+
@@ -2925,7 +3044,7 @@ function renderSuggest(){
   }
 
   html+='<div class="'+(gameView==="grid"?"game-grid":"cards")+'">';
-  shown.forEach(function(g){ html+=gameView==="grid"?gameTile(g,"name:"+norm(g.name),tierFor(g.name)||"PS5"):sugCard(g, badges(g.name)); });
+  shown.forEach(function(g){ html+=gameView==="grid"?gameTile(g,"name:"+norm(g.name),tierFor(g.name)||gamePlatformLabel(g)):sugCard(g, badges(g.name)); });
   html+='</div>';
 
   // ---- internet-wide search results ----
@@ -2946,7 +3065,7 @@ function renderSuggest(){
         html+='<div class="'+(gameView==="grid"?"game-grid":"cards")+'">';
         webShown.forEach(function(g){
           var tierHtml = g.tier ? '<span class="chip t-'+g.tier.toLowerCase()+'">'+g.tier+'</span> ' : '';
-          html+=gameView==="grid"?gameTile(g,"name:"+norm(g.name),g.tier||"PS5"):sugCard(g, tierHtml);
+          html+=gameView==="grid"?gameTile(g,"name:"+norm(g.name),g.tier||gamePlatformLabel(g)):sugCard(g, tierHtml);
         });
         html+='</div>';
       }
@@ -2977,7 +3096,7 @@ function searchWeb(qs){
   var key=getKey(); if(!key) return;
   clearTimeout(webTimer);
   webTimer=setTimeout(function(){
-    rawgFetch("https://api.rawg.io/api/games?key="+encodeURIComponent(key)+"&search="+encodeURIComponent(qs)+"&page_size=8&platforms=187")
+    rawgFetch("https://api.rawg.io/api/games?key="+encodeURIComponent(key)+"&search="+encodeURIComponent(qs)+"&page_size=8&platforms=187,186,4")
     .then(function(json){
       if((searchQ.suggest||"").trim()!==qs) return; // stale response
       var items=(json.results||[]).filter(function(g){ return g&&g.name; }).map(function(g){
@@ -2988,7 +3107,10 @@ function searchWeb(qs){
           score:g.metacritic||null,
           rating:g.rating||null,
           genre:(g.genres&&g.genres[0]&&g.genres[0].name)||"",
-          tier:(g.added>=8000?"AAA":g.added>=2500?"AA":"Indie")
+          tier:(g.added>=8000?"AAA":g.added>=2500?"AA":"Indie"),
+          platforms:rawgPlatforms(g),
+          rawgId:g.id,
+          img:g.background_image||""
         };
       });
       webResults={q:qs, items:items};
@@ -3606,7 +3728,7 @@ function rememberViewed(kind,id,title,subtab){
 function renderRecentStrip(){
   var el=document.getElementById("recentStrip"); if(!el) return;
   var list=recentViewed();
-  if(!list.length || filmExpanded || seriesExpanded || plexExpanded || expandedId || section==="biglybt" || section==="finance" || section==="library"){ el.innerHTML=""; el.style.display="none"; return; }
+  if(!list.length || filmExpanded || seriesExpanded || plexExpanded || expandedId || section==="biglybt" || section==="library"){ el.innerHTML=""; el.style.display="none"; return; }
   el.style.display="flex";
   el.innerHTML='<span class="recent-label">Recent</span>'+list.map(function(x){return '<button class="recent-item" data-act="recent-open" data-kind="'+esc(x.kind)+'" data-id="'+esc(x.id)+'" data-subtab="'+esc(x.tab)+'">'+esc(x.title)+'</button>';}).join("");
 }
@@ -3626,14 +3748,13 @@ function phoneLibraryRow(act,ds,icon,title,sub,tag,tone){
 }
 function phoneLibraryGroup(label,rows){return '<div class="phone-more-group"><span class="phone-more-label">'+esc(label)+'</span><div class="phone-more-card">'+rows.join("")+'</div></div>';}
 function renderPhoneLibrary(){
-  var biglyOk=!!biglyProxyUrl(), plexOk=!!(plexServerUrl()&&plexToken()), finVault=financeConfigured(), finOpen=financeUnlocked();
+  var biglyOk=!!biglyProxyUrl(), plexOk=!!(plexServerUrl()&&plexToken());
   return '<div class="phone-more">'+
     phoneLibraryGroup("Connected",[
       phoneLibraryRow("phone-library-open","biglybt","&#8681;","BiglyBT","Downloads, progress, speed and torrent controls",biglyOk?"Connected":"Setup needed",biglyOk?"ok":"warn"),
       phoneLibraryRow("phone-library-open","plex","&#9654;","Plex","Continue watching, library and recently added",plexOk?"Connected":"Setup needed",plexOk?"ok":"warn")
     ])+
     phoneLibraryGroup("Personal",[
-      phoneLibraryRow("phone-library-open","finance","&#8377;","Finance","Encrypted expenses, statements, loans and EMI tracking",!finVault?"Not set up":(finOpen?"Unlocked":"Locked"),!finVault?"warn":(finOpen?"ok":"muted")),
       phoneLibraryRow("phone-library-open","health","&#9829;","Health","Food, activity, lab trends and weekly progress","Local","muted")
     ])+
     phoneLibraryGroup("Vault",[
@@ -3783,13 +3904,6 @@ function render(){
     applyBackground();
     return;
   }
-  if(section==="finance"){
-    statsEl.style.display="none";
-    renderTabs();
-    renderContentHtml(renderFinance());
-    applyBackground();
-    return;
-  }
   if(section==="biglybt"){
     statsEl.style.display="none";
     renderTabs();
@@ -3819,8 +3933,8 @@ function render(){
     tvAfterRender();
     return;
   }
-  statsEl.style.display="";
-  renderStats();
+  statsEl.style.display=phoneUi()?"none":"";
+  if(!phoneUi())renderStats();
   renderTabs();
   if(gameView==="grid" && expandedId){
     renderContentHtml(renderGameDetail());
@@ -3850,10 +3964,9 @@ var section="games", filmTab="watchlist", healthTab="healthoverview", healthWeek
 function phoneUi(){ return window.matchMedia&&window.matchMedia("(max-width:720px)").matches; }
 try{ section=localStorage.getItem(SECTION_KEY)||"games"; }catch(e){}
 var requestedSection=new URLSearchParams(location.search).get("section");
-if(["games","films","series","plex","biglybt","health","finance","library"].indexOf(requestedSection)>=0)section=requestedSection;
-if(["games","films","series","plex","biglybt","health","finance","library"].indexOf(section)<0)section="games";
+if(["home","games","films","series","plex","biglybt","health","library"].indexOf(requestedSection)>=0)section=requestedSection;
+if(["home","games","films","series","plex","biglybt","health","library"].indexOf(section)<0)section="games";
 if(!phoneUi()&&section==="library")section="games";
-if(phoneUi()&&section==="home")section="games"; // Home dashboard is desktop-only
 var requestedHealthTab=new URLSearchParams(location.search).get("healthTab");
 if(["healthoverview","healthfood","healthlabs"].indexOf(requestedHealthTab)>=0)healthTab=requestedHealthTab;
 try{ filmTab=localStorage.getItem(FILMTAB_KEY)||"watchlist"; }catch(e){}
@@ -4926,7 +5039,7 @@ function renderFilms(){
     if(hidden.length){
       wh+='<div class="sechead">Not Interested · '+hidden.length+'</div><div class="cards">';
       hidden.forEach(function(m){
-        wh+='<div class="card hist"><div class="row">'+moviePoster(m)+'<div class="grow"><div class="gname">'+esc(m.title)+'</div><div class="meta">'+(m.year||"")+'</div></div><button class="btn blue" data-act="mv-unhide" data-key="'+esc(m.key)+'">Restore</button></div></div>';
+        wh+='<div class="card hist movie-hidden-card"><div class="row">'+moviePoster(m)+'<div class="grow"><div class="gname">'+esc(m.title)+'</div><div class="meta">'+(m.year||"")+'</div></div><button class="btn blue" data-act="mv-unhide" data-key="'+esc(m.key)+'">Restore</button></div></div>';
       });
       wh+='</div>';
     }
@@ -5648,7 +5761,6 @@ function switchSection(s,userGesture){
   else if(section==="plex") tabScroll["plex:"+plexTab]=window.scrollY;
   else if(section==="biglybt") tabScroll.biglybt=window.scrollY;
   else if(section==="health") tabScroll["health:"+healthTab]=window.scrollY;
-  else if(section==="finance") tabScroll["finance:"+financeTab]=window.scrollY;
   else if(section==="library"||section==="home") tabScroll[section]=window.scrollY;
   else tabScroll[tab]=window.scrollY;
   section=s; try{ localStorage.setItem(SECTION_KEY,s); }catch(e){}
@@ -5658,9 +5770,8 @@ function switchSection(s,userGesture){
     b.classList.toggle("on",active);
     if(active) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current");
   });
-  var autoFinanceUnlock=!!(userGesture&&s==="finance"&&typeof financeShouldAutoUnlock==="function"&&financeShouldAutoUnlock());
-  if(autoFinanceUnlock)financeUnlockFace();else render();
-  window.scrollTo(0, section==="films" ? (tabScroll["film:"+filmTab]||0) : section==="series" ? (tabScroll["series:"+seriesTab]||0) : section==="plex" ? (tabScroll["plex:"+plexTab]||0) : section==="biglybt" ? (tabScroll.biglybt||0) : section==="health" ? (tabScroll["health:"+healthTab]||0) : section==="finance" ? (tabScroll["finance:"+financeTab]||0) : (section==="library"||section==="home") ? (tabScroll[section]||0) : (tabScroll[tab]||0));
+  render();
+  window.scrollTo(0, section==="films" ? (tabScroll["film:"+filmTab]||0) : section==="series" ? (tabScroll["series:"+seriesTab]||0) : section==="plex" ? (tabScroll["plex:"+plexTab]||0) : section==="biglybt" ? (tabScroll.biglybt||0) : section==="health" ? (tabScroll["health:"+healthTab]||0) : (section==="library"||section==="home") ? (tabScroll[section]||0) : (tabScroll[tab]||0));
   if(section==="films") ensureFilms(filmTab);
   if(section==="films") scheduleMediaWarmup("films",filmTab);
   if(section==="series"){ ensureSeries(seriesTab); scheduleMediaWarmup("series",seriesTab); }
@@ -5680,6 +5791,7 @@ var commandSelection=0,commandVisibleItems=[];
 function commandNorm(value){return String(value||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();}
 function commandPush(list,seen,item){
   if(!item||!item.title) return;
+  if(item.section==="finance") return;
   var key=[item.kind,item.id||item.section||"",item.tab||"",item.title].join(":");
   if(seen[key]) return;
   seen[key]=1;list.push(item);
@@ -5803,10 +5915,10 @@ function openCommandItem(item){
     }
   }
 }
-function desktopTabs(){return section==="films"?FILM_ORDER:section==="series"?SERIES_ORDER:section==="plex"?PLEX_ORDER:section==="health"?["healthoverview","healthfood","healthlabs"]:section==="finance"?["financeoverview","financetransactions","financeloans","financestatements"]:section==="biglybt"?[]:TAB_ORDER;}
+function desktopTabs(){return section==="films"?FILM_ORDER:section==="series"?SERIES_ORDER:section==="plex"?PLEX_ORDER:section==="health"?["healthoverview","healthfood","healthlabs"]:section==="biglybt"?[]:TAB_ORDER;}
 function desktopOpenTabByIndex(index){
   var order=desktopTabs(),next=order[index];if(!next)return;
-  if(section==="films")switchFilmTab(next);else if(section==="series")switchSeriesTab(next);else if(section==="plex")switchPlexTab(next);else if(section==="health"){healthTab=next;render();}else if(section==="finance"){financeTab=next;render();}else switchTab(next);
+  if(section==="films")switchFilmTab(next);else if(section==="series")switchSeriesTab(next);else if(section==="plex")switchPlexTab(next);else if(section==="health"){healthTab=next;render();}else switchTab(next);
 }
 var desktopRailBtn=document.getElementById("desktopRailBtn");
 if(desktopRailBtn)desktopRailBtn.addEventListener("click",function(){try{localStorage.setItem(DESKTOP_RAIL_KEY,desktopRailCollapsed()?"0":"1");}catch(e){}applyDesktopShell();});
@@ -5854,7 +5966,7 @@ document.addEventListener("keydown",function(e){
   if(e.key==="/"&&!e.ctrlKey&&!e.altKey&&!e.metaKey){var search=[].filter.call(document.querySelectorAll(".searchwrap input"),function(x){return x.offsetParent!==null;})[0];if(search){e.preventDefault();search.focus();search.select();}return;}
   if(e.altKey&&!e.ctrlKey&&/^[1-6]$/.test(e.key)){
     e.preventDefault();var n=Number(e.key)-1;
-    if(e.shiftKey)desktopOpenTabByIndex(n);else{var sections=["games","films","series","plex","biglybt","finance","health"];if(sections[n])switchSection(sections[n]);}
+    if(e.shiftKey)desktopOpenTabByIndex(n);else{var sections=["games","films","series","plex","biglybt","health"];if(sections[n])switchSection(sections[n]);}
   }
 });
 
@@ -6140,7 +6252,7 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="phone-settings"){toggleSettings(true);return;}
   if(act==="phone-export"){document.getElementById("exportBtn").click();return;}
   if(act==="phone-restore"){document.getElementById("importBtn").click();return;}
-  if(act.indexOf("finance-")===0&&financeHandleAction(act,id))return;
+  if(act.indexOf("finance-")===0&&typeof financeHandleAction==="function"&&financeHandleAction(act,id))return;
   if(act==="phone-filter-set"){
     var ftype=b.getAttribute("data-filter"),fkind=b.getAttribute("data-kind"),fvalue=b.getAttribute("data-value")||"";
     if(fkind==="film"){
@@ -6409,6 +6521,27 @@ document.getElementById("content").addEventListener("click",function(e){
     data.rentalHistory=data.rentalHistory.filter(function(x){return x.id!==id;}); save();
   }
 
+  else if(act==="toggle-sub-game-form"){
+    formOpen.subscriptionGame=!formOpen.subscriptionGame;render();
+  }
+  else if(act==="add-subscription-game"){
+    var sgName=((document.getElementById("sgName")||{}).value||"").trim();
+    var sgSubscription=(document.getElementById("sgSubscription")||{}).value||"";
+    var sgPlatform=(document.getElementById("sgPlatform")||{}).value||"PC";
+    if(!sgName||!sgSubscription)return;
+    if((data.subscriptionGames||[]).some(function(g){return String(g.subscriptionId)===String(sgSubscription)&&norm(g.name)===norm(sgName);})){flash("This game is already listed for that subscription");return;}
+    var sgId=uid();
+    data.subscriptionGames.unshift({id:sgId,subscriptionId:sgSubscription,name:sgName,platform:sgPlatform,platforms:[sgPlatform],added:localISO()});
+    formOpen.subscriptionGame=false;syncSubscriptionPlaying();save();flash("Game added to Subscription and Now Playing");
+    enrichScore("subscriptionGames",sgId);
+  }
+  else if(act==="remove-subscription-game"){
+    var sg=byId(data.subscriptionGames,id);
+    confirmDestructive('Remove "'+(sg?sg.name:"this game")+'" from the subscription library and Now Playing?',"Remove subscription game",function(){
+      data.subscriptionGames=(data.subscriptionGames||[]).filter(function(g){return String(g.id)!==String(id);});
+      syncSubscriptionPlaying();save();flash("Subscription game removed");
+    });
+  }
   else if(act==="add-subscription"){
     var svc=document.getElementById("sService").value.trim(); if(!svc) return;
     var sstart=document.getElementById("sStart").value||localISO();
@@ -6433,7 +6566,7 @@ document.getElementById("content").addEventListener("click",function(e){
     }
   }
   else if(act==="cancel-subscription"){
-    var cs=byId(data.subscriptions,id); if(cs){ cs.active=false; save(); flash(cs.service+" marked cancelled"); }
+    var cs=byId(data.subscriptions,id); if(cs){ cs.active=false; syncSubscriptionPlaying();save(); flash(cs.service+" marked cancelled"); }
   }
   else if(act==="reactivate-subscription"){
     var rs2=byId(data.subscriptions,id);
@@ -6441,14 +6574,15 @@ document.getElementById("content").addEventListener("click",function(e){
       rs2.active=true;
       var cyc2=Math.max(1,Number(rs2.cycleDays)||30),rn=today(); rn.setDate(rn.getDate()+cyc2);
       rs2.renewsAt=localISO(rn);
+      syncSubscriptionPlaying();
       save(); flash("Reactivated — "+cyc2+"-day countdown restarted");
     }
   }
   else if(act==="remove-subscription"){
     var rname=(byId(data.subscriptions,id)||{}).service||"this subscription";
-    if(phoneUi()){tvConfirm('Delete "'+rname+'" and its spending record?',"Delete subscription",function(){data.subscriptions=data.subscriptions.filter(function(x){return x.id!==id;});save();flash("Subscription deleted");});return;}
+    if(phoneUi()){tvConfirm('Delete "'+rname+'" and its spending record?',"Delete subscription",function(){data.subscriptions=data.subscriptions.filter(function(x){return x.id!==id;});data.subscriptionGames=(data.subscriptionGames||[]).filter(function(g){return String(g.subscriptionId)!==String(id);});syncSubscriptionPlaying();save();flash("Subscription deleted");});return;}
     if(!confirm('Delete "'+rname+'" and its spending record?')) return;
-    data.subscriptions=data.subscriptions.filter(function(x){return x.id!==id;}); save(); flash("Subscription deleted");
+    data.subscriptions=data.subscriptions.filter(function(x){return x.id!==id;});data.subscriptionGames=(data.subscriptionGames||[]).filter(function(g){return String(g.subscriptionId)!==String(id);});syncSubscriptionPlaying();save(); flash("Subscription deleted");
   }
 
   else if(act==="sync-upcoming"){ refreshUpcoming(); }
@@ -6689,7 +6823,7 @@ function handleVendorNew(sel){
 }
 
 document.getElementById("content").addEventListener("change",function(e){
-  if(financeHandleChange(e.target))return;
+  if(typeof financeHandleChange==="function"&&financeHandleChange(e.target))return;
   var fs=e.target.closest(".film-sort");
   if(fs){ filmSort=fs.value; try{localStorage.setItem(FILM_SORT_KEY,filmSort);}catch(err){} render(); return; }
   var ssrt=e.target.closest(".series-sort");
@@ -6914,7 +7048,7 @@ document.getElementById("content").addEventListener("keydown",function(e){
   if(e.key!=="Enter") return;
   if(e.target.id==="financePin"){e.preventDefault();var unlock=document.querySelector('[data-act="finance-unlock"]');if(unlock)unlock.click();return;}
   if(e.target.id==="financePinAgain"){e.preventDefault();var setup=document.querySelector('[data-act="finance-setup"]');if(setup)setup.click();return;}
-  var map={rName:"add-rental",uName:"add-upcoming",qName:"add-queue",pName:"add-played",plName:"add-playing"};
+  var map={rName:"add-rental",uName:"add-upcoming",qName:"add-queue",pName:"add-played",plName:"add-playing",sgName:"add-subscription-game"};
   var actName=map[e.target.id];
   if(actName){
     e.preventDefault();
@@ -6925,7 +7059,7 @@ document.getElementById("content").addEventListener("keydown",function(e){
 
 /* ---------- per-tab search + autocomplete (input delegation) ---------- */
 document.getElementById("content").addEventListener("input",function(e){
-  if(financeHandleInput(e.target))return;
+  if(typeof financeHandleInput==="function"&&financeHandleInput(e.target))return;
   if(e.target.id==="plexSearch"){
     plexSearch=e.target.value;
     var plexPos=e.target.selectionStart;
@@ -7003,7 +7137,7 @@ function handleAc(inp){
   clearTimeout(acTimer);
   var seq=++acSeq;
   acTimer=setTimeout(function(){
-    rawgFetch("https://api.rawg.io/api/games?key="+encodeURIComponent(key)+"&search="+encodeURIComponent(qs)+"&page_size=6&platforms=187")
+    rawgFetch("https://api.rawg.io/api/games?key="+encodeURIComponent(key)+"&search="+encodeURIComponent(qs)+"&page_size=6&platforms=187,186,4")
     .then(function(json){
       if(seq!==acSeq) return;
       if(!document.body.contains(inp) || inp.value.trim()!==qs) return;

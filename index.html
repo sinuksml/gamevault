@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="Sinu Game Vault">
 <meta name="theme-color" content="#0A0D13">
 <meta name="color-scheme" content="dark light">
-<meta name="description" content="A private personal dashboard for games, movies, TV shows, Plex, BiglyBT, health, finance tracking and cloud backup.">
+<meta name="description" content="A private personal dashboard for games, movies, TV shows, Plex, BiglyBT, health and cloud backup.">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash-portrait.png">
@@ -17,7 +17,7 @@
 <link rel="apple-touch-startup-image" href="splash-portrait.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Sinu Game Vault — PS5 Tracker</title>
-<link rel="stylesheet" href="app.css?v=2.4.3">
+<link rel="stylesheet" href="app.css?v=2.5.0">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -38,6 +38,7 @@
   <div class="sub">PS5 tracker &middot; rentals &middot; playing now &middot; watchlist &middot; library <span id="syncStatus" role="status" aria-live="polite" style="color:var(--muted)"></span></div>
   <div class="sectionsw" id="sectionSw">
     <span class="rail-group-label desktop-only">Library</span>
+    <button data-section="home" class="phone-only"><span class="section-icon">&#8962;</span><span class="section-label">Home</span></button>
     <button data-section="games" class="on" aria-current="page"><span class="section-icon">&#127918;</span><span class="section-label">Games</span></button>
     <button data-section="films"><span class="section-icon">&#127916;</span><span class="section-label">Movies</span></button>
     <button data-section="series"><span class="section-icon">&#128250;</span><span class="section-label">TV Shows</span></button>
@@ -45,7 +46,6 @@
     <button data-section="plex"><span class="section-icon">&#9654;</span><span class="section-label"><span class="desktop-label">Plex Library</span><span class="mobile-label">Plex</span></span></button>
     <button data-section="biglybt" class="desktop-only"><span class="section-icon">&#8681;</span><span class="section-label">BiglyBT</span></button>
     <span class="rail-group-label desktop-only">Personal</span>
-    <button data-section="finance" class="desktop-only"><span class="section-icon" aria-hidden="true">&#8377;</span><span class="section-label">Finance</span></button>
     <button data-section="health" class="desktop-only"><span class="section-icon" aria-hidden="true">&#9829;</span><span class="section-label">Health</span></button>
     <button data-section="library" class="phone-only"><span class="section-icon">&#8943;</span><span class="section-label">More</span></button>
     <div class="desktop-rail-tools desktop-only" aria-label="Application utilities">
@@ -197,7 +197,6 @@
   </div>
 </div>
 
-<script src="core.js?v=2.4.3"></script>
-<script src="finance.js?v=2.4.3"></script>
-<script src="app.js?v=2.4.3"></script></body>
+<script src="core.js?v=2.5.0"></script>
+<script src="app.js?v=2.5.0"></script></body>
 </html>

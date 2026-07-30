@@ -1159,6 +1159,24 @@ html.light .detail-actionbar{background:rgba(238,243,249,.94);border-color:rgba(
 @media(max-width:720px){.finance-auth{margin:18px auto;padding:20px 15px}.finance-pin-row{flex-direction:column}.finance-pin-row .btn{min-height:46px}.finance-private-note{align-items:flex-start;flex-direction:column}.finance-private-note>div{width:100%}.finance-private-note .btn{flex:1}.finance-summary{grid-template-columns:1fr 1fr}.finance-summary>div{padding:12px}.finance-summary strong{font-size:18px}.finance-grid{grid-template-columns:1fr}.finance-wide{grid-column:auto}.finance-panel{padding:13px}.finance-bars{height:132px;gap:4px}.finance-bar-value{display:none}.finance-entry-form,.finance-loan-form{grid-template-columns:1fr 1fr}.finance-entry-form #financeTxDescription,.finance-entry-form #financeTxAccount,.finance-loan-form #financeLoanName,.finance-loan-form #financeLoanLender{grid-column:1/-1}.finance-toolbar{grid-template-columns:1fr 1fr}.finance-toolbar .searchwrap{grid-column:1/-1}.finance-table{min-width:620px}.finance-import-preview>div{grid-template-columns:72px 1fr auto}.finance-loan-grid{grid-template-columns:1fr}.finance-gmail .finance-panel-head{align-items:flex-start;flex-direction:column}.finance-gmail-query{grid-template-columns:1fr;gap:5px}.finance-gmail .finance-actions{flex-direction:column}.finance-gmail .finance-actions .btn{width:100%;min-height:44px}}
 @media(max-width:720px){.finance-security-menu{flex:1}.finance-security-menu>summary{width:100%;text-align:center}.finance-security-menu>div{position:fixed;z-index:80;right:12px;bottom:calc(74px + env(safe-area-inset-bottom));top:auto;width:calc(100vw - 24px)}}
 
+/* Subscription game library, platform identity, and compact mobile shell. */
+.subscription-add-row{display:flex;align-items:center;gap:10px;margin:10px 0 14px}
+.subscription-add-row .meta{margin:0}
+.subscription-game-grid{margin-bottom:16px}
+.subscription-game-card .game-cover-wrap{background:linear-gradient(135deg,#0e1830,#132d45)}
+.game-pill.platform-xbox{border-color:#35a854;color:#71df8a}
+.game-pill.platform-pc{border-color:#5f7ea8;color:#a9c9ef}
+.game-pill.platform-ps5{border-color:#3579d6;color:#8dbfff}
+.game-pill.exclusive{border-color:#d29a35;background:color-mix(in srgb,#d29a35 12%,transparent);color:#f0c76f;font-weight:800}
+.vendor-site{border-color:color-mix(in srgb,var(--vendor) 55%,var(--border2))}
+.movie-hidden-card .gname{max-width:100%;font-size:15px!important;line-height:1.3!important;overflow-wrap:anywhere;word-break:normal}
+@media(max-width:720px){
+  html .sectionsw{grid-template-columns:repeat(6,minmax(0,1fr))}
+  .subscription-add-row{align-items:stretch;flex-direction:column}
+  .subscription-add-row .btn{width:100%;min-height:44px}
+  .subscription-game-form .fields{grid-template-columns:1fr}
+}
+
 /* ---------- finance monthly dashboard ---------- */
 :root{--warn:var(--warning)}
 .finance-dashboard-toolbar,.finance-section-intro,.finance-details-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:12px 0}.finance-dashboard-toolbar>div{display:flex;align-items:center;gap:12px}.finance-dashboard-toolbar label{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11px;font-weight:700}.finance-dashboard-toolbar input{min-height:40px}.finance-dashboard-toolbar span{color:var(--muted);font-size:10px}
