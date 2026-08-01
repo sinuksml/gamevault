@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.5.1 - 2026-08-01
+
+- Added an eye button beside the RAWG, TMDB, OMDb, X-Plex-Token and encrypted-sync passphrase fields in web Settings so saved credentials can be temporarily revealed and checked.
+- Credential fields automatically return to password masking whenever Settings closes. The reveal control does not change, duplicate or resave the credential.
+- Added accessible labels, visible-state feedback and 44-pixel mobile tap targets for the new controls.
+
 ## v2.4.3 - 2026-07-25
 
 - The phone header no longer shrinks while scrolling. It is a sticky element in normal flow, so every collapse moved the whole page by about 70 pixels underneath your finger — that shift, not the scrolling itself, was the remaining shake. The header now keeps one constant height and nothing on the page reacts to scroll position, so scrolling never triggers layout.

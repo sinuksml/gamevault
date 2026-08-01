@@ -17,7 +17,7 @@
 <link rel="apple-touch-startup-image" href="splash-portrait.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Sinu Game Vault — PS5 Tracker</title>
-<link rel="stylesheet" href="app.css?v=2.5.0">
+<link rel="stylesheet" href="app.css?v=2.5.1">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -89,14 +89,23 @@
     <summary>Games, movies &amp; TV data services</summary>
     <p><b style="color:var(--text)">RAWG</b> supplies current game releases, artwork and recommendations.</p>
     <div class="fields">
-      <input class="f-name" id="apiKeyInput" type="password" placeholder="Paste RAWG API key here" autocomplete="off">
+      <div class="secret-input">
+        <input class="f-name" id="apiKeyInput" type="password" placeholder="Paste RAWG API key here" autocomplete="off" aria-label="RAWG API key">
+        <button class="secret-toggle" type="button" data-secret-toggle="apiKeyInput" data-secret-label="RAWG API key" aria-label="Show RAWG API key" aria-controls="apiKeyInput" aria-pressed="false" title="Show RAWG API key"><span aria-hidden="true">&#128065;</span></button>
+      </div>
       <button class="btn blue" id="saveKeyBtn">Save key</button>
     </div>
     <hr style="border:none; border-top:1px solid var(--border); margin:14px 0">
     <p><b style="color:var(--text)">TMDB and OMDb</b> supply movie and TV artwork, release information and IMDb ratings.</p>
     <div class="fields">
-      <input class="f-name" id="tmdbKeyInput" type="password" placeholder="TMDB API key (v3 auth)" autocomplete="off">
-      <input class="f-name" id="omdbKeyInput" type="password" placeholder="OMDb API key (for IMDb ratings)" autocomplete="off">
+      <div class="secret-input">
+        <input class="f-name" id="tmdbKeyInput" type="password" placeholder="TMDB API key (v3 auth)" autocomplete="off" aria-label="TMDB API key">
+        <button class="secret-toggle" type="button" data-secret-toggle="tmdbKeyInput" data-secret-label="TMDB API key" aria-label="Show TMDB API key" aria-controls="tmdbKeyInput" aria-pressed="false" title="Show TMDB API key"><span aria-hidden="true">&#128065;</span></button>
+      </div>
+      <div class="secret-input">
+        <input class="f-name" id="omdbKeyInput" type="password" placeholder="OMDb API key (for IMDb ratings)" autocomplete="off" aria-label="OMDb API key">
+        <button class="secret-toggle" type="button" data-secret-toggle="omdbKeyInput" data-secret-label="OMDb API key" aria-label="Show OMDb API key" aria-controls="omdbKeyInput" aria-pressed="false" title="Show OMDb API key"><span aria-hidden="true">&#128065;</span></button>
+      </div>
       <button class="btn blue" id="saveFilmKeysBtn">Save film keys</button>
     </div>
     <details class="setup-help"><summary>Data-service setup help</summary><p>Create a RAWG key at <a href="https://rawg.io/apidocs" target="_blank" rel="noopener">rawg.io/apidocs</a>, a TMDB v3 key under <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">TMDB settings</a>, and an OMDb key at <a href="https://www.omdbapi.com/apikey.aspx" target="_blank" rel="noopener">omdbapi.com</a>.</p></details>
@@ -113,7 +122,10 @@
     <p><b style="color:var(--text)">Plex library.</b> Connect using a secure Plex server URL and owner token.</p>
     <div class="fields">
       <input class="f-name" id="plexUrlInput" placeholder="Secure Plex server URL (https://...plex.direct:32400)" autocomplete="off">
-      <input class="f-name" id="plexTokenInput" type="password" placeholder="X-Plex-Token" autocomplete="off">
+      <div class="secret-input">
+        <input class="f-name" id="plexTokenInput" type="password" placeholder="X-Plex-Token" autocomplete="off" aria-label="X-Plex-Token">
+        <button class="secret-toggle" type="button" data-secret-toggle="plexTokenInput" data-secret-label="X-Plex-Token" aria-label="Show X-Plex-Token" aria-controls="plexTokenInput" aria-pressed="false" title="Show X-Plex-Token"><span aria-hidden="true">&#128065;</span></button>
+      </div>
       <button class="btn" id="plexDiscoverBtn">Discover Server</button>
       <button class="btn blue" id="savePlexBtn">Save Plex</button>
       <button class="btn ghost danger" id="clearPlexBtn">Disconnect</button>
@@ -159,7 +171,10 @@
           <p class="syncnote">Protect API keys and Plex/BiglyBT access with a separate passphrase before storing them in Drive. Enter the same passphrase once on each trusted device.</p>
         </div>
         <div class="fields">
-          <input class="f-name" id="secureConfigPass" type="password" minlength="8" placeholder="Secure-sync passphrase (8+ characters)" autocomplete="new-password">
+          <div class="secret-input">
+            <input class="f-name" id="secureConfigPass" type="password" minlength="8" placeholder="Secure-sync passphrase (8+ characters)" autocomplete="new-password" aria-label="Secure-sync passphrase">
+            <button class="secret-toggle" type="button" data-secret-toggle="secureConfigPass" data-secret-label="secure-sync passphrase" aria-label="Show secure-sync passphrase" aria-controls="secureConfigPass" aria-pressed="false" title="Show secure-sync passphrase"><span aria-hidden="true">&#128065;</span></button>
+          </div>
           <button class="btn blue" id="secureConfigSaveBtn" type="button">Encrypt &amp; sync credentials</button>
           <button class="btn" id="secureConfigUnlockBtn" type="button">Unlock synced credentials</button>
           <span class="syncnote" id="secureConfigStatus"></span>
@@ -197,6 +212,6 @@
   </div>
 </div>
 
-<script src="core.js?v=2.5.0"></script>
-<script src="app.js?v=2.5.0"></script></body>
+<script src="core.js?v=2.5.1"></script>
+<script src="app.js?v=2.5.1"></script></body>
 </html>

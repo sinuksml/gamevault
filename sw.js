@@ -1,11 +1,11 @@
-const CACHE_NAME = "gamevault-shell-v79";
+const CACHE_NAME = "gamevault-shell-v80";
 const IMAGE_CACHE = "gamevault-images-v1";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./app.css?v=2.5.0",
-  "./core.js?v=2.5.0",
-  "./app.js?v=2.5.0",
+  "./app.css?v=2.5.1",
+  "./core.js?v=2.5.1",
+  "./app.js?v=2.5.1",
   "./release.json",
   "./icon.png",
   "./manifest.webmanifest"

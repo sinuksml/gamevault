@@ -1,6 +1,6 @@
 "use strict";
-var APP_VERSION = "2.5.0";
-var APP_BUILD_DATE = "2026-07-30";
+var APP_VERSION = "2.5.1";
+var APP_BUILD_DATE = "2026-08-01";
 var APP_RELEASE_CHANNEL = "Stable";
 
 if(/iPhone|iPad|iPod/i.test(navigator.userAgent)){
@@ -6008,9 +6008,24 @@ function toggleShortcutsHelp(force){
 
 /* ---------- actions ---------- */
 function byId(arr,id){ for(var i=0;i<arr.length;i++) if(arr[i].id===id) return arr[i]; return null; }
+function setSecretVisibility(input,button,visible){
+  if(!input||!button)return;
+  var label=button.getAttribute("data-secret-label")||"secret";
+  input.type=visible?"text":"password";
+  button.classList.toggle("is-visible",visible);
+  button.setAttribute("aria-pressed",visible?"true":"false");
+  button.setAttribute("aria-label",(visible?"Hide ":"Show ")+label);
+  button.title=(visible?"Hide ":"Show ")+label;
+}
+function hideSettingsSecrets(){
+  document.querySelectorAll("#settingsBox [data-secret-toggle]").forEach(function(button){
+    setSecretVisibility(document.getElementById(button.getAttribute("data-secret-toggle")),button,false);
+  });
+}
 function toggleSettings(force){
   var box=document.getElementById("settingsBox");
   var show=(typeof force==="boolean")?force:(box.style.display==="none");
+  if(!show) hideSettingsSecrets();
   box.style.display=show?"block":"none";
   document.body.classList.toggle("settings-open",show);
   if(show) setMenuOpen(false);
@@ -6060,6 +6075,12 @@ var menuCloseBtn=document.getElementById("menuCloseBtn");
 if(menuCloseBtn) menuCloseBtn.addEventListener("click",function(){setMenuOpen(false);});
 var settingsCloseBtn=document.getElementById("settingsCloseBtn");
 if(settingsCloseBtn) settingsCloseBtn.addEventListener("click",function(){toggleSettings(false);});
+document.querySelectorAll("#settingsBox [data-secret-toggle]").forEach(function(button){
+  button.addEventListener("click",function(){
+    var input=document.getElementById(button.getAttribute("data-secret-toggle"));
+    setSecretVisibility(input,button,input&&input.type==="password");
+  });
+});
 document.getElementById("tabs").addEventListener("click",function(e){
   var fin=e.target.closest("[data-fin-tab]");
   if(fin){tabScroll["finance:"+financeTab]=window.scrollY;financeTab=fin.getAttribute("data-fin-tab");render();window.scrollTo(0,tabScrollTarget("finance:"+financeTab));return;}

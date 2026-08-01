@@ -214,6 +214,12 @@
   input[type="date"] { color-scheme:var(--datescheme); }
   .f-name { flex:2 1 180px; }
   .f-sm { flex:1 1 110px; }
+  .secret-input { position:relative; flex:2 1 180px; min-width:0; }
+  .secret-input .f-name { width:100%; min-width:0; padding-right:46px; }
+  .secret-toggle { position:absolute; top:50%; right:4px; width:36px; height:36px; display:grid; place-items:center; transform:translateY(-50%); border:0; border-radius:8px; background:transparent; color:var(--muted); font:600 18px/1 "Segoe UI Symbol","Segoe UI",sans-serif; cursor:pointer; }
+  .secret-toggle:hover { background:var(--btnbg); color:var(--text); }
+  .secret-toggle.is-visible { color:var(--accent); }
+  .secret-toggle.is-visible::after { content:""; position:absolute; width:23px; height:2px; border-radius:2px; background:currentColor; transform:rotate(-42deg); box-shadow:0 0 0 1px var(--inputbg); }
   textarea { width:100%; min-height:110px; resize:vertical; font-family:ui-monospace,monospace; font-size:12px; }
   .cover { width:56px; height:56px; border-radius:9px; object-fit:cover; flex-shrink:0; background:var(--btnbg); border:1px solid var(--border); }
   .cover.ph { display:flex; align-items:center; justify-content:center; color:var(--faint); font-size:20px; }
@@ -586,6 +592,8 @@ html.density-compact .toolbar{margin:9px 0}
   html .settings p{font-size:12px;line-height:1.62}
   html .settings .fields{display:grid;grid-template-columns:1fr;gap:8px}
   html .settings .fields>*{width:100%;min-width:0}
+  html .settings .secret-toggle{width:44px;min-width:44px;min-height:44px;right:2px}
+  html .settings .secret-input .f-name{padding-right:52px}
 
   html button,html .btn,html input,html select,html textarea{min-height:44px}
   html .btn{font-size:12px;padding:9px 11px}
