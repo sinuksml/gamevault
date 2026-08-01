@@ -171,6 +171,18 @@ try
     Assert(DriveService.MergeVaults(webLocal, webRemote, preferRemote: false)["webOnlyFutureField"]?["mustSurvive"]?.GetValue<bool>() == true,
         "web-only fields survive a locally-preferred Drive merge");
 
+    Console.WriteLine("Checking Wikipedia story cleanup...");
+    // Plots saved by earlier versions carry the heading, [edit], citation markers
+    // and the reference list. Only the prose should survive.
+    var dirtyStory = "Premise\n\n[ edit ]\nSet after a flu pandemic, the film centers on Hig [ 1 ] and Bangley.\n\n^ Yang, Katrina (23 May 2025). \"Some Article\". Screen Rant. Retrieved 15 October 2025.";
+    var cleanStory = CatalogService.CleanStoryText(dirtyStory);
+    Assert(!cleanStory.Contains("Premise", StringComparison.OrdinalIgnoreCase), "section heading is removed from stored plots");
+    Assert(!cleanStory.Contains("edit", StringComparison.OrdinalIgnoreCase), "edit affordance is removed");
+    Assert(!cleanStory.Contains("[ 1 ]", StringComparison.Ordinal) && !cleanStory.Contains("[1]", StringComparison.Ordinal), "citation markers are removed");
+    Assert(!cleanStory.Contains("Retrieved", StringComparison.OrdinalIgnoreCase), "reference list is removed");
+    Assert(cleanStory.StartsWith("Set after a flu pandemic", StringComparison.Ordinal), "the plot prose itself survives");
+    Assert(CatalogService.CleanStoryText("") == "" && CatalogService.CleanStoryText(null) == "", "empty story text stays empty");
+
     Console.WriteLine("GameVault native smoke checks passed");
 }
 finally

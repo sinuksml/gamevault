@@ -571,7 +571,7 @@ public partial class MainWindow : Window
                 Genre = GenreText(node),
                 Image = CoverOrPlaceholder(Text(node, "img", "poster", "cover", "posterUrl"), name),
                 Backdrop = Text(node, "backdrop", "background", "backdropUrl"),
-                Overview = Text(node, "overview", "plot", "summary", "description"),
+                Overview = CatalogService.CleanStoryText(Text(node, "overview", "plot", "summary", "description")),
                 Providers = providerText,
                 Vendor = QueueAvailability(node, Text(node, "vendor")),
                 Note = Text(node, "note", "remarks"),
@@ -1744,7 +1744,7 @@ public partial class MainWindow : Window
                 await _catalog.EnrichMediaAsync(row.Source, row.MediaType);
                 changed = true;
             }
-            var cachedWikipedia = Text(row.Source, "wikipediaPlot");
+            var cachedWikipedia = CatalogService.CleanStoryText(Text(row.Source, "wikipediaPlot"));
             if (cachedWikipedia.Length == 0)
             {
                 DetailOverview.Text = "Loading Wikipedia story...";
@@ -1781,7 +1781,7 @@ public partial class MainWindow : Window
         DetailPosterFrame.Height = refreshed.IsPortraitArt ? 390 : 146;
         DetailPoster.Source = ImageSource(refreshed.Image, 420);
         DetailBackdrop.Source = ImageSource(refreshed.Backdrop.Length > 0 ? refreshed.Backdrop : refreshed.Image, 1280);
-        DetailOverview.Text = Text(refreshed.Source, "wikipediaPlot") is { Length: > 0 } wikipediaPlot ? wikipediaPlot : refreshed.Overview.Length > 0 ? refreshed.Overview : refreshed.MediaType == "Game" && refreshed.Collection != "playing"
+        DetailOverview.Text = CatalogService.CleanStoryText(Text(refreshed.Source, "wikipediaPlot")) is { Length: > 0 } wikipediaPlot ? wikipediaPlot : refreshed.Overview.Length > 0 ? refreshed.Overview : refreshed.MediaType == "Game" && refreshed.Collection != "playing"
             ? "Story summaries are available for games in Now Playing." : "No matching summary was found for this title.";
         DetailAvailability.Text = refreshed.Availability.Length > 0 ? refreshed.Availability : "No streaming or rental provider information found.";
         DetailRating.Text = $"IMDb / rating  {refreshed.RatingText}";

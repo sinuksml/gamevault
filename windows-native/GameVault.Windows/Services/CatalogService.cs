@@ -192,8 +192,13 @@ public sealed class CatalogService
             }
             if (string.IsNullOrWhiteSpace(page)) return "";
             var parsed = await GetAsync($"https://en.wikipedia.org/w/api.php?action=parse&page={Uri.EscapeDataString(page)}&prop=sections&format=json&origin=*");
+            // Prefer a real plot section over a weaker stand-in, rather than taking
+            // whichever happens to appear first in the article.
             var storySection = (parsed["parse"]?["sections"] as JsonArray)?.OfType<JsonObject>()
-                .FirstOrDefault(section => Regex.IsMatch(section["line"]?.ToString() ?? "", "(plot|story|synopsis|premise|setting|narrative)", RegexOptions.IgnoreCase));
+                .Select(section => new { Section = section, Rank = StorySectionRank(section["line"]?.ToString() ?? "") })
+                .Where(entry => entry.Rank > 0)
+                .OrderByDescending(entry => entry.Rank)
+                .FirstOrDefault()?.Section;
             var sectionIndex = storySection?["index"]?.ToString();
             if (!string.IsNullOrWhiteSpace(sectionIndex))
             {
@@ -202,21 +207,92 @@ public sealed class CatalogService
                 var plot = WikipediaPlainText(html);
                 if (plot.Length > 0) return plot;
             }
-            var extract = await GetAsync($"https://en.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=true&exsectionformat=plain&titles={Uri.EscapeDataString(page)}&format=json&origin=*");
+            // No plot section: fall back to the article's opening summary only.
+            // This used to return the entire article, headings and all.
+            var extract = await GetAsync($"https://en.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=true&exintro=true&redirects=1&titles={Uri.EscapeDataString(page)}&format=json&origin=*");
             var pages = extract["query"]?["pages"] as JsonObject;
-            return pages?.FirstOrDefault().Value?["extract"]?.ToString() ?? "";
+            var intro = pages?.FirstOrDefault().Value?["extract"]?.ToString() ?? "";
+            return Regex.Replace(intro, @"\n\s*\n+", "\n\n").Trim();
         }
         catch { return ""; }
     }
 
+    /// <summary>
+    /// Cleans story text that is already plain text.
+    ///
+    /// Plots fetched by earlier versions were saved into the vault with the
+    /// section heading, "[edit]", citation markers and the reference list still
+    /// attached. Those copies are not re-fetched, so they are tidied on the way
+    /// out instead of leaving old entries looking wrong until a manual refresh.
+    /// </summary>
+    public static string CleanStoryText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "";
+        var value = Regex.Replace(text, @"\[\s*\d+\s*\]", "");
+        value = Regex.Replace(value, @"\[\s*(edit|citation needed|clarification needed|according to whom|which\?)\s*\]", "", RegexOptions.IgnoreCase);
+        var lines = value.Split('\n')
+            .Where(line => !Regex.IsMatch(line.Trim(), @"^\^"))
+            .ToList();
+        // A leading line that is only a section name is the stripped heading.
+        while (lines.Count > 0 && (lines[0].Trim().Length == 0
+               || Regex.IsMatch(lines[0].Trim(), @"^(plot|synopsis|story|premise|setting|narrative)(\s+summary)?$", RegexOptions.IgnoreCase)))
+            lines.RemoveAt(0);
+        value = string.Join("\n", lines);
+        value = Regex.Replace(value, @"[ \t]+", " ");
+        return Regex.Replace(value, @"\n\s*\n+", "\n\n").Trim();
+    }
+
+    /// <summary>
+    /// How well a section heading matches "the story". Higher wins; 0 means the
+    /// section is not a story section at all.
+    /// </summary>
+    private static int StorySectionRank(string heading)
+    {
+        var value = heading.Trim();
+        if (Regex.IsMatch(value, @"^plot", RegexOptions.IgnoreCase)) return 6;
+        if (Regex.IsMatch(value, @"^synopsis", RegexOptions.IgnoreCase)) return 5;
+        if (Regex.IsMatch(value, @"^story", RegexOptions.IgnoreCase)) return 4;
+        if (Regex.IsMatch(value, @"^premise", RegexOptions.IgnoreCase)) return 3;
+        if (Regex.IsMatch(value, @"^(narrative|setting)", RegexOptions.IgnoreCase)) return 2;
+        return 0;
+    }
+
+    /// <summary>
+    /// Reduces a Wikipedia section to just its prose.
+    ///
+    /// The raw section HTML carries far more than the plot: the section heading,
+    /// the "[edit]" affordance beside it, citation superscripts, and the article's
+    /// reference list — which is why the story panel used to end with lines like
+    /// "^ Yang, Katrina (23 May 2025). ... Retrieved 15 October 2025."
+    /// </summary>
     private static string WikipediaPlainText(string html)
     {
         if (string.IsNullOrWhiteSpace(html)) return "";
-        var value = Regex.Replace(html, "<(script|style)[^>]*>.*?</\\1>", "", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-        value = Regex.Replace(value, "</p>|<br\\s*/?>|</li>|</h[1-6]>", "\n\n", RegexOptions.IgnoreCase);
+        const RegexOptions Block = RegexOptions.IgnoreCase | RegexOptions.Singleline;
+
+        // Whole elements that are never plot prose.
+        var value = Regex.Replace(html, "<(script|style|table|figure|figcaption)[^>]*>.*?</\\1>", "", Block);
+        // The reference list rendered at the end of the section.
+        value = Regex.Replace(value, "<ol[^>]*class=\"[^\"]*references[^\"]*\"[^>]*>.*?</ol>", "", Block);
+        // Citation markers, and the edit link that sits inside the heading.
+        value = Regex.Replace(value, "<sup[^>]*>.*?</sup>", "", Block);
+        value = Regex.Replace(value, "<span[^>]*class=\"[^\"]*mw-editsection[^\"]*\"[^>]*>.*?</span>", "", Block);
+        // The heading itself is redundant — the panel is already titled Story / Summary.
+        value = Regex.Replace(value, "<h[1-6][^>]*>.*?</h[1-6]>", "", Block);
+
+        value = Regex.Replace(value, "</p>|<br\\s*/?>|</li>", "\n\n", RegexOptions.IgnoreCase);
         value = Regex.Replace(value, "<[^>]+>", " ");
         value = WebUtility.HtmlDecode(value);
-        value = Regex.Replace(value, @"\[[0-9]+\]", "");
+
+        // Safety net for anything the element rules missed. Stripping tags inserts
+        // spaces, so a citation arrives as "[ 1 ]" rather than "[1]".
+        value = Regex.Replace(value, @"\[\s*\d+\s*\]", "");
+        value = Regex.Replace(value, @"\[\s*(edit|citation needed|clarification needed|according to whom|which\?)\s*\]", "", RegexOptions.IgnoreCase);
+
+        // Drop leftover reference entries, which always begin with the back-link caret.
+        var lines = value.Split('\n').Where(line => !Regex.IsMatch(line.Trim(), @"^\^")).ToArray();
+        value = string.Join("\n", lines);
+
         value = Regex.Replace(value, @"[ \t]+", " ");
         value = Regex.Replace(value, @"\n\s*\n+", "\n\n").Trim();
         return value;

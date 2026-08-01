@@ -1,4 +1,12 @@
-# Sinu Game Vault for Windows 2.4.0
+# Sinu Game Vault for Windows 2.4.1
+
+## 2.4.1 Wikipedia plot only
+
+- The story panel now shows the plot text and nothing else. It previously carried the section heading, Wikipedia's "[edit]" link, citation markers such as [1], and the article's whole reference list, so a summary ended with lines like "^ Author (23 May 2025). Title. Publisher. Retrieved 15 October 2025."
+- Infoboxes, tables and figure captions are dropped from the extracted section.
+- A real "Plot" section is now preferred over a weaker stand-in such as "Premise" or "Setting" when an article has both.
+- When an article has no story section at all, only the opening summary is used instead of the entire article.
+- Plots saved by earlier versions are cleaned when they are displayed, so existing titles look right without needing Refresh plot.
 
 ## 2.4.0 interface redesign
 
