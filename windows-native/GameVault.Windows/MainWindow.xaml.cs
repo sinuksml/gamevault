@@ -99,6 +99,7 @@ public partial class MainWindow : Window
         await RunBusyAsync("Loading native vault…", async () => await _vault.LoadAsync());
         VaultPathText.Text = _vault.VaultPath;
         AppVersionText.Text = $"Version {AppVersion} — Native Windows edition";
+        VersionText.Text = $"Windows {AppVersion}";
         DriveClientIdBox.Text = _drive.ClientId;
         DriveClientSecretBox.Password = _drive.ClientSecret;
         RawgKeyBox.Password = _catalog.RawgKey;
@@ -612,17 +613,21 @@ public partial class MainWindow : Window
                 "rating" => source.OrderByDescending(row => row.Rating),
                 _ => source.OrderByDescending(row => ParseSortDate(row.Date)).ThenBy(row => row.Name)
             };
-        /* Rebuild inside a single deferred refresh. Clearing and re-adding row by
-           row made the view re-sort and re-group on every one of those changes,
-           which is what made switching tabs on a large library stutter. */
-        using (_rowsView.DeferRefresh())
-        {
-            _rows.Clear();
-            foreach (var row in source.Where(x => query.Length == 0 || x.Name.Contains(query, StringComparison.OrdinalIgnoreCase))) _rows.Add(row);
-            _rowsView.GroupDescriptions.Clear();
-            if ((_section == "Games" || _section == "Movies" && _mediaMode is "mlott" or "mlup") && _rows.Any(row => row.GroupName.Length > 0))
-                _rowsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(LibraryRow.GroupName)));
-        }
+        /* Suppress binding notifications while rebuilding the underlying collection
+           so the view is not re-sorted and re-grouped once per added row — that was
+           the switching-tabs stutter on a large library.
+
+           DeferRefresh cannot be used here: the same view is bound to several
+           ItemsControls at once, so WPF touches CurrentPosition for its selection
+           cursor mid-block and throws "Cannot change... while Refresh is being
+           deferred". Rebuilding into a fresh list and swapping the ItemsSource
+           in one step gives the same benefit without that hazard. */
+        _rowsView.GroupDescriptions.Clear();
+        var filtered = source.Where(x => query.Length == 0 || x.Name.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+        _rows.Clear();
+        foreach (var row in filtered) _rows.Add(row);
+        if ((_section == "Games" || _section == "Movies" && _mediaMode is "mlott" or "mlup") && _rows.Any(row => row.GroupName.Length > 0))
+            _rowsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(LibraryRow.GroupName)));
         StatusText.Text = $"{_rows.Count} item{(_rows.Count == 1 ? "" : "s")}";
     }
 

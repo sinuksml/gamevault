@@ -91,7 +91,7 @@
                 </StackPanel>
                 <StackPanel DockPanel.Dock="Bottom" VerticalAlignment="Bottom">
                     <Button Content="⚙   Settings" Tag="Settings" Style="{StaticResource RailButton}" Click="Navigate_Click" />
-                    <TextBlock x:Name="VersionText" Text="Windows 2.2.0" Style="{StaticResource MutedText}" Margin="14,8" />
+                    <TextBlock x:Name="VersionText" Style="{StaticResource MutedText}" Margin="14,8" />
                 </StackPanel>
             </DockPanel>
         </Border>
