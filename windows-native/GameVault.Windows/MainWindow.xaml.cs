@@ -1,0 +1,1978 @@
+using Microsoft.Win32;
+using SinuGameVault.Models;
+using SinuGameVault.Services;
+using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.Globalization;
+using System.Text.Json.Nodes;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Threading;
+using System.ComponentModel;
+using System.Windows.Input;
+
+namespace SinuGameVault;
+
+public partial class MainWindow : Window
+{
+    private readonly VaultRepository _vault = new();
+    private readonly DriveService _drive;
+    private readonly PlexService _plex = new();
+    private readonly BiglyBtService _bigly = new();
+    private readonly CatalogService _catalog = new();
+    private readonly AvailabilityService _availability = new();
+    private readonly ObservableCollection<LibraryRow> _rows = [];
+    private readonly ObservableCollection<LibraryRow> _plexRows = [];
+    private readonly ObservableCollection<TorrentRow> _torrentRows = [];
+    private readonly ObservableCollection<TorrentHistoryRow> _torrentHistoryRows = [];
+    private readonly ICollectionView _rowsView;
+    private readonly DispatcherTimer _driveSyncTimer = new() { Interval = TimeSpan.FromSeconds(2.5) };
+    private readonly DispatcherTimer _biglyRefreshTimer = new() { Interval = TimeSpan.FromSeconds(2) };
+    private JsonObject? _undoRoot;
+    private bool _syncingDrive;
+    private string _section = "Overview";
+    private string _previousSection = "Overview";
+    private string _gameCollection = "rentals";
+    private string _mediaMode = "watchlist";
+    private LibraryRow? _selectedRow;
+    private bool _gamesListView;
+    private bool _mediaListView;
+    private string _plexMode = "continue";
+    private bool _biglyHistoryMode;
+    private string _theme = "dark";
+    private bool _loadingSettings;
+    private bool _refreshingBigly;
+    private DateTime _lastBiglyInteraction = DateTime.Now;
+    private readonly HashSet<string> _catalogRefreshes = [];
+
+    public MainWindow()
+    {
+        InitializeComponent();
+        _drive = new DriveService(_vault.StorageFolder);
+        _rowsView = CollectionViewSource.GetDefaultView(_rows);
+        GamesCards.ItemsSource = _rowsView;
+        GamesList.ItemsSource = _rowsView;
+        MediaCards.ItemsSource = _rowsView;
+        MediaList.ItemsSource = _rowsView;
+        PlexCards.ItemsSource = _plexRows;
+        BiglyGrid.ItemsSource = _torrentRows;
+        BiglyHistoryGrid.ItemsSource = _torrentHistoryRows;
+        _gamesListView = CredentialStore.Read("SinuGameVault/Preferences/GamesView") == "list";
+        _mediaListView = CredentialStore.Read("SinuGameVault/Preferences/MediaView") == "list";
+        _theme = CredentialStore.Read("SinuGameVault/Preferences/Theme") is { Length: > 0 } savedTheme ? savedTheme : "dark";
+        _section = CredentialStore.Read("SinuGameVault/Preferences/LastSection") is { Length: > 0 } savedSection ? savedSection : "Overview";
+        ApplyViewPreferences();
+        ApplyTheme();
+        _driveSyncTimer.Tick += DriveSyncTimer_Tick;
+        _biglyRefreshTimer.Tick += BiglyRefreshTimer_Tick;
+        _vault.Saved += (_, _) => ScheduleDriveSync();
+        PreviewMouseDown += BiglyInteraction;
+        PreviewKeyDown += BiglyInteraction;
+        Loaded += Window_Loaded;
+    }
+
+    private async void Window_Loaded(object sender, RoutedEventArgs e)
+    {
+        await RunBusyAsync("Loading native vault…", async () => await _vault.LoadAsync());
+        VaultPathText.Text = _vault.VaultPath;
+        DriveClientIdBox.Text = _drive.ClientId;
+        DriveClientSecretBox.Password = _drive.ClientSecret;
+        RawgKeyBox.Password = _catalog.RawgKey;
+        TmdbKeyBox.Password = _catalog.TmdbKey;
+        OmdbKeyBox.Password = _catalog.OmdbKey;
+        PlexUrlBox.Text = _plex.ServerUrl;
+        PlexTokenBox.Password = _plex.Token;
+        BiglyEndpointBox.Text = _bigly.Endpoint;
+        _loadingSettings = true;
+        BiglyAutoRemoveBox.IsChecked = !string.Equals(_vault.Root["biglyAutoRemoveCompleted"]?.ToString(), "false", StringComparison.OrdinalIgnoreCase);
+        _loadingSettings = false;
+        GameSortBox.SelectedIndex = 0;
+        MediaSortBox.SelectedIndex = 0;
+        UpdateDriveStatus();
+        RefreshAll();
+        if (_drive.Connected) await SyncDriveAsync(silent: true);
+    }
+
+    private void Navigate_Click(object sender, RoutedEventArgs e)
+    {
+        _previousSection = _section;
+        _section = (sender as Button)?.Tag?.ToString() ?? "Overview";
+        CredentialStore.Save("SinuGameVault/Preferences/LastSection", _section);
+        ShowSection();
+    }
+
+    private void ShowSection()
+    {
+        UpdateRailSelection();
+        if (_section != "BiglyBT") _biglyRefreshTimer.Stop();
+        OverviewPage.Visibility = Visibility.Collapsed;
+        GamesPage.Visibility = Visibility.Collapsed;
+        MediaPage.Visibility = Visibility.Collapsed;
+        PlaceholderPage.Visibility = Visibility.Collapsed;
+        PlexPage.Visibility = Visibility.Collapsed;
+        BiglyPage.Visibility = Visibility.Collapsed;
+        HealthPage.Visibility = Visibility.Collapsed;
+        SettingsPage.Visibility = Visibility.Collapsed;
+        SearchBox.IsEnabled = _section is "Games" or "Movies" or "Series";
+        SearchBox.Text = "";
+
+        switch (_section)
+        {
+            case "Overview":
+                PageTitle.Text = "Overview"; PageSubtitle.Text = "Your library at a glance"; OverviewPage.Visibility = Visibility.Visible; RefreshDashboard(); break;
+            case "Games":
+                PageTitle.Text = "Games"; PageSubtitle.Text = "Rentals, subscriptions, playing, queue and completed games"; GamesPage.Visibility = Visibility.Visible; RefreshGames(); break;
+            case "Movies":
+                PageTitle.Text = "Movies"; PageSubtitle.Text = "Watchlist, releases, discovery and history"; MediaPage.Visibility = Visibility.Visible; BuildMediaTabs(); RefreshMedia(); _ = EnsureCurrentCatalogAsync(); break;
+            case "Series":
+                PageTitle.Text = "TV Shows"; PageSubtitle.Text = "Watchlist, new episodes, regional discovery and history"; MediaPage.Visibility = Visibility.Visible; BuildMediaTabs(); RefreshMedia(); _ = EnsureCurrentCatalogAsync(); break;
+            case "Plex":
+                PageTitle.Text = "Plex"; PageSubtitle.Text = "Continue watching and manage your Shield library"; PlexPage.Visibility = Visibility.Visible; _ = RefreshPlexAsync(); break;
+            case "BiglyBT":
+                PageTitle.Text = "BiglyBT"; PageSubtitle.Text = "Native download status, controls and history"; BiglyPage.Visibility = Visibility.Visible; _lastBiglyInteraction = DateTime.Now; _biglyRefreshTimer.Start(); _ = RefreshBiglyAsync(); break;
+            case "Health":
+                PageTitle.Text = "Health"; PageSubtitle.Text = "Weekly nutrition, activity and lab tracking"; HealthPage.Visibility = Visibility.Visible; RefreshHealth(); break;
+            case "Settings":
+                PageTitle.Text = "Settings"; PageSubtitle.Text = "Data migration, backup and native services"; SettingsPage.Visibility = Visibility.Visible; break;
+            default:
+                PageTitle.Text = _section;
+                PageSubtitle.Text = "Native Windows integration";
+                PlaceholderTitle.Text = $"{_section} integration";
+                PlaceholderMessage.Text = "This module is not available.";
+                PlaceholderPage.Visibility = Visibility.Visible;
+                break;
+        }
+        UpdateSectionBackdrop();
+    }
+
+    private void UpdateRailSelection()
+    {
+        foreach (var button in RailNavigation.Children.OfType<Button>().Where(button => button.Tag is not null))
+        {
+            var selected = string.Equals(button.Tag?.ToString(), _section, StringComparison.OrdinalIgnoreCase);
+            button.Background = selected ? (System.Windows.Media.Brush)FindResource("SelectedBrush") : System.Windows.Media.Brushes.Transparent;
+            button.BorderBrush = selected ? (System.Windows.Media.Brush)FindResource("AccentBrush") : System.Windows.Media.Brushes.Transparent;
+        }
+    }
+
+    private void UpdateSectionBackdrop()
+    {
+        IEnumerable<LibraryRow> candidates = _section switch
+        {
+            "Movies" => ReadNativeCatalog("movies", "uphw"),
+            "Series" => ReadNativeCatalog("series", "seriesupcoming"),
+            "BiglyBT" => ReadNativeCatalog("movies", "bluray"),
+            "Plex" when _plexRows.Count > 0 => _plexRows,
+            _ => ReadCollection("upcoming")
+        };
+        var featured = candidates.Where(row => row.DaysLeft is null or >= 0 || _section == "BiglyBT").OrderBy(row => row.DaysLeft ?? int.MaxValue).FirstOrDefault()
+            ?? candidates.FirstOrDefault();
+        var image = featured?.Backdrop.Length > 0 ? featured.Backdrop : featured?.Image ?? "";
+        SectionBackdrop.Source = ImageSource(image);
+        FeaturedTitleText.Text = featured is null ? "" : $"Featured: {featured.Name}";
+    }
+
+    private void RefreshAll()
+    {
+        RefreshDashboard();
+        ShowSection();
+        StatusText.Text = $"Loaded schema {_vault.Root["version"]} · revision {_vault.Root["revision"]}";
+    }
+
+    private void RefreshDashboard()
+    {
+        RentalCount.Text = _vault.Collection("rentals").Count.ToString();
+        PlayingCount.Text = (_vault.Collection("playing").Count + _vault.Collection("rentals").Count).ToString();
+        WatchlistCount.Text = (_vault.Collection("movieWatchlist").Count + _vault.Collection("seriesWatchlist").Count).ToString();
+        CompletedCount.Text = _vault.Collection("played").Count.ToString();
+        TotalRentedCount.Text = (_vault.Collection("rentals").Count + _vault.Collection("rentalHistory").Count).ToString();
+        var rentalSpent = _vault.Collection("rentals").Concat(_vault.Collection("rentalHistory")).OfType<JsonObject>().Sum(item => Number(item, "cost"));
+        var subscriptionSpent = _vault.Collection("subscriptions").OfType<JsonObject>().Sum(item => Number(item, "totalPaid", "cost"));
+        TotalSpentCount.Text = $"₹{rentalSpent + subscriptionSpent:N0}";
+
+        var continueRows = ReadCollection("rentals")
+            .Concat(ReadCollection("playing"))
+            .Concat(ReadCollection("watchingMovies"))
+            .Concat(ReadCollection("watchingSeries"))
+            .GroupBy(row => $"{row.MediaType}:{NormalizedTitle(row.Name)}")
+            .Select(group => group.First())
+            .Take(8)
+            .ToList();
+        ContinueCards.ItemsSource = continueRows;
+
+        var upcomingRows = ReadCollection("upcoming")
+            .Concat(ReadNativeCatalog("movies", "uphw"))
+            .Concat(ReadNativeCatalog("series", "seriesupcoming"))
+            .Where(row => row.DaysLeft is >= 0)
+            .OrderBy(row => row.DaysLeft ?? int.MaxValue)
+            .ThenBy(row => row.Name)
+            .Take(8)
+            .ToList();
+        UpcomingCards.ItemsSource = upcomingRows;
+        RecentActivityList.Items.Clear();
+        foreach (var item in _vault.RecentActivity(12).OfType<JsonObject>())
+        {
+            var at = item["at"]?.GetValue<long?>() ?? 0;
+            var when = at > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(at).LocalDateTime.ToString("dd MMM, h:mm tt") : "";
+            RecentActivityList.Items.Add($"{item["action"]} · {item["detail"]}   {when}");
+        }
+        if (RecentActivityList.Items.Count == 0) RecentActivityList.Items.Add("No recent changes yet.");
+        GamesRailButton.Content = $"▣   Games        {_vault.Collection("rentals").Count + _vault.Collection("playing").Count + _vault.Collection("played").Count}";
+        MoviesRailButton.Content = $"●   Movies       {_vault.Collection("movieWatchlist").Count + _vault.Collection("watchingMovies").Count + _vault.Collection("watchedMovies").Count}";
+        SeriesRailButton.Content = $"▤   TV Shows     {_vault.Collection("seriesWatchlist").Count + _vault.Collection("watchingSeries").Count + _vault.Collection("watchedSeries").Count}";
+        HomeSummaryText.Text = continueRows.Count == 0
+            ? "Your library is ready. Add or import a title to begin."
+            : $"{continueRows.Count} active title{(continueRows.Count == 1 ? "" : "s")} · {upcomingRows.Count} upcoming date{(upcomingRows.Count == 1 ? "" : "s")} · {DriveHeaderStatus.Text}.";
+    }
+
+    private void HomeShortcut_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button) return;
+        _section = button.Tag?.ToString() ?? "Overview";
+        if (_section == "Games") _gameCollection = "playing";
+        if (_section == "Movies") _mediaMode = "watchlist";
+        ShowSection();
+        if (_section == "Games") SelectGameCollection("playing");
+        RefreshAll();
+    }
+
+    private void GamesTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded || GamesTabs.SelectedItem is not TabItem tab) return;
+        _gameCollection = tab.Tag?.ToString() ?? "rentals";
+        RefreshGames();
+        _ = EnsureCurrentCatalogAsync();
+    }
+
+    private void RefreshGames()
+    {
+        var source = _gameCollection == "playing"
+            ? ReadCollection("playing").Concat(ReadCollection("rentals")).GroupBy(row => NormalizedTitle(row.Name)).Select(group => group.First())
+            : _gameCollection == "rentals"
+            ? ReadCollection("rentals").Concat(ReadCollection("rentalHistory"))
+            : _gameCollection == "subscriptionGames"
+            ? ReadSubscriptions().Concat(ReadCollection("subscriptionGames"))
+            : ReadCollection(_gameCollection);
+        if (_gameCollection == "upcoming") source = source.Concat(ReadCollection("upcomingRemoved")).OrderBy(row => row.Collection == "upcomingRemoved" ? 2 : row.DaysLeft is < 0 ? 1 : 0).ThenBy(row => row.DaysLeft ?? int.MaxValue);
+        SetRows(source, GameSortBox.SelectedItem as ComboBoxItem);
+    }
+
+    private void MediaFilter_Click(object sender, RoutedEventArgs e)
+    {
+        _mediaMode = (sender as Button)?.Tag?.ToString() ?? "watchlist";
+        RefreshMedia();
+        _ = EnsureCurrentCatalogAsync();
+    }
+
+    private async Task EnsureCurrentCatalogAsync()
+    {
+        var isGameCatalog = _section == "Games" && _gameCollection is "upcoming" or "catalogExtra";
+        var mediaCatalogs = _section == "Movies" ? new[] { "uphw", "bluray", "relhw", "mlott" }
+            : _section == "Series" ? new[] { "seriesnew", "seriesupcoming", "enseries", "mlseries", "taseries", "hiseries" } : [];
+        if (!isGameCatalog && !mediaCatalogs.Contains(_mediaMode)) return;
+        if (isGameCatalog && _catalog.RawgKey.Length == 0 || !isGameCatalog && _catalog.TmdbKey.Length == 0) return;
+        var mode = isGameCatalog ? _gameCollection : _mediaMode;
+        var key = $"{_section}:{mode}";
+        if (!_catalogRefreshes.Add(key)) return;
+        try
+        {
+            var timestamps = _vault.Root["nativeCatalogRefreshAt"] as JsonObject;
+            var previous = timestamps?[key]?.GetValue<long?>() ?? 0;
+            var hasData = isGameCatalog ? _vault.Collection(mode).Count > 0 : (_vault.Root["nativeTvCatalog"]?[_section == "Movies" ? "movies" : "series"]?[mode] as JsonArray)?.Count > 0;
+            if (hasData && DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - previous < TimeSpan.FromHours(12).TotalMilliseconds) return;
+            StatusText.Text = $"Refreshing {mode} in the background...";
+            if (isGameCatalog)
+            {
+                var items = await _catalog.GameCatalogAsync(mode == "upcoming");
+                var hidden = mode == "upcoming" ? _vault.Collection("upcomingRemoved").OfType<JsonObject>().Select(item => NormalizedTitle(Text(item, "name"))).ToHashSet() : [];
+                await _vault.SetRootValueAsync(mode, new JsonArray(items.Where(item => !hidden.Contains(NormalizedTitle(Text(item, "name")))).Select(item => (JsonNode)item.DeepClone()).ToArray()));
+                if (_section == "Games" && _gameCollection == mode) RefreshGames();
+            }
+            else
+            {
+                var type = _section == "Movies" ? "Movie" : "TV Show";
+                var items = await _catalog.MediaCatalogAsync(type, mode);
+                var root = _vault.Root["nativeTvCatalog"]?.DeepClone() as JsonObject ?? [];
+                var typeKey = _section == "Movies" ? "movies" : "series";
+                if (root[typeKey] is not JsonObject typeRoot) { typeRoot = []; root[typeKey] = typeRoot; }
+                typeRoot[mode] = new JsonArray(items.Select(item => (JsonNode)item.DeepClone()).ToArray());
+                await _vault.SetRootValueAsync("nativeTvCatalog", root);
+                if ((_section == "Movies" || _section == "Series") && _mediaMode == mode) RefreshMedia();
+            }
+            timestamps = _vault.Root["nativeCatalogRefreshAt"]?.DeepClone() as JsonObject ?? [];
+            timestamps[key] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            await _vault.SetRootValueAsync("nativeCatalogRefreshAt", timestamps);
+            StatusText.Text = $"{mode} is up to date.";
+        }
+        catch (Exception ex) { StatusText.Text = $"Catalog refresh paused: {ex.Message}"; }
+        finally { _catalogRefreshes.Remove(key); }
+    }
+
+    private void BuildMediaTabs()
+    {
+        MediaTabsPanel.Children.Clear();
+        var definitions = _section == "Movies"
+            ? new[] { ("watchlist", "My Watchlist"), ("watching", "Watching"), ("uphw", "Coming Soon"), ("bluray", "New on Blu-ray"), ("relhw", "Discover"), ("mlott", "Malayalam OTT"), ("watched", "Watched"), ("hidden", "Not Interested") }
+            : new[] { ("watchlist", "My Watchlist"), ("watching", "Watching"), ("seriesnew", "New Episodes"), ("seriesupcoming", "Upcoming"), ("enseries", "English"), ("mlseries", "Malayalam"), ("taseries", "Tamil"), ("hiseries", "Hindi"), ("watched", "Watched"), ("hidden", "Not Interested") };
+        if (!definitions.Any(item => item.Item1 == _mediaMode)) _mediaMode = "watchlist";
+        foreach (var (key, label) in definitions)
+        {
+            var button = new Button { Content = label, Tag = key, Margin = new Thickness(0, 0, 8, 8) };
+            if (key == _mediaMode) button.Style = (Style)FindResource("PrimaryButton");
+            button.Click += MediaFilter_Click;
+            MediaTabsPanel.Children.Add(button);
+        }
+    }
+
+    private void RefreshMedia()
+    {
+        var prefix = _section == "Movies" ? "Movies" : "TV Shows";
+        var collection = _mediaMode switch
+        {
+            "watching" => _section == "Movies" ? "watchingMovies" : "watchingSeries",
+            "watched" => _section == "Movies" ? "watchedMovies" : "watchedSeries",
+            "hidden" => _section == "Movies" ? "hiddenMovies" : "hiddenSeries",
+            _ => _section == "Movies" ? "movieWatchlist" : "seriesWatchlist"
+        };
+        PageSubtitle.Text = $"{prefix} · {_mediaMode}";
+        var catalog = _section == "Movies" ? new[] { "uphw", "bluray", "relhw", "mlott" } : new[] { "seriesnew", "seriesupcoming", "enseries", "mlseries", "taseries", "hiseries" };
+        var allRows = (catalog.Contains(_mediaMode) ? ReadNativeCatalog(_section == "Movies" ? "movies" : "series", _mediaMode) : ReadCollection(collection)).ToList();
+        IEnumerable<LibraryRow> rows = allRows;
+        var year = (MediaYearBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+        var genre = MediaGenreBox.Text.Trim();
+        if (year.Length > 0) rows = rows.Where(row => row.Date.StartsWith(year, StringComparison.OrdinalIgnoreCase) || row.Source["year"]?.ToString() == year);
+        if (genre.Length > 0) rows = rows.Where(row => row.Genre.Contains(genre, StringComparison.OrdinalIgnoreCase));
+        SetRows(rows, MediaSortBox.SelectedItem as ComboBoxItem);
+        PopulateMediaYears(allRows);
+        BuildMediaTabs();
+    }
+
+    private IEnumerable<LibraryRow> ReadNativeCatalog(string type, string collection)
+    {
+        var array = _vault.Root["nativeTvCatalog"]?[type]?[collection] as JsonArray;
+        if (array is null) return [];
+        var excludedCollections = type == "movies"
+            ? new[] { "movieWatchlist", "watchingMovies", "watchedMovies", "hiddenMovies" }
+            : new[] { "seriesWatchlist", "watchingSeries", "watchedSeries", "hiddenSeries" };
+        var excluded = excludedCollections.SelectMany(name => _vault.Collection(name).OfType<JsonObject>())
+            .Select(item => NormalizedTitle(Text(item, "name", "title"))).Where(value => value.Length > 0).ToHashSet();
+        return ReadNodes(new JsonArray(array.Where(node => node is JsonObject item && !excluded.Contains(NormalizedTitle(Text(item, "name", "title")))).Select(node => node!.DeepClone()).ToArray()), collection);
+    }
+
+    private static string NormalizedTitle(string value) => new(value.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+    private static string CoverOrPlaceholder(string image, string title) => image.Length > 0
+        ? image
+        : $"https://placehold.co/500x750/172235/EEF4FF/png?text={Uri.EscapeDataString(title)}";
+
+    private IEnumerable<LibraryRow> ReadCollection(string collection) => ReadNodes(_vault.Collection(collection), collection);
+
+    private IEnumerable<LibraryRow> ReadSubscriptions()
+    {
+        foreach (var node in _vault.Collection("subscriptions").OfType<JsonObject>())
+        {
+            var service = Text(node, "service", "name");
+            if (service.Length == 0) continue;
+            var provider = service.Contains("geforce", StringComparison.OrdinalIgnoreCase) || service.Contains("nvidia", StringComparison.OrdinalIgnoreCase)
+                ? "NVIDIA"
+                : service.Contains("game pass", StringComparison.OrdinalIgnoreCase) || service.Contains("xbox", StringComparison.OrdinalIgnoreCase)
+                ? "Xbox"
+                : "Subscription";
+            var renewal = Text(node, "renewsAt", "end", "start");
+            int? days = DateTime.TryParse(renewal, out var parsed) ? (parsed.Date - DateTime.Today).Days : null;
+            var active = !string.Equals(Text(node, "active"), "false", StringComparison.OrdinalIgnoreCase) && days is null or >= 0;
+            var image = provider == "NVIDIA"
+                ? "https://placehold.co/500x750/76B900/FFFFFF/png?text=NVIDIA%0AGeForce+NOW"
+                : provider == "Xbox"
+                ? "https://placehold.co/500x750/107C10/FFFFFF/png?text=Xbox%0AGame+Pass"
+                : CoverOrPlaceholder("", service);
+            yield return new LibraryRow
+            {
+                Id = Text(node, "id"),
+                Name = service,
+                Collection = "subscriptions",
+                MediaType = "Subscription",
+                Platform = provider == "NVIDIA" ? "GeForce NOW" : provider == "Xbox" ? "PC / Xbox" : provider,
+                Status = active ? "Active subscription" : "Inactive subscription",
+                Date = renewal,
+                Genre = "Cloud gaming subscription",
+                Image = image,
+                Providers = provider,
+                Note = Text(node, "note", "remarks"),
+                Cost = (decimal)Number(node, "cost", "monthlyCost"),
+                DaysLeft = days,
+                GroupName = active ? "Active subscriptions" : "Past subscriptions",
+                Badges = provider,
+                Source = node
+            };
+        }
+    }
+
+    private IEnumerable<LibraryRow> ReadNodes(JsonArray source, string collection)
+    {
+        foreach (var node in source.OfType<JsonObject>())
+        {
+            var name = Text(node, "name", "title");
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            var date = collection == "rentals"
+                ? RentalReturnDate(node)
+                : Text(node, "returnDate", "end", "returnedAt", "date", "releaseDate", "firstAirDate", "latestDate", "year", "added");
+            var platformText = ArrayText(node, "platforms", "networks", "platform", "tier");
+            var providerText = ArrayText(node, "providers", "provider");
+            if (collection == "subscriptionGames")
+            {
+                var subscriptionId = Text(node, "subscriptionId");
+                var subscription = _vault.Collection("subscriptions").OfType<JsonObject>().FirstOrDefault(item => Text(item, "id") == subscriptionId);
+                if (subscription is not null)
+                {
+                    date = Text(subscription, "renewsAt", "end", "start");
+                    providerText = Text(subscription, "service");
+                }
+            }
+            int? days = null;
+            if (DateTime.TryParse(date, out var parsed)) days = (parsed.Date - DateTime.Today).Days;
+            var mediaType = collection == "plex" ? (Text(node, "plexType") is "show" or "season" or "episode" ? "TV Show" : "Movie")
+                : _section == "Movies" || collection.Contains("Movie", StringComparison.OrdinalIgnoreCase) ? "Movie"
+                : _section == "Series" || collection.Contains("Series", StringComparison.OrdinalIgnoreCase) ? "TV Show" : "Game";
+            yield return new LibraryRow
+            {
+                Id = Text(node, "id", "canonicalId", "rawgId", "tmdbId"),
+                Name = name,
+                Collection = collection,
+                MediaType = mediaType,
+                Platform = platformText,
+                Status = Text(node, "status", "state"),
+                Date = date,
+                Genre = GenreText(node),
+                Image = CoverOrPlaceholder(Text(node, "img", "poster", "cover", "posterUrl"), name),
+                Backdrop = Text(node, "backdrop", "background", "backdropUrl"),
+                Overview = Text(node, "overview", "plot", "summary", "description"),
+                Providers = providerText,
+                Vendor = QueueAvailability(node, Text(node, "vendor")),
+                Note = Text(node, "note", "remarks"),
+                ImdbId = Text(node, "imdbId"),
+                TmdbId = Text(node, "tmdbId", "id"),
+                Seasons = Integer(node, "seasons", "numberOfSeasons"),
+                Episodes = Integer(node, "episodeCount", "episodes"),
+                Rating = Number(node, "imdb", "rating", "rrating", "tmdb", "score"),
+                Cost = (decimal)Number(node, "cost"),
+                DaysLeft = days,
+                GroupName = GroupName(collection, Text(node, "status", "state"), days),
+                Badges = GameBadges(name, node, mediaType),
+                Source = node
+            };
+        }
+    }
+
+    private void SetRows(IEnumerable<LibraryRow> source, ComboBoxItem? sortItem = null)
+    {
+        var query = SearchBox.Text.Trim();
+        source = _section == "Games" && _gameCollection == "catalogExtra" && (sortItem?.Tag?.ToString()) == "new"
+            ? source.OrderByDescending(RecommendationScore)
+            : _section is "Movies" or "Series" && _mediaMode is "relhw" or "enseries" && (sortItem?.Tag?.ToString()) == "new"
+            ? source.OrderByDescending(RecommendationScore)
+            : _section == "Games" && _gameCollection == "rentals"
+            ? source.OrderBy(row => GroupOrder(row.GroupName)).ThenByDescending(row => ParseSortDate(Text(row.Source, "start", "date", "added")))
+            : _section == "Games" && _gameCollection == "playing"
+            ? source.OrderBy(row => GroupOrder(row.GroupName)).ThenByDescending(row => ParseSortDate(row.Date))
+            : _section == "Games" && _gameCollection == "subscriptionGames"
+            ? source.OrderBy(row => GroupOrder(row.GroupName)).ThenBy(row => row.Name)
+            : (sortItem?.Tag?.ToString()) switch
+            {
+                "title" => source.OrderBy(row => row.Name),
+                "date" => source.OrderBy(row => row.DaysLeft is < 0 ? 1 : 0).ThenBy(row => row.DaysLeft ?? int.MaxValue),
+                "rating" => source.OrderByDescending(row => row.Rating),
+                _ => source.OrderByDescending(row => ParseSortDate(row.Date)).ThenBy(row => row.Name)
+            };
+        _rows.Clear();
+        foreach (var row in source.Where(x => query.Length == 0 || x.Name.Contains(query, StringComparison.OrdinalIgnoreCase))) _rows.Add(row);
+        _rowsView.GroupDescriptions.Clear();
+        if (_section == "Games" && _rows.Any(row => row.GroupName.Length > 0)) _rowsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(LibraryRow.GroupName)));
+        _rowsView.Refresh();
+        StatusText.Text = $"{_rows.Count} item{(_rows.Count == 1 ? "" : "s")}";
+    }
+
+    private static string GroupName(string collection, string status, int? days) => collection switch
+    {
+        "rentals" => "Active rentals",
+        "rentalHistory" => "Rental history",
+        "playing" when status.Contains("resume", StringComparison.OrdinalIgnoreCase) => "Resume later",
+        "playing" when status.Contains("hold", StringComparison.OrdinalIgnoreCase) || status.Contains("drop", StringComparison.OrdinalIgnoreCase) => "On hold",
+        "playing" => "Playing now",
+        "subscriptionGames" => "Included games",
+        "upcoming" when days is < 0 => "Released",
+        "upcoming" => "Upcoming releases",
+        "upcomingRemoved" => "Removed games",
+        _ => ""
+    };
+
+    private static readonly HashSet<string> Ps5ProTitles = new(new[]
+    {
+        "Marvel's Spider-Man 2", "Marvel's Spider-Man: Miles Morales", "God of War Ragnarok", "Horizon Forbidden West",
+        "Horizon Zero Dawn Remastered", "The Last of Us Part I", "The Last of Us Part II Remastered", "Demon's Souls",
+        "Ratchet & Clank: Rift Apart", "Gran Turismo 7", "Ghost of Tsushima Director's Cut", "Astro Bot", "Alan Wake 2",
+        "Final Fantasy VII Rebirth", "Final Fantasy XVI", "Dragon's Dogma 2", "Resident Evil 4", "Resident Evil Village",
+        "Silent Hill 2", "Star Wars Jedi: Survivor", "Hogwarts Legacy", "Stellar Blade", "Black Myth: Wukong", "Cyberpunk 2077",
+        "Kingdom Come: Deliverance II", "Monster Hunter Wilds", "Assassin's Creed Shadows", "Death Stranding 2: On the Beach",
+        "Doom: The Dark Ages", "Clair Obscur: Expedition 33", "Lies of P", "Dead Space"
+    }.Select(NormalizedTitle));
+    private static string GameBadges(string name, JsonObject node, string mediaType)
+    {
+        if (mediaType != "Game") return "";
+        var badges = new List<string>();
+        var tier = Text(node, "tier", "classification"); if (tier.Length > 0) badges.Add(tier);
+        if (Ps5ProTitles.Contains(NormalizedTitle(name)) || string.Equals(Text(node, "ps5Pro", "proEnhanced"), "true", StringComparison.OrdinalIgnoreCase)) badges.Add("PS5 Pro Enhanced");
+        var remaster = Text(node, "rem", "edition"); if (remaster.Length > 0) badges.Add(remaster);
+        var platforms = ArrayText(node, "platforms", "platform");
+        if (platforms.Contains("Xbox", StringComparison.OrdinalIgnoreCase) && !platforms.Contains("PlayStation", StringComparison.OrdinalIgnoreCase) && !platforms.Contains("PS5", StringComparison.OrdinalIgnoreCase)) badges.Add("Xbox Exclusive");
+        if ((platforms.Contains("PS5", StringComparison.OrdinalIgnoreCase) || platforms.Contains("PlayStation", StringComparison.OrdinalIgnoreCase)) && !platforms.Contains("Xbox", StringComparison.OrdinalIgnoreCase) && !platforms.Contains("PC", StringComparison.OrdinalIgnoreCase)) badges.Add("PS5 Exclusive");
+        return string.Join(" · ", badges.Distinct());
+    }
+
+    private static DateTime ParseSortDate(string value) => DateTime.TryParse(value, out var date) ? date : DateTime.MinValue;
+    private static int GroupOrder(string group) => group switch { "Active rentals" or "Playing now" or "Upcoming releases" or "Active subscriptions" => 0, "Resume later" or "Included games" => 1, "On hold" or "Released" or "Past subscriptions" => 2, "Rental history" => 3, "Removed games" => 4, _ => 0 };
+
+    private double RecommendationScore(LibraryRow candidate)
+    {
+        var historyNames = candidate.MediaType switch { "Movie" => new[] { "watchedMovies" }, "TV Show" => new[] { "watchedSeries" }, _ => new[] { "played" } };
+        var candidateGenres = candidate.Genre.Split(['/', ',', '·'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(NormalizedTitle).ToHashSet();
+        var affinity = historyNames.SelectMany(name => ReadCollection(name)).Sum(item =>
+        {
+            var personal = Number(item.Source, "userRating", "myRating");
+            if (personal <= 0) return 0;
+            var overlap = item.Genre.Split(['/', ',', '·'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(NormalizedTitle).Count(candidateGenres.Contains);
+            return overlap * personal * personal;
+        });
+        return affinity + candidate.Rating * 2;
+    }
+
+    private void PopulateMediaYears(IEnumerable<LibraryRow> source)
+    {
+        var selected = (MediaYearBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+        var years = source.Select(row => row.Source["year"]?.ToString() ?? (row.Date.Length >= 4 ? row.Date[..4] : ""))
+            .Where(value => value.Length == 4 && int.TryParse(value, out _)).Distinct().OrderByDescending(value => value).ToList();
+        MediaYearBox.SelectionChanged -= MediaFilter_Changed;
+        MediaYearBox.Items.Clear();
+        MediaYearBox.Items.Add(new ComboBoxItem { Content = "All years", Tag = "" });
+        foreach (var year in years) MediaYearBox.Items.Add(new ComboBoxItem { Content = year, Tag = year });
+        MediaYearBox.SelectedItem = MediaYearBox.Items.OfType<ComboBoxItem>().FirstOrDefault(item => item.Tag?.ToString() == selected) ?? MediaYearBox.Items[0];
+        MediaYearBox.SelectionChanged += MediaFilter_Changed;
+    }
+
+    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        if (_section == "Games") RefreshGames();
+        else if (_section is "Movies" or "Series") RefreshMedia();
+    }
+
+    private void GameView_Click(object sender, RoutedEventArgs e)
+    {
+        _gamesListView = !_gamesListView;
+        CredentialStore.Save("SinuGameVault/Preferences/GamesView", _gamesListView ? "list" : "grid");
+        ApplyViewPreferences();
+    }
+
+    private void MediaView_Click(object sender, RoutedEventArgs e)
+    {
+        _mediaListView = !_mediaListView;
+        CredentialStore.Save("SinuGameVault/Preferences/MediaView", _mediaListView ? "list" : "grid");
+        ApplyViewPreferences();
+    }
+
+    private void ApplyViewPreferences()
+    {
+        GamesCards.Visibility = _gamesListView ? Visibility.Collapsed : Visibility.Visible;
+        GamesListScroll.Visibility = _gamesListView ? Visibility.Visible : Visibility.Collapsed;
+        GameViewButton.Content = _gamesListView ? "Grid view" : "List view";
+        MediaCards.Visibility = _mediaListView ? Visibility.Collapsed : Visibility.Visible;
+        MediaListScroll.Visibility = _mediaListView ? Visibility.Visible : Visibility.Collapsed;
+        MediaViewButton.Content = _mediaListView ? "Grid view" : "List view";
+    }
+
+    private void Theme_Click(object sender, RoutedEventArgs e)
+    {
+        _theme = _theme == "light" ? "dark" : "light";
+        CredentialStore.Save("SinuGameVault/Preferences/Theme", _theme);
+        ApplyTheme();
+    }
+
+    private void SetTheme_Click(object sender, RoutedEventArgs e)
+    {
+        _theme = (sender as Button)?.Tag?.ToString() ?? "dark";
+        CredentialStore.Save("SinuGameVault/Preferences/Theme", _theme);
+        ApplyTheme();
+    }
+
+    private void ApplyTheme()
+    {
+        var light = _theme == "light";
+        var oled = _theme == "oled";
+        SetBrush("WindowBrush", light ? "#EEF3F8" : oled ? "#000000" : "#0A0D14");
+        SetBrush("PanelBrush", light ? "#F8FAFD" : oled ? "#080A0E" : "#111722");
+        SetBrush("PanelRaisedBrush", light ? "#E5ECF4" : oled ? "#11151C" : "#182131");
+        SetBrush("TextBrush", light ? "#182131" : "#F5F7FB");
+        SetBrush("MutedBrush", light ? "#526177" : "#A7B3C7");
+        SetBrush("RailBrush", light ? "#E2EAF3" : oled ? "#030405" : "#0D121C");
+        SetBrush("CardBrush", light ? "#FFFFFF" : oled ? "#080B10" : "#111925");
+        SetBrush("CardBorderBrush", light ? "#BCC8D7" : oled ? "#263040" : "#2B3A51");
+        SetBrush("InputBrush", light ? "#FFFFFF" : oled ? "#030405" : "#0C111A");
+        SetBrush("DividerBrush", light ? "#B8C4D3" : oled ? "#1D2531" : "#263247");
+        SetBrush("DetailsBrush", light ? "#FAE8EEF7" : oled ? "#FC000000" : "#FA0A0D14");
+        SetBrush("HoverBrush", light ? "#D3E4F5" : oled ? "#151B24" : "#22324A");
+        SetBrush("SelectedBrush", light ? "#C9E5F5" : oled ? "#10283A" : "#17324B");
+        SetBrush("BackdropScrimBrush", light ? "#E8EEF3F8" : oled ? "#E6000000" : "#CC0A0D14");
+        SetBrush("DangerBrush", light ? "#B4233A" : "#FF6577");
+        SetBrush("SuccessBrush", light ? "#16785D" : "#5DE2B5");
+        SetBrush("WarningBrush", light ? "#9A6700" : "#FFD166");
+        SetSystemBrush(SystemColors.WindowBrushKey, light ? "#FFFFFF" : oled ? "#030405" : "#0C111A");
+        SetSystemBrush(SystemColors.WindowTextBrushKey, light ? "#182131" : "#F5F7FB");
+        SetSystemBrush(SystemColors.ControlBrushKey, light ? "#F2F6FB" : oled ? "#080B10" : "#111925");
+        SetSystemBrush(SystemColors.ControlTextBrushKey, light ? "#182131" : "#F5F7FB");
+        SetSystemBrush(SystemColors.HighlightBrushKey, light ? "#C9E5F5" : oled ? "#10283A" : "#17324B");
+        SetSystemBrush(SystemColors.HighlightTextBrushKey, light ? "#182131" : "#F5F7FB");
+        SectionBackdrop.Opacity = light ? 0.045 : 0.12;
+        ThemeButton.Content = light ? "Dark mode" : oled ? "Light mode" : "Light mode";
+        UpdateRailSelection();
+    }
+    private static void SetBrush(string key, string color)
+    {
+        var value = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(color);
+        Application.Current.Resources[key] = new System.Windows.Media.SolidColorBrush(value);
+    }
+    private static void SetSystemBrush(ResourceKey key, string color)
+    {
+        var value = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(color);
+        Application.Current.Resources[key] = new System.Windows.Media.SolidColorBrush(value);
+    }
+
+    private void LibrarySort_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        if (_section == "Games") RefreshGames();
+        else if (_section is "Movies" or "Series") RefreshMedia();
+    }
+    private void MediaFilter_Changed(object sender, SelectionChangedEventArgs e) { if (IsLoaded && _section is "Movies" or "Series") RefreshMedia(); }
+    private void MediaGenre_TextChanged(object sender, TextChangedEventArgs e) { if (IsLoaded && _section is "Movies" or "Series") RefreshMedia(); }
+
+    private async void AddMedia_Click(object sender, RoutedEventArgs e)
+    {
+        var collection = _section == "Movies" ? "movieWatchlist" : "seriesWatchlist";
+        var dialog = new ItemEditorWindow(collection) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        await RunBusyAsync("Adding title...", () => _vault.AddAsync(collection, dialog.Item));
+        _mediaMode = "watchlist";
+        RefreshAll();
+    }
+
+    private async void FindOnline_Click(object sender, RoutedEventArgs e)
+    {
+        var type = _section == "Games" ? "Game" : _section == "Movies" ? "Movie" : "TV Show";
+        var dialog = new CatalogSearchWindow(_catalog, type) { Owner = this };
+        if (dialog.ShowDialog() != true || dialog.SelectedItem is null) return;
+        var destination = type == "Game" ? "queue" : type == "Movie" ? "movieWatchlist" : "seriesWatchlist";
+        await RunBusyAsync("Adding online result...", async () =>
+        {
+            await _vault.AddAsync(destination, dialog.SelectedItem);
+            if (destination == "queue") await UpdateAvailabilityAsync(dialog.SelectedItem);
+        });
+        if (type == "Game") SelectGameCollection("queue"); else _mediaMode = "watchlist";
+        RefreshAll();
+    }
+
+    private async void RefreshOnline_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (_section == "Games")
+            {
+                if (_gameCollection == "queue")
+                {
+                    await RefreshQueueAvailabilityAsync();
+                    RefreshAll();
+                    StatusText.Text = "Rental availability refreshed.";
+                    return;
+                }
+                var upcoming = _gameCollection == "upcoming";
+                var items = await _catalog.GameCatalogAsync(upcoming);
+                var destination = upcoming ? "upcoming" : "catalogExtra";
+                var hidden = upcoming ? _vault.Collection("upcomingRemoved").OfType<JsonObject>().Select(item => NormalizedTitle(Text(item, "name"))).ToHashSet() : [];
+                var array = new JsonArray(items.Where(item => !hidden.Contains(NormalizedTitle(Text(item, "name")))).Select(item => (JsonNode)item.DeepClone()).ToArray());
+                await _vault.SetRootValueAsync(destination, array);
+                _gameCollection = destination;
+                SelectGameCollection(destination);
+            }
+            else
+            {
+                var mediaType = _section == "Movies" ? "Movie" : "TV Show";
+                var catalogModes = _section == "Movies" ? new[] { "uphw", "bluray", "relhw", "mlott" } : new[] { "seriesnew", "seriesupcoming", "enseries", "mlseries", "taseries", "hiseries" };
+                var mode = catalogModes.Contains(_mediaMode) ? _mediaMode : (_section == "Movies" ? "relhw" : "enseries");
+                var items = await _catalog.MediaCatalogAsync(mediaType, mode);
+                var root = _vault.Root["nativeTvCatalog"]?.DeepClone() as JsonObject ?? new JsonObject();
+                var typeKey = _section == "Movies" ? "movies" : "series";
+                if (root[typeKey] is not JsonObject typeRoot) { typeRoot = new JsonObject(); root[typeKey] = typeRoot; }
+                typeRoot[mode] = new JsonArray(items.Select(item => (JsonNode)item.DeepClone()).ToArray());
+                await _vault.SetRootValueAsync("nativeTvCatalog", root);
+                _mediaMode = mode;
+            }
+            RefreshAll();
+            StatusText.Text = "Online catalog refreshed.";
+        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Catalog refresh", MessageBoxButton.OK, MessageBoxImage.Warning); }
+    }
+
+    private async Task RefreshQueueAvailabilityAsync()
+    {
+        foreach (var item in _vault.Collection("queue").OfType<JsonObject>().ToList())
+        {
+            StatusText.Text = $"Checking rental availability: {Text(item, "name", "title")}";
+            await UpdateAvailabilityAsync(item);
+        }
+    }
+
+    private async Task UpdateAvailabilityAsync(JsonObject item)
+    {
+        var title = Text(item, "name", "title");
+        if (title.Length == 0) return;
+        item["shops"] = await _availability.CheckAsync(title);
+        await _vault.UpdateAsync("queue", item);
+    }
+
+    private async void EditSelected_Click(object sender, RoutedEventArgs e)
+    {
+        var row = _selectedRow;
+        if (row is null)
+        {
+            MessageBox.Show(this, "Open a title first, then choose Edit details.", "GameVault", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var dialog = new ItemEditorWindow(row.Collection, row.Source) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        await RunBusyAsync("Saving changes...", () => _vault.UpdateAsync(row.Collection, dialog.Item));
+        DetailsPage.Visibility = Visibility.Collapsed;
+        RefreshAll();
+    }
+
+    private void RentalHistory_Click(object sender, RoutedEventArgs e)
+    {
+        _gameCollection = "rentalHistory";
+        PageSubtitle.Text = "Games · Rental history (fully editable)";
+        RefreshGames();
+    }
+
+    private void VendorReport_Click(object sender, RoutedEventArgs e)
+    {
+        var records = _vault.Collection("rentals").Concat(_vault.Collection("rentalHistory")).OfType<JsonObject>();
+        new VendorReportWindow(records) { Owner = this }.ShowDialog();
+    }
+
+    private async void ManageSubscriptions_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SubscriptionManagerWindow(_vault.Collection("subscriptions")) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        await RunBusyAsync("Saving subscriptions...", () => _vault.SetRootValueAsync("subscriptions", dialog.Result));
+        RefreshAll();
+    }
+
+    private async void AddGame_Click(object sender, RoutedEventArgs e)
+    {
+        var collection = _gameCollection == "rentalHistory" ? "rentals" : _gameCollection;
+        var dialog = new ItemEditorWindow(collection) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        if (collection == "subscriptionGames" && _vault.Collection("subscriptions").OfType<JsonObject>().Any())
+        {
+            var picker = new SubscriptionPickerWindow(_vault.Collection("subscriptions").OfType<JsonObject>()) { Owner = this };
+            if (picker.ShowDialog() != true || picker.SelectedSubscription is null) return;
+            dialog.Item["subscriptionId"] = Text(picker.SelectedSubscription, "id");
+            dialog.Item["provider"] = Text(picker.SelectedSubscription, "service");
+        }
+        await RunBusyAsync("Saving game...", async () =>
+        {
+            await _vault.AddAsync(collection, dialog.Item);
+            if (collection == "subscriptionGames")
+            {
+                var playing = dialog.Item.DeepClone() as JsonObject ?? [];
+                playing["source"] = "subscription";
+                playing["status"] = "Playing";
+                await _vault.AddAsync("playing", playing);
+            }
+            if (collection == "queue") await UpdateAvailabilityAsync(dialog.Item);
+        });
+        SelectGameCollection(collection);
+        RefreshAll();
+    }
+
+    private void SelectGameCollection(string collection)
+    {
+        foreach (var item in GamesTabs.Items.OfType<TabItem>())
+            if (string.Equals(item.Tag?.ToString(), collection, StringComparison.OrdinalIgnoreCase)) GamesTabs.SelectedItem = item;
+    }
+
+    private async void RemoveGame_Click(object sender, RoutedEventArgs e)
+    {
+        var row = _selectedRow;
+        if (row is null) return;
+        if (MessageBox.Show(this, $"Remove “{row.Name}” from this collection?\n\nThe native app will create a recovery snapshot first.",
+                "Confirm removal", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        CaptureUndo();
+        await RunBusyAsync("Removing game…", () => _vault.RemoveAsync(_gameCollection, row.Id));
+        RefreshAll();
+    }
+
+    private async void Import_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog { Filter = "GameVault backup (*.json)|*.json|All files (*.*)|*.*", Title = "Import GameVault backup" };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            await RunBusyAsync("Importing backup…", () => _vault.ImportAsync(dialog.FileName));
+            RefreshAll();
+            MessageBox.Show(this, "Backup imported successfully. Your original native vault was saved as a recovery snapshot.", "GameVault", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Import failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void Export_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SaveFileDialog { Filter = "GameVault backup (*.json)|*.json", FileName = $"game-vault-windows-{DateTime.Today:yyyy-MM-dd}.json", Title = "Export GameVault backup" };
+        if (dialog.ShowDialog(this) != true) return;
+        await RunBusyAsync("Exporting backup…", () => _vault.ExportAsync(dialog.FileName));
+        StatusText.Text = $"Backup exported to {dialog.FileName}";
+    }
+
+    private async void GlobalRefresh_Click(object sender, RoutedEventArgs e)
+    {
+        if (_drive.Connected) await SyncDriveAsync(silent: false);
+        else { await _vault.LoadAsync(); RefreshAll(); }
+        if (_section == "Plex") await RefreshPlexAsync();
+        if (_section == "BiglyBT") await RefreshBiglyAsync();
+        StatusText.Text = $"Refreshed {DateTime.Now:t}";
+    }
+
+    private async Task RunBusyAsync(string message, Func<Task> action)
+    {
+        StatusText.Text = message;
+        IsEnabled = false;
+        try { await action(); }
+        finally { IsEnabled = true; StatusText.Text = "Ready"; }
+    }
+
+    private async void PlexMode_Click(object sender, RoutedEventArgs e)
+    {
+        _plexMode = (sender as Button)?.Tag?.ToString() ?? "continue";
+        await RefreshPlexAsync();
+    }
+
+    private async void PlexRefresh_Click(object sender, RoutedEventArgs e) => await RefreshPlexAsync();
+
+    private async Task RefreshPlexAsync()
+    {
+        PlexSetupPanel.Visibility = _plex.Connected ? Visibility.Collapsed : Visibility.Visible;
+        PlexLibraryScroll.Visibility = _plex.Connected ? Visibility.Visible : Visibility.Collapsed;
+        if (!_plex.Connected) { PlexStatusText.Text = "Not connected"; return; }
+        PlexStatusText.Text = "Loading Plex...";
+        try
+        {
+            var items = _plexMode == "continue" ? await _plex.ContinueWatchingAsync() : await _plex.LibraryAsync(_plexMode == "recent" ? "all" : _plexMode);
+            if (_plexMode == "recent") items = items.Take(50).ToList();
+            _plexRows.Clear();
+            foreach (var item in items)
+            {
+                var progress = item.Duration > 0 ? Math.Clamp(item.ViewOffset * 100d / item.Duration, 0, 100) : 0;
+                var source = new JsonObject
+                {
+                    ["id"] = $"plex:{item.RatingKey}", ["plexRatingKey"] = item.RatingKey, ["title"] = item.Title,
+                    ["year"] = item.Year, ["overview"] = item.Summary, ["poster"] = item.Thumb, ["backdrop"] = item.Art,
+                    ["rating"] = item.Rating, ["genre"] = item.Genres, ["status"] = item.ViewCount > 0 ? "Watched" : progress > 0 ? $"{progress:0}% watched" : "Unwatched",
+                    ["plexType"] = item.Type
+                };
+                _plexRows.Add(ReadNodes(new JsonArray(source), "plex").First());
+                if (item.ViewCount > 0) await SyncPlexWatchedRecordAsync(source, item.Type is "show" or "season" or "episode" ? "TV Show" : "Movie");
+            }
+            PlexStatusText.Text = $"{_plexRows.Count} items";
+            UpdateSectionBackdrop();
+        }
+        catch (Exception ex)
+        {
+            PlexStatusText.Text = ex.Message;
+            PlexSetupPanel.Visibility = Visibility.Visible;
+            PlexLibraryScroll.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private async Task SyncPlexWatchedRecordAsync(JsonObject source, string mediaType)
+    {
+        var watched = mediaType == "Movie" ? "watchedMovies" : "watchedSeries";
+        var watching = mediaType == "Movie" ? "watchingMovies" : "watchingSeries";
+        var watchlist = mediaType == "Movie" ? "movieWatchlist" : "seriesWatchlist";
+        var name = Text(source, "title", "name");
+        if (!_vault.Collection(watched).OfType<JsonObject>().Any(item => string.Equals(Text(item, "title", "name"), name, StringComparison.OrdinalIgnoreCase)))
+        {
+            var clone = source.DeepClone() as JsonObject ?? []; clone["status"] = "Watched"; clone["plexSyncedAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            await _vault.AddAsync(watched, clone);
+        }
+        await RemoveMatchingTitleAsync(watching, name);
+        await RemoveMatchingTitleAsync(watchlist, name);
+    }
+
+    private async void BiglyRefresh_Click(object sender, RoutedEventArgs e) { _lastBiglyInteraction = DateTime.Now; _biglyRefreshTimer.Start(); await RefreshBiglyAsync(); }
+
+    private void BiglyInteraction(object sender, InputEventArgs e)
+    {
+        if (_section != "BiglyBT") return;
+        _lastBiglyInteraction = DateTime.Now;
+        if (!_biglyRefreshTimer.IsEnabled) { _biglyRefreshTimer.Start(); _ = RefreshBiglyAsync(silent: true); }
+    }
+
+    private async void BiglyRefreshTimer_Tick(object? sender, EventArgs e)
+    {
+        if (_section != "BiglyBT" || DateTime.Now - _lastBiglyInteraction >= TimeSpan.FromMinutes(5)) { _biglyRefreshTimer.Stop(); return; }
+        await RefreshBiglyAsync(silent: true);
+    }
+
+    private async Task RefreshBiglyAsync(bool silent = false)
+    {
+        if (_refreshingBigly) return;
+        _refreshingBigly = true;
+        BiglySetupPanel.Visibility = _bigly.Connected ? Visibility.Collapsed : Visibility.Visible;
+        if (!_bigly.Connected)
+        {
+            BiglyGrid.Visibility = Visibility.Collapsed;
+            BiglyHistoryGrid.Visibility = Visibility.Collapsed;
+            BiglyStatusText.Text = "Not connected";
+            _refreshingBigly = false;
+            return;
+        }
+        if (_biglyHistoryMode) { ShowBiglyHistory(); _refreshingBigly = false; return; }
+        if (!silent) BiglyStatusText.Text = "Refreshing...";
+        try
+        {
+            var result = await _bigly.TorrentsAsync();
+            var items = (result["torrents"] as JsonArray)?.OfType<JsonObject>().ToList() ?? [];
+            var incoming = new List<TorrentRow>();
+            foreach (var item in items)
+            {
+                var statusCode = (int)JsonNumber(item, "status");
+                incoming.Add(new TorrentRow
+                {
+                    Id = (int)JsonNumber(item, "id"), Name = Text(item, "name"), Status = TorrentStatus(statusCode, Text(item, "errorString")),
+                    Progress = JsonNumber(item, "percentDone") * 100, TotalSize = (long)JsonNumber(item, "totalSize"), Downloaded = (long)JsonNumber(item, "downloadedEver"),
+                    RateDown = (long)JsonNumber(item, "rateDownload"), RateUp = (long)JsonNumber(item, "rateUpload"), Eta = (long)JsonNumber(item, "eta"),
+                    Peers = (int)JsonNumber(item, "peersConnected"), Priority = (int)JsonNumber(item, "bandwidthPriority"), Hash = Text(item, "hashString")
+                });
+            }
+            foreach (var removed in _torrentRows.Where(existing => incoming.All(item => item.Id != existing.Id)).ToList()) _torrentRows.Remove(removed);
+            for (var index = 0; index < incoming.Count; index++)
+            {
+                var item = incoming[index];
+                var existingIndex = _torrentRows.ToList().FindIndex(existing => existing.Id == item.Id);
+                if (existingIndex < 0) _torrentRows.Insert(Math.Min(index, _torrentRows.Count), item);
+                else if (!TorrentEquals(_torrentRows[existingIndex], item)) _torrentRows[existingIndex] = item;
+            }
+            if (BiglyAutoRemoveBox.IsChecked == true)
+            {
+                var completed = _torrentRows.Where(row => row.Progress >= 100).ToList();
+                foreach (var row in completed)
+                {
+                    if (!_vault.Collection("biglyHistory").OfType<JsonObject>().Any(item => Text(item, "hash") == row.Hash && Text(item, "outcome").StartsWith("Completed", StringComparison.OrdinalIgnoreCase)))
+                        await RecordTorrentHistoryAsync(row, "Completed - auto removed", false);
+                    await _bigly.RemoveAsync(row.Id, false);
+                    _torrentRows.Remove(row);
+                }
+            }
+            BiglySetupPanel.Visibility = Visibility.Collapsed;
+            BiglyHistoryGrid.Visibility = Visibility.Collapsed;
+            BiglyGrid.Visibility = Visibility.Visible;
+            BiglyActiveCount.Text = _torrentRows.Count(row => row.Progress < 100).ToString();
+            BiglyTransferSpeed.Text = $"↓ {FormatBytes(_torrentRows.Sum(row => row.RateDown))}/s  ↑ {FormatBytes(_torrentRows.Sum(row => row.RateUp))}/s";
+            BiglyRemainingData.Text = FormatBytes(_torrentRows.Sum(row => Math.Max(0, row.TotalSize - row.Downloaded)));
+            BiglyStatusText.Text = $"{_torrentRows.Count} torrents · updated {DateTime.Now:t}";
+        }
+        catch (Exception ex)
+        {
+            BiglyStatusText.Text = ex.Message;
+            if (!_bigly.Connected) BiglySetupPanel.Visibility = Visibility.Visible;
+        }
+        finally { _refreshingBigly = false; }
+    }
+
+    private static bool TorrentEquals(TorrentRow left, TorrentRow right) => left.Id == right.Id && left.Status == right.Status
+        && Math.Abs(left.Progress - right.Progress) < 0.01 && left.Downloaded == right.Downloaded && left.TotalSize == right.TotalSize
+        && left.RateDown == right.RateDown && left.RateUp == right.RateUp && left.Eta == right.Eta && left.Peers == right.Peers && left.Priority == right.Priority;
+
+    private async void BiglyPaste_Click(object sender, RoutedEventArgs e)
+    {
+        var text = Clipboard.ContainsText() ? Clipboard.GetText().Trim() : "";
+        var start = text.IndexOf("magnet:?", StringComparison.OrdinalIgnoreCase);
+        if (start >= 0) text = text[start..].Split(['\r', '\n', ' '], StringSplitOptions.RemoveEmptyEntries)[0];
+        if (!text.StartsWith("magnet:?", StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show(this, "The clipboard does not contain a magnet link.", "BiglyBT", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        await BiglyActionAsync("Adding torrent...", () => _bigly.AddMagnetAsync(text));
+    }
+    private async void BiglyStart_Click(object sender, RoutedEventArgs e) { if (SelectedTorrent() is { } row) await BiglyActionAsync("Starting...", () => _bigly.StartAsync(row.Id)); }
+    private async void BiglyStop_Click(object sender, RoutedEventArgs e) { if (SelectedTorrent() is { } row) await BiglyActionAsync("Pausing...", () => _bigly.StopAsync(row.Id)); }
+    private async void BiglyRemove_Click(object sender, RoutedEventArgs e) => await RemoveTorrentAsync(false);
+    private async void BiglyDelete_Click(object sender, RoutedEventArgs e) => await RemoveTorrentAsync(true);
+    private async void BiglyPriority_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded || BiglyPriorityBox.SelectedItem is not ComboBoxItem item || !int.TryParse(item.Tag?.ToString(), out var priority) || SelectedTorrent() is not { } row) return;
+        await BiglyActionAsync("Changing priority...", () => _bigly.PriorityAsync(row.Id, priority));
+        BiglyPriorityBox.SelectedIndex = 0;
+    }
+    private async Task RemoveTorrentAsync(bool deleteFiles)
+    {
+        if (SelectedTorrent() is not { } row) return;
+        var warning = deleteFiles
+            ? $"Permanently remove '{row.Name}' and delete its downloaded files? This cannot be undone."
+            : $"Remove '{row.Name}' from BiglyBT but keep all downloaded files?";
+        if (MessageBox.Show(this, warning, "Confirm torrent removal", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        await BiglyActionAsync("Removing torrent...", async () =>
+        {
+            await _bigly.RemoveAsync(row.Id, deleteFiles);
+            await RecordTorrentHistoryAsync(row, row.Progress >= 100 ? "Completed - manually removed" : "Removed before completion", deleteFiles);
+        });
+    }
+    private TorrentRow? SelectedTorrent()
+    {
+        if (BiglyGrid.SelectedItem is TorrentRow row) return row;
+        MessageBox.Show(this, "Select a torrent first.", "BiglyBT", MessageBoxButton.OK, MessageBoxImage.Information);
+        return null;
+    }
+    private async Task BiglyActionAsync(string message, Func<Task> action)
+    {
+        BiglyStatusText.Text = message;
+        try { await action(); await RefreshBiglyAsync(); }
+        catch (Exception ex) { BiglyStatusText.Text = ex.Message; }
+    }
+    private void BiglyHistory_Click(object sender, RoutedEventArgs e)
+    {
+        _biglyHistoryMode = !_biglyHistoryMode;
+        if (_biglyHistoryMode) ShowBiglyHistory(); else _ = RefreshBiglyAsync();
+    }
+    private void ShowBiglyHistory()
+    {
+        _torrentHistoryRows.Clear();
+        foreach (var item in _vault.Collection("biglyHistory").OfType<JsonObject>().OrderByDescending(item => JsonNumber(item, "at")))
+        {
+            var at = (long)JsonNumber(item, "at");
+            _torrentHistoryRows.Add(new TorrentHistoryRow
+            {
+                Name = Text(item, "name"), Outcome = Text(item, "outcome"), Date = at > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(at).LocalDateTime.ToString("g") : "",
+                Progress = $"{JsonNumber(item, "progress"):0.#}%", Downloaded = FormatBytes((long)JsonNumber(item, "downloaded")), Files = item["filesDeleted"]?.ToString() == "true" ? "Deleted" : "Kept"
+            });
+        }
+        BiglySetupPanel.Visibility = Visibility.Collapsed;
+        BiglyGrid.Visibility = Visibility.Collapsed;
+        BiglyHistoryGrid.Visibility = Visibility.Visible;
+        BiglyStatusText.Text = $"{_torrentHistoryRows.Count} history records";
+    }
+    private Task RecordTorrentHistoryAsync(TorrentRow row, string outcome, bool filesDeleted) => _vault.AddAsync("biglyHistory", new JsonObject
+    {
+        ["id"] = $"native:{row.Hash}:{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}", ["hash"] = row.Hash, ["name"] = row.Name,
+        ["outcome"] = outcome, ["progress"] = row.Progress, ["downloaded"] = row.Downloaded, ["total"] = row.TotalSize,
+        ["filesDeleted"] = filesDeleted, ["at"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+    });
+    private static string TorrentStatus(int status, string error) => error.Length > 0 ? $"Error: {error}" : status switch { 0 => "Paused", 1 => "Queued to verify", 2 => "Verifying", 3 => "Queued", 4 => "Downloading", 5 => "Queued to seed", 6 => "Seeding", _ => "Unknown" };
+    private static string FormatBytes(long value)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"]; double size = Math.Max(0, value); var unit = 0;
+        while (size >= 1024 && unit < units.Length - 1) { size /= 1024; unit++; }
+        return $"{size:0.#} {units[unit]}";
+    }
+
+    private JsonObject HealthRoot()
+    {
+        if (_vault.Root["health"] is not JsonObject health)
+        {
+            health = new JsonObject { ["foodLog"] = new JsonArray(), ["labs"] = new JsonArray(), ["targets"] = new JsonObject() };
+            _vault.Root["health"] = health;
+        }
+        health["foodLog"] ??= new JsonArray(); health["labs"] ??= new JsonArray(); health["targets"] ??= new JsonObject();
+        return health;
+    }
+
+    private void RefreshHealth()
+    {
+        var health = HealthRoot();
+        var log = health["foodLog"] as JsonArray ?? [];
+        var targets = health["targets"] as JsonObject ?? [];
+        var start = DateTime.Today.AddDays(-(((int)DateTime.Today.DayOfWeek + 6) % 7));
+        var week = log.OfType<JsonObject>().Where(item => DateTime.TryParse(Text(item, "date"), out var date) && date.Date >= start).ToList();
+        double Sum(string type)
+        {
+            var field = HealthField(type);
+            return week.Sum(item => item[field] is not null
+                ? JsonNumber(item, field)
+                : Text(item, "type") == type ? Math.Max(1, JsonNumber(item, "amount")) : 0);
+        }
+        double Target(string key, double fallback) => targets[key] is null ? fallback : JsonNumber(targets, key);
+        PlantMealsText.Text = $"{Sum("plant"):0} / {Target("plantMeals", 10):0}";
+        ActivityText.Text = $"{Sum("activity"):0} / {Target("activityMinutes", 150):0} min";
+        FishMealsText.Text = $"{Sum("fish"):0} / {Target("fishMeals", 2):0}";
+        LimitMealsText.Text = $"{Sum("redMeat") + Sum("fried"):0} / {Target("redMeatMeals", 1) + Target("friedMeals", 1):0}";
+        HealthLogList.Items.Clear();
+        foreach (var item in log.OfType<JsonObject>().OrderByDescending(item => Text(item, "date")).Take(40))
+        {
+            var type = Text(item, "type");
+            if (type.Length > 0)
+                HealthLogList.Items.Add($"{Text(item, "date")}   {HealthTypeName(type)}   {JsonNumber(item, "amount"):0.#}   {Text(item, "note", "notes")}".Trim());
+            else
+            {
+                var meals = JsonNumber(item, "plantMeals") + JsonNumber(item, "fishMeals") + JsonNumber(item, "poultryMeals") + JsonNumber(item, "redMeatMeals");
+                HealthLogList.Items.Add($"{Text(item, "date")}   {meals:0} meals · {JsonNumber(item, "vegetableServings"):0} veg · {JsonNumber(item, "activityMinutes"):0} min · {JsonNumber(item, "sleepHours"):0.#} h sleep   {Text(item, "notes")}".Trim());
+            }
+        }
+        if (HealthLogList.Items.Count == 0) HealthLogList.Items.Add("No entries yet. Add the first meal or activity on the right.");
+        foreach (var lab in (health["labs"] as JsonArray ?? []).OfType<JsonObject>().OrderByDescending(item => Text(item, "date")).Take(10))
+            HealthLogList.Items.Add($"LAB  {Text(lab, "date")}   {Text(lab, "test")}: {Text(lab, "value")} {Text(lab, "unit")}   {Text(lab, "note")}".Trim());
+        HealthDateBox.SelectedDate ??= DateTime.Today;
+    }
+
+    private async void HealthAdd_Click(object sender, RoutedEventArgs e)
+    {
+        if (HealthTypeBox.SelectedItem is not ComboBoxItem selected) return;
+        var type = selected.Tag?.ToString() ?? "plant";
+        if (!double.TryParse(HealthAmountBox.Text, out var amount) || amount <= 0) amount = 1;
+        var health = HealthRoot().DeepClone() as JsonObject ?? [];
+        var log = health["foodLog"] as JsonArray ?? new JsonArray(); health["foodLog"] = log;
+        var date = (HealthDateBox.SelectedDate ?? DateTime.Today).ToString("yyyy-MM-dd");
+        var entry = log.OfType<JsonObject>().FirstOrDefault(item => Text(item, "date") == date && Text(item, "type").Length == 0);
+        if (entry is null)
+        {
+            entry = new JsonObject { ["date"] = date, ["notes"] = "" };
+            log.Insert(0, entry);
+        }
+        var field = HealthField(type);
+        if (field == "strength") entry[field] = true;
+        else entry[field] = JsonNumber(entry, field) + amount;
+        if (HealthNoteBox.Text.Trim().Length > 0) entry["notes"] = HealthNoteBox.Text.Trim();
+        await _vault.SetRootValueAsync("health", health);
+        HealthNoteBox.Clear(); HealthAmountBox.Text = "1"; RefreshHealth();
+    }
+
+    private async void HealthLab_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new HealthLabWindow { Owner = this };
+        if (dialog.ShowDialog() != true || dialog.Item is null) return;
+        var health = HealthRoot().DeepClone() as JsonObject ?? [];
+        var labs = health["labs"] as JsonArray ?? new JsonArray(); health["labs"] = labs; labs.Insert(0, dialog.Item);
+        await _vault.SetRootValueAsync("health", health); RefreshHealth();
+    }
+    private async void HealthTargets_Click(object sender, RoutedEventArgs e)
+    {
+        var health = HealthRoot().DeepClone() as JsonObject ?? [];
+        var dialog = new HealthTargetsWindow(health["targets"] as JsonObject ?? []) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        health["targets"] = dialog.Targets; await _vault.SetRootValueAsync("health", health); RefreshHealth();
+    }
+    private static string HealthField(string type) => type switch
+    {
+        "plant" => "plantMeals", "fish" => "fishMeals", "poultry" => "poultryMeals", "redMeat" => "redMeatMeals",
+        "fried" => "friedMeals", "sugary" => "sugaryItems", "fruit" => "fruitServings", "vegetable" => "vegetableServings",
+        "wholeGrain" => "wholeGrainMeals", "water" => "waterCups", "activity" => "activityMinutes", "strength" => "strength", "sleep" => "sleepHours", _ => type
+    };
+    private static string HealthTypeName(string type) => type switch { "plant" => "Plant-based meal", "fish" => "Fish meal", "poultry" => "Poultry / egg meal", "redMeat" => "Red meat meal", "fried" => "Fried / takeaway", "sugary" => "Sugary item", "fruit" => "Fruit serving", "vegetable" => "Vegetable serving", "wholeGrain" => "Whole grain / legume", "water" => "Water cup", "activity" => "Activity minutes", "strength" => "Strength day", "sleep" => "Sleep hours", _ => type };
+
+    private async void DriveSignIn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _drive.ClientId = string.IsNullOrWhiteSpace(DriveClientIdBox.Text) ? DriveService.DefaultClientId : DriveClientIdBox.Text.Trim();
+            _drive.ClientSecret = DriveClientSecretBox.Password.Trim();
+            var progress = new Progress<string>(message => DriveSettingsStatus.Text = message);
+            await _drive.SignInWithBrowserAsync(progress);
+            UpdateDriveStatus();
+            await SyncDriveAsync(silent: false);
+        }
+        catch (Exception ex)
+        {
+            DriveSettingsStatus.Text = "Google sign-in failed";
+            MessageBox.Show(this, ex.Message, "Google sign-in failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void DriveSync_Click(object sender, RoutedEventArgs e) => await SyncDriveAsync(silent: false);
+
+    private void DriveDisconnect_Click(object sender, RoutedEventArgs e)
+    {
+        if (MessageBox.Show(this, "Disconnect Google Drive on this Windows PC? Your local vault will remain available.", "Disconnect Drive",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        _drive.Disconnect();
+        UpdateDriveStatus();
+    }
+
+    private async Task SyncDriveAsync(bool silent)
+    {
+        if (!_drive.Connected || _syncingDrive) return;
+        _syncingDrive = true;
+        _driveSyncTimer.Stop();
+        try
+        {
+            DriveHeaderStatus.Text = "Drive syncing…";
+            var result = await _drive.SyncAsync(_vault);
+            DriveSettingsStatus.Text = result;
+            DriveHeaderStatus.Text = "Drive connected";
+            await UpdateDriveBackupInfoAsync();
+            RefreshAll();
+            if (!silent) StatusText.Text = result;
+        }
+        catch (Exception ex)
+        {
+            DriveHeaderStatus.Text = "Drive needs attention";
+            DriveSettingsStatus.Text = ex.Message;
+            if (!silent) MessageBox.Show(this, ex.Message, "Google Drive sync", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally { _syncingDrive = false; }
+    }
+
+    private void ScheduleDriveSync()
+    {
+        if (!_drive.Connected || _syncingDrive) return;
+        _driveSyncTimer.Stop();
+        _driveSyncTimer.Start();
+    }
+
+    private async void DriveSyncTimer_Tick(object? sender, EventArgs e)
+    {
+        _driveSyncTimer.Stop();
+        await SyncDriveAsync(silent: true);
+    }
+
+    private void UpdateDriveStatus()
+    {
+        DriveHeaderStatus.Text = _drive.Connected ? "Drive connected" : "Drive offline";
+        DriveSettingsStatus.Text = _drive.Connected ? "Connected securely through Windows Credential Manager" : "Not connected";
+        if (!_drive.Connected) DriveBackupInfoText.Text = "Backup details will appear after connection.";
+    }
+
+    private async Task UpdateDriveBackupInfoAsync()
+    {
+        if (!_drive.Connected) return;
+        try
+        {
+            var info = await _drive.BackupInfoAsync();
+            if (info is null)
+            {
+                DriveBackupInfoText.Text = "No game-vault-backup.json file exists yet.";
+                return;
+            }
+            var size = info.SizeBytes >= 1024 * 1024
+                ? $"{info.SizeBytes / 1024d / 1024d:0.00} MB"
+                : $"{Math.Max(1, info.SizeBytes / 1024d):0.0} KB";
+            var modified = info.ModifiedAt?.ToLocalTime().ToString("dd MMM yyyy, h:mm tt") ?? "unknown";
+            DriveBackupInfoText.Text = $"Drive backup: {size} · Last updated {modified}";
+        }
+        catch (Exception ex)
+        {
+            DriveBackupInfoText.Text = $"Backup details unavailable: {ex.Message}";
+        }
+    }
+
+    private void SaveApiKeys_Click(object sender, RoutedEventArgs e)
+    {
+        _catalog.RawgKey = RawgKeyBox.Password;
+        _catalog.TmdbKey = TmdbKeyBox.Password;
+        _catalog.OmdbKey = OmdbKeyBox.Password;
+        StatusText.Text = "Catalog API keys saved securely in Windows Credential Manager.";
+    }
+
+    private async void SavePlex_Click(object sender, RoutedEventArgs e)
+    {
+        _plex.ServerUrl = PlexUrlBox.Text;
+        _plex.Token = PlexTokenBox.Password;
+        try
+        {
+            var items = await _plex.LibraryAsync("movie");
+            StatusText.Text = $"Plex connected · {items.Count} movies found";
+        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Plex connection", MessageBoxButton.OK, MessageBoxImage.Warning); }
+    }
+
+    private async void BiglySignIn_Click(object sender, RoutedEventArgs e)
+    {
+        _bigly.Endpoint = BiglyEndpointBox.Text;
+        try
+        {
+            await _bigly.SignInAsync(BiglyUserBox.Text, BiglyPasswordBox.Password);
+            BiglyPasswordBox.Clear();
+            StatusText.Text = "BiglyBT secure session saved in Windows Credential Manager.";
+        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "BiglyBT sign-in", MessageBoxButton.OK, MessageBoxImage.Warning); }
+    }
+    private void BiglyDisconnect_Click(object sender, RoutedEventArgs e)
+    {
+        if (MessageBox.Show(this, "Forget the saved BiglyBT session on this PC?", "BiglyBT", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        _bigly.Disconnect(); StatusText.Text = "BiglyBT session removed.";
+    }
+    private async void BiglyAutoRemove_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded || _loadingSettings) return;
+        await _vault.SetRootValueAsync("biglyAutoRemoveCompleted", BiglyAutoRemoveBox.IsChecked == true);
+    }
+
+    private static string Text(JsonObject node, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (node[key] is JsonValue scalar)
+            {
+                var value = scalar.ToString();
+                if (!string.IsNullOrWhiteSpace(value)) return value;
+            }
+        }
+        return "";
+    }
+
+    private static double Number(JsonObject node, params string[] keys)
+    {
+        foreach (var key in keys) if (double.TryParse(node[key]?.ToString(), out var value)) return value;
+        return 0;
+    }
+
+    private static double JsonNumber(JsonObject node, params string[] keys) => Number(node, keys);
+
+    private static int Integer(JsonObject node, params string[] keys) => (int)Math.Round(Number(node, keys));
+
+    private static string ArrayText(JsonObject node, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (node[key] is JsonArray array)
+            {
+                var values = array.Select(item => item is JsonValue ? item.ToString() : "").Where(value => !string.IsNullOrWhiteSpace(value));
+                var result = string.Join(", ", values);
+                if (result.Length > 0) return result;
+            }
+            var scalar = Text(node, key);
+            if (scalar.Length > 0) return scalar;
+        }
+        return "";
+    }
+
+    private static string GenreText(JsonObject node)
+    {
+        var named = Text(node, "genre");
+        if (named.Length > 0) return named.Replace("·", " / ");
+        if (node["genres"] is JsonArray genres)
+        {
+            var values = genres.Select(item => item is JsonObject obj ? Text(obj, "name") : item is JsonValue value ? value.ToString() : "")
+                .Select(value => int.TryParse(value, out var id) && TmdbGenres.TryGetValue(id, out var mapped) ? mapped : value)
+                .Where(value => !string.IsNullOrWhiteSpace(value));
+            return string.Join(" / ", values);
+        }
+        return "";
+    }
+    private static readonly Dictionary<int, string> TmdbGenres = new()
+    {
+        [28] = "Action", [12] = "Adventure", [16] = "Animation", [35] = "Comedy", [80] = "Crime", [99] = "Documentary",
+        [18] = "Drama", [10751] = "Family", [14] = "Fantasy", [36] = "History", [27] = "Horror", [10402] = "Music",
+        [9648] = "Mystery", [10749] = "Romance", [878] = "Science Fiction", [10770] = "TV Movie", [53] = "Thriller",
+        [10752] = "War", [37] = "Western", [10759] = "Action & Adventure", [10762] = "Kids", [10763] = "News",
+        [10764] = "Reality", [10765] = "Sci-Fi & Fantasy", [10766] = "Soap", [10767] = "Talk", [10768] = "War & Politics"
+    };
+
+    private static string RentalReturnDate(JsonObject node)
+    {
+        var explicitDate = Text(node, "returnDate");
+        if (explicitDate.Length > 0) return explicitDate;
+        if (DateTime.TryParse(Text(node, "start"), out var start) && Integer(node, "days") > 0)
+            return start.AddDays(Integer(node, "days")).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        return Text(node, "date", "added");
+    }
+
+    private static string QueueAvailability(JsonObject node, string fallback)
+    {
+        if (node["shops"] is not JsonObject shops) return fallback;
+        var parts = new List<string>();
+        if (shops["hub"] is JsonObject hub && string.Equals(hub["found"]?.ToString(), "true", StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var (label, key) in new[] { ("Game Hub primary", "primary"), ("Game Hub secondary", "secondary") })
+                if (hub[key] is JsonObject option)
+                {
+                    var next = Text(option, "next"); var price = Number(option, "price");
+                    var status = string.Equals(option["now"]?.ToString(), "true", StringComparison.OrdinalIgnoreCase) ? "Available now"
+                        : next.Length > 0 ? $"Next: {next}" : "Not available";
+                    parts.Add($"{label}: {status} {(price > 0 ? $"· Rs {price:N0}/mo" : "")}".Trim());
+                }
+        }
+        if (shops["gp"] is JsonObject gp && string.Equals(gp["found"]?.ToString(), "true", StringComparison.OrdinalIgnoreCase))
+        {
+            var status = string.Equals(gp["stock"]?.ToString(), "true", StringComparison.OrdinalIgnoreCase) ? "Available now"
+                : string.Equals(gp["pre"]?.ToString(), "true", StringComparison.OrdinalIgnoreCase) ? "PS5 Book / pre-book" : "Not available";
+            var price = Number(gp, "rent", "price", "rentalPrice");
+            parts.Add($"Gamer Planet: {status} {(price > 0 ? $"· Rs {price:N0}" : "")}".Trim());
+        }
+        return parts.Count > 0 ? string.Join("  |  ", parts) : fallback;
+    }
+
+    private async void LibraryCard_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is not LibraryRow row) return;
+        _selectedRow = row;
+        DetailPoster.Source = ImageSource(row.Image);
+        DetailBackdrop.Source = ImageSource(row.Backdrop.Length > 0 ? row.Backdrop : row.Image);
+        DetailType.Text = row.MediaType.ToUpperInvariant();
+        DetailTitle.Text = row.Name;
+        var duration = Integer(row.Source, "used", "days");
+        DetailMeta.Text = string.Join("  |  ", new[] { row.DetailMeta, row.Vendor, row.CostText,
+            Text(row.Source, "start") is { Length: > 0 } start ? $"Started {start}" : "", duration > 0 ? $"{duration} days" : "" }.Where(value => value.Length > 0).Distinct());
+        DetailRating.Text = $"IMDb / rating  {row.RatingText}";
+        DetailCountdown.Text = row.DaysText.Length > 0 ? row.DaysText : row.Status;
+        DetailEpisodes.Text = string.Join("  |  ", new[] { row.SeasonsText, row.EpisodesText }.Where(x => x.Length > 0));
+        DetailEpisodesBadge.Visibility = row.HasEpisodeInfo ? Visibility.Visible : Visibility.Collapsed;
+        DetailOverview.Text = row.MediaType == "Game" && row.Collection != "playing"
+            ? "Story summaries are intentionally shown for games only while they are in Now Playing."
+            : row.HasOverview ? row.Overview : "No summary is stored for this title yet.";
+        DetailAvailability.Text = row.Availability.Length > 0 ? row.Availability : "No provider or vendor information stored.";
+        DetailNote.Text = row.Note;
+        FandomButton.Visibility = row.MediaType == "Game" && row.Collection == "playing" ? Visibility.Visible : Visibility.Collapsed;
+        VendorLinksButton.Visibility = row.MediaType == "Game" && row.Collection is "queue" or "rentals" ? Visibility.Visible : Visibility.Collapsed;
+        EpisodePicker.Visibility = row.MediaType == "TV Show" ? Visibility.Visible : Visibility.Collapsed;
+        MalayalamReviewButtons.Visibility = row.MediaType == "Movie" && (row.Collection == "mlott" || Text(row.Source, "originalLanguage", "original_language") == "ml") ? Visibility.Visible : Visibility.Collapsed;
+        var personalRating = Math.Clamp((int)Math.Round(Number(row.Source, "userRating", "myRating")), 0, 10);
+        PersonalRatingBox.SelectedIndex = personalRating;
+        PopulateEpisodePicker(row);
+        DetailMoveButton.Content = PrimaryActionLabel(row);
+        DetailRemoveButton.Content = row.Collection == "plex" ? "Delete from Plex" : IsCatalog(row) ? "Not interested" : row.Collection is "hiddenMovies" or "hiddenSeries" or "upcomingRemoved" ? "Delete permanently" : row.Collection == "upcoming" ? "Remove from upcoming" : "Remove";
+        DetailsPage.Visibility = Visibility.Visible;
+        await _vault.MarkViewedAsync(row.Source, row.MediaType, row.Collection);
+        await EnrichOpenTitleAsync(row);
+    }
+
+    private async Task EnrichOpenTitleAsync(LibraryRow row)
+    {
+        if (row.Collection == "plex") return;
+        var changed = false;
+        if (row.MediaType is "Movie" or "TV Show")
+        {
+            if (row.Image.Length == 0 || row.Overview.Length == 0 || row.Providers.Length == 0 || row.ImdbId.Length == 0)
+            {
+                DetailOverview.Text = row.Overview.Length > 0 ? row.Overview : "Loading title details...";
+                if (row.TmdbId.Length == 0)
+                {
+                    try
+                    {
+                        var found = (await _catalog.SearchMediaAsync(row.Name, row.MediaType)).FirstOrDefault();
+                        if (found is not null) Merge(row.Source, found);
+                    }
+                    catch { }
+                }
+                await _catalog.EnrichMediaAsync(row.Source, row.MediaType);
+                changed = true;
+            }
+        }
+        else if (row.MediaType == "Game")
+        {
+            if (Text(row.Source, "img", "cover", "poster").Length == 0 && _catalog.RawgKey.Length > 0)
+            {
+                try
+                {
+                    var found = (await _catalog.SearchGamesAsync(row.Name)).FirstOrDefault();
+                    if (found is not null) { Merge(row.Source, found); changed = true; }
+                }
+                catch { }
+            }
+            if (row.Collection == "playing" && row.Overview.Length == 0)
+            {
+                DetailOverview.Text = "Loading story summary...";
+                var plot = await _catalog.WikipediaSummaryAsync($"{row.Name} video game plot");
+                if (plot.Length > 0) { row.Source["overview"] = plot; changed = true; }
+            }
+        }
+        if (!changed) return;
+        var refreshed = ReadNodes(new JsonArray(row.Source.DeepClone()), row.Collection).First();
+        _selectedRow = refreshed;
+        DetailPoster.Source = ImageSource(refreshed.Image);
+        DetailBackdrop.Source = ImageSource(refreshed.Backdrop.Length > 0 ? refreshed.Backdrop : refreshed.Image);
+        DetailOverview.Text = refreshed.MediaType == "Game" && refreshed.Collection != "playing"
+            ? "Story summaries are intentionally shown for games only while they are in Now Playing."
+            : refreshed.Overview.Length > 0 ? refreshed.Overview : "No summary was found for this title.";
+        DetailAvailability.Text = refreshed.Availability.Length > 0 ? refreshed.Availability : "No streaming or rental provider information found.";
+        DetailRating.Text = $"IMDb / rating  {refreshed.RatingText}";
+        if (!IsCatalog(row)) await _vault.UpdateAsync(row.Collection, row.Source);
+    }
+
+    private static void Merge(JsonObject target, JsonObject source)
+    {
+        foreach (var pair in source) if (pair.Value is not null && (target[pair.Key] is null || string.IsNullOrWhiteSpace(target[pair.Key]?.ToString()))) target[pair.Key] = pair.Value.DeepClone();
+    }
+
+    private static bool IsCatalog(LibraryRow row) => row.Collection is "uphw" or "bluray" or "relhw" or "mlott" or "seriesnew" or "seriesupcoming" or "enseries" or "mlseries" or "taseries" or "hiseries";
+
+    private static string PrimaryActionLabel(LibraryRow row)
+    {
+        if (row.Collection == "plex") return row.Status == "Watched" ? "Mark unwatched" : "Mark watched";
+        if (row.Collection == "rentals") return "Return rental";
+        if (row.Collection == "rentalHistory") return "Rent again";
+        if (row.Collection == "upcomingRemoved") return "Restore to upcoming";
+        if (row.Collection is "hiddenMovies" or "hiddenSeries") return "Restore to watchlist";
+        if (IsCatalog(row)) return "Add to watchlist";
+        if (row.MediaType == "Movie") return row.Collection == "movieWatchlist" ? "Start watching" : row.Collection == "watchingMovies" ? "Mark watched" : "Watch again";
+        if (row.MediaType == "TV Show") return row.Collection == "seriesWatchlist" ? "Start watching" : row.Collection == "watchingSeries" ? "Mark watched" : "Watch again";
+        return row.Collection is "upcoming" or "catalogExtra" ? "Add to rental queue" : row.Collection == "queue" ? "Move to playing" : "Move to completed";
+    }
+
+    private void CloseDetails_Click(object sender, RoutedEventArgs e) => CloseDetails();
+
+    private void CloseDetails()
+    {
+        DetailsPage.Visibility = Visibility.Collapsed;
+        _selectedRow = null;
+    }
+
+    private async void SaveRating_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedRow is not { } row || PersonalRatingBox.SelectedItem is not ComboBoxItem selected || !int.TryParse(selected.Tag?.ToString(), out var rating)) return;
+        var item = row.Source.DeepClone() as JsonObject ?? [];
+        item["userRating"] = rating;
+        var destination = row.Collection;
+        if (IsCatalog(row)) destination = row.MediaType == "Movie" ? "movieWatchlist" : row.MediaType == "TV Show" ? "seriesWatchlist" : "queue";
+        await RunBusyAsync("Saving personal rating...", () => _vault.UpdateAsync(destination, item));
+        StatusText.Text = rating > 0 ? $"Rated {row.Name} {rating}/10." : $"Removed your rating for {row.Name}.";
+        RefreshAll();
+    }
+
+    private static System.Windows.Media.ImageSource? ImageSource(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return null;
+        try
+        {
+            var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+            bitmap.UriSource = uri;
+            bitmap.EndInit();
+            return bitmap;
+        }
+        catch { return null; }
+    }
+
+    private void Trailer_Click(object sender, RoutedEventArgs e) => OpenExternal($"https://www.youtube.com/results?search_query={Uri.EscapeDataString((_selectedRow?.Name ?? "") + " official trailer")}");
+    private void Google_Click(object sender, RoutedEventArgs e) => OpenExternal($"https://www.google.com/search?q={Uri.EscapeDataString(_selectedRow?.Name ?? "")}");
+    private void Wikipedia_Click(object sender, RoutedEventArgs e) => OpenExternal($"https://en.wikipedia.org/w/index.php?search={Uri.EscapeDataString(_selectedRow?.Name ?? "")}");
+    private void Imdb_Click(object sender, RoutedEventArgs e)
+    {
+        var row = _selectedRow;
+        OpenExternal(!string.IsNullOrWhiteSpace(row?.ImdbId) ? $"https://www.imdb.com/title/{row.ImdbId}/" : $"https://www.imdb.com/find/?q={Uri.EscapeDataString(row?.Name ?? "")}");
+    }
+
+    private void IgnReview_Click(object sender, RoutedEventArgs e) => OpenExternal($"https://www.youtube.com/results?search_query={Uri.EscapeDataString("IGN review " + (_selectedRow?.Name ?? ""))}");
+    private void ReeloadReview_Click(object sender, RoutedEventArgs e) => OpenExternal($"https://www.youtube.com/results?search_query={Uri.EscapeDataString("@REELOADMEDIA review " + (_selectedRow?.Name ?? ""))}");
+    private void MonsoonReview_Click(object sender, RoutedEventArgs e) => OpenExternal($"https://www.youtube.com/results?search_query={Uri.EscapeDataString((_selectedRow?.Name ?? "") + " Malayalam review Monsoon Media")}");
+    private void AswanthReview_Click(object sender, RoutedEventArgs e) => OpenExternal($"https://www.youtube.com/results?search_query={Uri.EscapeDataString((_selectedRow?.Name ?? "") + " Malayalam review Aswanth Kok")}");
+    private void Fandom_Click(object sender, RoutedEventArgs e)
+    {
+        var name = _selectedRow?.Name ?? "";
+        var saved = (_vault.Root["fandom"] as JsonObject)?[NormalizedTitle(name)]?.ToString() ?? "";
+        var menu = new ContextMenu();
+        var open = new MenuItem { Header = saved.Length > 0 ? "Continue saved Fandom page" : "Find Fandom page" };
+        open.Click += (_, _) => OpenExternal(saved.Length > 0 ? saved : $"https://www.google.com/search?btnI=1&q={Uri.EscapeDataString(name + " plot site:fandom.com")}");
+        var save = new MenuItem { Header = "Save Fandom page from clipboard" };
+        save.Click += async (_, _) =>
+        {
+            var value = Clipboard.ContainsText() ? Clipboard.GetText().Trim() : "";
+            if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || !uri.Host.Contains("fandom.com", StringComparison.OrdinalIgnoreCase))
+            {
+                MessageBox.Show(this, "Copy the Fandom page or section URL first, then choose this option.", "Fandom continuation", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var fandom = _vault.Root["fandom"]?.DeepClone() as JsonObject ?? [];
+            fandom[NormalizedTitle(name)] = value;
+            await _vault.SetRootValueAsync("fandom", fandom);
+            StatusText.Text = $"Saved the Fandom continuation page for {name}.";
+        };
+        menu.Items.Add(open); menu.Items.Add(save);
+        if (saved.Length > 0)
+        {
+            var forget = new MenuItem { Header = "Forget saved Fandom page" };
+            forget.Click += async (_, _) =>
+            {
+                var fandom = _vault.Root["fandom"]?.DeepClone() as JsonObject ?? [];
+                fandom.Remove(NormalizedTitle(name));
+                await _vault.SetRootValueAsync("fandom", fandom);
+                StatusText.Text = $"Removed the saved Fandom continuation page for {name}.";
+            };
+            menu.Items.Add(forget);
+        }
+        menu.IsOpen = true;
+    }
+    private void VendorLinks_Click(object sender, RoutedEventArgs e)
+    {
+        var title = Uri.EscapeDataString(_selectedRow?.Name ?? "");
+        var menu = new ContextMenu();
+        var hub = new MenuItem { Header = "The Game Hub" };
+        hub.Click += (_, _) => OpenExternal($"https://thegamehub.in/?s={title}");
+        var planet = new MenuItem { Header = "Gamer Planet" };
+        planet.Click += (_, _) => OpenExternal($"https://gamerplanet.in/?s={title}");
+        menu.Items.Add(hub); menu.Items.Add(planet); menu.IsOpen = true;
+    }
+
+    private void AiAssistant_Click(object sender, RoutedEventArgs e)
+    {
+        var row = _selectedRow;
+        if (row is null) return;
+        var prompt = row.MediaType == "Game"
+            ? $"I am about to play {row.Name}. Tell me what I should know first, whether I should play previous games, and recap important earlier lore. Do not spoil {row.Name}."
+            : $"I am about to watch {row.Name}. Tell me what I should know first, any earlier films, seasons, or lore I need, whether it is based on true events, and recap prequels if applicable. Do not spoil {row.Name}.";
+        var services = new Dictionary<string, string>
+        {
+            ["ChatGPT"] = $"https://chatgpt.com/?q={Uri.EscapeDataString(prompt)}",
+            ["Claude"] = $"https://claude.ai/new?q={Uri.EscapeDataString(prompt)}",
+            ["Grok"] = $"https://grok.com/?q={Uri.EscapeDataString(prompt)}",
+            ["DeepSeek"] = $"https://chat.deepseek.com/?q={Uri.EscapeDataString(prompt)}"
+        };
+        var menu = new ContextMenu();
+        var chatKey = $"{row.MediaType}:{(row.Id.Length > 0 ? row.Id : NormalizedTitle(row.Name))}";
+        var savedChats = (_vault.Root["aiChats"] as JsonObject)?[chatKey] as JsonObject;
+        foreach (var service in services)
+        {
+            var serviceName = service.Key;
+            var startUrl = service.Value;
+            var savedUrl = savedChats?[serviceName]?.ToString() ?? "";
+            var item = new MenuItem { Header = savedUrl.Length > 0 ? $"{serviceName} · continue saved chat" : serviceName };
+            item.Click += (_, _) => { Clipboard.SetText(prompt); OpenExternal(savedUrl.Length > 0 ? savedUrl : startUrl); };
+            menu.Items.Add(item);
+        }
+        menu.Items.Add(new Separator());
+        var saveMenu = new MenuItem { Header = "Save current conversation URL from clipboard" };
+        foreach (var serviceName in services.Keys)
+        {
+            var saveItem = new MenuItem { Header = serviceName };
+            saveItem.Click += async (_, _) => await SaveAiConversationAsync(chatKey, serviceName);
+            saveMenu.Items.Add(saveItem);
+        }
+        menu.Items.Add(saveMenu);
+        menu.IsOpen = true;
+    }
+
+    private async Task SaveAiConversationAsync(string chatKey, string service)
+    {
+        var value = Clipboard.ContainsText() ? Clipboard.GetText().Trim() : "";
+        if (!Uri.TryCreate(value, UriKind.Absolute, out _))
+        {
+            MessageBox.Show(this, "Copy the conversation URL from your browser first.", "AI assistant", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var chats = _vault.Root["aiChats"]?.DeepClone() as JsonObject ?? [];
+        var titleChats = chats[chatKey] as JsonObject ?? [];
+        titleChats[service] = value;
+        chats[chatKey] = titleChats;
+        await _vault.SetRootValueAsync("aiChats", chats);
+        StatusText.Text = $"Saved the {service} conversation for this title.";
+    }
+
+    private void ChangeStatus_Click(object sender, RoutedEventArgs e)
+    {
+        var row = _selectedRow;
+        if (row is null) return;
+        var actions = row.MediaType switch
+        {
+            "Movie" => new[] { ("Add to Watchlist", "movieWatchlist", "Watchlist"), ("Watching", "watchingMovies", "Watching"), ("Watched", "watchedMovies", "Watched"), ("Not Interested", "hiddenMovies", "Not Interested") },
+            "TV Show" => new[] { ("Add to Watchlist", "seriesWatchlist", "Watchlist"), ("Watching", "watchingSeries", "Watching"), ("Watched", "watchedSeries", "Watched"), ("Not Interested", "hiddenSeries", "Not Interested") },
+            _ => new[] { ("Rental Queue", "queue", "Queued"), ("Playing", "playing", "Playing"), ("Resume Later", "playing", "Resume Later"), ("On Hold", "playing", "On Hold"), ("Completed", "played", "Finished") }
+        };
+        var menu = new ContextMenu();
+        foreach (var action in actions)
+        {
+            var item = new MenuItem { Header = action.Item1 };
+            item.Click += async (_, _) => await MoveRowToAsync(row, action.Item2, action.Item3);
+            menu.Items.Add(item);
+        }
+        menu.IsOpen = true;
+    }
+
+    private async Task MoveRowToAsync(LibraryRow row, string destination, string status)
+    {
+        CaptureUndo();
+        var clone = row.Source.DeepClone() as JsonObject ?? [];
+        clone["status"] = status;
+        await RunBusyAsync("Updating status...", async () =>
+        {
+            await _vault.UpdateAsync(destination, clone);
+            if (!IsCatalog(row) && row.Collection != "plex" && row.Collection != destination) await _vault.RemoveAsync(row.Collection, row.Id);
+        });
+        DetailsPage.Visibility = Visibility.Collapsed;
+        RefreshAll();
+    }
+
+    private async void CardQuickAction_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem item ||
+            item.Parent is not ContextMenu menu ||
+            menu.PlacementTarget is not Button button ||
+            button.Tag is not LibraryRow row) return;
+
+        _selectedRow = row;
+        switch (item.Tag?.ToString())
+        {
+            case "primary":
+                MoveStatus_Click(sender, e);
+                return;
+            case "watchlist":
+                await MoveRowToAsync(row, row.MediaType switch
+                {
+                    "Movie" => "movieWatchlist",
+                    "TV Show" => "seriesWatchlist",
+                    _ => "queue"
+                }, row.MediaType == "Game" ? "Queued" : "Watchlist");
+                return;
+            case "watched":
+                await MoveRowToAsync(row, row.MediaType switch
+                {
+                    "Movie" => "watchedMovies",
+                    "TV Show" => "watchedSeries",
+                    _ => "played"
+                }, row.MediaType == "Game" ? "Finished" : "Watched");
+                return;
+            case "hidden":
+                await MoveRowToAsync(row, row.MediaType switch
+                {
+                    "Movie" => "hiddenMovies",
+                    "TV Show" => "hiddenSeries",
+                    _ => "hiddenGames"
+                }, "Not Interested");
+                return;
+        }
+    }
+
+    private static void OpenExternal(string url) => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+
+    private void PopulateEpisodePicker(LibraryRow row)
+    {
+        DetailSeasonBox.SelectionChanged -= DetailSeason_Changed;
+        DetailEpisodeBox.SelectionChanged -= DetailEpisode_Changed;
+        DetailSeasonBox.Items.Clear();
+        DetailEpisodeBox.Items.Clear();
+        if (row.MediaType == "TV Show")
+        {
+            var seasons = row.Seasons > 0 ? row.Seasons : (row.Source["seasonList"] as JsonArray)?.Count ?? 0;
+            for (var season = 1; season <= seasons; season++) DetailSeasonBox.Items.Add(season);
+            if (DetailSeasonBox.Items.Count > 0) DetailSeasonBox.SelectedIndex = 0;
+        }
+        DetailSeasonBox.SelectionChanged += DetailSeason_Changed;
+        DetailEpisodeBox.SelectionChanged += DetailEpisode_Changed;
+        PopulateEpisodes();
+    }
+
+    private void DetailSeason_Changed(object sender, SelectionChangedEventArgs e) => PopulateEpisodes();
+    private void DetailEpisode_Changed(object sender, SelectionChangedEventArgs e) { }
+    private void PopulateEpisodes()
+    {
+        DetailEpisodeBox.Items.Clear();
+        if (_selectedRow is not { } row || DetailSeasonBox.SelectedItem is not int season) return;
+        var count = 0;
+        if (row.Source["seasonList"] is JsonArray list)
+        {
+            var info = list.OfType<JsonObject>().FirstOrDefault(item => Integer(item, "n", "season_number") == season);
+            if (info is not null) count = Integer(info, "episodes", "episode_count");
+        }
+        if (count == 0) count = row.Episodes > 0 && row.Seasons <= 1 ? row.Episodes : 20;
+        for (var episode = 1; episode <= count; episode++) DetailEpisodeBox.Items.Add(episode);
+        if (DetailEpisodeBox.Items.Count > 0) DetailEpisodeBox.SelectedIndex = 0;
+    }
+
+    private async void EpisodePlot_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedRow is not { } row || DetailSeasonBox.SelectedItem is not int season || DetailEpisodeBox.SelectedItem is not int episode) return;
+        var tmdbId = row.TmdbId;
+        var details = await _catalog.EpisodeAsync(tmdbId, row.ImdbId, season, episode);
+        var overview = details.Overview;
+        if (overview.Length == 0) overview = await _catalog.WikipediaSummaryAsync($"{row.Name} season {season} episode {episode}");
+        DetailOverview.Text = overview.Length > 0 ? $"S{season:00}E{episode:00} {details.Name}\n\n{overview}" : "No episode summary was found. Use Wikipedia search for this episode.";
+        DetailRating.Text = details.Rating > 0 ? $"Episode rating  {details.Rating:0.0}" : $"Rating  {row.RatingText}";
+        if (details.AirDate.Length > 0) DetailCountdown.Text = details.AirDate;
+    }
+
+    private async void MoveStatus_Click(object sender, RoutedEventArgs e)
+    {
+        var row = _selectedRow;
+        if (row is null) return;
+        if (row.Collection == "plex")
+        {
+            var key = Text(row.Source, "plexRatingKey");
+            var makeWatched = !string.Equals(row.Status, "Watched", StringComparison.OrdinalIgnoreCase);
+            try { await _plex.MarkWatchedAsync(key, makeWatched); }
+            catch (Exception ex) { MessageBox.Show(this, ex.Message, "Plex", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+            var watched = row.MediaType == "Movie" ? "watchedMovies" : "watchedSeries";
+            var watching = row.MediaType == "Movie" ? "watchingMovies" : "watchingSeries";
+            var watchlist = row.MediaType == "Movie" ? "movieWatchlist" : "seriesWatchlist";
+            var plexClone = row.Source.DeepClone() as JsonObject ?? [];
+            plexClone["key"] = $"plex:{key}"; plexClone["status"] = makeWatched ? "Watched" : "Watching"; plexClone["plexSyncedAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            await RunBusyAsync("Synchronizing Plex status...", async () =>
+            {
+                await _vault.AddAsync(makeWatched ? watched : watching, plexClone);
+                await RemoveMatchingTitleAsync(makeWatched ? watching : watched, row.Name);
+                await RemoveMatchingTitleAsync(watchlist, row.Name);
+            });
+            DetailsPage.Visibility = Visibility.Collapsed; await RefreshPlexAsync(); RefreshDashboard(); return;
+        }
+        if (row.Collection == "rentals")
+        {
+            if (MessageBox.Show(this, $"Return '{row.Name}' today and move this rental to Rental History?", "Return rental", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            var history = row.Source.DeepClone() as JsonObject ?? [];
+            history["end"] = DateTime.Today.ToString("yyyy-MM-dd");
+            if (DateTime.TryParse(Text(history, "start"), out var start)) history["used"] = Math.Max(0, (DateTime.Today - start.Date).Days);
+            history["status"] = "Returned";
+            await RunBusyAsync("Returning rental...", () => _vault.MoveAsync("rentals", "rentalHistory", history));
+            DetailsPage.Visibility = Visibility.Collapsed; RefreshAll(); return;
+        }
+        if (row.Collection == "rentalHistory")
+        {
+            var rental = row.Source.DeepClone() as JsonObject ?? [];
+            rental["id"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(); rental["start"] = DateTime.Today.ToString("yyyy-MM-dd"); rental["returnDate"] = DateTime.Today.AddDays(30).ToString("yyyy-MM-dd"); rental["days"] = 30; rental["status"] = "Active";
+            await RunBusyAsync("Creating new rental period...", () => _vault.AddAsync("rentals", rental));
+            DetailsPage.Visibility = Visibility.Collapsed; SelectGameCollection("rentals"); RefreshAll(); return;
+        }
+        if (row.Collection == "upcomingRemoved")
+        {
+            await RunBusyAsync("Restoring upcoming game...", () => _vault.MoveAsync("upcomingRemoved", "upcoming", row.Source.DeepClone() as JsonObject ?? []));
+            DetailsPage.Visibility = Visibility.Collapsed; RefreshAll(); return;
+        }
+        var destination = row.MediaType switch
+        {
+            "Movie" when row.Collection == "movieWatchlist" => "watchingMovies",
+            "Movie" when row.Collection == "watchingMovies" => "watchedMovies",
+            "Movie" when row.Collection == "watchedMovies" => "watchingMovies",
+            "Movie" => "movieWatchlist",
+            "TV Show" when row.Collection == "seriesWatchlist" => "watchingSeries",
+            "TV Show" when row.Collection == "watchingSeries" => "watchedSeries",
+            "TV Show" when row.Collection == "watchedSeries" => "watchingSeries",
+            "TV Show" => "seriesWatchlist",
+            _ when row.Collection is "upcoming" or "catalogExtra" => "queue",
+            _ when row.Collection == "queue" => "playing",
+            _ => "played"
+        };
+        var clone = row.Source.DeepClone() as JsonObject ?? [];
+        clone["status"] = destination switch { "watchedMovies" or "watchedSeries" => "Watched", "playing" => "Playing", "played" => "Finished", _ => clone["status"] };
+        await RunBusyAsync("Updating library...", async () =>
+        {
+            if (!CollectionContains(destination, row)) await _vault.AddAsync(destination, clone);
+            if (!IsCatalog(row)) await _vault.RemoveAsync(row.Collection, row.Id);
+        });
+        DetailsPage.Visibility = Visibility.Collapsed;
+        RefreshAll();
+    }
+
+    private async Task RemoveMatchingTitleAsync(string collection, string title)
+    {
+        var item = _vault.Collection(collection).OfType<JsonObject>().FirstOrDefault(node => string.Equals(Text(node, "name", "title"), title, StringComparison.OrdinalIgnoreCase));
+        if (item is null) return;
+        var id = Text(item, "id", "canonicalId", "tmdbId", "key");
+        if (id.Length > 0) await _vault.RemoveAsync(collection, id);
+    }
+
+    private async void RemoveDetail_Click(object sender, RoutedEventArgs e)
+    {
+        var row = _selectedRow;
+        if (row is null) return;
+        if (row.Collection == "plex")
+        {
+            if (MessageBox.Show(this, $"Permanently delete '{row.Name}' from Plex, including its media files?\n\nThis cannot be undone.", "Delete Plex media", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            try { await _plex.DeleteAsync(Text(row.Source, "plexRatingKey")); }
+            catch (Exception ex) { MessageBox.Show(this, ex.Message, "Plex delete failed", MessageBoxButton.OK, MessageBoxImage.Error); return; }
+            DetailsPage.Visibility = Visibility.Collapsed; await RefreshPlexAsync(); return;
+        }
+        if (row.Collection == "upcoming")
+        {
+            if (MessageBox.Show(this, $"Move '{row.Name}' to Removed games? It will stay hidden from future internet refreshes.", "Remove upcoming title", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            CaptureUndo();
+            await RunBusyAsync("Moving to Removed games...", () => _vault.MoveAsync("upcoming", "upcomingRemoved", row.Source.DeepClone() as JsonObject ?? []));
+            DetailsPage.Visibility = Visibility.Collapsed; RefreshAll(); return;
+        }
+        if (IsCatalog(row))
+        {
+            CaptureUndo();
+            var hidden = row.MediaType == "Movie" ? "hiddenMovies" : "hiddenSeries";
+            if (!CollectionContains(hidden, row)) await RunBusyAsync("Hiding title...", () => _vault.AddAsync(hidden, row.Source.DeepClone() as JsonObject ?? []));
+            DetailsPage.Visibility = Visibility.Collapsed;
+            RefreshAll();
+            return;
+        }
+        if (MessageBox.Show(this, $"Remove '{row.Name}' from {row.Collection}? A recovery snapshot will be created first.",
+                "Confirm removal", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        CaptureUndo();
+        await RunBusyAsync("Removing title...", () => _vault.RemoveAsync(row.Collection, row.Id));
+        DetailsPage.Visibility = Visibility.Collapsed;
+        RefreshAll();
+    }
+
+    private void CaptureUndo()
+    {
+        _undoRoot = _vault.Root.DeepClone() as JsonObject;
+        UndoButton.Visibility = _undoRoot is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private async void Undo_Click(object sender, RoutedEventArgs e)
+    {
+        if (_undoRoot is null) return;
+        var snapshot = _undoRoot;
+        _undoRoot = null;
+        UndoButton.Visibility = Visibility.Collapsed;
+        await RunBusyAsync("Restoring previous library state...", () => _vault.ImportJsonAsync(snapshot.ToJsonString()));
+        DetailsPage.Visibility = Visibility.Collapsed;
+        RefreshAll();
+        StatusText.Text = "Previous library action restored.";
+    }
+
+    private bool CollectionContains(string collection, LibraryRow row) => _vault.Collection(collection).OfType<JsonObject>().Any(item =>
+        string.Equals(Text(item, "canonicalId", "id", "tmdbId"), Text(row.Source, "canonicalId", "id", "tmdbId"), StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Text(item, "name", "title"), row.Name, StringComparison.OrdinalIgnoreCase));
+
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && DetailsPage.Visibility == Visibility.Visible) { CloseDetails(); e.Handled = true; return; }
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.K) { SearchBox.Focus(); SearchBox.SelectAll(); e.Handled = true; return; }
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.R) { GlobalRefresh_Click(this, new RoutedEventArgs()); e.Handled = true; return; }
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.OemComma) { _previousSection = _section; _section = "Settings"; ShowSection(); e.Handled = true; return; }
+        if (Keyboard.Modifiers == ModifierKeys.Alt && e.Key == Key.Left)
+        {
+            if (DetailsPage.Visibility == Visibility.Visible) CloseDetails();
+            else { (_section, _previousSection) = (_previousSection, _section); ShowSection(); }
+            e.Handled = true;
+        }
+    }
+
+    private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var compact = ActualWidth < 1320;
+        RailColumn.Width = new GridLength(compact ? 210 : 244);
+        SearchBox.Width = compact ? 170 : 260;
+        FeaturedTitleText.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        PageSubtitle.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        ThemeButton.Visibility = ActualWidth < 1180 ? Visibility.Collapsed : Visibility.Visible;
+        OverviewStats.Columns = ActualWidth < 1500 ? 3 : 6;
+    }
+
+    private void OpenVaultFolder_Click(object sender, RoutedEventArgs e) => Process.Start(new ProcessStartInfo(_vault.StorageFolder) { UseShellExecute = true });
+
+    private async void CreateSnapshot_Click(object sender, RoutedEventArgs e)
+    {
+        await _vault.CreateSnapshotAsync();
+        StatusText.Text = "Recovery snapshot created.";
+    }
+
+    private async void OpenRecovery_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new RecoveryWindow(_vault.RecoverySnapshots()) { Owner = this };
+        if (dialog.ShowDialog() != true || dialog.Selected is null) return;
+        await RunBusyAsync("Restoring recovery snapshot...", () => _vault.RestoreSnapshotAsync(dialog.Selected.Path));
+        RefreshAll();
+        StatusText.Text = "Recovery snapshot restored.";
+    }
+
+    private async void ExportDiagnostics_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SaveFileDialog { Filter = "Text report (*.txt)|*.txt", FileName = $"gamevault-diagnostics-{DateTime.Today:yyyy-MM-dd}.txt" };
+        if (dialog.ShowDialog(this) != true) return;
+        await DiagnosticsService.ExportAsync(dialog.FileName, _vault);
+        StatusText.Text = "Private diagnostics exported.";
+    }
+
+    private void CheckUpdates_Click(object sender, RoutedEventArgs e) => OpenExternal("https://github.com/sinuksml/gamevault/releases/latest");
+}

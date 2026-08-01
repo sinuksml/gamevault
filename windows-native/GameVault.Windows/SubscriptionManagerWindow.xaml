@@ -1,0 +1,23 @@
+<Window x:Class="SinuGameVault.SubscriptionManagerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Gaming subscriptions" Width="900" Height="610" MinWidth="760" MinHeight="520" WindowStartupLocation="CenterOwner">
+    <Grid Margin="24"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <StackPanel><TextBlock Text="Gaming subscriptions" FontSize="24" FontWeight="Bold"/><TextBlock Text="Manage GeForce NOW, Game Pass, PC services and their renewal periods. Subscription games can be linked to one of these services." Style="{StaticResource MutedText}" Margin="0,5,0,16"/></StackPanel>
+        <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="1.1*"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <DataGrid x:Name="SubscriptionGrid" SelectionChanged="SubscriptionGrid_SelectionChanged">
+                <DataGrid.Columns><DataGridTextColumn Header="Service" Binding="{Binding Service}" Width="*"/><DataGridTextColumn Header="Renews / ends" Binding="{Binding End}" Width="135"/><DataGridTextColumn Header="Monthly" Binding="{Binding Monthly}" Width="100"/></DataGrid.Columns>
+            </DataGrid>
+            <Border Grid.Column="2" Style="{StaticResource SurfaceCard}" Padding="18">
+                <StackPanel><TextBlock Text="Subscription details" FontSize="18" FontWeight="SemiBold"/>
+                    <TextBlock Text="Service" Margin="0,14,0,5"/><TextBox x:Name="ServiceBox"/>
+                    <TextBlock Text="Start date" Margin="0,10,0,5"/><DatePicker x:Name="StartBox"/>
+                    <TextBlock Text="Renewal / end date" Margin="0,10,0,5"/><DatePicker x:Name="EndBox"/>
+                    <TextBlock Text="Monthly cost" Margin="0,10,0,5"/><TextBox x:Name="MonthlyBox"/>
+                    <TextBlock Text="Total paid" Margin="0,10,0,5"/><TextBox x:Name="TotalBox"/>
+                    <WrapPanel Margin="0,16,0,0"><Button Content="Save" Style="{StaticResource PrimaryButton}" Click="Save_Click" Margin="0,0,8,8"/><Button Content="New" Click="New_Click" Margin="0,0,8,8"/><Button Content="Remove" Foreground="{DynamicResource DangerBrush}" Click="Remove_Click" Margin="0,0,8,8"/></WrapPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0"><Button Content="Cancel" Click="Cancel_Click" Margin="0,0,8,0"/><Button Content="Apply changes" Style="{StaticResource PrimaryButton}" Click="Apply_Click"/></StackPanel>
+    </Grid>
+</Window>

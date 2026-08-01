@@ -1,0 +1,8 @@
+<Window x:Class="SinuGameVault.VendorReportWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Rental vendor report" Width="760" Height="520" MinWidth="620" MinHeight="420" WindowStartupLocation="CenterOwner">
+    <Grid Margin="24"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <StackPanel><TextBlock Text="Rental spending by vendor" FontSize="24" FontWeight="Bold"/><TextBlock Text="Active rentals and completed rental periods are included." Style="{StaticResource MutedText}" Margin="0,5,0,16"/></StackPanel>
+        <DataGrid Grid.Row="1" x:Name="VendorGrid"><DataGrid.Columns><DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="*"/><DataGridTextColumn Header="Rental periods" Binding="{Binding Count}" Width="140"/><DataGridTextColumn Header="Total cost" Binding="{Binding Total}" Width="160"/></DataGrid.Columns></DataGrid>
+        <Button Grid.Row="2" Content="Close" HorizontalAlignment="Right" Margin="0,16,0,0" Click="Close_Click"/>
+    </Grid>
+</Window>
