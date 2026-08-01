@@ -139,7 +139,8 @@ public sealed class VaultRepository
                 RecordDeletion(source, existing);
             }
             ClearDeletion(destination, item);
-            if (AllowsDuplicates(destination) || Find(destination, item) is null) Collection(destination).Insert(0, item);
+            if (AllowsDuplicates(destination) || Find(destination, item) is null)
+                Collection(destination).Insert(0, item.DeepClone());
             RecordActivity("Status changed", $"{DisplayName(item)} · {Friendly(source)} → {Friendly(destination)}", destination);
             Touch();
             await SaveAsync();
@@ -150,7 +151,7 @@ public sealed class VaultRepository
     {
         await MutateAsync(async () =>
         {
-            Root[key] = value;
+            Root[key] = value?.DeepClone();
             Touch();
             await SaveAsync();
         });
@@ -160,7 +161,7 @@ public sealed class VaultRepository
     {
         await MutateAsync(async () =>
         {
-            Root[key] = value;
+            Root[key] = value?.DeepClone();
             await SaveAsync(createRecovery: false, notifySaved: false);
         });
     }

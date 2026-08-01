@@ -1,4 +1,12 @@
-# Sinu Game Vault for Windows 2.1.0
+# Sinu Game Vault for Windows 2.1.1
+
+## 2.1.1 title layout and sync stability
+
+- Enlarged grid and detail titles while enforcing wrapping and stable card dimensions.
+- Prevented detail pages from retaining a horizontal offset or clipping content.
+- Fixed legacy Google token expiry underflow during Drive synchronization.
+- Fixed JSON ownership errors during Drive merge, status moves, and root updates.
+- Suppressed harmless late window-closing callbacks and improved diagnostic stack traces.
 
 ## 2.1.0 reliability, cloud convergence, and visual QA
 

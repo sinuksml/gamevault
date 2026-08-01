@@ -25,30 +25,29 @@
             </Button>
         </DataTemplate>
         <DataTemplate x:Key="LibraryCardTemplate">
-            <Button Tag="{Binding}" Click="LibraryCard_Click" Padding="0" Margin="0,0,18,22" Width="220" Height="372"
+            <Button Tag="{Binding}" Click="LibraryCard_Click" Padding="0" Margin="0,0,20,24" Width="252" Height="460"
                     Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource CardBorderBrush}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
                 <Button.ContextMenu><ContextMenu><MenuItem Header="Open details" Tag="open" Click="CardQuickAction_Click"/><MenuItem Header="Edit details" Tag="edit" Click="CardQuickAction_Click"/><Separator/><MenuItem Header="Primary action" Tag="primary" Click="CardQuickAction_Click"/><MenuItem Header="Add to watchlist / queue" Tag="watchlist" Click="CardQuickAction_Click"/><MenuItem Header="Mark watched / completed" Tag="watched" Click="CardQuickAction_Click"/><MenuItem Header="Not interested" Tag="hidden" Click="CardQuickAction_Click"/></ContextMenu></Button.ContextMenu>
                 <Grid>
-                    <Grid.RowDefinitions><RowDefinition Height="286"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="326"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                     <Border Background="{DynamicResource PanelRaisedBrush}" CornerRadius="7,7,0,0" ClipToBounds="True">
                         <Grid>
                             <TextBlock Text="GV" FontSize="36" FontWeight="Bold" Foreground="#30445E" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             <Image Source="{Binding Image}" Stretch="UniformToFill"/>
                             <Border HorizontalAlignment="Left" VerticalAlignment="Top" Background="{Binding CategoryColor}" BorderBrush="#A9C9E9" BorderThickness="1" CornerRadius="6" Padding="9,5" Margin="9"><TextBlock Text="{Binding CategoryLabel}" Foreground="White" FontSize="10" FontWeight="Bold" MaxWidth="150" TextTrimming="CharacterEllipsis"/></Border>
                             <Border Visibility="{Binding HasBadges, Converter={StaticResource BoolToVisibility}}" HorizontalAlignment="Right" VerticalAlignment="Top" Background="{DynamicResource PanelRaisedBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="5" Padding="8,4" Margin="9"><TextBlock Text="{Binding Badges}" Foreground="{DynamicResource TextBrush}" FontSize="11" FontWeight="Bold" MaxWidth="120" TextTrimming="CharacterEllipsis"/></Border>
-                            <Border VerticalAlignment="Bottom" Background="{DynamicResource DetailsBrush}" Padding="11,8">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding CardRatingText}" Foreground="{DynamicResource WarningBrush}" FontWeight="Bold" FontSize="13" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding DaysText}" Foreground="{Binding CountdownColor}" FontWeight="Bold" FontSize="18" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" MaxWidth="125"/>
-                                </Grid>
+                            <Border VerticalAlignment="Bottom" Background="{DynamicResource DetailsBrush}" Padding="12,9">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding CardRatingText}" Foreground="{DynamicResource WarningBrush}" FontWeight="Bold" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding DaysText}" Foreground="{Binding CountdownColor}" FontWeight="Bold" FontSize="20" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                </StackPanel>
                             </Border>
                         </Grid>
                     </Border>
-                    <StackPanel Grid.Row="1" Margin="12,10">
-                        <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="18" TextTrimming="CharacterEllipsis"/>
-                        <TextBlock Text="{Binding PrimaryMeta}" Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="0,5,0,0" TextTrimming="CharacterEllipsis"/>
-                        <TextBlock Text="{Binding Date}" Foreground="{DynamicResource AccentBrush}" FontSize="17" FontWeight="Bold" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+                    <StackPanel Grid.Row="1" Margin="14,11">
+                        <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="20" TextWrapping="Wrap" MaxHeight="52" LineHeight="24"/>
+                        <TextBlock Text="{Binding PrimaryMeta}" Foreground="{DynamicResource MutedBrush}" FontSize="13" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding Date}" Foreground="{DynamicResource AccentBrush}" FontSize="18" FontWeight="Bold" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
                 </Grid>
             </Button>
@@ -92,7 +91,7 @@
                 </StackPanel>
                 <StackPanel DockPanel.Dock="Bottom" VerticalAlignment="Bottom">
                     <Button Content="⚙   Settings" Tag="Settings" Style="{StaticResource RailButton}" Click="Navigate_Click" />
-                    <TextBlock x:Name="VersionText" Text="Windows 2.1.0" Style="{StaticResource MutedText}" Margin="14,8" />
+                    <TextBlock x:Name="VersionText" Text="Windows 2.1.1" Style="{StaticResource MutedText}" Margin="14,8" />
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -323,7 +322,7 @@
                         </TabItem>
                         <TabItem Header="About">
                             <Border Style="{StaticResource SurfaceCard}" Margin="18,0,0,0" MaxWidth="820" VerticalAlignment="Top"><StackPanel>
-                                <TextBlock Text="Sinu Game Vault for Windows" FontSize="24" FontWeight="Bold"/><TextBlock Text="Version 2.1.0 - Native Windows edition" Foreground="{DynamicResource AccentBrush}" Margin="0,6,0,18"/><TextBlock Text="The complete vault automatically syncs to Google Drive after every saved change. After reinstalling, sign in with the same Google account to restore your library." TextWrapping="Wrap" LineHeight="23"/><Button Content="Check GitHub for updates" Margin="0,22,0,0" HorizontalAlignment="Left" Click="CheckUpdates_Click"/>
+                                <TextBlock Text="Sinu Game Vault for Windows" FontSize="24" FontWeight="Bold"/><TextBlock Text="Version 2.1.1 - Native Windows edition" Foreground="{DynamicResource AccentBrush}" Margin="0,6,0,18"/><TextBlock Text="The complete vault automatically syncs to Google Drive after every saved change. After reinstalling, sign in with the same Google account to restore your library." TextWrapping="Wrap" LineHeight="23"/><Button Content="Check GitHub for updates" Margin="0,22,0,0" HorizontalAlignment="Left" Click="CheckUpdates_Click"/>
                             </StackPanel></Border>
                         </TabItem>
                     </TabControl>
@@ -336,24 +335,24 @@
                         <Border Grid.RowSpan="2" Background="{DynamicResource BackdropScrimBrush}" IsHitTestVisible="False"/>
                         <Button Content="X" Width="44" Height="44" Padding="0" HorizontalAlignment="Right" VerticalAlignment="Top"
                                 FontSize="17" FontWeight="Bold" Click="CloseDetails_Click" Panel.ZIndex="3"/>
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,14,0,0">
-                            <Grid MaxWidth="1180" HorizontalAlignment="Left">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="280"/><ColumnDefinition Width="32"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <Border Width="280" Height="420" Background="{DynamicResource PanelRaisedBrush}" CornerRadius="8" ClipToBounds="True" VerticalAlignment="Top">
+                        <ScrollViewer x:Name="DetailScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" Margin="0,14,0,0">
+                            <Grid MaxWidth="1220" HorizontalAlignment="Stretch" Margin="0,0,12,24">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="260"/><ColumnDefinition Width="28"/><ColumnDefinition Width="*" MinWidth="0"/></Grid.ColumnDefinitions>
+                                <Border Width="260" Height="390" Background="{DynamicResource PanelRaisedBrush}" CornerRadius="8" ClipToBounds="True" VerticalAlignment="Top">
                                     <Grid><TextBlock Text="GV" FontSize="48" FontWeight="Bold" Foreground="#30445E" HorizontalAlignment="Center" VerticalAlignment="Center"/><Image x:Name="DetailPoster" Stretch="UniformToFill"/></Grid>
                                 </Border>
-                                <Border Grid.Column="2" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="24" CornerRadius="8">
+                                <Border Grid.Column="2" MinWidth="0" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="28" CornerRadius="8">
                                 <StackPanel>
                                     <TextBlock x:Name="DetailType" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12"/>
-                                    <TextBlock x:Name="DetailTitle" FontSize="34" FontWeight="Bold" TextWrapping="Wrap" Margin="0,8,0,5"/>
-                                    <TextBlock x:Name="DetailMeta" Foreground="{DynamicResource MutedBrush}" FontSize="14" TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="DetailTitle" FontSize="40" FontWeight="Bold" TextWrapping="Wrap" LineHeight="46" Margin="0,8,56,8"/>
+                                    <TextBlock x:Name="DetailMeta" Foreground="{DynamicResource MutedBrush}" FontSize="16" LineHeight="23" TextWrapping="Wrap"/>
                                     <WrapPanel Margin="0,18,0,6">
                                         <Border Background="{DynamicResource PanelRaisedBrush}" BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8"><TextBlock x:Name="DetailRating" Foreground="{DynamicResource WarningBrush}" FontWeight="Bold" FontSize="16"/></Border>
                                         <Border Background="{DynamicResource PanelRaisedBrush}" BorderBrush="#277A65" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8"><TextBlock x:Name="DetailCountdown" Foreground="{DynamicResource SuccessBrush}" FontWeight="Bold" FontSize="21"/></Border>
                                         <Border x:Name="DetailEpisodesBadge" Background="{DynamicResource PanelRaisedBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8"><TextBlock x:Name="DetailEpisodes" Foreground="{DynamicResource TextBrush}"/></Border>
                                     </WrapPanel>
                                     <TextBlock Text="STORY / SUMMARY" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12" Margin="0,18,0,8"/>
-                                    <TextBlock x:Name="DetailOverview" FontSize="16" LineHeight="25" TextWrapping="Wrap" MaxWidth="820"/>
+                                    <TextBlock x:Name="DetailOverview" FontSize="17" LineHeight="27" TextWrapping="Wrap"/>
                                     <TextBlock Text="AVAILABILITY" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12" Margin="0,22,0,7"/>
                                     <TextBlock x:Name="DetailAvailability" Foreground="{DynamicResource MutedBrush}" FontSize="14" TextWrapping="Wrap"/>
                                     <TextBlock x:Name="DetailNote" Foreground="{DynamicResource MutedBrush}" FontSize="13" TextWrapping="Wrap" Margin="0,14,0,0"/>

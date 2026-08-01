@@ -49,6 +49,7 @@ public partial class MainWindow : Window
     private DateTime _lastBiglyInteraction = DateTime.Now;
     private readonly HashSet<string> _catalogRefreshes = [];
     private bool _closingAfterDriveSync;
+    private bool _windowIsClosing;
 
     public MainWindow()
     {
@@ -109,6 +110,7 @@ public partial class MainWindow : Window
 
     private async void Window_Closing(object? sender, CancelEventArgs e)
     {
+        _windowIsClosing = true;
         if (_closingAfterDriveSync || !_drive.Connected) return;
         e.Cancel = true;
         _closingAfterDriveSync = true;
@@ -1359,7 +1361,7 @@ public partial class MainWindow : Window
         {
             DriveHeaderStatus.Text = "Drive needs attention";
             DriveSettingsStatus.Text = ex.Message;
-            if (!silent) MessageBox.Show(this, ex.Message, "Google Drive sync", MessageBoxButton.OK, MessageBoxImage.Warning);
+            if (!silent && !_windowIsClosing) MessageBox.Show(this, ex.Message, "Google Drive sync", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally { _syncingDrive = false; }
     }
@@ -1564,7 +1566,12 @@ public partial class MainWindow : Window
     private async void LibraryCard_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is not LibraryRow row) return;
-        await OpenDetailsAsync(row);
+        try { await OpenDetailsAsync(row); }
+        catch (Exception ex)
+        {
+            DiagnosticsService.Log("Details", $"Could not open {row.Name}", ex);
+            StatusText.Text = "Could not finish loading title details. The saved title is unchanged.";
+        }
     }
 
     private async Task OpenDetailsAsync(LibraryRow row)
@@ -1598,6 +1605,8 @@ public partial class MainWindow : Window
         DetailMoveButton.Content = PrimaryActionLabel(row);
         DetailRemoveButton.Content = row.Collection == "plex" ? "Delete from Plex" : IsCatalog(row) ? "Not interested" : row.Collection is "hiddenMovies" or "hiddenSeries" or "upcomingRemoved" ? "Delete permanently" : row.Collection == "upcoming" ? "Remove from upcoming" : "Remove";
         DetailsPage.Visibility = Visibility.Visible;
+        DetailScroll.ScrollToHorizontalOffset(0);
+        DetailScroll.ScrollToTop();
         await _vault.MarkViewedAsync(row.Source, row.MediaType, row.Collection);
         await EnrichOpenTitleAsync(row);
         if (row.Collection == "queue") _ = EnsureQueueAvailabilityAsync();

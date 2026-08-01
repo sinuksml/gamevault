@@ -32,7 +32,12 @@ internal static class DiagnosticsService
     {
         var parts = new List<string>();
         for (Exception? current = exception; current is not null; current = current.InnerException)
-            parts.Add($"{current.GetType().Name}: {Redact(current.Message)}");
+        {
+            var detail = $"{current.GetType().Name}: {Redact(current.Message)}";
+            if (!string.IsNullOrWhiteSpace(current.StackTrace))
+                detail += $" @ {Redact(current.StackTrace.Replace(Environment.NewLine, " | "))}";
+            parts.Add(detail);
+        }
         return string.Join(" -> ", parts);
     }
 

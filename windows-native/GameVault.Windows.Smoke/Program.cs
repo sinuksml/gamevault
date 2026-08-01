@@ -48,6 +48,9 @@ try
     Assert((repository.Root["updatedAt"]?.GetValue<long>() ?? 0) == updatedBeforeBrowsing, "browsing does not advance cloud timestamp");
     await repository.SetCacheValueAsync("smokeCatalog", new JsonArray(new JsonObject { ["title"] = "Cached" }));
     Assert((repository.Root["revision"]?.GetValue<long>() ?? 0) == revisionBeforeBrowsing, "catalog cache does not advance cloud revision");
+    var attachedSubscriptions = repository.Root["subscriptions"];
+    await repository.SetRootValueAsync("subscriptions", attachedSubscriptions);
+    Assert(repository.Root["subscriptions"] is JsonArray, "attached JSON values are cloned before assignment");
     await repository.AddAsync("rentalHistory", new JsonObject { ["id"] = "period-1", ["name"] = "Repeat Rental", ["start"] = "2026-01-01" });
     await repository.AddAsync("rentalHistory", new JsonObject { ["id"] = "period-2", ["name"] = "Repeat Rental", ["start"] = "2026-02-01" });
     Assert(repository.Collection("rentalHistory").Count == 2, "separate repeated rental periods");

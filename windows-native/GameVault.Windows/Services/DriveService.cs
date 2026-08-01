@@ -237,11 +237,10 @@ public sealed class DriveService
 
     private async Task<string> AccessTokenAsync()
     {
-        if (!string.IsNullOrWhiteSpace(_accessToken) && DateTimeOffset.Now < _accessExpires.Subtract(TimeSpan.FromMinutes(1))) return _accessToken;
+        if (HasUsableAccessToken()) return _accessToken;
         var refresh = CredentialStore.Read(RefreshTarget);
         if (string.IsNullOrWhiteSpace(refresh))
         {
-            if (!string.IsNullOrWhiteSpace(_accessToken) && DateTimeOffset.Now < _accessExpires.Subtract(TimeSpan.FromMinutes(1))) return _accessToken;
             throw new InvalidOperationException("The Google session expired. Sign in again to continue Drive sync.");
         }
         var form = new Dictionary<string, string> { ["client_id"] = ClientId, ["refresh_token"] = refresh, ["grant_type"] = "refresh_token" };
@@ -251,6 +250,14 @@ public sealed class DriveService
         EnsureSuccess(response, json, "Google session expired");
         SaveTokens(json);
         return _accessToken;
+    }
+
+    private bool HasUsableAccessToken()
+    {
+        // Older installations may have a token without the expiry value.
+        return !string.IsNullOrWhiteSpace(_accessToken)
+            && _accessExpires > DateTimeOffset.MinValue.AddMinutes(2)
+            && DateTimeOffset.Now < _accessExpires - TimeSpan.FromMinutes(1);
     }
 
     private void SaveTokens(JsonObject json)
@@ -329,14 +336,18 @@ public sealed class DriveService
         var names = local.Concat(remote).Where(pair => pair.Value is JsonArray).Select(pair => pair.Key).Distinct(StringComparer.Ordinal).ToList();
         foreach (var name in names)
         {
-            var output = preferred[name] as JsonArray ?? new JsonArray();
+            var output = preferred[name] as JsonArray;
+            if (output is null)
+            {
+                output = new JsonArray();
+                preferred[name] = output;
+            }
             var existing = output.OfType<JsonObject>().Select(MergeIdentity).Where(value => value.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
             foreach (var item in (secondary[name] as JsonArray)?.OfType<JsonObject>() ?? [])
             {
                 var identity = MergeIdentity(item);
                 if (identity.Length == 0 || existing.Add(identity)) output.Add(item.DeepClone());
             }
-            preferred[name] = output;
         }
         ApplyHiddenWins(preferred, "hiddenGames", ["upcoming", "catalogExtra"]);
         ApplyHiddenWins(preferred, "upcomingRemoved", ["upcoming"]);
