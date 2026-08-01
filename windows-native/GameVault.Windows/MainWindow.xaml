@@ -25,29 +25,49 @@
             </Button>
         </DataTemplate>
         <DataTemplate x:Key="LibraryCardTemplate">
-            <Button Tag="{Binding}" Click="LibraryCard_Click" Padding="0" Margin="0,0,20,24" Width="252" Height="460"
-                    Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource CardBorderBrush}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+            <!-- The art frame takes its height from the row so 2:3 posters and 16:9
+                 game art each fill their own frame exactly, instead of one fixed
+                 box cropping landscape art down to its middle third. -->
+            <Button Tag="{Binding}" Click="LibraryCard_Click" Padding="0" Margin="0,0,18,20" Width="236"
+                    Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
+                    HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Setter Property="Effect" Value="{StaticResource CardShadow}" />
+                        <Setter Property="RenderTransform"><Setter.Value><TranslateTransform Y="0"/></Setter.Value></Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Effect" Value="{StaticResource RaisedShadow}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter Property="RenderTransform"><Setter.Value><TranslateTransform Y="-3"/></Setter.Value></Setter>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
                 <Button.ContextMenu><ContextMenu><MenuItem Header="Open details" Tag="open" Click="CardQuickAction_Click"/><MenuItem Header="Edit details" Tag="edit" Click="CardQuickAction_Click"/><Separator/><MenuItem Header="Primary action" Tag="primary" Click="CardQuickAction_Click"/><MenuItem Header="Add to watchlist / queue" Tag="watchlist" Click="CardQuickAction_Click"/><MenuItem Header="Mark watched / completed" Tag="watched" Click="CardQuickAction_Click"/><MenuItem Header="Not interested" Tag="hidden" Click="CardQuickAction_Click"/></ContextMenu></Button.ContextMenu>
                 <Grid>
-                    <Grid.RowDefinitions><RowDefinition Height="326"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                    <Border Background="{DynamicResource PanelRaisedBrush}" CornerRadius="7,7,0,0" ClipToBounds="True">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <Border Height="{Binding ArtHeight}" Background="{DynamicResource PanelRaisedBrush}" CornerRadius="15,15,0,0" ClipToBounds="True">
                         <Grid>
-                            <TextBlock Text="GV" FontSize="36" FontWeight="Bold" Foreground="#30445E" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <TextBlock Text="GV" FontSize="34" FontWeight="Bold" Foreground="#2C3F57" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             <Image Source="{Binding Image, Converter={StaticResource Thumbnail}, ConverterParameter=320}" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <Border HorizontalAlignment="Left" VerticalAlignment="Top" Background="{Binding CategoryColor}" BorderBrush="#A9C9E9" BorderThickness="1" CornerRadius="6" Padding="9,5" Margin="9"><TextBlock Text="{Binding CategoryLabel}" Foreground="White" FontSize="10" FontWeight="Bold" MaxWidth="150" TextTrimming="CharacterEllipsis"/></Border>
-                            <Border Visibility="{Binding HasBadges, Converter={StaticResource BoolToVisibility}}" HorizontalAlignment="Right" VerticalAlignment="Top" Background="{DynamicResource PanelRaisedBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="5" Padding="8,4" Margin="9"><TextBlock Text="{Binding Badges}" Foreground="{DynamicResource TextBrush}" FontSize="11" FontWeight="Bold" MaxWidth="120" TextTrimming="CharacterEllipsis"/></Border>
-                            <Border VerticalAlignment="Bottom" Background="{DynamicResource DetailsBrush}" Padding="12,9">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding CardRatingText}" Foreground="{DynamicResource WarningBrush}" FontWeight="Bold" FontSize="13" TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="{Binding DaysText}" Foreground="{Binding CountdownColor}" FontWeight="Bold" FontSize="20" Margin="0,4,0,0" TextWrapping="Wrap"/>
-                                </StackPanel>
-                            </Border>
+                            <Border Background="{StaticResource ArtScrimBrush}"/>
+                            <!-- Stacked rather than left/right: on a 236px card the two
+                                 pills sat shoulder to shoulder and visibly collided. -->
+                            <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10">
+                                <Border HorizontalAlignment="Left" Background="{Binding CategoryColor}" CornerRadius="999" Padding="9,4"><TextBlock Text="{Binding CategoryLabel}" Foreground="White" FontSize="10" FontWeight="Bold" MaxWidth="150" TextTrimming="CharacterEllipsis"/></Border>
+                                <Border Visibility="{Binding HasBadges, Converter={StaticResource BoolToVisibility}}" HorizontalAlignment="Left" Margin="0,5,0,0" Background="#C2050A12" BorderBrush="#4DFFFFFF" BorderThickness="1" CornerRadius="999" Padding="8,3"><TextBlock Text="{Binding Badges}" Foreground="White" FontSize="9" FontWeight="Bold" MaxWidth="150" TextTrimming="CharacterEllipsis"/></Border>
+                            </StackPanel>
+                            <StackPanel VerticalAlignment="Bottom" Margin="12,0,12,10">
+                                <TextBlock Text="{Binding CardRatingText}" Foreground="{DynamicResource WarningBrush}" FontWeight="Bold" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding DaysText}" Foreground="{Binding CountdownColor}" FontWeight="Bold" FontSize="17" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
                         </Grid>
                     </Border>
-                    <StackPanel Grid.Row="1" Margin="14,11">
-                        <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="20" TextWrapping="Wrap" MaxHeight="52" LineHeight="24"/>
-                        <TextBlock Text="{Binding PrimaryMeta}" Foreground="{DynamicResource MutedBrush}" FontSize="13" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/>
-                        <TextBlock Text="{Binding Date}" Foreground="{DynamicResource AccentBrush}" FontSize="18" FontWeight="Bold" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
+                    <StackPanel Grid.Row="1" Margin="14,12,14,14">
+                        <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="16" TextWrapping="Wrap" MaxHeight="44" LineHeight="21"/>
+                        <TextBlock Text="{Binding PrimaryMeta}" Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding Date}" Foreground="{DynamicResource AccentBrush}" FontSize="13" FontWeight="Bold" Margin="0,5,0,0" TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
                 </Grid>
             </Button>
@@ -67,31 +87,57 @@
         </DataTemplate>
     </Window.Resources>
     <Grid Background="{DynamicResource WindowBrush}">
-        <Grid.ColumnDefinitions><ColumnDefinition x:Name="RailColumn" Width="244"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+        <Grid.ColumnDefinitions><ColumnDefinition x:Name="RailColumn" Width="248"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+        <!-- Layered background: section artwork, a scrim to keep text legible,
+             then an ambient glow and a faint weave so large empty regions have
+             some depth instead of reading as one flat colour. -->
         <Image x:Name="SectionBackdrop" Grid.ColumnSpan="2" Stretch="UniformToFill" Opacity="0.16" IsHitTestVisible="False"/>
         <Border Grid.ColumnSpan="2" Background="{DynamicResource BackdropScrimBrush}" IsHitTestVisible="False"/>
+        <Border x:Name="AuroraLayer" Grid.ColumnSpan="2" Background="{StaticResource AuroraBrush}" IsHitTestVisible="False"/>
+        <Border x:Name="AuroraLayerTwo" Grid.ColumnSpan="2" Background="{StaticResource AuroraSecondaryBrush}" IsHitTestVisible="False"/>
+        <Border x:Name="PatternLayer" Grid.ColumnSpan="2" Background="{StaticResource PatternBrush}" Opacity="0.35" IsHitTestVisible="False"/>
+        <Border x:Name="VignetteLayer" Grid.ColumnSpan="2" Background="{StaticResource VignetteBrush}" IsHitTestVisible="False"/>
 
         <Border Background="{DynamicResource RailBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,1,0">
-            <DockPanel Margin="18,24">
+            <DockPanel Margin="16,22">
                 <StackPanel x:Name="RailNavigation" DockPanel.Dock="Top">
-                    <Border Width="48" Height="48" CornerRadius="10" Background="{DynamicResource AccentBrush}" HorizontalAlignment="Left">
-                        <TextBlock Text="GV" Foreground="#071018" FontSize="17" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
-                    <TextBlock Text="SINU GAME VAULT" FontSize="16" FontWeight="Bold" Margin="0,14,0,2" />
-                    <TextBlock Text="Your private entertainment library" Style="{StaticResource MutedText}" Margin="0,0,0,24" TextWrapping="Wrap" />
-                    <TextBlock Text="LIBRARY" Style="{StaticResource KickerText}" Margin="14,0,0,6"/>
-                    <Button x:Name="HomeRailButton" Content="⌂   Home" Tag="Overview" Style="{StaticResource RailButton}" Click="Navigate_Click" />
-                    <Button x:Name="GamesRailButton" Content="▣   Games" Tag="Games" Style="{StaticResource RailButton}" Click="Navigate_Click" />
-                    <Button x:Name="MoviesRailButton" Content="●   Movies" Tag="Movies" Style="{StaticResource RailButton}" Click="Navigate_Click" />
-                    <Button x:Name="SeriesRailButton" Content="▤   TV Shows" Tag="Series" Style="{StaticResource RailButton}" Click="Navigate_Click" />
-                    <Separator Margin="0,12" Background="{DynamicResource DividerBrush}" />
-                    <TextBlock Text="SERVICES" Style="{StaticResource KickerText}" Margin="14,0,0,6"/>
-                    <Button Content="▶   Plex" Tag="Plex" Style="{StaticResource RailButton}" Click="Navigate_Click" />
-                    <Button Content="⇩   BiglyBT" Tag="BiglyBT" Style="{StaticResource RailButton}" Click="Navigate_Click" />
+                    <StackPanel Orientation="Horizontal" Margin="6,0,0,22">
+                        <Border Width="42" Height="42" CornerRadius="12" Background="{StaticResource AccentGradientBrush}" Effect="{StaticResource CardShadow}">
+                            <TextBlock Text="GV" Foreground="#06101A" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="SINU GAME VAULT" FontSize="13" FontWeight="Bold" />
+                            <TextBlock Text="Private library" Style="{StaticResource MutedText}" FontSize="11" Margin="0,1,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+                    <TextBlock Text="LIBRARY" Style="{StaticResource KickerText}" Margin="16,0,0,4"/>
+                    <Button x:Name="HomeRailButton" Tag="Overview" Style="{StaticResource RailButton}" Click="Navigate_Click">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="⌂" FontSize="16" Width="26"/><TextBlock Text="Home"/></StackPanel>
+                    </Button>
+                    <Button x:Name="GamesRailButton" Tag="Games" Style="{StaticResource RailButton}" Click="Navigate_Click">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="▣" FontSize="15" Width="26"/><TextBlock Text="Games"/></StackPanel>
+                    </Button>
+                    <Button x:Name="MoviesRailButton" Tag="Movies" Style="{StaticResource RailButton}" Click="Navigate_Click">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="◉" FontSize="15" Width="26"/><TextBlock Text="Movies"/></StackPanel>
+                    </Button>
+                    <Button x:Name="SeriesRailButton" Tag="Series" Style="{StaticResource RailButton}" Click="Navigate_Click">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="▤" FontSize="15" Width="26"/><TextBlock Text="TV Shows"/></StackPanel>
+                    </Button>
+                    <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="14,14,6,14" Opacity="0.6"/>
+                    <TextBlock Text="SERVICES" Style="{StaticResource KickerText}" Margin="16,0,0,4"/>
+                    <Button Tag="Plex" Style="{StaticResource RailButton}" Click="Navigate_Click">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="▶" FontSize="14" Width="26"/><TextBlock Text="Plex"/></StackPanel>
+                    </Button>
+                    <Button Tag="BiglyBT" Style="{StaticResource RailButton}" Click="Navigate_Click">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="⇩" FontSize="15" Width="26"/><TextBlock Text="BiglyBT"/></StackPanel>
+                    </Button>
                 </StackPanel>
-                <StackPanel DockPanel.Dock="Bottom" VerticalAlignment="Bottom">
-                    <Button Content="⚙   Settings" Tag="Settings" Style="{StaticResource RailButton}" Click="Navigate_Click" />
-                    <TextBlock x:Name="VersionText" Style="{StaticResource MutedText}" Margin="14,8" />
+                <StackPanel x:Name="RailFooter" DockPanel.Dock="Bottom" VerticalAlignment="Bottom">
+                    <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="14,0,6,12" Opacity="0.6"/>
+                    <Button Tag="Settings" Style="{StaticResource RailButton}" Click="Navigate_Click">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="⚙" FontSize="15" Width="26"/><TextBlock Text="Settings"/></StackPanel>
+                    </Button>
+                    <TextBlock x:Name="VersionText" Style="{StaticResource MutedText}" FontSize="11" Margin="16,10,0,0" />
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -344,8 +390,10 @@
                         <ScrollViewer x:Name="DetailScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" Margin="0,14,0,0">
                             <Grid MaxWidth="1220" HorizontalAlignment="Stretch" Margin="0,0,12,24">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="260"/><ColumnDefinition Width="28"/><ColumnDefinition Width="*" MinWidth="0"/></Grid.ColumnDefinitions>
-                                <Border Width="260" Height="390" Background="{DynamicResource PanelRaisedBrush}" CornerRadius="8" ClipToBounds="True" VerticalAlignment="Top">
-                                    <Grid><TextBlock Text="GV" FontSize="48" FontWeight="Bold" Foreground="#30445E" HorizontalAlignment="Center" VerticalAlignment="Center"/><Image x:Name="DetailPoster" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/></Grid>
+                                <!-- Height is set per title so 16:9 game art is not stranded
+                                     inside a portrait frame with empty bands around it. -->
+                                <Border x:Name="DetailPosterFrame" Width="260" Height="390" Background="{DynamicResource PanelRaisedBrush}" CornerRadius="12" ClipToBounds="True" VerticalAlignment="Top" Effect="{StaticResource CardShadow}">
+                                    <Grid><TextBlock Text="GV" FontSize="48" FontWeight="Bold" Foreground="#2C3F57" HorizontalAlignment="Center" VerticalAlignment="Center"/><Image x:Name="DetailPoster" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/></Grid>
                                 </Border>
                                 <Border Grid.Column="2" MinWidth="0" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="28" CornerRadius="8">
                                 <StackPanel>
@@ -357,8 +405,6 @@
                                         <Border Background="{DynamicResource PanelRaisedBrush}" BorderBrush="#277A65" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8"><TextBlock x:Name="DetailCountdown" Foreground="{DynamicResource SuccessBrush}" FontWeight="Bold" FontSize="21"/></Border>
                                         <Border x:Name="DetailEpisodesBadge" Background="{DynamicResource PanelRaisedBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8"><TextBlock x:Name="DetailEpisodes" Foreground="{DynamicResource TextBrush}"/></Border>
                                     </WrapPanel>
-                                    <TextBlock Text="STORY / SUMMARY" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12" Margin="0,18,0,8"/>
-                                    <TextBlock x:Name="DetailOverview" FontSize="17" LineHeight="27" TextWrapping="Wrap"/>
                                     <TextBlock Text="AVAILABILITY" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12" Margin="0,22,0,7"/>
                                     <TextBlock x:Name="DetailAvailability" Foreground="{DynamicResource MutedBrush}" FontSize="14" TextWrapping="Wrap"/>
                                     <TextBlock x:Name="DetailNote" Foreground="{DynamicResource MutedBrush}" FontSize="13" TextWrapping="Wrap" Margin="0,14,0,0"/>
@@ -382,6 +428,16 @@
                                         <Button x:Name="DetailRemoveButton" Content="Remove" Foreground="#FF93A0" Click="RemoveDetail_Click" Margin="0,0,8,8"/>
                                     </WrapPanel>
                                     <WrapPanel x:Name="MalayalamReviewButtons" Visibility="Collapsed"><Button Content="Monsoon Media review" Click="MonsoonReview_Click" Margin="0,0,8,8"/><Button Content="Aswanth Kok review" Click="AswanthReview_Click" Margin="0,0,8,8"/></WrapPanel>
+
+                                    <!-- The Wikipedia story sits below the actions: it is long-form
+                                         reading, and keeping it above pushed every button off screen. -->
+                                    <Border Background="#14FFFFFF" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
+                                            CornerRadius="12" Padding="22,18" Margin="0,26,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="STORY / SUMMARY" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12" Margin="0,0,0,10"/>
+                                            <TextBlock x:Name="DetailOverview" FontSize="16" LineHeight="27" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
                                 </Border>
                             </Grid>

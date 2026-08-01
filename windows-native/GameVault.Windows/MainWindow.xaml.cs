@@ -195,12 +195,12 @@ public partial class MainWindow : Window
 
     private void UpdateRailSelection()
     {
+        /* The rail style paints the active row and its accent bar from this
+           attached flag; Tag stays reserved for the navigation target. */
         foreach (var button in RailNavigation.Children.OfType<Button>().Where(button => button.Tag is not null))
-        {
-            var selected = string.Equals(button.Tag?.ToString(), _section, StringComparison.OrdinalIgnoreCase);
-            button.Background = selected ? (System.Windows.Media.Brush)FindResource("SelectedBrush") : System.Windows.Media.Brushes.Transparent;
-            button.BorderBrush = selected ? (System.Windows.Media.Brush)FindResource("AccentBrush") : System.Windows.Media.Brushes.Transparent;
-        }
+            NavState.SetIsActive(button, string.Equals(button.Tag?.ToString(), _section, StringComparison.OrdinalIgnoreCase));
+        foreach (var button in RailFooter.Children.OfType<Button>().Where(button => button.Tag is not null))
+            NavState.SetIsActive(button, string.Equals(button.Tag?.ToString(), _section, StringComparison.OrdinalIgnoreCase));
     }
 
     private void UpdateSectionBackdrop()
@@ -770,6 +770,10 @@ public partial class MainWindow : Window
             Application.Current.Resources["SelectedBrush"] = SystemColors.HighlightBrush;
             Application.Current.Resources["BackdropScrimBrush"] = SystemColors.WindowBrush;
             SectionBackdrop.Opacity = 0;
+            AuroraLayer.Opacity = 0;
+            AuroraLayerTwo.Opacity = 0;
+            PatternLayer.Opacity = 0;
+            VignetteLayer.Opacity = 0;
             return;
         }
         var light = _theme == "light";
@@ -798,6 +802,12 @@ public partial class MainWindow : Window
         SetSystemBrush(SystemColors.HighlightBrushKey, light ? "#C9E5F5" : oled ? "#10283A" : "#17324B");
         SetSystemBrush(SystemColors.HighlightTextBrushKey, light ? "#182131" : "#F5F7FB");
         SectionBackdrop.Opacity = light ? 0.045 : 0.12;
+        /* The ambient glow and weave are tuned per theme: barely there in light
+           mode, absent on OLED where the point is a true black background. */
+        AuroraLayer.Opacity = light ? 0.30 : oled ? 0.0 : 1.0;
+        AuroraLayerTwo.Opacity = light ? 0.22 : oled ? 0.0 : 0.85;
+        PatternLayer.Opacity = light ? 0.18 : oled ? 0.14 : 0.35;
+        VignetteLayer.Opacity = light ? 0.0 : oled ? 0.5 : 1.0;
         ThemeButton.Content = light ? "Dark mode" : oled ? "Light mode" : "Light mode";
         UpdateRailSelection();
     }
@@ -1670,6 +1680,8 @@ public partial class MainWindow : Window
     private async Task OpenDetailsAsync(LibraryRow row)
     {
         _selectedRow = row;
+        // 260-wide frame: 2:3 for posters, 16:9 for game art.
+        DetailPosterFrame.Height = row.IsPortraitArt ? 390 : 146;
         DetailPoster.Source = ImageSource(row.Image, 420);
         DetailBackdrop.Source = ImageSource(row.Backdrop.Length > 0 ? row.Backdrop : row.Image, 1280);
         DetailType.Text = $"{row.MediaType.ToUpperInvariant()}  /  {row.CategoryLabel.ToUpperInvariant()}";
@@ -1766,6 +1778,7 @@ public partial class MainWindow : Window
         }
         var refreshed = ReadNodes(new JsonArray(row.Source.DeepClone()), row.Collection).First();
         _selectedRow = refreshed;
+        DetailPosterFrame.Height = refreshed.IsPortraitArt ? 390 : 146;
         DetailPoster.Source = ImageSource(refreshed.Image, 420);
         DetailBackdrop.Source = ImageSource(refreshed.Backdrop.Length > 0 ? refreshed.Backdrop : refreshed.Image, 1280);
         DetailOverview.Text = Text(refreshed.Source, "wikipediaPlot") is { Length: > 0 } wikipediaPlot ? wikipediaPlot : refreshed.Overview.Length > 0 ? refreshed.Overview : refreshed.MediaType == "Game" && refreshed.Collection != "playing"

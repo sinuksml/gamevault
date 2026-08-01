@@ -1,4 +1,13 @@
-# Sinu Game Vault for Windows 2.3.0
+# Sinu Game Vault for Windows 2.4.0
+
+## 2.4.0 interface redesign
+
+- Rebuilt the visual design: refreshed palette with an accent gradient, consistent corner radii, softer elevation on cards and panels, tighter spacing and a clearer type scale.
+- Redesigned the navigation rail with a compact brand lockup, grouped sections, icon columns and a persistent accent bar marking the section you are in.
+- Fixed poster and cover fitting. Movie and TV artwork is 2:3 while game artwork is 16:9, and both were being forced into the same portrait frame, which cropped game art down to its middle third. Each card now sizes its art frame to the shape of the source, so nothing is cropped, stretched or zoomed. The detail page poster does the same.
+- Cards gained rounded corners, a readable gradient over the artwork, a lift on hover, and stacked status pills that no longer collide on narrow cards.
+- Added depth to the background: two soft ambient gradients, a faint diagonal weave and a vignette, tuned per theme so light mode stays clean and OLED stays black.
+- Moved the Wikipedia story and summary below the action buttons, in its own panel, so the actions are reachable without scrolling past the plot.
 
 ## 2.3.0 sync correctness and library performance
 

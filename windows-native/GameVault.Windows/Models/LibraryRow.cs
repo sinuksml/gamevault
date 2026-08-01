@@ -29,6 +29,18 @@ public sealed class LibraryRow
     public string GroupName { get; init; } = "";
     public string Badges { get; init; } = "";
 
+    /// <summary>
+    /// Artwork arrives in two different shapes and used to be forced into one
+    /// fixed frame: TMDB posters are 2:3 portrait, RAWG game art is 16:9
+    /// landscape. Filling a 252x326 box with a 1920x1080 image cropped away more
+    /// than half its width, which is why game art looked heavily zoomed in. The
+    /// art frame now matches the shape of the source, so nothing is cropped or
+    /// stretched — cards stay a uniform size within a section because every row
+    /// there is the same media type.
+    /// </summary>
+    public bool IsPortraitArt => MediaType is "Movie" or "TV Show";
+    public double ArtHeight => IsPortraitArt ? 354 : 133;
+
     public string RatingText => Rating > 0 ? $"{Rating:0.0}" : "Not rated";
     public string CardRatingText => Collection is "rentals" or "rentalHistory" ? ""
         : Collection == "subscriptions" ? (Cost > 0 ? $"\u20B9{Cost:N0} / cycle" : Status)

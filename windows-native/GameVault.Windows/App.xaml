@@ -35,6 +35,61 @@
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         <services:ThumbnailConverter x:Key="Thumbnail" />
 
+        <!-- ===== Depth and finish =====
+             The interface was flat: one border colour, one flat panel fill and no
+             elevation, which is what made it read as unfinished. These add a
+             consistent accent gradient, soft elevation and a scrim for text that
+             sits on artwork. -->
+        <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#4CC9F0" Offset="0" />
+            <GradientStop Color="#3B82F6" Offset="0.55" />
+            <GradientStop Color="#6366F1" Offset="1" />
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="CardSurfaceBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#1A2433" Offset="0" />
+            <GradientStop Color="#131B27" Offset="1" />
+        </LinearGradientBrush>
+        <!-- Reads title text cleanly over any poster. -->
+        <LinearGradientBrush x:Key="ArtScrimBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#00000000" Offset="0" />
+            <GradientStop Color="#40000000" Offset="0.55" />
+            <GradientStop Color="#D9000000" Offset="1" />
+        </LinearGradientBrush>
+        <!-- Ambient glow so large empty areas are not a dead flat colour. Two
+             opposing pools plus a vignette give the page depth when the library
+             does not fill the window. -->
+        <RadialGradientBrush x:Key="AuroraBrush" GradientOrigin="0.82,0.04" Center="0.82,0.04" RadiusX="0.85" RadiusY="1.05">
+            <GradientStop Color="#5E4CC9F0" Offset="0" />
+            <GradientStop Color="#2E3B82F6" Offset="0.4" />
+            <GradientStop Color="#00000000" Offset="1" />
+        </RadialGradientBrush>
+        <RadialGradientBrush x:Key="AuroraSecondaryBrush" GradientOrigin="0.12,0.95" Center="0.12,0.95" RadiusX="0.8" RadiusY="0.9">
+            <GradientStop Color="#4A6366F1" Offset="0" />
+            <GradientStop Color="#1F8B5CF6" Offset="0.45" />
+            <GradientStop Color="#00000000" Offset="1" />
+        </RadialGradientBrush>
+        <RadialGradientBrush x:Key="VignetteBrush" GradientOrigin="0.5,0.45" Center="0.5,0.45" RadiusX="0.78" RadiusY="0.78">
+            <GradientStop Color="#00000000" Offset="0.5" />
+            <GradientStop Color="#59000000" Offset="1" />
+        </RadialGradientBrush>
+        <!-- A barely-there diagonal weave; texture without noise. -->
+        <DrawingBrush x:Key="PatternBrush" TileMode="Tile" Viewport="0,0,26,26" ViewportUnits="Absolute" Opacity="0.5">
+            <DrawingBrush.Drawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen><Pen Brush="#0DFFFFFF" Thickness="1" /></GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry><LineGeometry StartPoint="0,26" EndPoint="26,0" /></GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+
+        <DropShadowEffect x:Key="CardShadow" BlurRadius="22" ShadowDepth="5" Direction="270" Color="#000000" Opacity="0.42" />
+        <DropShadowEffect x:Key="RaisedShadow" BlurRadius="34" ShadowDepth="9" Direction="270" Color="#000000" Opacity="0.5" />
+
+        <!-- Canonical corner radii: 8 controls, 12 panels, 16 cards. -->
+        <CornerRadius x:Key="ControlRadius">8</CornerRadius>
+        <CornerRadius x:Key="PanelRadius">12</CornerRadius>
+        <CornerRadius x:Key="CardRadius">16</CornerRadius>
+
         <Style TargetType="Window">
             <Setter Property="Background" Value="{DynamicResource WindowBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
@@ -69,11 +124,12 @@
             <Setter Property="Background" Value="{DynamicResource CardBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="9" />
-            <Setter Property="Padding" Value="20" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="22" />
+            <Setter Property="Effect" Value="{StaticResource CardShadow}" />
         </Style>
         <Style x:Key="StatCard" TargetType="Border" BasedOn="{StaticResource SurfaceCard}">
-            <Setter Property="Padding" Value="16" />
+            <Setter Property="Padding" Value="18" />
         </Style>
         <Style x:Key="StatLabel" TargetType="TextBlock" BasedOn="{StaticResource KickerText}">
             <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
@@ -113,19 +169,50 @@
             </Setter>
         </Style>
         <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Background" Value="{DynamicResource AccentStrongBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Background" Value="{StaticResource AccentGradientBrush}" />
+            <Setter Property="BorderBrush" Value="#7FA5D8FF" />
+            <Setter Property="Foreground" Value="#06101A" />
+            <Setter Property="FontWeight" Value="Bold" />
         </Style>
-        <Style x:Key="RailButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <!-- The rail had no persistent active state, so the current section was
+             only distinguishable by a faint fill. It now carries an accent bar. -->
+        <Style x:Key="RailButton" TargetType="Button">
             <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="Margin" Value="0,2" />
-            <Setter Property="Padding" Value="16,12" />
+            <Setter Property="Margin" Value="0,1" />
+            <Setter Property="Padding" Value="14,0,12,0" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="MinHeight" Value="44" />
             <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Border x:Name="Surface" Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Left" />
+                            </Border>
+                            <Border x:Name="ActiveBar" Width="3" Height="20" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                    CornerRadius="2" Background="{StaticResource AccentGradientBrush}" Opacity="0" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="{DynamicResource HoverBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                            </Trigger>
+                            <Trigger Property="services:NavState.IsActive" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="{DynamicResource SelectedBrush}" />
+                                <Setter TargetName="ActiveBar" Property="Opacity" Value="1" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="{DynamicResource HoverBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style x:Key="QuietButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Background" Value="Transparent" />
