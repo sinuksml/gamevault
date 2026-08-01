@@ -11,7 +11,7 @@
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="58"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                     <Border Background="{DynamicResource PanelRaisedBrush}" CornerRadius="7,0,0,7" ClipToBounds="True">
-                        <Grid><TextBlock Text="GV" Foreground="#3A4D67" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/><Image Source="{Binding Image}" Stretch="UniformToFill"/></Grid>
+                        <Grid><TextBlock Text="GV" Foreground="#3A4D67" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/><Image Source="{Binding Image, Converter={StaticResource Thumbnail}, ConverterParameter=120}" Stretch="UniformToFill"/></Grid>
                     </Border>
                     <StackPanel Grid.Column="1" Margin="15,0" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Name}" FontSize="17" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
@@ -33,7 +33,7 @@
                     <Border Background="{DynamicResource PanelRaisedBrush}" CornerRadius="7,7,0,0" ClipToBounds="True">
                         <Grid>
                             <TextBlock Text="GV" FontSize="36" FontWeight="Bold" Foreground="#30445E" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            <Image Source="{Binding Image}" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <Image Source="{Binding Image, Converter={StaticResource Thumbnail}, ConverterParameter=320}" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
                             <Border HorizontalAlignment="Left" VerticalAlignment="Top" Background="{Binding CategoryColor}" BorderBrush="#A9C9E9" BorderThickness="1" CornerRadius="6" Padding="9,5" Margin="9"><TextBlock Text="{Binding CategoryLabel}" Foreground="White" FontSize="10" FontWeight="Bold" MaxWidth="150" TextTrimming="CharacterEllipsis"/></Border>
                             <Border Visibility="{Binding HasBadges, Converter={StaticResource BoolToVisibility}}" HorizontalAlignment="Right" VerticalAlignment="Top" Background="{DynamicResource PanelRaisedBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="5" Padding="8,4" Margin="9"><TextBlock Text="{Binding Badges}" Foreground="{DynamicResource TextBrush}" FontSize="11" FontWeight="Bold" MaxWidth="120" TextTrimming="CharacterEllipsis"/></Border>
                             <Border VerticalAlignment="Bottom" Background="{DynamicResource DetailsBrush}" Padding="12,9">
@@ -58,7 +58,7 @@
                 <Button.ContextMenu><ContextMenu><MenuItem Header="Open details" Tag="open" Click="CardQuickAction_Click"/><MenuItem Header="Edit details" Tag="edit" Click="CardQuickAction_Click"/><Separator/><MenuItem Header="Primary action" Tag="primary" Click="CardQuickAction_Click"/><MenuItem Header="Add to watchlist / queue" Tag="watchlist" Click="CardQuickAction_Click"/><MenuItem Header="Mark watched / completed" Tag="watched" Click="CardQuickAction_Click"/><MenuItem Header="Not interested" Tag="hidden" Click="CardQuickAction_Click"/></ContextMenu></Button.ContextMenu>
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="70"/><ColumnDefinition Width="*"/><ColumnDefinition Width="190"/><ColumnDefinition Width="130"/></Grid.ColumnDefinitions>
-                    <Border Background="{DynamicResource PanelRaisedBrush}" CornerRadius="7,0,0,7" ClipToBounds="True"><Grid><TextBlock Text="GV" Foreground="{DynamicResource MutedBrush}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/><Image Source="{Binding Image}" Stretch="UniformToFill"/></Grid></Border>
+                    <Border Background="{DynamicResource PanelRaisedBrush}" CornerRadius="7,0,0,7" ClipToBounds="True"><Grid><TextBlock Text="GV" Foreground="{DynamicResource MutedBrush}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/><Image Source="{Binding Image, Converter={StaticResource Thumbnail}, ConverterParameter=140}" Stretch="UniformToFill"/></Grid></Border>
                     <StackPanel Grid.Column="1" Margin="18,0" VerticalAlignment="Center"><TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="18" TextTrimming="CharacterEllipsis"/><TextBlock Text="{Binding DetailMeta}" Foreground="{DynamicResource MutedBrush}" FontSize="15" FontWeight="SemiBold" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/></StackPanel>
                     <StackPanel Grid.Column="2" VerticalAlignment="Center"><Border HorizontalAlignment="Left" Background="{Binding CategoryColor}" CornerRadius="5" Padding="8,4"><TextBlock Text="{Binding CategoryLabel}" Foreground="White" FontSize="11" FontWeight="Bold"/></Border><TextBlock Text="{Binding CardStatusText}" Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/></StackPanel>
                     <StackPanel Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,16,0"><TextBlock Text="{Binding CardRatingText}" Foreground="{DynamicResource WarningBrush}" FontWeight="Bold"/><TextBlock Text="{Binding DaysText}" Foreground="{Binding CountdownColor}" FontWeight="Bold" FontSize="19" Margin="0,4,0,0"/></StackPanel>
@@ -209,9 +209,7 @@
                             <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel HorizontalAlignment="Left"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                         </ItemsControl>
                     </ScrollViewer>
-                    <ScrollViewer x:Name="GamesListScroll" Grid.Row="6" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
-                        <ItemsControl x:Name="GamesList" ItemTemplate="{StaticResource LibraryListTemplate}"><ItemsControl.GroupStyle><GroupStyle><GroupStyle.HeaderTemplate><DataTemplate><Border Style="{StaticResource GroupDivider}"><TextBlock Text="{Binding Name}" FontSize="22" FontWeight="Bold"/></Border></DataTemplate></GroupStyle.HeaderTemplate></GroupStyle></ItemsControl.GroupStyle></ItemsControl>
-                    </ScrollViewer>
+                    <ListBox x:Name="GamesList" Grid.Row="6" Visibility="Collapsed" ItemTemplate="{StaticResource LibraryListTemplate}" Background="Transparent" BorderThickness="0" ItemContainerStyle="{StaticResource PlainListItem}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.IsVirtualizingWhenGrouping="True" VirtualizingPanel.ScrollUnit="Pixel"><ListBox.GroupStyle><GroupStyle><GroupStyle.HeaderTemplate><DataTemplate><Border Style="{StaticResource GroupDivider}"><TextBlock Text="{Binding Name}" FontSize="22" FontWeight="Bold"/></Border></DataTemplate></GroupStyle.HeaderTemplate></GroupStyle></ListBox.GroupStyle></ListBox>
                 </Grid>
 
                 <Grid x:Name="MediaPage" Visibility="Collapsed">
@@ -238,9 +236,7 @@
                             <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel HorizontalAlignment="Left"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                         </ItemsControl>
                     </ScrollViewer>
-                    <ScrollViewer x:Name="MediaListScroll" Grid.Row="4" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
-                        <ItemsControl x:Name="MediaList" ItemTemplate="{StaticResource LibraryListTemplate}"><ItemsControl.GroupStyle><GroupStyle><GroupStyle.HeaderTemplate><DataTemplate><Border Style="{StaticResource GroupDivider}"><TextBlock Text="{Binding Name}" FontSize="22" FontWeight="Bold"/></Border></DataTemplate></GroupStyle.HeaderTemplate></GroupStyle></ItemsControl.GroupStyle></ItemsControl>
-                    </ScrollViewer>
+                    <ListBox x:Name="MediaList" Grid.Row="4" Visibility="Collapsed" ItemTemplate="{StaticResource LibraryListTemplate}" Background="Transparent" BorderThickness="0" ItemContainerStyle="{StaticResource PlainListItem}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.IsVirtualizingWhenGrouping="True" VirtualizingPanel.ScrollUnit="Pixel"><ListBox.GroupStyle><GroupStyle><GroupStyle.HeaderTemplate><DataTemplate><Border Style="{StaticResource GroupDivider}"><TextBlock Text="{Binding Name}" FontSize="22" FontWeight="Bold"/></Border></DataTemplate></GroupStyle.HeaderTemplate></GroupStyle></ListBox.GroupStyle></ListBox>
                 </Grid>
 
                 <Grid x:Name="PlaceholderPage" Visibility="Collapsed">

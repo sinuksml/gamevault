@@ -18,6 +18,7 @@ namespace SinuGameVault;
 public partial class MainWindow : Window
 {
     private readonly VaultRepository _vault = new();
+    private readonly UserPreferences _preferences;
     private readonly DriveService _drive;
     private readonly PlexService _plex = new();
     private readonly BiglyBtService _bigly = new();
@@ -56,6 +57,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _preferences = new UserPreferences(_vault.StorageFolder);
         _drive = new DriveService(_vault.StorageFolder);
         _rowsView = CollectionViewSource.GetDefaultView(_rows);
         GamesCards.ItemsSource = _rowsView;
@@ -66,12 +68,13 @@ public partial class MainWindow : Window
         BiglyGrid.ItemsSource = _torrentRows;
         BiglyHistoryGrid.ItemsSource = _torrentHistoryRows;
         GameSpendChart.ItemsSource = _monthlySpendRows;
-        _gamesListView = CredentialStore.Read("SinuGameVault/Preferences/GamesView") == "list";
-        _mediaListView = CredentialStore.Read("SinuGameVault/Preferences/MediaView") == "list";
-        _theme = CredentialStore.Read("SinuGameVault/Preferences/Theme") is { Length: > 0 } savedTheme ? savedTheme : "dark";
-        _section = CredentialStore.Read("SinuGameVault/Preferences/LastSection") is { Length: > 0 } savedSection ? savedSection : "Overview";
+        _gamesListView = _preferences.Get("GamesView") == "list";
+        _mediaListView = _preferences.Get("MediaView") == "list";
+        _theme = _preferences.Get("Theme", "dark");
+        _section = _preferences.Get("LastSection", "Overview");
         ApplyViewPreferences();
         ApplyTheme();
+        RestoreWindowPlacement();
         _driveSyncTimer.Tick += DriveSyncTimer_Tick;
         _biglyRefreshTimer.Tick += BiglyRefreshTimer_Tick;
         _searchDebounceTimer.Tick += (_, _) =>
@@ -115,7 +118,10 @@ public partial class MainWindow : Window
     private async void Window_Closing(object? sender, CancelEventArgs e)
     {
         _windowIsClosing = true;
+        SaveWindowPlacement();
         if (_closingAfterDriveSync || !_drive.Connected) return;
+        // Nothing waiting to go up means nothing to wait for — close immediately.
+        if (!_syncingDrive && !_driveSyncPending && !_driveSyncTimer.IsEnabled) return;
         e.Cancel = true;
         _closingAfterDriveSync = true;
         try
@@ -125,9 +131,9 @@ public partial class MainWindow : Window
                 while (_syncingDrive) await Task.Delay(100);
                 await SyncDriveAsync(silent: true);
             }
-            // Local data is already durable. Do not trap the user in the app when
-            // Drive or the network is unavailable; the next launch will converge.
-            await Task.WhenAny(FinishSyncAsync(), Task.Delay(TimeSpan.FromSeconds(8)));
+            // Local data is already durable and the next launch converges, so the
+            // window must never feel stuck behind an unreachable Drive.
+            await Task.WhenAny(FinishSyncAsync(), Task.Delay(TimeSpan.FromSeconds(3)));
         }
         finally { Close(); }
     }
@@ -137,7 +143,7 @@ public partial class MainWindow : Window
         CloseDetails();
         _previousSection = _section;
         _section = (sender as Button)?.Tag?.ToString() ?? "Overview";
-        CredentialStore.Save("SinuGameVault/Preferences/LastSection", _section);
+        _preferences.Set("LastSection", _section);
         ShowSection();
     }
 
@@ -205,7 +211,7 @@ public partial class MainWindow : Window
         var featured = candidates.Where(row => row.DaysLeft is null or >= 0 || _section == "BiglyBT").OrderBy(row => row.DaysLeft ?? int.MaxValue).FirstOrDefault()
             ?? candidates.FirstOrDefault();
         var image = featured?.Backdrop.Length > 0 ? featured.Backdrop : featured?.Image ?? "";
-        SectionBackdrop.Source = ImageSource(image);
+        SectionBackdrop.Source = ImageSource(image, 1280);
         FeaturedTitleText.Text = featured is null ? "" : $"Featured: {featured.Name}";
     }
 
@@ -602,12 +608,17 @@ public partial class MainWindow : Window
                 "rating" => source.OrderByDescending(row => row.Rating),
                 _ => source.OrderByDescending(row => ParseSortDate(row.Date)).ThenBy(row => row.Name)
             };
-        _rows.Clear();
-        foreach (var row in source.Where(x => query.Length == 0 || x.Name.Contains(query, StringComparison.OrdinalIgnoreCase))) _rows.Add(row);
-        _rowsView.GroupDescriptions.Clear();
-        if ((_section == "Games" || _section == "Movies" && _mediaMode is "mlott" or "mlup") && _rows.Any(row => row.GroupName.Length > 0))
-            _rowsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(LibraryRow.GroupName)));
-        _rowsView.Refresh();
+        /* Rebuild inside a single deferred refresh. Clearing and re-adding row by
+           row made the view re-sort and re-group on every one of those changes,
+           which is what made switching tabs on a large library stutter. */
+        using (_rowsView.DeferRefresh())
+        {
+            _rows.Clear();
+            foreach (var row in source.Where(x => query.Length == 0 || x.Name.Contains(query, StringComparison.OrdinalIgnoreCase))) _rows.Add(row);
+            _rowsView.GroupDescriptions.Clear();
+            if ((_section == "Games" || _section == "Movies" && _mediaMode is "mlott" or "mlup") && _rows.Any(row => row.GroupName.Length > 0))
+                _rowsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(LibraryRow.GroupName)));
+        }
         StatusText.Text = $"{_rows.Count} item{(_rows.Count == 1 ? "" : "s")}";
     }
 
@@ -696,38 +707,38 @@ public partial class MainWindow : Window
     private void GameView_Click(object sender, RoutedEventArgs e)
     {
         _gamesListView = !_gamesListView;
-        CredentialStore.Save("SinuGameVault/Preferences/GamesView", _gamesListView ? "list" : "grid");
+        _preferences.Set("GamesView", _gamesListView ? "list" : "grid");
         ApplyViewPreferences();
     }
 
     private void MediaView_Click(object sender, RoutedEventArgs e)
     {
         _mediaListView = !_mediaListView;
-        CredentialStore.Save("SinuGameVault/Preferences/MediaView", _mediaListView ? "list" : "grid");
+        _preferences.Set("MediaView", _mediaListView ? "list" : "grid");
         ApplyViewPreferences();
     }
 
     private void ApplyViewPreferences()
     {
         GamesCards.Visibility = _gamesListView ? Visibility.Collapsed : Visibility.Visible;
-        GamesListScroll.Visibility = _gamesListView ? Visibility.Visible : Visibility.Collapsed;
+        GamesList.Visibility = _gamesListView ? Visibility.Visible : Visibility.Collapsed;
         GameViewButton.Content = _gamesListView ? "Grid view" : "List view";
         MediaCards.Visibility = _mediaListView ? Visibility.Collapsed : Visibility.Visible;
-        MediaListScroll.Visibility = _mediaListView ? Visibility.Visible : Visibility.Collapsed;
+        MediaList.Visibility = _mediaListView ? Visibility.Visible : Visibility.Collapsed;
         MediaViewButton.Content = _mediaListView ? "Grid view" : "List view";
     }
 
     private void Theme_Click(object sender, RoutedEventArgs e)
     {
         _theme = _theme == "light" ? "dark" : "light";
-        CredentialStore.Save("SinuGameVault/Preferences/Theme", _theme);
+        _preferences.Set("Theme", _theme);
         ApplyTheme();
     }
 
     private void SetTheme_Click(object sender, RoutedEventArgs e)
     {
         _theme = (sender as Button)?.Tag?.ToString() ?? "dark";
-        CredentialStore.Save("SinuGameVault/Preferences/Theme", _theme);
+        _preferences.Set("Theme", _theme);
         ApplyTheme();
     }
 
@@ -1145,13 +1156,23 @@ public partial class MainWindow : Window
                     Peers = (int)JsonNumber(item, "peersConnected"), Priority = (int)JsonNumber(item, "bandwidthPriority"), Hash = Text(item, "hashString")
                 });
             }
-            foreach (var removed in _torrentRows.Where(existing => incoming.All(item => item.Id != existing.Id)).ToList()) _torrentRows.Remove(removed);
+            /* Index by id instead of scanning. This runs every two seconds, and it
+               previously copied the whole row list once per torrent to find a match. */
+            var incomingIds = incoming.Select(item => item.Id).ToHashSet();
+            foreach (var removed in _torrentRows.Where(existing => !incomingIds.Contains(existing.Id)).ToList()) _torrentRows.Remove(removed);
+            var positions = new Dictionary<int, int>();
+            for (var i = 0; i < _torrentRows.Count; i++) positions[_torrentRows[i].Id] = i;
             for (var index = 0; index < incoming.Count; index++)
             {
                 var item = incoming[index];
-                var existingIndex = _torrentRows.ToList().FindIndex(existing => existing.Id == item.Id);
-                if (existingIndex < 0) _torrentRows.Insert(Math.Min(index, _torrentRows.Count), item);
-                else if (!TorrentEquals(_torrentRows[existingIndex], item)) _torrentRows[existingIndex] = item;
+                if (positions.TryGetValue(item.Id, out var existingIndex))
+                {
+                    if (!TorrentEquals(_torrentRows[existingIndex], item)) _torrentRows[existingIndex] = item;
+                    continue;
+                }
+                _torrentRows.Insert(Math.Min(index, _torrentRows.Count), item);
+                positions.Clear();
+                for (var i = 0; i < _torrentRows.Count; i++) positions[_torrentRows[i].Id] = i;
             }
             if (BiglyAutoRemoveBox.IsChecked == true)
             {
@@ -1392,11 +1413,17 @@ public partial class MainWindow : Window
         try
         {
             DriveHeaderStatus.Text = "Drive syncing…";
+            var revisionBefore = _vault.Root["revision"]?.GetValue<long?>() ?? 0;
+            var updatedBefore = _vault.UpdatedAt;
             var result = await _drive.SyncAsync(_vault);
             DriveSettingsStatus.Text = result;
             DriveHeaderStatus.Text = "Drive connected";
             await UpdateDriveBackupInfoAsync();
-            RefreshAll();
+            /* Only rebuild the lists when the sync actually brought something back.
+               Refreshing unconditionally rewrote every view on each background
+               sync, losing the user's place while they were still browsing. */
+            var changed = (_vault.Root["revision"]?.GetValue<long?>() ?? 0) != revisionBefore || _vault.UpdatedAt != updatedBefore;
+            if (changed) RefreshAll();
             if (!silent) StatusText.Text = result;
         }
         catch (Exception ex)
@@ -1634,8 +1661,8 @@ public partial class MainWindow : Window
     private async Task OpenDetailsAsync(LibraryRow row)
     {
         _selectedRow = row;
-        DetailPoster.Source = ImageSource(row.Image);
-        DetailBackdrop.Source = ImageSource(row.Backdrop.Length > 0 ? row.Backdrop : row.Image);
+        DetailPoster.Source = ImageSource(row.Image, 420);
+        DetailBackdrop.Source = ImageSource(row.Backdrop.Length > 0 ? row.Backdrop : row.Image, 1280);
         DetailType.Text = $"{row.MediaType.ToUpperInvariant()}  /  {row.CategoryLabel.ToUpperInvariant()}";
         DetailTitle.Text = row.Name;
         var duration = Integer(row.Source, "used", "days");
@@ -1730,8 +1757,8 @@ public partial class MainWindow : Window
         }
         var refreshed = ReadNodes(new JsonArray(row.Source.DeepClone()), row.Collection).First();
         _selectedRow = refreshed;
-        DetailPoster.Source = ImageSource(refreshed.Image);
-        DetailBackdrop.Source = ImageSource(refreshed.Backdrop.Length > 0 ? refreshed.Backdrop : refreshed.Image);
+        DetailPoster.Source = ImageSource(refreshed.Image, 420);
+        DetailBackdrop.Source = ImageSource(refreshed.Backdrop.Length > 0 ? refreshed.Backdrop : refreshed.Image, 1280);
         DetailOverview.Text = Text(refreshed.Source, "wikipediaPlot") is { Length: > 0 } wikipediaPlot ? wikipediaPlot : refreshed.Overview.Length > 0 ? refreshed.Overview : refreshed.MediaType == "Game" && refreshed.Collection != "playing"
             ? "Story summaries are available for games in Now Playing." : "No matching summary was found for this title.";
         DetailAvailability.Text = refreshed.Availability.Length > 0 ? refreshed.Availability : "No streaming or rental provider information found.";
@@ -1793,20 +1820,11 @@ public partial class MainWindow : Window
         RefreshAll();
     }
 
-    private static System.Windows.Media.ImageSource? ImageSource(string url)
-    {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return null;
-        try
-        {
-            var bitmap = new System.Windows.Media.Imaging.BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-            bitmap.UriSource = uri;
-            bitmap.EndInit();
-            return bitmap;
-        }
-        catch { return null; }
-    }
+    /* Detail art and backdrops go through the shared cache too, so opening the
+       same title repeatedly reuses one decoded bitmap instead of decoding the
+       full-resolution original again each time. */
+    private static System.Windows.Media.ImageSource? ImageSource(string url, int decodeWidth = 640)
+        => ThumbnailCache.Load(url, decodeWidth);
 
     private void Trailer_Click(object sender, RoutedEventArgs e) => OpenExternal($"https://www.youtube.com/results?search_query={Uri.EscapeDataString((_selectedRow?.Name ?? "") + " official trailer")}");
     private void Google_Click(object sender, RoutedEventArgs e) => OpenExternal($"https://www.google.com/search?q={Uri.EscapeDataString(_selectedRow?.Name ?? "")}");
@@ -2276,6 +2294,48 @@ public partial class MainWindow : Window
             ShowSection();
         }
         e.Handled = true;
+    }
+
+    /* The window reopened at a fixed 1440x900 in the middle of the screen every
+       launch, ignoring wherever the user had put it. */
+    private void RestoreWindowPlacement()
+    {
+        var width = _preferences.GetDouble("WindowWidth", 0);
+        var height = _preferences.GetDouble("WindowHeight", 0);
+        var left = _preferences.GetDouble("WindowLeft", double.NaN);
+        var top = _preferences.GetDouble("WindowTop", double.NaN);
+        if (width >= MinWidth && height >= MinHeight)
+        {
+            Width = width;
+            Height = height;
+        }
+        // Only honour a position that still lands on a connected display, so a
+        // window saved on a monitor that is now unplugged does not open offscreen.
+        if (!double.IsNaN(left) && !double.IsNaN(top)
+            && left + Width > SystemParameters.VirtualScreenLeft
+            && top + Height > SystemParameters.VirtualScreenTop
+            && left < SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth
+            && top < SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight)
+        {
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Left = left;
+            Top = top;
+        }
+        if (_preferences.GetBool("WindowMaximized", false)) WindowState = WindowState.Maximized;
+    }
+
+    private void SaveWindowPlacement()
+    {
+        _preferences.SetBool("WindowMaximized", WindowState == WindowState.Maximized);
+        // RestoreBounds holds the pre-maximise size, which is what should come back.
+        var bounds = WindowState == WindowState.Normal
+            ? new Rect(Left, Top, Width, Height)
+            : RestoreBounds;
+        if (bounds.Width < MinWidth || bounds.Height < MinHeight) return;
+        _preferences.SetDouble("WindowWidth", bounds.Width);
+        _preferences.SetDouble("WindowHeight", bounds.Height);
+        _preferences.SetDouble("WindowLeft", bounds.Left);
+        _preferences.SetDouble("WindowTop", bounds.Top);
     }
 
     private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
