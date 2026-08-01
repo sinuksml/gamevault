@@ -26,14 +26,21 @@ Assert-LastCommand "Publish restore"
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ".\publish" --no-restore
 Assert-LastCommand "Windows publish"
 
-$Version = "2.0.5"
+$Version = "2.1.0"
 Compress-Archive -Path ".\publish\*" -DestinationPath ".\SinuGameVault-Windows-v$Version.zip" -Force
 $Iscc = Join-Path $Root ".tools\InnoSetup\ISCC.exe"
 if (Test-Path $Iscc) {
     & $Iscc ".\installer.iss"
     Assert-LastCommand "Installer compilation"
 }
+$Setup = ".\installer-output\SinuGameVault-Setup-v$Version.exe"
+if ($env:GAMEVAULT_SIGN_CERT -and (Test-Path $env:GAMEVAULT_SIGN_CERT)) {
+    $SignTool = (Get-Command signtool.exe -ErrorAction SilentlyContinue).Source
+    if (-not $SignTool) { throw "GAMEVAULT_SIGN_CERT was provided, but signtool.exe was not found." }
+    & $SignTool sign /fd SHA256 /f $env:GAMEVAULT_SIGN_CERT /tr http://timestamp.digicert.com /td SHA256 $Setup
+    Assert-LastCommand "Installer signing"
+}
 Write-Host "Portable release ready: $PWD\SinuGameVault-Windows-v$Version.zip"
-if (Test-Path ".\installer-output\SinuGameVault-Setup-v$Version.exe") {
+if (Test-Path $Setup) {
     Write-Host "Installer ready: $PWD\installer-output\SinuGameVault-Setup-v$Version.exe"
 }

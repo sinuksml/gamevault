@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using System.Globalization;
 
 namespace SinuGameVault.Services;
 
@@ -36,9 +37,10 @@ public sealed partial class AvailabilityService
                     var name = Text(product, "name");
                     if (Regex.IsMatch(name, @"\(pc\)|steam|epic|gamestick|controller|console &", RegexOptions.IgnoreCase)) return false;
                     var folded = Fold(name);
-                    return folded.Contains(wanted) || wanted.Contains(folded);
+                    return MatchScore(folded, wanted) >= 0.72;
                 })
-                .OrderBy(product => Text(product, "name").Contains("PS5", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                .OrderByDescending(product => MatchScore(Fold(Text(product, "name")), wanted))
+                .ThenBy(product => Text(product, "name").Contains("PS5", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
                 .ThenBy(product => Text(product, "name").Length)
                 .ToList() ?? [];
             var match = products.FirstOrDefault();
@@ -69,7 +71,7 @@ public sealed partial class AvailabilityService
             var html = await _http.GetStringAsync(searchUrl);
             var wanted = Fold(gameName);
             var slugs = ProductLinkRegex().Matches(html).Select(match => match.Groups[1].Value).Distinct().ToList();
-            var slug = slugs.Where(value => Fold(value).Contains(wanted) || wanted.Contains(Fold(value))).OrderBy(value => value.Length).FirstOrDefault();
+            var slug = slugs.Where(value => MatchScore(Fold(value), wanted) >= 0.72).OrderByDescending(value => MatchScore(Fold(value), wanted)).ThenBy(value => value.Length).FirstOrDefault();
             if (slug is null) return new JsonObject { ["found"] = false };
             var productUrl = $"https://thegamehub.in/product/{slug}/";
             var productHtml = WebUtility.HtmlDecode(await _http.GetStringAsync(productUrl));
@@ -96,8 +98,8 @@ public sealed partial class AvailabilityService
         if (available.Count > 0)
             return new JsonObject { ["now"] = true, ["price"] = available.Select(row => Price(row, "Price (INR) Per Month")).Where(value => value > 0).DefaultIfEmpty().Min() };
         var next = matching.Select(row => new { Row = row, Text = Text(row, "Next Available on or After") })
-            .Where(item => !item.Text.Equals("BOOKED", StringComparison.OrdinalIgnoreCase) && DateTime.TryParse(item.Text, out _))
-            .Select(item => new { item.Row, item.Text, Date = DateTime.Parse(item.Text) }).Where(item => item.Date.Date >= DateTime.Today)
+            .Where(item => !item.Text.Equals("BOOKED", StringComparison.OrdinalIgnoreCase) && TryDate(item.Text, out _))
+            .Select(item => new { item.Row, item.Text, Date = ParseDate(item.Text) }).Where(item => item.Date.Date >= DateTime.Today)
             .OrderBy(item => item.Date).FirstOrDefault();
         return next is null ? new JsonObject { ["no"] = true } : new JsonObject { ["next"] = next.Text, ["price"] = Price(next.Row, "Price (INR) Per Month") };
     }
@@ -105,8 +107,20 @@ public sealed partial class AvailabilityService
     private static string Fold(string value) => new(value.ToLowerInvariant().Normalize(System.Text.NormalizationForm.FormD).Where(char.IsLetterOrDigit).ToArray());
     private static string Text(JsonObject node, string key) => node[key]?.ToString() ?? "";
     private static bool Bool(JsonObject node, string key) => bool.TryParse(node[key]?.ToString(), out var value) && value;
-    private static double Number(JsonObject node, string key) => double.TryParse(node[key]?.ToString(), out var value) ? value : 0;
-    private static double Price(JsonObject node, string key) => double.TryParse(Regex.Replace(Text(node, key), @"[^\d.]", ""), out var value) ? value : 0;
+    private static double Number(JsonObject node, string key) => double.TryParse(node[key]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : 0;
+    private static double Price(JsonObject node, string key) => double.TryParse(Regex.Replace(Text(node, key), @"[^\d.]", ""), NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : 0;
+    private static double MatchScore(string candidate, string wanted)
+    {
+        if (candidate == wanted) return 1;
+        if (candidate.Contains(wanted, StringComparison.Ordinal) || wanted.Contains(candidate, StringComparison.Ordinal))
+            return (double)Math.Min(candidate.Length, wanted.Length) / Math.Max(candidate.Length, wanted.Length);
+        var a = candidate.Chunk(2).Select(chars => new string(chars)).ToHashSet();
+        var b = wanted.Chunk(2).Select(chars => new string(chars)).ToHashSet();
+        return a.Count == 0 || b.Count == 0 ? 0 : (double)a.Intersect(b).Count() / Math.Max(a.Count, b.Count);
+    }
+    private static bool TryDate(string value, out DateTime date) => DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out date)
+        || DateTime.TryParse(value, CultureInfo.GetCultureInfo("en-IN"), DateTimeStyles.AllowWhiteSpaces, out date);
+    private static DateTime ParseDate(string value) => TryDate(value, out var date) ? date : DateTime.MaxValue;
 
     [GeneratedRegex("href=[\"']https://thegamehub\\.in/product/([a-z0-9-]+)/", RegexOptions.IgnoreCase)]
     private static partial Regex ProductLinkRegex();

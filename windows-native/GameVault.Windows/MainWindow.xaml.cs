@@ -30,6 +30,7 @@ public partial class MainWindow : Window
     private readonly ICollectionView _rowsView;
     private readonly DispatcherTimer _driveSyncTimer = new() { Interval = TimeSpan.FromSeconds(2.5) };
     private readonly DispatcherTimer _biglyRefreshTimer = new() { Interval = TimeSpan.FromSeconds(2) };
+    private readonly DispatcherTimer _searchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private JsonObject? _undoRoot;
     private bool _syncingDrive;
     private string _section = "Overview";
@@ -69,6 +70,12 @@ public partial class MainWindow : Window
         ApplyTheme();
         _driveSyncTimer.Tick += DriveSyncTimer_Tick;
         _biglyRefreshTimer.Tick += BiglyRefreshTimer_Tick;
+        _searchDebounceTimer.Tick += (_, _) =>
+        {
+            _searchDebounceTimer.Stop();
+            if (_section == "Games") RefreshGames();
+            else if (_section is "Movies" or "Series") RefreshMedia();
+        };
         _vault.Saved += (_, _) => ScheduleDriveSync();
         PreviewMouseDown += BiglyInteraction;
         PreviewKeyDown += BiglyInteraction;
@@ -95,15 +102,27 @@ public partial class MainWindow : Window
         MediaSortBox.SelectedIndex = 0;
         UpdateDriveStatus();
         RefreshAll();
+        if (_vault.LoadWarning.Length > 0)
+            MessageBox.Show(this, _vault.LoadWarning, "Vault recovery", MessageBoxButton.OK, MessageBoxImage.Warning);
         if (_drive.Connected) await SyncDriveAsync(silent: true);
     }
 
     private async void Window_Closing(object? sender, CancelEventArgs e)
     {
-        if (_closingAfterDriveSync || !_drive.Connected || _syncingDrive) return;
+        if (_closingAfterDriveSync || !_drive.Connected) return;
         e.Cancel = true;
         _closingAfterDriveSync = true;
-        try { await SyncDriveAsync(silent: true); }
+        try
+        {
+            async Task FinishSyncAsync()
+            {
+                while (_syncingDrive) await Task.Delay(100);
+                await SyncDriveAsync(silent: true);
+            }
+            // Local data is already durable. Do not trap the user in the app when
+            // Drive or the network is unavailable; the next launch will converge.
+            await Task.WhenAny(FinishSyncAsync(), Task.Delay(TimeSpan.FromSeconds(8)));
+        }
         finally { Close(); }
     }
 
@@ -329,7 +348,7 @@ public partial class MainWindow : Window
             {
                 var items = await _catalog.GameCatalogAsync(mode == "upcoming");
                 var hidden = mode == "upcoming" ? _vault.Collection("upcomingRemoved").OfType<JsonObject>().Select(item => NormalizedTitle(Text(item, "name"))).ToHashSet() : [];
-                await _vault.SetRootValueAsync(mode, new JsonArray(items.Where(item => !hidden.Contains(NormalizedTitle(Text(item, "name")))).Select(item => (JsonNode)item.DeepClone()).ToArray()));
+                await _vault.SetCacheValueAsync(mode, new JsonArray(items.Where(item => !hidden.Contains(NormalizedTitle(Text(item, "name")))).Select(item => (JsonNode)item.DeepClone()).ToArray()));
                 if (_section == "Games" && _gameCollection == mode) RefreshGames();
             }
             else
@@ -340,12 +359,12 @@ public partial class MainWindow : Window
                 var typeKey = _section == "Movies" ? "movies" : "series";
                 if (root[typeKey] is not JsonObject typeRoot) { typeRoot = []; root[typeKey] = typeRoot; }
                 typeRoot[mode] = new JsonArray(items.Select(item => (JsonNode)item.DeepClone()).ToArray());
-                await _vault.SetRootValueAsync("nativeTvCatalog", root);
+                await _vault.SetCacheValueAsync("nativeTvCatalog", root);
                 if ((_section == "Movies" || _section == "Series") && _mediaMode == mode) RefreshMedia();
             }
             timestamps = _vault.Root["nativeCatalogRefreshAt"]?.DeepClone() as JsonObject ?? [];
             timestamps[key] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            await _vault.SetRootValueAsync("nativeCatalogRefreshAt", timestamps);
+            await _vault.SetCacheValueAsync("nativeCatalogRefreshAt", timestamps);
             StatusText.Text = $"{mode} is up to date.";
         }
         catch (Exception ex) { StatusText.Text = $"Catalog refresh paused: {ex.Message}"; }
@@ -598,7 +617,8 @@ public partial class MainWindow : Window
         return string.Join(" · ", badges.Distinct());
     }
 
-    private static DateTime ParseSortDate(string value) => DateTime.TryParse(value, out var date) ? date : DateTime.MinValue;
+    private static DateTime ParseSortDate(string value) => DateTime.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var date)
+        || DateTime.TryParse(value, System.Globalization.CultureInfo.CurrentCulture, System.Globalization.DateTimeStyles.AllowWhiteSpaces, out date) ? date : DateTime.MinValue;
     private static int GroupOrder(string group) => group switch { "Active rentals" or "Playing now" or "Upcoming releases" or "Active subscriptions" => 0, "Resume later" or "Included games" => 1, "On hold" or "Released" or "Past subscriptions" => 2, "Rental history" => 3, "Removed games" => 4, _ => 0 };
 
     private double RecommendationScore(LibraryRow candidate)
@@ -631,8 +651,8 @@ public partial class MainWindow : Window
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (!IsLoaded) return;
-        if (_section == "Games") RefreshGames();
-        else if (_section is "Movies" or "Series") RefreshMedia();
+        _searchDebounceTimer.Stop();
+        _searchDebounceTimer.Start();
     }
 
     private void GameView_Click(object sender, RoutedEventArgs e)
@@ -675,6 +695,25 @@ public partial class MainWindow : Window
 
     private void ApplyTheme()
     {
+        if (SystemParameters.HighContrast)
+        {
+            Application.Current.Resources["WindowBrush"] = SystemColors.WindowBrush;
+            Application.Current.Resources["PanelBrush"] = SystemColors.WindowBrush;
+            Application.Current.Resources["PanelRaisedBrush"] = SystemColors.ControlBrush;
+            Application.Current.Resources["TextBrush"] = SystemColors.WindowTextBrush;
+            Application.Current.Resources["MutedBrush"] = SystemColors.GrayTextBrush;
+            Application.Current.Resources["RailBrush"] = SystemColors.ControlBrush;
+            Application.Current.Resources["CardBrush"] = SystemColors.WindowBrush;
+            Application.Current.Resources["CardBorderBrush"] = SystemColors.WindowTextBrush;
+            Application.Current.Resources["InputBrush"] = SystemColors.WindowBrush;
+            Application.Current.Resources["DividerBrush"] = SystemColors.GrayTextBrush;
+            Application.Current.Resources["DetailsBrush"] = SystemColors.WindowBrush;
+            Application.Current.Resources["HoverBrush"] = SystemColors.ControlBrush;
+            Application.Current.Resources["SelectedBrush"] = SystemColors.HighlightBrush;
+            Application.Current.Resources["BackdropScrimBrush"] = SystemColors.WindowBrush;
+            SectionBackdrop.Opacity = 0;
+            return;
+        }
         var light = _theme == "light";
         var oled = _theme == "oled";
         SetBrush("WindowBrush", light ? "#EEF3F8" : oled ? "#000000" : "#0A0D14");
@@ -946,9 +985,15 @@ public partial class MainWindow : Window
     private async Task RunBusyAsync(string message, Func<Task> action)
     {
         StatusText.Text = message;
-        IsEnabled = false;
+        GlobalProgress.Visibility = Visibility.Visible;
+        Mouse.OverrideCursor = Cursors.Wait;
         try { await action(); }
-        finally { IsEnabled = true; StatusText.Text = "Ready"; }
+        finally
+        {
+            Mouse.OverrideCursor = null;
+            GlobalProgress.Visibility = Visibility.Collapsed;
+            StatusText.Text = "Ready";
+        }
     }
 
     private async void PlexMode_Click(object sender, RoutedEventArgs e)
@@ -1001,13 +1046,14 @@ public partial class MainWindow : Window
         var watching = mediaType == "Movie" ? "watchingMovies" : "watchingSeries";
         var watchlist = mediaType == "Movie" ? "movieWatchlist" : "seriesWatchlist";
         var name = Text(source, "title", "name");
-        if (!_vault.Collection(watched).OfType<JsonObject>().Any(item => string.Equals(Text(item, "title", "name"), name, StringComparison.OrdinalIgnoreCase)))
+        var year = Text(source, "year");
+        if (!_vault.Collection(watched).OfType<JsonObject>().Any(item => SameTitleAndYear(item, name, year)))
         {
             var clone = source.DeepClone() as JsonObject ?? []; clone["status"] = "Watched"; clone["plexSyncedAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             await _vault.AddAsync(watched, clone);
         }
-        await RemoveMatchingTitleAsync(watching, name);
-        await RemoveMatchingTitleAsync(watchlist, name);
+        await RemoveMatchingTitleAsync(watching, name, year);
+        await RemoveMatchingTitleAsync(watchlist, name, year);
     }
 
     private async void BiglyRefresh_Click(object sender, RoutedEventArgs e) { _lastBiglyInteraction = DateTime.Now; _biglyRefreshTimer.Start(); await RefreshBiglyAsync(); }
@@ -1065,7 +1111,8 @@ public partial class MainWindow : Window
             }
             if (BiglyAutoRemoveBox.IsChecked == true)
             {
-                var completed = _torrentRows.Where(row => row.Progress >= 100).ToList();
+                var completed = _torrentRows.Where(row => row.TotalSize > 0 && row.Downloaded >= row.TotalSize && row.Progress >= 99.999
+                    && !row.Status.Contains("Error", StringComparison.OrdinalIgnoreCase)).ToList();
                 foreach (var row in completed)
                 {
                     if (!_vault.Collection("biglyHistory").OfType<JsonObject>().Any(item => Text(item, "hash") == row.Hash && Text(item, "outcome").StartsWith("Completed", StringComparison.OrdinalIgnoreCase)))
@@ -1422,13 +1469,23 @@ public partial class MainWindow : Window
 
     private static double Number(JsonObject node, params string[] keys)
     {
-        foreach (var key in keys) if (double.TryParse(node[key]?.ToString(), out var value)) return value;
+        foreach (var key in keys)
+        {
+            var text = node[key]?.ToString();
+            if (double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var value)
+                || double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.CurrentCulture, out value)) return value;
+        }
         return 0;
     }
 
     private static double JsonNumber(JsonObject node, params string[] keys) => Number(node, keys);
 
     private static int Integer(JsonObject node, params string[] keys) => (int)Math.Round(Number(node, keys));
+    private static long Long(JsonObject node, params string[] keys)
+    {
+        foreach (var key in keys) if (long.TryParse(node[key]?.ToString(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var value)) return value;
+        return 0;
+    }
 
     private static string ArrayText(JsonObject node, params string[] keys)
     {
@@ -1524,10 +1581,13 @@ public partial class MainWindow : Window
         DetailCountdown.Text = row.DaysText.Length > 0 ? row.DaysText : row.Status;
         DetailEpisodes.Text = string.Join("  |  ", new[] { row.SeasonsText, row.EpisodesText }.Where(x => x.Length > 0));
         DetailEpisodesBadge.Visibility = row.HasEpisodeInfo ? Visibility.Visible : Visibility.Collapsed;
-        DetailOverview.Text = row.HasOverview ? row.Overview : row.MediaType == "Game" ? "Loading Wikipedia plot..." : "No summary is stored for this title yet.";
+        DetailOverview.Text = row.HasOverview ? row.Overview : row.MediaType == "Game" && row.Collection == "playing"
+            ? "Loading Wikipedia plot..." : row.MediaType == "Game"
+            ? "Story summaries are available for games in Now Playing." : "No summary is stored for this title yet.";
         DetailAvailability.Text = row.Availability.Length > 0 ? row.Availability : "No provider or vendor information stored.";
         DetailNote.Text = row.Note;
         FandomButton.Visibility = row.MediaType == "Game" && row.Collection == "playing" ? Visibility.Visible : Visibility.Collapsed;
+        RefreshPlotButton.Visibility = row.MediaType == "Game" && row.Collection == "playing" ? Visibility.Visible : Visibility.Collapsed;
         VendorLinksButton.Visibility = row.MediaType == "Game" && row.Collection is "queue" or "rentals" ? Visibility.Visible : Visibility.Collapsed;
         VendorRefreshButton.Visibility = row.MediaType == "Game" && row.Collection == "queue" ? Visibility.Visible : Visibility.Collapsed;
         EpisodePicker.Visibility = row.MediaType == "TV Show" ? Visibility.Visible : Visibility.Collapsed;
@@ -1549,14 +1609,20 @@ public partial class MainWindow : Window
         var changed = false;
         if (row.MediaType is "Movie" or "TV Show")
         {
-            if (row.Image.Length == 0 || row.Overview.Length == 0 || row.Providers.Length == 0 || row.ImdbId.Length == 0)
+            var checkedAt = Long(row.Source, "imdbCheckedAt");
+            var ratingIsStale = checkedAt <= 0 || DateTimeOffset.UtcNow - DateTimeOffset.FromUnixTimeMilliseconds(checkedAt) > TimeSpan.FromDays(7);
+            if (row.Image.Length == 0 || row.Overview.Length == 0 || row.Providers.Length == 0 || row.ImdbId.Length == 0 || ratingIsStale)
             {
                 DetailOverview.Text = row.Overview.Length > 0 ? row.Overview : "Loading title details...";
                 if (row.TmdbId.Length == 0)
                 {
                     try
                     {
-                        var found = (await _catalog.SearchMediaAsync(row.Name, row.MediaType)).FirstOrDefault();
+                        var expectedYear = Text(row.Source, "year");
+                        var found = (await _catalog.SearchMediaAsync(row.Name, row.MediaType))
+                            .OrderByDescending(item => expectedYear.Length > 0 && Text(item, "year") == expectedYear)
+                            .ThenByDescending(item => Number(item, "popularity"))
+                            .FirstOrDefault();
                         if (found is not null) Merge(row.Source, found);
                     }
                     catch { }
@@ -1576,10 +1642,10 @@ public partial class MainWindow : Window
                 }
                 catch { }
             }
-            if (row.Overview.Length == 0)
+            if (row.Collection == "playing" && row.Overview.Length == 0)
             {
                 DetailOverview.Text = "Loading Wikipedia plot...";
-                var plot = await _catalog.WikipediaSummaryAsync(row.Name);
+                var plot = await _catalog.WikipediaSummaryAsync(row.Name, "Game", Text(row.Source, "year"));
                 if (plot.Length > 0) { row.Source["overview"] = plot; changed = true; }
             }
         }
@@ -1588,10 +1654,12 @@ public partial class MainWindow : Window
         _selectedRow = refreshed;
         DetailPoster.Source = ImageSource(refreshed.Image);
         DetailBackdrop.Source = ImageSource(refreshed.Backdrop.Length > 0 ? refreshed.Backdrop : refreshed.Image);
-        DetailOverview.Text = refreshed.Overview.Length > 0 ? refreshed.Overview : "No Wikipedia plot was found for this title.";
+        DetailOverview.Text = refreshed.Overview.Length > 0 ? refreshed.Overview : refreshed.MediaType == "Game" && refreshed.Collection != "playing"
+            ? "Story summaries are available for games in Now Playing." : "No matching summary was found for this title.";
         DetailAvailability.Text = refreshed.Availability.Length > 0 ? refreshed.Availability : "No streaming or rental provider information found.";
         DetailRating.Text = $"IMDb / rating  {refreshed.RatingText}";
         if (!IsCatalog(row)) await _vault.UpdateAsync(row.Collection, row.Source);
+        else await PersistCatalogMetadataAsync(row);
     }
 
     private static void Merge(JsonObject target, JsonObject source)
@@ -1600,6 +1668,18 @@ public partial class MainWindow : Window
     }
 
     private static bool IsCatalog(LibraryRow row) => row.Collection is "uphw" or "bluray" or "relhw" or "mlott" or "seriesnew" or "seriesupcoming" or "enseries" or "mlseries" or "taseries" or "hiseries";
+
+    private async Task PersistCatalogMetadataAsync(LibraryRow row)
+    {
+        var root = _vault.Root["nativeTvCatalog"]?.DeepClone() as JsonObject ?? [];
+        var typeKey = row.MediaType == "Movie" ? "movies" : "series";
+        if (root[typeKey]?[row.Collection] is not JsonArray items) return;
+        var identity = Text(row.Source, "canonicalId", "tmdbId", "id");
+        var match = items.OfType<JsonObject>().FirstOrDefault(item => Text(item, "canonicalId", "tmdbId", "id") == identity);
+        if (match is null) return;
+        items[items.IndexOf(match)] = row.Source.DeepClone();
+        await _vault.SetCacheValueAsync("nativeTvCatalog", root);
+    }
 
     private static string PrimaryActionLabel(LibraryRow row)
     {
@@ -1656,7 +1736,8 @@ public partial class MainWindow : Window
     {
         if (_selectedRow is not { } row || row.MediaType != "Game") return;
         DetailOverview.Text = "Loading Wikipedia plot...";
-        var plot = await _catalog.WikipediaSummaryAsync(row.Name);
+        if (row.Collection != "playing") { DetailOverview.Text = "Story summaries are available for games in Now Playing."; return; }
+        var plot = await _catalog.WikipediaSummaryAsync(row.Name, "Game", Text(row.Source, "year"));
         if (plot.Length == 0) { DetailOverview.Text = "No matching Wikipedia story section was found."; return; }
         row.Source["overview"] = plot;
         DetailOverview.Text = plot;
@@ -1912,7 +1993,7 @@ public partial class MainWindow : Window
         var tmdbId = row.TmdbId;
         var details = await _catalog.EpisodeAsync(tmdbId, row.ImdbId, season, episode);
         var overview = details.Overview;
-        if (overview.Length == 0) overview = await _catalog.WikipediaSummaryAsync($"{row.Name} season {season} episode {episode}");
+        if (overview.Length == 0) overview = await _catalog.WikipediaSummaryAsync($"{row.Name} season {season} episode {episode}", "TV Show", Text(row.Source, "year"));
         DetailOverview.Text = overview.Length > 0 ? $"S{season:00}E{episode:00} {details.Name}\n\n{overview}" : "No episode summary was found. Use Wikipedia search for this episode.";
         DetailRating.Text = details.Rating > 0 ? $"Episode rating  {details.Rating:0.0}" : $"Rating  {row.RatingText}";
         if (details.AirDate.Length > 0) DetailCountdown.Text = details.AirDate;
@@ -1936,8 +2017,9 @@ public partial class MainWindow : Window
             await RunBusyAsync("Synchronizing Plex status...", async () =>
             {
                 await _vault.AddAsync(makeWatched ? watched : watching, plexClone);
-                await RemoveMatchingTitleAsync(makeWatched ? watching : watched, row.Name);
-                await RemoveMatchingTitleAsync(watchlist, row.Name);
+                var plexYear = Text(row.Source, "year");
+                await RemoveMatchingTitleAsync(makeWatched ? watching : watched, row.Name, plexYear);
+                await RemoveMatchingTitleAsync(watchlist, row.Name, plexYear);
             });
             DetailsPage.Visibility = Visibility.Collapsed; await RefreshPlexAsync(); RefreshDashboard(); return;
         }
@@ -1989,9 +2071,9 @@ public partial class MainWindow : Window
         RefreshAll();
     }
 
-    private async Task RemoveMatchingTitleAsync(string collection, string title)
+    private async Task RemoveMatchingTitleAsync(string collection, string title, string year = "")
     {
-        var item = _vault.Collection(collection).OfType<JsonObject>().FirstOrDefault(node => string.Equals(Text(node, "name", "title"), title, StringComparison.OrdinalIgnoreCase));
+        var item = _vault.Collection(collection).OfType<JsonObject>().FirstOrDefault(node => SameTitleAndYear(node, title, year));
         if (item is null) return;
         var id = Text(item, "id", "canonicalId", "tmdbId", "key");
         if (id.Length > 0) await _vault.RemoveAsync(collection, id);
@@ -2051,8 +2133,25 @@ public partial class MainWindow : Window
     }
 
     private bool CollectionContains(string collection, LibraryRow row) => _vault.Collection(collection).OfType<JsonObject>().Any(item =>
-        string.Equals(Text(item, "canonicalId", "id", "tmdbId"), Text(row.Source, "canonicalId", "id", "tmdbId"), StringComparison.OrdinalIgnoreCase)
-        || string.Equals(Text(item, "name", "title"), row.Name, StringComparison.OrdinalIgnoreCase));
+        StrongIdentityMatches(item, row.Source) || SameTitleAndYear(item, row.Name, Text(row.Source, "year")));
+
+    private static bool StrongIdentityMatches(JsonObject left, JsonObject right)
+    {
+        foreach (var key in new[] { "canonicalId", "tmdbId", "rawgId", "imdbId", "plexRatingKey" })
+        {
+            var a = Text(left, key);
+            var b = Text(right, key);
+            if (a.Length > 0 && b.Length > 0 && string.Equals(a, b, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
+    }
+
+    private static bool SameTitleAndYear(JsonObject item, string title, string year)
+    {
+        if (!string.Equals(NormalizedTitle(Text(item, "name", "title")), NormalizedTitle(title), StringComparison.Ordinal)) return false;
+        var itemYear = Text(item, "year");
+        return year.Length == 0 || itemYear.Length == 0 || string.Equals(itemYear, year, StringComparison.Ordinal);
+    }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
@@ -2071,8 +2170,8 @@ public partial class MainWindow : Window
     private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         var compact = ActualWidth < 1320;
-        RailColumn.Width = new GridLength(compact ? 210 : 244);
-        SearchBox.Width = compact ? 170 : 260;
+        RailColumn.Width = new GridLength(ActualWidth < 1180 ? 190 : compact ? 210 : 244);
+        SearchBox.Width = ActualWidth < 1180 ? 140 : compact ? 180 : 260;
         FeaturedTitleText.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         PageSubtitle.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         ThemeButton.Visibility = ActualWidth < 1180 ? Visibility.Collapsed : Visibility.Visible;

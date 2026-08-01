@@ -1,5 +1,6 @@
 using System.Text;
 using System.IO;
+using System.Text.RegularExpressions;
 
 namespace SinuGameVault.Services;
 
@@ -16,7 +17,7 @@ internal static class DiagnosticsService
         try
         {
             Directory.CreateDirectory(Folder);
-            var line = $"{DateTimeOffset.Now:O}\t{area}\t{message}";
+            var line = $"{DateTimeOffset.Now:O}\t{area}\t{Redact(message)}";
             if (exception is not null) line += $"\t{Describe(exception)}";
             lock (Gate)
             {
@@ -31,8 +32,15 @@ internal static class DiagnosticsService
     {
         var parts = new List<string>();
         for (Exception? current = exception; current is not null; current = current.InnerException)
-            parts.Add($"{current.GetType().Name}: {current.Message}");
+            parts.Add($"{current.GetType().Name}: {Redact(current.Message)}");
         return string.Join(" -> ", parts);
+    }
+
+    private static string Redact(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return value;
+        value = Regex.Replace(value, @"(?i)(token|secret|password|authorization|x-plex-token)\s*[:=]\s*[^\s,;]+", "$1=[REDACTED]");
+        return Regex.Replace(value, @"https?://[^\s]+", "[URL REDACTED]");
     }
 
     public static async Task ExportAsync(string destination, VaultRepository vault)
@@ -47,7 +55,7 @@ internal static class DiagnosticsService
             .AppendLine($"Items: {vault.UserItemCount()}")
             .AppendLine($"Drive connected: {CredentialStore.Read("SinuGameVault/GoogleDriveRefresh").Length > 0}")
             .AppendLine()
-            .AppendLine("Recent log (no passwords, tokens or library contents):");
+            .AppendLine("Recent redacted log (credentials and URLs removed; exception messages may contain title names):");
         if (File.Exists(LogPath)) summary.AppendLine(await File.ReadAllTextAsync(LogPath));
         await File.WriteAllTextAsync(destination, summary.ToString(), Encoding.UTF8);
     }

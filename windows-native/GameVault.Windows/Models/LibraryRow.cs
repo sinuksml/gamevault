@@ -30,7 +30,9 @@ public sealed class LibraryRow
     public string Badges { get; init; } = "";
 
     public string RatingText => Rating > 0 ? $"{Rating:0.0}" : "Not rated";
-    public string CardRatingText => Collection == "subscriptions" ? (Cost > 0 ? $"\u20B9{Cost:N0} / cycle" : Status) : $"Rating {RatingText}";
+    public string CardRatingText => Collection is "rentals" or "rentalHistory" ? ""
+        : Collection == "subscriptions" ? (Cost > 0 ? $"\u20B9{Cost:N0} / cycle" : Status)
+        : $"Rating {RatingText}";
     public string CategoryLabel => Collection switch
     {
         "rentals" => "Rental",

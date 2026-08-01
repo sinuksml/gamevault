@@ -21,6 +21,7 @@ public sealed class DriveService
     private const string AccessTarget = "SinuGameVault/GoogleDriveAccess";
     private const string RefreshTarget = "SinuGameVault/GoogleDriveRefresh";
     private const string SecretTarget = "SinuGameVault/GoogleDriveClientSecret";
+    private const string ExpiryTarget = "SinuGameVault/GoogleDriveAccessExpiry";
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(45) };
     private readonly string _settingsPath;
     private string _accessToken = "";
@@ -37,11 +38,16 @@ public sealed class DriveService
         LoadSettings();
         _accessToken = CredentialStore.Read(AccessTarget);
         ClientSecret = CredentialStore.Read(SecretTarget);
+        if (DateTimeOffset.TryParse(CredentialStore.Read(ExpiryTarget), out var expiry)) _accessExpires = expiry;
     }
 
     public void SaveConfiguration()
     {
-        File.WriteAllText(_settingsPath, new JsonObject { ["clientId"] = ClientId }.ToJsonString());
+        JsonObject settings;
+        try { settings = File.Exists(_settingsPath) ? JsonNode.Parse(File.ReadAllText(_settingsPath)) as JsonObject ?? new JsonObject() : new JsonObject(); }
+        catch { settings = new JsonObject(); }
+        settings["clientId"] = ClientId;
+        File.WriteAllText(_settingsPath, settings.ToJsonString());
         CredentialStore.Save(SecretTarget, ClientSecret);
     }
 
@@ -158,11 +164,7 @@ public sealed class DriveService
     {
         var token = await AccessTokenAsync();
         if (string.IsNullOrWhiteSpace(token)) throw new InvalidOperationException("Sign in with Google first.");
-        var query = Uri.EscapeDataString($"name='{FileName}' and trashed=false");
-        var list = await SendAsync(HttpMethod.Get, $"https://www.googleapis.com/drive/v3/files?q={query}&orderBy=modifiedTime%20desc&fields=files(id,name,modifiedTime,size)&pageSize=10", token);
-        var listJson = JsonNode.Parse(await list.Content.ReadAsStringAsync()) as JsonObject ?? new JsonObject();
-        EnsureSuccess(list, listJson, "Could not list Google Drive backups");
-        var remoteFile = (listJson["files"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault();
+        var remoteFile = await FindBackupAsync(token);
         if (remoteFile is null)
         {
             if (vault.UserItemCount() == 0) return "Drive connected. No backup exists, and the empty local vault was not uploaded.";
@@ -176,21 +178,21 @@ public sealed class DriveService
         if (!download.IsSuccessStatusCode) throw new InvalidOperationException($"Drive download failed ({(int)download.StatusCode}).");
         var remote = JsonNode.Parse(remoteText) as JsonObject ?? throw new InvalidDataException("The Drive backup is not valid JSON.");
         var remoteUpdated = remote["updatedAt"]?.GetValue<long?>() ?? 0;
-        if (remoteUpdated > vault.UpdatedAt || vault.UserItemCount() == 0)
+        if (vault.UserItemCount() == 0)
         {
             await vault.ImportJsonAsync(remoteText);
             return "Restored the newer Google Drive backup.";
         }
-        if (vault.UpdatedAt > remoteUpdated && vault.UserItemCount() > 0)
+        if (remoteUpdated != vault.UpdatedAt)
         {
-            var upload = new HttpRequestMessage(HttpMethod.Patch, $"https://www.googleapis.com/upload/drive/v3/files/{id}?uploadType=media")
-            {
-                Content = new StringContent(vault.ExportJson(), Encoding.UTF8, "application/json")
-            };
-            upload.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            var result = await _http.SendAsync(upload);
-            if (!result.IsSuccessStatusCode) throw new InvalidOperationException($"Drive upload failed ({(int)result.StatusCode}).");
-            return "Saved the newer Windows vault to Google Drive.";
+            await vault.CreateSnapshotAsync("before-drive-merge");
+            var local = JsonNode.Parse(vault.ExportJson()) as JsonObject ?? new JsonObject();
+            var merged = MergeVaults(local, remote, preferRemote: remoteUpdated > vault.UpdatedAt);
+            merged["updatedAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            merged["revision"] = Math.Max(local["revision"]?.GetValue<long?>() ?? 0, remote["revision"]?.GetValue<long?>() ?? 0) + 1;
+            await vault.ImportJsonAsync(merged.ToJsonString());
+            await UploadFileAsync(id, vault.ExportJson(), token);
+            return "Merged Windows and Google Drive changes, then saved a recovery snapshot.";
         }
         return "Google Drive and Windows are already synchronized.";
     }
@@ -199,12 +201,7 @@ public sealed class DriveService
     {
         var token = await AccessTokenAsync();
         if (string.IsNullOrWhiteSpace(token)) return null;
-        var query = Uri.EscapeDataString($"name='{FileName}' and trashed=false");
-        var response = await SendAsync(HttpMethod.Get,
-            $"https://www.googleapis.com/drive/v3/files?q={query}&orderBy=modifiedTime%20desc&fields=files(id,modifiedTime,size)&pageSize=1", token);
-        var json = JsonNode.Parse(await response.Content.ReadAsStringAsync()) as JsonObject ?? new JsonObject();
-        EnsureSuccess(response, json, "Could not read Google Drive backup information");
-        var file = (json["files"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault();
+        var file = await FindBackupAsync(token);
         if (file is null) return null;
         _ = long.TryParse(file["size"]?.ToString(), out var size);
         DateTimeOffset? modified = DateTimeOffset.TryParse(file["modifiedTime"]?.ToString(), out var parsed) ? parsed : null;
@@ -215,6 +212,9 @@ public sealed class DriveService
     {
         CredentialStore.Delete(AccessTarget);
         CredentialStore.Delete(RefreshTarget);
+        CredentialStore.Delete(ExpiryTarget);
+        CredentialStore.Delete(SecretTarget);
+        ClientSecret = "";
         _accessToken = "";
         _accessExpires = default;
     }
@@ -222,7 +222,7 @@ public sealed class DriveService
     private async Task CreateFileAsync(string json, string token)
     {
         var boundary = "gamevault_" + Guid.NewGuid().ToString("N");
-        var body = $"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{{\"name\":\"{FileName}\",\"mimeType\":\"application/json\"}}\r\n--{boundary}\r\nContent-Type: application/json\r\n\r\n{json}\r\n--{boundary}--";
+        var body = $"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{{\"name\":\"{FileName}\",\"mimeType\":\"application/json\",\"appProperties\":{{\"gameVault\":\"primary\"}}}}\r\n--{boundary}\r\nContent-Type: application/json\r\n\r\n{json}\r\n--{boundary}--";
         var request = new HttpRequestMessage(HttpMethod.Post, "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart")
         {
             Content = new StringContent(body, Encoding.UTF8)
@@ -231,13 +231,19 @@ public sealed class DriveService
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         var response = await _http.SendAsync(request);
         if (!response.IsSuccessStatusCode) throw new InvalidOperationException($"Drive file creation failed ({(int)response.StatusCode}).");
+        var created = JsonNode.Parse(await response.Content.ReadAsStringAsync()) as JsonObject;
+        SaveFileId(Text(created ?? new JsonObject(), "id"));
     }
 
     private async Task<string> AccessTokenAsync()
     {
         if (!string.IsNullOrWhiteSpace(_accessToken) && DateTimeOffset.Now < _accessExpires.Subtract(TimeSpan.FromMinutes(1))) return _accessToken;
         var refresh = CredentialStore.Read(RefreshTarget);
-        if (string.IsNullOrWhiteSpace(refresh)) return CredentialStore.Read(AccessTarget);
+        if (string.IsNullOrWhiteSpace(refresh))
+        {
+            if (!string.IsNullOrWhiteSpace(_accessToken) && DateTimeOffset.Now < _accessExpires.Subtract(TimeSpan.FromMinutes(1))) return _accessToken;
+            throw new InvalidOperationException("The Google session expired. Sign in again to continue Drive sync.");
+        }
         var form = new Dictionary<string, string> { ["client_id"] = ClientId, ["refresh_token"] = refresh, ["grant_type"] = "refresh_token" };
         if (!string.IsNullOrWhiteSpace(ClientSecret)) form["client_secret"] = ClientSecret;
         var response = await PostFormAsync("https://oauth2.googleapis.com/token", form);
@@ -252,6 +258,7 @@ public sealed class DriveService
         _accessToken = Text(json, "access_token");
         _accessExpires = DateTimeOffset.Now.AddSeconds(json["expires_in"]?.GetValue<int?>() ?? 3600);
         CredentialStore.Save(AccessTarget, _accessToken);
+        CredentialStore.Save(ExpiryTarget, _accessExpires.ToString("O"));
         var refresh = Text(json, "refresh_token");
         if (!string.IsNullOrWhiteSpace(refresh)) CredentialStore.Save(RefreshTarget, refresh);
     }
@@ -283,5 +290,103 @@ public sealed class DriveService
                 ClientId = settings["clientId"]?.ToString() ?? DefaultClientId;
         }
         catch { ClientId = DefaultClientId; }
+    }
+
+    private async Task<JsonObject?> FindBackupAsync(string token)
+    {
+        var savedId = LoadFileId();
+        if (savedId.Length > 0)
+        {
+            var response = await SendAsync(HttpMethod.Get, $"https://www.googleapis.com/drive/v3/files/{Uri.EscapeDataString(savedId)}?fields=id,name,modifiedTime,size&supportsAllDrives=true", token);
+            if (response.IsSuccessStatusCode) return JsonNode.Parse(await response.Content.ReadAsStringAsync()) as JsonObject;
+        }
+        var query = Uri.EscapeDataString($"name='{FileName}' and trashed=false");
+        var list = await SendAsync(HttpMethod.Get, $"https://www.googleapis.com/drive/v3/files?q={query}&orderBy=modifiedTime%20desc&fields=files(id,name,modifiedTime,size,appProperties)&pageSize=10", token);
+        var json = JsonNode.Parse(await list.Content.ReadAsStringAsync()) as JsonObject ?? new JsonObject();
+        EnsureSuccess(list, json, "Could not list Google Drive backups");
+        var file = (json["files"] as JsonArray)?.OfType<JsonObject>()
+            .OrderByDescending(item => Text(item["appProperties"] as JsonObject ?? new JsonObject(), "gameVault") == "primary")
+            .FirstOrDefault();
+        if (file is not null) SaveFileId(Text(file, "id"));
+        return file;
+    }
+
+    private async Task UploadFileAsync(string id, string json, string token)
+    {
+        var upload = new HttpRequestMessage(HttpMethod.Patch, $"https://www.googleapis.com/upload/drive/v3/files/{Uri.EscapeDataString(id)}?uploadType=media")
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+        };
+        upload.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        using var result = await _http.SendAsync(upload);
+        if (!result.IsSuccessStatusCode) throw new InvalidOperationException($"Drive upload failed ({(int)result.StatusCode}).");
+    }
+
+    private static JsonObject MergeVaults(JsonObject local, JsonObject remote, bool preferRemote)
+    {
+        var preferred = (preferRemote ? remote : local).DeepClone() as JsonObject ?? new JsonObject();
+        var secondary = preferRemote ? local : remote;
+        var names = local.Concat(remote).Where(pair => pair.Value is JsonArray).Select(pair => pair.Key).Distinct(StringComparer.Ordinal).ToList();
+        foreach (var name in names)
+        {
+            var output = preferred[name] as JsonArray ?? new JsonArray();
+            var existing = output.OfType<JsonObject>().Select(MergeIdentity).Where(value => value.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in (secondary[name] as JsonArray)?.OfType<JsonObject>() ?? [])
+            {
+                var identity = MergeIdentity(item);
+                if (identity.Length == 0 || existing.Add(identity)) output.Add(item.DeepClone());
+            }
+            preferred[name] = output;
+        }
+        ApplyHiddenWins(preferred, "hiddenGames", ["upcoming", "catalogExtra"]);
+        ApplyHiddenWins(preferred, "upcomingRemoved", ["upcoming"]);
+        ApplyHiddenWins(preferred, "hiddenMovies", ["movieWatchlist", "watchingMovies"]);
+        ApplyHiddenWins(preferred, "hiddenSeries", ["seriesWatchlist", "watchingSeries"]);
+        ApplyDeletionMarkers(preferred);
+        return preferred;
+    }
+
+    private static void ApplyDeletionMarkers(JsonObject root)
+    {
+        var markers = (root["deletions"] as JsonArray)?.OfType<JsonObject>().ToList() ?? [];
+        foreach (var group in markers.GroupBy(marker => Text(marker, "collection"), StringComparer.Ordinal))
+        {
+            if (group.Key.Length == 0 || root[group.Key] is not JsonArray active) continue;
+            var identities = group.Select(marker => Text(marker, "identity")).Where(value => value.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in active.OfType<JsonObject>().Where(item => identities.Contains(MergeIdentity(item))).ToList()) active.Remove(item);
+        }
+    }
+
+    private static void ApplyHiddenWins(JsonObject root, string hiddenName, string[] activeNames)
+    {
+        var hidden = (root[hiddenName] as JsonArray)?.OfType<JsonObject>().Select(MergeIdentity).ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
+        foreach (var name in activeNames)
+            if (root[name] is JsonArray active)
+                foreach (var item in active.OfType<JsonObject>().Where(item => hidden.Contains(MergeIdentity(item))).ToList()) active.Remove(item);
+    }
+
+    private static string MergeIdentity(JsonObject item)
+    {
+        foreach (var key in new[] { "canonicalId", "rawgId", "tmdbId", "plexRatingKey", "id" })
+            if (!string.IsNullOrWhiteSpace(item[key]?.ToString())) return key + ":" + item[key];
+        var title = Text(item, "name", "title", "service").ToLowerInvariant();
+        return "title:" + new string(title.Where(char.IsLetterOrDigit).ToArray()) + ":" + Text(item, "year", "date", "provider");
+    }
+
+    private string LoadFileId()
+    {
+        try { return File.Exists(_settingsPath) && JsonNode.Parse(File.ReadAllText(_settingsPath)) is JsonObject settings ? settings["fileId"]?.ToString() ?? "" : ""; }
+        catch { return ""; }
+    }
+
+    private void SaveFileId(string id)
+    {
+        if (id.Length == 0) return;
+        JsonObject settings;
+        try { settings = File.Exists(_settingsPath) ? JsonNode.Parse(File.ReadAllText(_settingsPath)) as JsonObject ?? new JsonObject() : new JsonObject(); }
+        catch { settings = new JsonObject(); }
+        settings["clientId"] = ClientId;
+        settings["fileId"] = id;
+        File.WriteAllText(_settingsPath, settings.ToJsonString());
     }
 }

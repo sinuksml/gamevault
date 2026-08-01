@@ -1,4 +1,16 @@
-# Sinu Game Vault for Windows 2.0.5
+# Sinu Game Vault for Windows 2.1.0
+
+## 2.1.0 reliability, cloud convergence, and visual QA
+
+- Serializes full vault mutations and atomic writes, preserves unreadable data, and expands recovery retention.
+- Adds durable deletion markers and conflict-aware Drive merging so old device data cannot resurrect removed titles.
+- Prevents empty vault uploads from replacing an existing Drive backup and restores empty installations from Drive first.
+- Refreshes OAuth tokens correctly, remembers the selected Drive file, and stores token expiry securely.
+- Improves title identity, Plex matching and artwork caching, vendor matching, date parsing, catalog pagination, Wikipedia results, IMDb refreshes, and episode ratings.
+- Restricts game story fetching to Now Playing, keeps internet cache refreshes from changing cloud revisions, and debounces library search.
+- Removes full-window blocking during saves, adds visible progress, improves high-contrast and light-mode surfaces, and fixes card footer alignment.
+- Removes the Health feature from the Windows edition and preserves the existing installer identity and upgrade path.
+- Adds broader regression coverage for concurrency, corruption recovery, duplicate years, cloud tombstones, snapshots, and browsing-only state.
 
 ## 2.0.5 Windows library reliability and clarity
 
@@ -34,7 +46,7 @@
 - Disk-backed catalog cache with stale-data fallback when an external service is unavailable.
 - Privacy-safe diagnostics export and global error logging.
 - Improved BiglyBT operational summary with active count, transfer speed, remaining data, stable incremental refresh, controls, and history.
-- Native Plex, Games, Movies, TV Shows, Health, vendor, rental, subscription, plot, ratings, and episode workflows retained.
+- Native Plex, Games, Movies, TV Shows, vendor, rental, subscription, plot, ratings, and episode workflows retained.
 
 ## 2.0.1 hotfix
 

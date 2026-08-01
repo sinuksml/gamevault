@@ -10,7 +10,7 @@
                     HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="58"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                    <Border Background="#172235" CornerRadius="7,0,0,7" ClipToBounds="True">
+                    <Border Background="{DynamicResource PanelRaisedBrush}" CornerRadius="7,0,0,7" ClipToBounds="True">
                         <Grid><TextBlock Text="GV" Foreground="#3A4D67" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/><Image Source="{Binding Image}" Stretch="UniformToFill"/></Grid>
                     </Border>
                     <StackPanel Grid.Column="1" Margin="15,0" VerticalAlignment="Center">
@@ -30,24 +30,25 @@
                 <Button.ContextMenu><ContextMenu><MenuItem Header="Open details" Tag="open" Click="CardQuickAction_Click"/><MenuItem Header="Edit details" Tag="edit" Click="CardQuickAction_Click"/><Separator/><MenuItem Header="Primary action" Tag="primary" Click="CardQuickAction_Click"/><MenuItem Header="Add to watchlist / queue" Tag="watchlist" Click="CardQuickAction_Click"/><MenuItem Header="Mark watched / completed" Tag="watched" Click="CardQuickAction_Click"/><MenuItem Header="Not interested" Tag="hidden" Click="CardQuickAction_Click"/></ContextMenu></Button.ContextMenu>
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="286"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                    <Border Background="#172235" CornerRadius="7,7,0,0" ClipToBounds="True">
+                    <Border Background="{DynamicResource PanelRaisedBrush}" CornerRadius="7,7,0,0" ClipToBounds="True">
                         <Grid>
                             <TextBlock Text="GV" FontSize="36" FontWeight="Bold" Foreground="#30445E" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             <Image Source="{Binding Image}" Stretch="UniformToFill"/>
                             <Border HorizontalAlignment="Left" VerticalAlignment="Top" Background="{Binding CategoryColor}" BorderBrush="#A9C9E9" BorderThickness="1" CornerRadius="6" Padding="9,5" Margin="9"><TextBlock Text="{Binding CategoryLabel}" Foreground="White" FontSize="10" FontWeight="Bold" MaxWidth="150" TextTrimming="CharacterEllipsis"/></Border>
-                            <Border Visibility="{Binding HasBadges, Converter={StaticResource BoolToVisibility}}" HorizontalAlignment="Right" VerticalAlignment="Top" Background="#E60A0D14" BorderBrush="#657C9C" BorderThickness="1" CornerRadius="5" Padding="8,4" Margin="9"><TextBlock Text="{Binding Badges}" Foreground="#DCE9F8" FontSize="10" FontWeight="Bold" MaxWidth="120" TextTrimming="CharacterEllipsis"/></Border>
-                            <Border VerticalAlignment="Bottom" Background="#E6090D14" Padding="11,8">
-                                <DockPanel>
-                                    <TextBlock Text="{Binding CardRatingText}" Foreground="{DynamicResource WarningBrush}" FontWeight="Bold" FontSize="13"/>
-                                    <TextBlock Text="{Binding DaysText}" Foreground="{Binding CountdownColor}" FontWeight="Bold" FontSize="18" HorizontalAlignment="Right"/>
-                                </DockPanel>
+                            <Border Visibility="{Binding HasBadges, Converter={StaticResource BoolToVisibility}}" HorizontalAlignment="Right" VerticalAlignment="Top" Background="{DynamicResource PanelRaisedBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="5" Padding="8,4" Margin="9"><TextBlock Text="{Binding Badges}" Foreground="{DynamicResource TextBrush}" FontSize="11" FontWeight="Bold" MaxWidth="120" TextTrimming="CharacterEllipsis"/></Border>
+                            <Border VerticalAlignment="Bottom" Background="{DynamicResource DetailsBrush}" Padding="11,8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding CardRatingText}" Foreground="{DynamicResource WarningBrush}" FontWeight="Bold" FontSize="13" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding DaysText}" Foreground="{Binding CountdownColor}" FontWeight="Bold" FontSize="18" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" MaxWidth="125"/>
+                                </Grid>
                             </Border>
                         </Grid>
                     </Border>
                     <StackPanel Grid.Row="1" Margin="12,10">
-                        <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="17" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="18" TextTrimming="CharacterEllipsis"/>
                         <TextBlock Text="{Binding PrimaryMeta}" Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="0,5,0,0" TextTrimming="CharacterEllipsis"/>
-                        <TextBlock Text="{Binding Date}" Foreground="{DynamicResource AccentBrush}" FontSize="15" FontWeight="Bold" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding Date}" Foreground="{DynamicResource AccentBrush}" FontSize="17" FontWeight="Bold" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
                 </Grid>
             </Button>
@@ -58,7 +59,7 @@
                 <Button.ContextMenu><ContextMenu><MenuItem Header="Open details" Tag="open" Click="CardQuickAction_Click"/><MenuItem Header="Edit details" Tag="edit" Click="CardQuickAction_Click"/><Separator/><MenuItem Header="Primary action" Tag="primary" Click="CardQuickAction_Click"/><MenuItem Header="Add to watchlist / queue" Tag="watchlist" Click="CardQuickAction_Click"/><MenuItem Header="Mark watched / completed" Tag="watched" Click="CardQuickAction_Click"/><MenuItem Header="Not interested" Tag="hidden" Click="CardQuickAction_Click"/></ContextMenu></Button.ContextMenu>
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="70"/><ColumnDefinition Width="*"/><ColumnDefinition Width="190"/><ColumnDefinition Width="130"/></Grid.ColumnDefinitions>
-                    <Border Background="#172235" CornerRadius="7,0,0,7" ClipToBounds="True"><Grid><TextBlock Text="GV" Foreground="#30445E" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/><Image Source="{Binding Image}" Stretch="UniformToFill"/></Grid></Border>
+                    <Border Background="{DynamicResource PanelRaisedBrush}" CornerRadius="7,0,0,7" ClipToBounds="True"><Grid><TextBlock Text="GV" Foreground="{DynamicResource MutedBrush}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/><Image Source="{Binding Image}" Stretch="UniformToFill"/></Grid></Border>
                     <StackPanel Grid.Column="1" Margin="18,0" VerticalAlignment="Center"><TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="18" TextTrimming="CharacterEllipsis"/><TextBlock Text="{Binding DetailMeta}" Foreground="{DynamicResource MutedBrush}" FontSize="15" FontWeight="SemiBold" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/></StackPanel>
                     <StackPanel Grid.Column="2" VerticalAlignment="Center"><Border HorizontalAlignment="Left" Background="{Binding CategoryColor}" CornerRadius="5" Padding="8,4"><TextBlock Text="{Binding CategoryLabel}" Foreground="White" FontSize="11" FontWeight="Bold"/></Border><TextBlock Text="{Binding CardStatusText}" Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/></StackPanel>
                     <StackPanel Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,16,0"><TextBlock Text="{Binding CardRatingText}" Foreground="{DynamicResource WarningBrush}" FontWeight="Bold"/><TextBlock Text="{Binding DaysText}" Foreground="{Binding CountdownColor}" FontWeight="Bold" FontSize="19" Margin="0,4,0,0"/></StackPanel>
@@ -91,7 +92,7 @@
                 </StackPanel>
                 <StackPanel DockPanel.Dock="Bottom" VerticalAlignment="Bottom">
                     <Button Content="⚙   Settings" Tag="Settings" Style="{StaticResource RailButton}" Click="Navigate_Click" />
-                    <TextBlock x:Name="VersionText" Text="Windows 2.0.5" Style="{StaticResource MutedText}" Margin="14,8" />
+                    <TextBlock x:Name="VersionText" Text="Windows 2.1.0" Style="{StaticResource MutedText}" Margin="14,8" />
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -322,7 +323,7 @@
                         </TabItem>
                         <TabItem Header="About">
                             <Border Style="{StaticResource SurfaceCard}" Margin="18,0,0,0" MaxWidth="820" VerticalAlignment="Top"><StackPanel>
-                                <TextBlock Text="Sinu Game Vault for Windows" FontSize="24" FontWeight="Bold"/><TextBlock Text="Version 2.0.5 - Native Windows edition" Foreground="{DynamicResource AccentBrush}" Margin="0,6,0,18"/><TextBlock Text="The complete vault automatically syncs to Google Drive after every saved change. After reinstalling, sign in with the same Google account to restore your library." TextWrapping="Wrap" LineHeight="23"/><Button Content="Check GitHub for updates" Margin="0,22,0,0" HorizontalAlignment="Left" Click="CheckUpdates_Click"/>
+                                <TextBlock Text="Sinu Game Vault for Windows" FontSize="24" FontWeight="Bold"/><TextBlock Text="Version 2.1.0 - Native Windows edition" Foreground="{DynamicResource AccentBrush}" Margin="0,6,0,18"/><TextBlock Text="The complete vault automatically syncs to Google Drive after every saved change. After reinstalling, sign in with the same Google account to restore your library." TextWrapping="Wrap" LineHeight="23"/><Button Content="Check GitHub for updates" Margin="0,22,0,0" HorizontalAlignment="Left" Click="CheckUpdates_Click"/>
                             </StackPanel></Border>
                         </TabItem>
                     </TabControl>
@@ -349,7 +350,7 @@
                                     <WrapPanel Margin="0,18,0,6">
                                         <Border Background="{DynamicResource PanelRaisedBrush}" BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8"><TextBlock x:Name="DetailRating" Foreground="{DynamicResource WarningBrush}" FontWeight="Bold" FontSize="16"/></Border>
                                         <Border Background="{DynamicResource PanelRaisedBrush}" BorderBrush="#277A65" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8"><TextBlock x:Name="DetailCountdown" Foreground="{DynamicResource SuccessBrush}" FontWeight="Bold" FontSize="21"/></Border>
-                                        <Border x:Name="DetailEpisodesBadge" Background="#17253A" BorderBrush="#31577D" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8"><TextBlock x:Name="DetailEpisodes" Foreground="#EAF3FF"/></Border>
+                                        <Border x:Name="DetailEpisodesBadge" Background="{DynamicResource PanelRaisedBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8"><TextBlock x:Name="DetailEpisodes" Foreground="{DynamicResource TextBrush}"/></Border>
                                     </WrapPanel>
                                     <TextBlock Text="STORY / SUMMARY" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12" Margin="0,18,0,8"/>
                                     <TextBlock x:Name="DetailOverview" FontSize="16" LineHeight="25" TextWrapping="Wrap" MaxWidth="820"/>
@@ -362,7 +363,7 @@
                                         <Button Content="Watch trailer" Style="{StaticResource PrimaryButton}" Click="Trailer_Click" Margin="0,0,8,8"/>
                                         <Button Content="IMDb" Click="Imdb_Click" Margin="0,0,8,8"/>
                                         <Button Content="Wikipedia" Click="Wikipedia_Click" Margin="0,0,8,8"/>
-                                        <Button Content="Refresh plot" Click="RefreshPlot_Click" Margin="0,0,8,8"/>
+                                        <Button x:Name="RefreshPlotButton" Content="Refresh plot" Click="RefreshPlot_Click" Margin="0,0,8,8" AutomationProperties.Name="Refresh Wikipedia plot"/>
                                         <Button Content="Google search" Click="Google_Click" Margin="0,0,8,8"/>
                                         <Button Content="IGN review" Click="IgnReview_Click" Margin="0,0,8,8"/>
                                         <Button Content="Reeload Media review" Click="ReeloadReview_Click" Margin="0,0,8,8"/>
@@ -385,7 +386,7 @@
             </Grid>
 
             <Border Grid.Row="2" Background="{DynamicResource RailBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="28,0">
-                <Grid><StackPanel Orientation="Horizontal" VerticalAlignment="Center"><TextBlock x:Name="StatusText" Text="Ready" Style="{StaticResource MutedText}" VerticalAlignment="Center"/><Button x:Name="UndoButton" Content="Undo" Style="{StaticResource QuietButton}" Padding="10,3" MinHeight="26" Margin="12,0,0,0" Visibility="Collapsed" Click="Undo_Click"/></StackPanel><TextBlock Text="Sinu Game Vault for Windows" Style="{StaticResource MutedText}" HorizontalAlignment="Right" VerticalAlignment="Center"/></Grid>
+                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="180"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel Orientation="Horizontal" VerticalAlignment="Center"><TextBlock x:Name="StatusText" Text="Ready" Style="{StaticResource MutedText}" VerticalAlignment="Center"/><Button x:Name="UndoButton" Content="Undo" Style="{StaticResource QuietButton}" Padding="10,3" MinHeight="26" Margin="12,0,0,0" Visibility="Collapsed" Click="Undo_Click"/></StackPanel><ProgressBar x:Name="GlobalProgress" Grid.Column="1" Height="4" Margin="16,0" IsIndeterminate="True" Visibility="Collapsed" VerticalAlignment="Center"/><TextBlock Grid.Column="2" Text="Sinu Game Vault for Windows" Style="{StaticResource MutedText}" HorizontalAlignment="Right" VerticalAlignment="Center"/></Grid>
             </Border>
         </Grid>
     </Grid>

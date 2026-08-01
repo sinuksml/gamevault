@@ -6,17 +6,20 @@ namespace SinuGameVault.Services;
 
 public sealed class VaultRepository
 {
-    public const int CurrentSchema = 13;
+    public const int CurrentSchema = 14;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private readonly string _folder;
     private readonly string _vaultPath;
     private readonly string _recoveryFolder;
+    private readonly SemaphoreSlim _ioGate = new(1, 1);
+    private readonly SemaphoreSlim _mutationGate = new(1, 1);
 
     public JsonObject Root { get; private set; } = NewVault();
     public string VaultPath => _vaultPath;
     public string StorageFolder => _folder;
     public string RecoveryFolder => _recoveryFolder;
     public long UpdatedAt => Root["updatedAt"]?.GetValue<long?>() ?? 0;
+    public string LoadWarning { get; private set; } = "";
     public event EventHandler? Saved;
 
     public VaultRepository(string? storageFolder = null)
@@ -42,11 +45,13 @@ public sealed class VaultRepository
             var parsed = JsonNode.Parse(await File.ReadAllTextAsync(_vaultPath)) as JsonObject;
             Root = Normalize(parsed ?? NewVault());
         }
-        catch
+        catch (Exception ex)
         {
             var broken = Path.Combine(_recoveryFolder, $"unreadable-{DateTime.Now:yyyyMMdd-HHmmss}.json");
             File.Copy(_vaultPath, broken, overwrite: true);
             Root = NewVault();
+            LoadWarning = $"The local vault was unreadable and was preserved as {Path.GetFileName(broken)}. Restore it from Settings > Recovery after checking the file.";
+            DiagnosticsService.Log("Vault", "Unreadable local vault preserved for recovery", ex);
         }
     }
 
@@ -60,10 +65,13 @@ public sealed class VaultRepository
         var parsed = JsonNode.Parse(json) as JsonObject
                      ?? throw new InvalidDataException("The selected data is not a GameVault JSON backup.");
         Validate(parsed);
-        await SaveRecoveryAsync("before-import");
-        Root = Normalize(parsed);
-        RecordActivity("Backup restored", "Imported a GameVault backup", "system");
-        await SaveAsync(createRecovery: false);
+        await MutateAsync(async () =>
+        {
+            await SaveRecoveryAsync("before-import");
+            Root = Normalize(parsed);
+            RecordActivity("Backup restored", "Imported a GameVault backup", "system");
+            await SaveAsync(createRecovery: false);
+        });
     }
 
     public async Task ExportAsync(string path)
@@ -75,8 +83,8 @@ public sealed class VaultRepository
 
     public int UserItemCount()
     {
-        string[] collections = ["rentals", "subscriptionGames", "playing", "queue", "played", "rentalHistory",
-            "movieWatchlist", "watchingMovies", "watchedMovies", "seriesWatchlist", "watchingSeries", "watchedSeries"];
+        string[] collections = ["rentals", "subscriptions", "subscriptionGames", "playing", "queue", "upcoming", "upcomingRemoved", "played", "hiddenGames", "rentalHistory",
+            "movieWatchlist", "watchingMovies", "watchedMovies", "hiddenMovies", "seriesWatchlist", "watchingSeries", "watchedSeries", "hiddenSeries", "biglyHistory"];
         return collections.Sum(name => Collection(name).Count);
     }
 
@@ -92,72 +100,125 @@ public sealed class VaultRepository
 
     public async Task AddAsync(string collection, JsonObject item)
     {
-        item["id"] ??= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
-        if (!AllowsDuplicates(collection) && Find(collection, item) is not null) return;
-        Collection(collection).Insert(0, item);
-        RecordActivity("Added", DisplayName(item), collection);
-        Touch();
-        await SaveAsync();
+        await MutateAsync(async () =>
+        {
+            item["id"] ??= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+            if (!AllowsDuplicates(collection) && Find(collection, item) is not null) return;
+            ClearDeletion(collection, item);
+            Collection(collection).Insert(0, item);
+            RecordActivity("Added", DisplayName(item), collection);
+            Touch();
+            await SaveAsync();
+        });
     }
 
     public async Task UpdateAsync(string collection, JsonObject item)
     {
-        item["id"] ??= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
-        var list = Collection(collection);
-        var existing = Find(collection, item, identityOnly: AllowsDuplicates(collection));
-        if (existing is null) list.Insert(0, item);
-        else
+        await MutateAsync(async () =>
         {
-            var index = list.IndexOf(existing);
-            list[index] = item;
-        }
-        RecordActivity("Updated", DisplayName(item), collection);
-        Touch();
-        await SaveAsync();
+            item["id"] ??= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+            var list = Collection(collection);
+            var existing = Find(collection, item, identityOnly: AllowsDuplicates(collection));
+            if (existing is null) list.Insert(0, item);
+            else list[list.IndexOf(existing)] = item;
+            RecordActivity("Updated", DisplayName(item), collection);
+            Touch();
+            await SaveAsync();
+        });
     }
 
     public async Task MoveAsync(string source, string destination, JsonObject item)
     {
-        var sourceList = Collection(source);
-        var existing = Find(source, item);
-        if (existing is not null) sourceList.Remove(existing);
-        if (AllowsDuplicates(destination) || Find(destination, item) is null) Collection(destination).Insert(0, item);
-        RecordActivity("Status changed", $"{DisplayName(item)} · {Friendly(source)} → {Friendly(destination)}", destination);
-        Touch();
-        await SaveAsync();
+        await MutateAsync(async () =>
+        {
+            var sourceList = Collection(source);
+            var existing = Find(source, item);
+            if (existing is not null)
+            {
+                sourceList.Remove(existing);
+                RecordDeletion(source, existing);
+            }
+            ClearDeletion(destination, item);
+            if (AllowsDuplicates(destination) || Find(destination, item) is null) Collection(destination).Insert(0, item);
+            RecordActivity("Status changed", $"{DisplayName(item)} · {Friendly(source)} → {Friendly(destination)}", destination);
+            Touch();
+            await SaveAsync();
+        });
     }
 
     public async Task SetRootValueAsync(string key, JsonNode? value)
     {
-        Root[key] = value;
-        Touch();
-        await SaveAsync();
+        await MutateAsync(async () =>
+        {
+            Root[key] = value;
+            Touch();
+            await SaveAsync();
+        });
+    }
+
+    public async Task SetCacheValueAsync(string key, JsonNode? value)
+    {
+        await MutateAsync(async () =>
+        {
+            Root[key] = value;
+            await SaveAsync(createRecovery: false, notifySaved: false);
+        });
     }
 
     public async Task MarkViewedAsync(JsonObject item, string mediaType, string collection)
     {
-        var recent = Collection("recentViewed");
-        var title = DisplayName(item);
-        foreach (var existing in recent.OfType<JsonObject>().Where(existing => string.Equals(DisplayName(existing), title, StringComparison.OrdinalIgnoreCase)).ToList()) recent.Remove(existing);
-        var copy = item.DeepClone() as JsonObject ?? [];
-        copy["mediaType"] = mediaType; copy["sourceCollection"] = collection; copy["viewedAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        recent.Insert(0, copy);
-        while (recent.Count > 30) recent.RemoveAt(recent.Count - 1);
-        Touch();
-        await SaveAsync(createRecovery: false);
+        await MutateAsync(async () =>
+        {
+            var recent = Collection("recentViewed");
+            var title = DisplayName(item);
+            foreach (var existing in recent.OfType<JsonObject>().Where(existing => string.Equals(DisplayName(existing), title, StringComparison.OrdinalIgnoreCase)).ToList()) recent.Remove(existing);
+            var copy = item.DeepClone() as JsonObject ?? [];
+            copy["mediaType"] = mediaType; copy["sourceCollection"] = collection; copy["viewedAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            recent.Insert(0, copy);
+            while (recent.Count > 30) recent.RemoveAt(recent.Count - 1);
+            await SaveAsync(createRecovery: false, notifySaved: false);
+        });
     }
 
     public async Task RemoveAsync(string collection, string id)
     {
-        var list = Collection(collection);
-        var match = list.FirstOrDefault(node => RecordKeys(node).Any(key => string.Equals(key, id, StringComparison.OrdinalIgnoreCase)));
-        if (match is not null)
+        await MutateAsync(async () =>
         {
+            var list = Collection(collection);
+            var match = list.FirstOrDefault(node => string.Equals(NodeText(node, "id"), id, StringComparison.OrdinalIgnoreCase)
+                || RecordKeys(node).Any(key => key.EndsWith(":" + id, StringComparison.OrdinalIgnoreCase)));
+            if (match is null) return;
             RecordActivity("Removed", DisplayName(match), collection);
             list.Remove(match);
-        }
-        Touch();
-        await SaveAsync();
+            RecordDeletion(collection, match);
+            Touch();
+            await SaveAsync();
+        });
+    }
+
+    private void RecordDeletion(string collection, JsonNode item)
+    {
+        var identity = StableIdentity(item as JsonObject);
+        if (identity.Length == 0) return;
+        var deletions = Collection("deletions");
+        foreach (var old in deletions.OfType<JsonObject>().Where(node => NodeText(node, "collection") == collection && NodeText(node, "identity") == identity).ToList()) deletions.Remove(old);
+        deletions.Add(new JsonObject { ["collection"] = collection, ["identity"] = identity, ["at"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
+        while (deletions.Count > 1000) deletions.RemoveAt(0);
+    }
+
+    private void ClearDeletion(string collection, JsonObject item)
+    {
+        var identity = StableIdentity(item);
+        var deletions = Collection("deletions");
+        foreach (var old in deletions.OfType<JsonObject>().Where(node => NodeText(node, "collection") == collection && NodeText(node, "identity") == identity).ToList()) deletions.Remove(old);
+    }
+
+    private static string StableIdentity(JsonObject? item)
+    {
+        if (item is null) return "";
+        foreach (var key in new[] { "canonicalId", "rawgId", "tmdbId", "imdbId", "plexRatingKey", "id" })
+            if (NodeText(item, key) is { Length: > 0 } value) return key + ":" + value;
+        return "title:" + FallbackIdentity(item, "");
     }
 
     private JsonNode? Find(string collection, JsonObject item, bool identityOnly = false)
@@ -169,24 +230,35 @@ public sealed class VaultRepository
             if (exact is not null || identityOnly) return exact;
         }
         var keys = RecordKeys(item).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var title = NodeText(item, "name");
-        if (title.Length == 0) title = NodeText(item, "title");
+        var fallback = FallbackIdentity(item, collection);
         return Collection(collection).FirstOrDefault(node =>
             RecordKeys(node).Any(keys.Contains)
-            || (!string.IsNullOrWhiteSpace(title)
-                && string.Equals(NodeText(node, "name").Length > 0 ? NodeText(node, "name") : NodeText(node, "title"), title, StringComparison.OrdinalIgnoreCase)));
+            || (fallback.Length > 0 && string.Equals(FallbackIdentity(node as JsonObject, collection), fallback, StringComparison.OrdinalIgnoreCase)));
     }
 
     private static bool AllowsDuplicates(string collection) => collection is "rentalHistory" or "biglyHistory";
 
-    public async Task SaveAsync(bool createRecovery = true)
+    private async Task MutateAsync(Func<Task> mutation)
     {
-        if (createRecovery && File.Exists(_vaultPath)) await SaveRecoveryAsync("autosave");
-        var temporary = _vaultPath + ".tmp";
-        await File.WriteAllTextAsync(temporary, Root.ToJsonString(JsonOptions));
-        File.Move(temporary, _vaultPath, overwrite: true);
-        TrimRecovery();
-        Saved?.Invoke(this, EventArgs.Empty);
+        await _mutationGate.WaitAsync();
+        try { await mutation(); }
+        finally { _mutationGate.Release(); }
+    }
+
+    public async Task SaveAsync(bool createRecovery = true, bool notifySaved = true)
+    {
+        await _ioGate.WaitAsync();
+        try
+        {
+            if (createRecovery && File.Exists(_vaultPath)) await SaveRecoveryCoreAsync("autosave");
+            var temporary = _vaultPath + $".{Environment.ProcessId}.tmp";
+            var json = Root.ToJsonString(JsonOptions);
+            await File.WriteAllTextAsync(temporary, json);
+            File.Move(temporary, _vaultPath, overwrite: true);
+            TrimRecovery();
+        }
+        finally { _ioGate.Release(); }
+        if (notifySaved) Saved?.Invoke(this, EventArgs.Empty);
     }
 
     private void Touch()
@@ -198,16 +270,23 @@ public sealed class VaultRepository
 
     private async Task SaveRecoveryAsync(string reason)
     {
+        await _ioGate.WaitAsync();
+        try { await SaveRecoveryCoreAsync(reason); }
+        finally { _ioGate.Release(); }
+    }
+
+    private async Task SaveRecoveryCoreAsync(string reason)
+    {
         if (!File.Exists(_vaultPath)) return;
         var target = Path.Combine(_recoveryFolder, $"{DateTime.Now:yyyyMMdd-HHmmss-fff}-{reason}.json");
-        await using var source = File.OpenRead(_vaultPath);
+        await using var source = new FileStream(_vaultPath, FileMode.Open, FileAccess.Read, FileShare.Read);
         await using var destination = File.Create(target);
         await source.CopyToAsync(destination);
     }
 
     private void TrimRecovery()
     {
-        foreach (var old in new DirectoryInfo(_recoveryFolder).GetFiles("*.json").OrderByDescending(x => x.CreationTimeUtc).Skip(20))
+        foreach (var old in new DirectoryInfo(_recoveryFolder).GetFiles("*.json").OrderByDescending(x => x.CreationTimeUtc).Skip(60))
             old.Delete();
     }
 
@@ -255,9 +334,7 @@ public sealed class VaultRepository
                 var identity = RecordKeys(item).FirstOrDefault();
                 if (string.IsNullOrWhiteSpace(identity))
                 {
-                    var title = NodeText(item, "name"); if (title.Length == 0) title = NodeText(item, "title");
-                    if (name == "subscriptions" && title.Length == 0) title = NodeText(item, "service");
-                    identity = "title:" + new string(title.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+                    identity = FallbackIdentity(item, name);
                 }
                 if (identity == "title:" || !seen.Add(identity)) continue;
                 unique.Add(item.DeepClone());
@@ -288,11 +365,27 @@ public sealed class VaultRepository
     public static string NodeText(JsonNode? node, string key) => (node as JsonObject)?[key]?.ToString() ?? "";
     private static IEnumerable<string> RecordKeys(JsonNode? node)
     {
-        foreach (var key in new[] { "id", "key", "canonicalId", "rawgId", "tmdbId", "plexRatingKey" })
+        foreach (var key in new[] { "canonicalId", "rawgId", "tmdbId", "plexRatingKey", "key", "id" })
         {
             var value = NodeText(node, key);
-            if (!string.IsNullOrWhiteSpace(value)) yield return value;
+            if (!string.IsNullOrWhiteSpace(value)) yield return key + ":" + value;
         }
+    }
+
+    private static string FallbackIdentity(JsonObject? item, string collection)
+    {
+        if (item is null) return "";
+        var title = NodeText(item, "name");
+        if (title.Length == 0) title = NodeText(item, "title");
+        if (collection == "subscriptions" && title.Length == 0) title = NodeText(item, "service");
+        var normalized = new string(title.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+        if (normalized.Length == 0) return "";
+        var year = NodeText(item, "year");
+        if (year.Length == 0 && DateTime.TryParse(NodeText(item, "date"), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var date)) year = date.Year.ToString();
+        var discriminator = NodeText(item, "mediaType");
+        if (discriminator.Length == 0) discriminator = NodeText(item, "platform");
+        if (discriminator.Length == 0) discriminator = NodeText(item, "provider");
+        return $"title:{normalized}:{year}:{discriminator.ToLowerInvariant()}";
     }
 }
 

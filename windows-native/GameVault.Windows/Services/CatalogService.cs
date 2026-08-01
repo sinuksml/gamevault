@@ -42,8 +42,13 @@ public sealed class CatalogService
         var dateFilter = upcoming
             ? $"&dates={DateTime.Today:yyyy-MM-dd},{DateTime.Today.AddYears(1):yyyy-MM-dd}&ordering=released"
             : $"&dates={DateTime.Today.AddYears(-3):yyyy-MM-dd},{DateTime.Today:yyyy-MM-dd}&ordering=-released";
-        var root = await GetAsync($"https://api.rawg.io/api/games?key={Uri.EscapeDataString(RawgKey)}{dateFilter}&page_size=60&platforms=4,186,187");
-        return (root["results"] as JsonArray)?.OfType<JsonObject>().Select(Game).ToList() ?? [];
+        var combined = new List<JsonObject>();
+        for (var page = 1; page <= 3; page++)
+        {
+            var root = await GetAsync($"https://api.rawg.io/api/games?key={Uri.EscapeDataString(RawgKey)}{dateFilter}&page_size=40&page={page}&platforms=4,186,187");
+            combined.AddRange((root["results"] as JsonArray)?.OfType<JsonObject>().Select(Game) ?? []);
+        }
+        return combined.GroupBy(item => item["canonicalId"]?.ToString()).Select(group => group.First()).ToList();
     }
 
     public async Task<IReadOnlyList<JsonObject>> SearchMediaAsync(string query, string type)
@@ -64,7 +69,7 @@ public sealed class CatalogService
         {
             ("Movie", "uphw") => "movie/upcoming?region=US",
             ("Movie", "bluray") => $"discover/movie?region=US&with_release_type=4|5&release_date.lte={today}&sort_by=primary_release_date.desc",
-            ("Movie", "mlott") => "discover/movie?with_original_language=ml&sort_by=primary_release_date.desc&vote_count.gte=1",
+            ("Movie", "mlott") => "discover/movie?with_original_language=ml&watch_region=IN&with_watch_monetization_types=flatrate&sort_by=primary_release_date.desc",
             ("Movie", _) => "movie/top_rated?region=US",
             ("TV Show", "seriesnew") => "tv/on_the_air",
             ("TV Show", "seriesupcoming") => $"discover/tv?first_air_date.gte={today}&sort_by=first_air_date.asc",
@@ -83,8 +88,10 @@ public sealed class CatalogService
         }
         var distinct = combined.GroupBy(item => item["canonicalId"]?.ToString()).Select(group => group.First());
         if (type == "Movie" && mode == "uphw")
-            distinct = distinct.Where(item => Number(item, "popularity") >= 12 || Number(item, "voteCount") >= 20);
-        return distinct.ToList();
+            distinct = distinct.Where(item => Date(item, "date") >= DateTime.Today && (Number(item, "popularity") >= 8 || Number(item, "voteCount") >= 10));
+        var result = distinct.ToList();
+        foreach (var item in result) item["dateSource"] = mode == "mlott" ? "TMDB streaming availability; date is the title release date" : "TMDB";
+        return result;
     }
 
     public async Task EnrichMediaAsync(JsonObject item, string type)
@@ -114,23 +121,28 @@ public sealed class CatalogService
             {
                 var omdb = await GetAsync($"https://www.omdbapi.com/?apikey={Uri.EscapeDataString(OmdbKey)}&i={Uri.EscapeDataString(imdbId)}");
                 if (double.TryParse(omdb["imdbRating"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var rating)) item["imdb"] = rating;
+                item["imdbCheckedAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             }
         }
         catch { /* Keep the stored catalog usable when a provider is temporarily unavailable. */ }
     }
 
-    public async Task<string> WikipediaSummaryAsync(string title)
+    public async Task<string> WikipediaSummaryAsync(string title, string mediaType = "Game", string year = "")
     {
         try
         {
             var cleaned = Regex.Replace(title, @"\s+(plot|story|summary)$", "", RegexOptions.IgnoreCase).Trim();
-            var query = cleaned.Contains("video game", StringComparison.OrdinalIgnoreCase) ? cleaned : $"\"{cleaned}\" video game";
+            var qualifier = mediaType switch { "Game" => "video game", "Movie" => "film", "TV Show" => "television series", _ => "" };
+            var query = $"\"{cleaned}\" {year} {qualifier}".Trim();
             var search = await GetAsync($"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={Uri.EscapeDataString(query)}&srlimit=5&format=json&origin=*");
-            var page = search["query"]?["search"]?[0]?["title"]?.ToString();
+            var candidates = (search["query"]?["search"] as JsonArray)?.OfType<JsonObject>().ToList() ?? [];
+            var normalized = NormalizeTitle(cleaned);
+            var page = candidates.OrderByDescending(candidate => WikipediaScore(candidate["title"]?.ToString() ?? "", normalized, qualifier, year)).FirstOrDefault()?["title"]?.ToString();
             if (string.IsNullOrWhiteSpace(page))
             {
                 search = await GetAsync($"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={Uri.EscapeDataString(cleaned)}&srlimit=3&format=json&origin=*");
-                page = search["query"]?["search"]?[0]?["title"]?.ToString();
+                candidates = (search["query"]?["search"] as JsonArray)?.OfType<JsonObject>().ToList() ?? [];
+                page = candidates.OrderByDescending(candidate => WikipediaScore(candidate["title"]?.ToString() ?? "", normalized, qualifier, year)).FirstOrDefault()?["title"]?.ToString();
             }
             if (string.IsNullOrWhiteSpace(page)) return "";
             var parsed = await GetAsync($"https://en.wikipedia.org/w/api.php?action=parse&page={Uri.EscapeDataString(page)}&prop=sections&format=json&origin=*");
@@ -171,13 +183,17 @@ public sealed class CatalogService
         {
             var item = await GetAsync($"https://api.themoviedb.org/3/tv/{Uri.EscapeDataString(tmdbId)}/season/{season}/episode/{episode}?api_key={Uri.EscapeDataString(TmdbKey)}");
             var rating = double.TryParse(item["vote_average"]?.ToString(), CultureInfo.InvariantCulture, out var tmdbRating) ? tmdbRating : 0;
-            if (OmdbKey.Length > 0 && imdbId.Length > 0)
+            if (OmdbKey.Length > 0)
             {
                 try
                 {
-                    var omdb = await GetAsync($"https://www.omdbapi.com/?apikey={Uri.EscapeDataString(OmdbKey)}&i={Uri.EscapeDataString(imdbId)}&Season={season}");
-                    var match = (omdb["Episodes"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault(row => row["Episode"]?.ToString() == episode.ToString(CultureInfo.InvariantCulture));
-                    if (double.TryParse(match?["imdbRating"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var imdbRating)) rating = imdbRating;
+                    var external = await GetAsync($"https://api.themoviedb.org/3/tv/{Uri.EscapeDataString(tmdbId)}/season/{season}/episode/{episode}/external_ids?api_key={Uri.EscapeDataString(TmdbKey)}");
+                    var episodeImdb = external["imdb_id"]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(episodeImdb))
+                    {
+                        var omdb = await GetAsync($"https://www.omdbapi.com/?apikey={Uri.EscapeDataString(OmdbKey)}&i={Uri.EscapeDataString(episodeImdb)}");
+                        if (double.TryParse(omdb["imdbRating"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var imdbRating)) rating = imdbRating;
+                    }
                 }
                 catch { /* TMDB remains available when OMDb is temporarily unavailable. */ }
             }
@@ -256,5 +272,16 @@ public sealed class CatalogService
     }
 
     private static double Number(JsonObject item, string key) => double.TryParse(item[key]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : 0;
+    private static DateTime Date(JsonObject item, string key) => DateTime.TryParse(item[key]?.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var value) ? value.Date : DateTime.MinValue;
+    private static string NormalizeTitle(string title) => new(title.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+    private static int WikipediaScore(string candidate, string normalizedTitle, string qualifier, string year)
+    {
+        var normalizedCandidate = NormalizeTitle(candidate);
+        var score = normalizedCandidate.StartsWith(normalizedTitle, StringComparison.Ordinal) ? 20 : normalizedCandidate.Contains(normalizedTitle, StringComparison.Ordinal) ? 10 : 0;
+        if (qualifier.Length > 0 && candidate.Contains(qualifier, StringComparison.OrdinalIgnoreCase)) score += 8;
+        if (year.Length >= 4 && candidate.Contains(year[..4], StringComparison.OrdinalIgnoreCase)) score += 6;
+        if (candidate.Contains("disambiguation", StringComparison.OrdinalIgnoreCase)) score -= 20;
+        return score;
+    }
     private static string Image(string? path, string size) => string.IsNullOrWhiteSpace(path) ? "" : $"https://image.tmdb.org/t/p/{size}{path}";
 }
