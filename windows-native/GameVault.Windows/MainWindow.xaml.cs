@@ -27,12 +27,14 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<LibraryRow> _plexRows = [];
     private readonly ObservableCollection<TorrentRow> _torrentRows = [];
     private readonly ObservableCollection<TorrentHistoryRow> _torrentHistoryRows = [];
+    private readonly ObservableCollection<MonthlySpendRow> _monthlySpendRows = [];
     private readonly ICollectionView _rowsView;
     private readonly DispatcherTimer _driveSyncTimer = new() { Interval = TimeSpan.FromSeconds(2.5) };
     private readonly DispatcherTimer _biglyRefreshTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private readonly DispatcherTimer _searchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private JsonObject? _undoRoot;
     private bool _syncingDrive;
+    private bool _driveSyncPending;
     private string _section = "Overview";
     private string _previousSection = "Overview";
     private string _gameCollection = "rentals";
@@ -63,6 +65,7 @@ public partial class MainWindow : Window
         PlexCards.ItemsSource = _plexRows;
         BiglyGrid.ItemsSource = _torrentRows;
         BiglyHistoryGrid.ItemsSource = _torrentHistoryRows;
+        GameSpendChart.ItemsSource = _monthlySpendRows;
         _gamesListView = CredentialStore.Read("SinuGameVault/Preferences/GamesView") == "list";
         _mediaListView = CredentialStore.Read("SinuGameVault/Preferences/MediaView") == "list";
         _theme = CredentialStore.Read("SinuGameVault/Preferences/Theme") is { Length: > 0 } savedTheme ? savedTheme : "dark";
@@ -222,6 +225,7 @@ public partial class MainWindow : Window
         TotalRentedCount.Text = (_vault.Collection("rentals").Count + _vault.Collection("rentalHistory").Count).ToString();
         var rentalSpent = _vault.Collection("rentals").Concat(_vault.Collection("rentalHistory")).OfType<JsonObject>().Sum(item => Number(item, "cost"));
         var subscriptionSpent = _vault.Collection("subscriptions").OfType<JsonObject>().Sum(item => Number(item, "totalPaid", "cost"));
+        RefreshGameSpendChart();
         TotalSpentCount.Text = $"₹{rentalSpent + subscriptionSpent:N0}";
 
         var continueRows = ReadCollection("rentals")
@@ -257,6 +261,27 @@ public partial class MainWindow : Window
         HomeSummaryText.Text = continueRows.Count == 0
             ? "Your library is ready. Add or import a title to begin."
             : $"{continueRows.Count} active title{(continueRows.Count == 1 ? "" : "s")} · {upcomingRows.Count} upcoming date{(upcomingRows.Count == 1 ? "" : "s")} · {DriveHeaderStatus.Text}.";
+    }
+
+    private void RefreshGameSpendChart()
+    {
+        var months = Enumerable.Range(0, 12).Select(offset => new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(offset - 11)).ToList();
+        var totals = months.ToDictionary(month => month, _ => 0m);
+        foreach (var item in _vault.Collection("rentals").Concat(_vault.Collection("rentalHistory")).OfType<JsonObject>())
+        {
+            if (!DateTime.TryParse(Text(item, "start", "date", "returnedAt", "end"), out var date)) continue;
+            var month = new DateTime(date.Year, date.Month, 1);
+            if (totals.ContainsKey(month)) totals[month] += (decimal)Number(item, "cost");
+        }
+        foreach (var item in _vault.Collection("subscriptions").OfType<JsonObject>())
+        {
+            if (!DateTime.TryParse(Text(item, "start", "startedAt", "date"), out var date)) continue;
+            var month = new DateTime(date.Year, date.Month, 1);
+            if (totals.ContainsKey(month)) totals[month] += (decimal)Number(item, "totalPaid", "cost");
+        }
+        var maximum = Math.Max(1m, totals.Values.DefaultIfEmpty(0).Max());
+        _monthlySpendRows.Clear();
+        foreach (var month in months) _monthlySpendRows.Add(new MonthlySpendRow { Month = month.ToString("MMM", CultureInfo.InvariantCulture), Amount = totals[month], BarHeight = Math.Max(3, (double)(totals[month] / maximum) * 74) });
     }
 
     private void HomeShortcut_Click(object sender, RoutedEventArgs e)
@@ -333,7 +358,7 @@ public partial class MainWindow : Window
     private async Task EnsureCurrentCatalogAsync()
     {
         var isGameCatalog = _section == "Games" && _gameCollection is "upcoming" or "catalogExtra";
-        var mediaCatalogs = _section == "Movies" ? new[] { "uphw", "bluray", "relhw", "mlott" }
+        var mediaCatalogs = _section == "Movies" ? new[] { "uphw", "bluray", "relhw", "mlott", "mlup" }
             : _section == "Series" ? new[] { "seriesnew", "seriesupcoming", "enseries", "mlseries", "taseries", "hiseries" } : [];
         if (!isGameCatalog && !mediaCatalogs.Contains(_mediaMode)) return;
         if (isGameCatalog && _catalog.RawgKey.Length == 0 || !isGameCatalog && _catalog.TmdbKey.Length == 0) return;
@@ -344,6 +369,11 @@ public partial class MainWindow : Window
         {
             var timestamps = _vault.Root["nativeCatalogRefreshAt"] as JsonObject;
             var previous = timestamps?[key]?.GetValue<long?>() ?? 0;
+            if (!isGameCatalog)
+            {
+                var webSnapshotAt = _vault.Root["nativeTvCatalog"]?["generatedAt"]?.GetValue<long?>() ?? 0;
+                previous = Math.Max(previous, webSnapshotAt);
+            }
             var hasData = isGameCatalog ? _vault.Collection(mode).Count > 0 : (_vault.Root["nativeTvCatalog"]?[_section == "Movies" ? "movies" : "series"]?[mode] as JsonArray)?.Count > 0;
             if (hasData && DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - previous < TimeSpan.FromHours(12).TotalMilliseconds) return;
             StatusText.Text = $"Refreshing {mode} in the background...";
@@ -378,7 +408,7 @@ public partial class MainWindow : Window
     {
         MediaTabsPanel.Children.Clear();
         var definitions = _section == "Movies"
-            ? new[] { ("watchlist", "My Watchlist"), ("watching", "Watching"), ("uphw", "Coming Soon"), ("bluray", "New on Blu-ray"), ("relhw", "Discover"), ("mlott", "Malayalam OTT"), ("watched", "Watched"), ("hidden", "Not Interested") }
+            ? new[] { ("watchlist", "My Watchlist"), ("watching", "Watching"), ("uphw", "Coming Soon"), ("bluray", "New on Blu-ray"), ("relhw", "Discover"), ("mlup", "Coming to Malayalam OTT"), ("mlott", "Malayalam OTT"), ("watched", "Watched"), ("hidden", "Not Interested") }
             : new[] { ("watchlist", "My Watchlist"), ("watching", "Watching"), ("seriesnew", "New Episodes"), ("seriesupcoming", "Upcoming"), ("enseries", "English"), ("mlseries", "Malayalam"), ("taseries", "Tamil"), ("hiseries", "Hindi"), ("watched", "Watched"), ("hidden", "Not Interested") };
         if (!definitions.Any(item => item.Item1 == _mediaMode)) _mediaMode = "watchlist";
         foreach (var (key, label) in definitions)
@@ -396,7 +426,7 @@ public partial class MainWindow : Window
     private static string MediaTabGlyph(string key) => key switch
     {
         "watchlist" => "\uE728", "watching" => "\uE768", "uphw" or "seriesupcoming" => "\uE787",
-        "bluray" => "\uE7F1", "relhw" or "enseries" => "\uE721", "mlott" => "\uE8B2",
+        "bluray" => "\uE7F1", "relhw" or "enseries" => "\uE721", "mlott" or "mlup" => "\uE8B2",
         "seriesnew" => "\uE823", "mlseries" => "\uE8D2", "taseries" => "\uE8D2", "hiseries" => "\uE8D2",
         "watched" => "\uE73E", "hidden" => "\uED1A", _ => "\uE8A9"
     };
@@ -420,12 +450,12 @@ public partial class MainWindow : Window
             _ => _section == "Movies" ? "movieWatchlist" : "seriesWatchlist"
         };
         PageSubtitle.Text = $"{prefix} · {_mediaMode}";
-        var catalog = _section == "Movies" ? new[] { "uphw", "bluray", "relhw", "mlott" } : new[] { "seriesnew", "seriesupcoming", "enseries", "mlseries", "taseries", "hiseries" };
+        var catalog = _section == "Movies" ? new[] { "uphw", "bluray", "relhw", "mlott", "mlup" } : new[] { "seriesnew", "seriesupcoming", "enseries", "mlseries", "taseries", "hiseries" };
         var allRows = (catalog.Contains(_mediaMode) ? ReadNativeCatalog(_section == "Movies" ? "movies" : "series", _mediaMode) : ReadCollection(collection)).ToList();
         IEnumerable<LibraryRow> rows = allRows;
         var year = (MediaYearBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
         var genre = MediaGenreBox.Text.Trim();
-        if (year.Length > 0) rows = rows.Where(row => row.Date.StartsWith(year, StringComparison.OrdinalIgnoreCase) || row.Source["year"]?.ToString() == year);
+        if (year.Length > 0) rows = rows.Where(row => ParseSortDate(row.Date).Year.ToString(CultureInfo.InvariantCulture) == year || row.Source["year"]?.ToString() == year);
         if (genre.Length > 0) rows = rows.Where(row => row.Genre.Contains(genre, StringComparison.OrdinalIgnoreCase));
         SetRows(rows, MediaSortBox.SelectedItem as ComboBoxItem);
         PopulateMediaYears(allRows);
@@ -478,7 +508,7 @@ public partial class MainWindow : Window
                 MediaType = "Subscription",
                 Platform = provider == "NVIDIA" ? "GeForce NOW" : provider == "Xbox" ? "PC / Xbox" : provider,
                 Status = active ? "Active subscription" : "Inactive subscription",
-                Date = renewal,
+                Date = DisplayDate(renewal),
                 Genre = "Cloud gaming subscription",
                 Image = image,
                 Providers = provider,
@@ -526,7 +556,7 @@ public partial class MainWindow : Window
                 MediaType = mediaType,
                 Platform = platformText,
                 Status = Text(node, "status", "state"),
-                Date = date,
+                Date = DisplayDate(date),
                 Genre = GenreText(node),
                 Image = CoverOrPlaceholder(Text(node, "img", "poster", "cover", "posterUrl"), name),
                 Backdrop = Text(node, "backdrop", "background", "backdropUrl"),
@@ -575,14 +605,14 @@ public partial class MainWindow : Window
         _rows.Clear();
         foreach (var row in source.Where(x => query.Length == 0 || x.Name.Contains(query, StringComparison.OrdinalIgnoreCase))) _rows.Add(row);
         _rowsView.GroupDescriptions.Clear();
-        if ((_section == "Games" || _section == "Movies" && _mediaMode == "mlott") && _rows.Any(row => row.GroupName.Length > 0))
+        if ((_section == "Games" || _section == "Movies" && _mediaMode is "mlott" or "mlup") && _rows.Any(row => row.GroupName.Length > 0))
             _rowsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(LibraryRow.GroupName)));
         _rowsView.Refresh();
         StatusText.Text = $"{_rows.Count} item{(_rows.Count == 1 ? "" : "s")}";
     }
 
     private static int UpcomingOrder(LibraryRow row) => row.Collection == "upcomingRemoved" ? 2 : row.DaysLeft is < 0 ? 1 : 0;
-    private static bool IsDatedMediaCatalog(string mode) => mode is "uphw" or "bluray" or "relhw" or "mlott" or "seriesnew" or "seriesupcoming" or "enseries" or "mlseries" or "taseries" or "hiseries";
+    private static bool IsDatedMediaCatalog(string mode) => mode is "uphw" or "bluray" or "relhw" or "mlott" or "mlup" or "seriesnew" or "seriesupcoming" or "enseries" or "mlseries" or "taseries" or "hiseries";
 
     private static string GroupName(string collection, string status, int? days) => collection switch
     {
@@ -595,7 +625,7 @@ public partial class MainWindow : Window
         "upcoming" when days is < 0 => "Released",
         "upcoming" => "Upcoming releases",
         "upcomingRemoved" => "Removed games",
-        "mlott" when days is >= 0 => "Coming to Malayalam OTT",
+        "mlup" => "Coming to Malayalam OTT",
         "mlott" => "Released on Malayalam OTT",
         _ => ""
     };
@@ -625,6 +655,8 @@ public partial class MainWindow : Window
 
     private static DateTime ParseSortDate(string value) => DateTime.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var date)
         || DateTime.TryParse(value, System.Globalization.CultureInfo.CurrentCulture, System.Globalization.DateTimeStyles.AllowWhiteSpaces, out date) ? date : DateTime.MinValue;
+    private static string DisplayDate(string value) => DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out var date)
+        || DateTime.TryParse(value, CultureInfo.CurrentCulture, DateTimeStyles.AllowWhiteSpaces, out date) ? date.ToString("dd-MMMM-yyyy", CultureInfo.InvariantCulture) : value;
     private static int GroupOrder(string group) => group switch { "Active rentals" or "Playing now" or "Upcoming releases" or "Active subscriptions" => 0, "Resume later" or "Included games" => 1, "On hold" or "Released" or "Past subscriptions" => 2, "Rental history" => 3, "Removed games" => 4, _ => 0 };
 
     private double RecommendationScore(LibraryRow candidate)
@@ -819,7 +851,7 @@ public partial class MainWindow : Window
             else
             {
                 var mediaType = _section == "Movies" ? "Movie" : "TV Show";
-                var catalogModes = _section == "Movies" ? new[] { "uphw", "bluray", "relhw", "mlott" } : new[] { "seriesnew", "seriesupcoming", "enseries", "mlseries", "taseries", "hiseries" };
+                var catalogModes = _section == "Movies" ? new[] { "uphw", "bluray", "relhw", "mlott", "mlup" } : new[] { "seriesnew", "seriesupcoming", "enseries", "mlseries", "taseries", "hiseries" };
                 var mode = catalogModes.Contains(_mediaMode) ? _mediaMode : (_section == "Movies" ? "relhw" : "enseries");
                 var items = await _catalog.MediaCatalogAsync(mediaType, mode);
                 var root = _vault.Root["nativeTvCatalog"]?.DeepClone() as JsonObject ?? new JsonObject();
@@ -1373,12 +1405,21 @@ public partial class MainWindow : Window
             DriveSettingsStatus.Text = ex.Message;
             if (!silent && !_windowIsClosing) MessageBox.Show(this, ex.Message, "Google Drive sync", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-        finally { _syncingDrive = false; }
+        finally
+        {
+            _syncingDrive = false;
+            if (_driveSyncPending) { _driveSyncPending = false; ScheduleDriveSync(); }
+        }
     }
 
     private void ScheduleDriveSync()
     {
-        if (!_drive.Connected || _syncingDrive) return;
+        if (!_drive.Connected) return;
+        /* A save that lands while a sync is already running used to be dropped
+           entirely — the timer was never re-armed, so that change waited for the
+           next unrelated save before it reached Drive. Remember it instead and
+           re-schedule once the running sync finishes. */
+        if (_syncingDrive) { _driveSyncPending = true; return; }
         _driveSyncTimer.Stop();
         _driveSyncTimer.Start();
     }
@@ -1427,19 +1468,25 @@ public partial class MainWindow : Window
         StatusText.Text = "Catalog API keys saved securely in Windows Credential Manager.";
     }
 
-    private async void SavePlex_Click(object sender, RoutedEventArgs e)
+    private void SavePlex_Click(object sender, RoutedEventArgs e)
     {
         _plex.ServerUrl = PlexUrlBox.Text;
         _plex.Token = PlexTokenBox.Password;
+        StatusText.Text = "Plex settings saved securely in Windows Credential Manager.";
+    }
+
+    private async void DiscoverPlex_Click(object sender, RoutedEventArgs e)
+    {
         try
         {
+            var discovered = await _plex.DiscoverServerAsync(PlexTokenBox.Password);
+            PlexUrlBox.Text = discovered;
+            _plex.ServerUrl = discovered;
+            _plex.Token = PlexTokenBox.Password;
             var items = await _plex.LibraryAsync("movie");
-            _section = "Plex";
-            _plexMode = "all";
-            ShowSection();
-            StatusText.Text = $"Plex connected · {items.Count} movies found";
+            StatusText.Text = $"Plex server discovered and saved. {items.Count} movies found.";
         }
-        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Plex connection", MessageBoxButton.OK, MessageBoxImage.Warning); }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Plex discovery", MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
 
     private void PlexTokenHelp_Click(object sender, RoutedEventArgs e) => OpenExternal("https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/");
@@ -1593,7 +1640,7 @@ public partial class MainWindow : Window
         DetailTitle.Text = row.Name;
         var duration = Integer(row.Source, "used", "days");
         DetailMeta.Text = string.Join("  |  ", new[] { row.DetailMeta, row.Vendor, row.CostText,
-            Text(row.Source, "start") is { Length: > 0 } start ? $"Started {start}" : "", duration > 0 ? $"{duration} days" : "" }.Where(value => value.Length > 0).Distinct());
+            Text(row.Source, "start") is { Length: > 0 } start ? $"Started {DisplayDate(start)}" : "", duration > 0 ? $"{duration} days" : "" }.Where(value => value.Length > 0).Distinct());
         DetailRating.Text = $"IMDb / rating  {row.RatingText}";
         DetailCountdown.Text = row.DaysText.Length > 0 ? row.DaysText : row.Status;
         DetailEpisodes.Text = string.Join("  |  ", new[] { row.SeasonsText, row.EpisodesText }.Where(x => x.Length > 0));
@@ -1604,7 +1651,7 @@ public partial class MainWindow : Window
         DetailAvailability.Text = row.Availability.Length > 0 ? row.Availability : "No provider or vendor information stored.";
         DetailNote.Text = row.Note;
         FandomButton.Visibility = row.MediaType == "Game" && row.Collection == "playing" ? Visibility.Visible : Visibility.Collapsed;
-        RefreshPlotButton.Visibility = row.MediaType == "Game" && row.Collection == "playing" ? Visibility.Visible : Visibility.Collapsed;
+        RefreshPlotButton.Visibility = row.MediaType is "Movie" or "TV Show" || row.MediaType == "Game" && row.Collection == "playing" ? Visibility.Visible : Visibility.Collapsed;
         VendorLinksButton.Visibility = row.MediaType == "Game" && row.Collection is "queue" or "rentals" ? Visibility.Visible : Visibility.Collapsed;
         VendorRefreshButton.Visibility = row.MediaType == "Game" && row.Collection == "queue" ? Visibility.Visible : Visibility.Collapsed;
         EpisodePicker.Visibility = row.MediaType == "TV Show" ? Visibility.Visible : Visibility.Collapsed;
@@ -1649,6 +1696,14 @@ public partial class MainWindow : Window
                 await _catalog.EnrichMediaAsync(row.Source, row.MediaType);
                 changed = true;
             }
+            var cachedWikipedia = Text(row.Source, "wikipediaPlot");
+            if (cachedWikipedia.Length == 0)
+            {
+                DetailOverview.Text = "Loading Wikipedia story...";
+                cachedWikipedia = await _catalog.WikipediaSummaryAsync(row.Name, row.MediaType, Text(row.Source, "year", "date"));
+                if (cachedWikipedia.Length > 0) { row.Source["wikipediaPlot"] = cachedWikipedia; changed = true; }
+            }
+            if (cachedWikipedia.Length > 0) DetailOverview.Text = cachedWikipedia;
         }
         else if (row.MediaType == "Game")
         {
@@ -1668,15 +1723,20 @@ public partial class MainWindow : Window
                 if (plot.Length > 0) { row.Source["overview"] = plot; changed = true; }
             }
         }
-        if (!changed) return;
+        if (!changed)
+        {
+            if (DetailOverview.Text.StartsWith("Loading", StringComparison.OrdinalIgnoreCase)) DetailOverview.Text = row.Overview.Length > 0 ? row.Overview : "No matching Wikipedia story section was found.";
+            return;
+        }
         var refreshed = ReadNodes(new JsonArray(row.Source.DeepClone()), row.Collection).First();
         _selectedRow = refreshed;
         DetailPoster.Source = ImageSource(refreshed.Image);
         DetailBackdrop.Source = ImageSource(refreshed.Backdrop.Length > 0 ? refreshed.Backdrop : refreshed.Image);
-        DetailOverview.Text = refreshed.Overview.Length > 0 ? refreshed.Overview : refreshed.MediaType == "Game" && refreshed.Collection != "playing"
+        DetailOverview.Text = Text(refreshed.Source, "wikipediaPlot") is { Length: > 0 } wikipediaPlot ? wikipediaPlot : refreshed.Overview.Length > 0 ? refreshed.Overview : refreshed.MediaType == "Game" && refreshed.Collection != "playing"
             ? "Story summaries are available for games in Now Playing." : "No matching summary was found for this title.";
         DetailAvailability.Text = refreshed.Availability.Length > 0 ? refreshed.Availability : "No streaming or rental provider information found.";
         DetailRating.Text = $"IMDb / rating  {refreshed.RatingText}";
+        if (refreshed.MediaType == "TV Show") PopulateEpisodePicker(refreshed);
         if (!IsCatalog(row)) await _vault.UpdateAsync(row.Collection, row.Source);
         else await PersistCatalogMetadataAsync(row);
     }
@@ -1686,7 +1746,7 @@ public partial class MainWindow : Window
         foreach (var pair in source) if (pair.Value is not null && (target[pair.Key] is null || string.IsNullOrWhiteSpace(target[pair.Key]?.ToString()))) target[pair.Key] = pair.Value.DeepClone();
     }
 
-    private static bool IsCatalog(LibraryRow row) => row.Collection is "uphw" or "bluray" or "relhw" or "mlott" or "seriesnew" or "seriesupcoming" or "enseries" or "mlseries" or "taseries" or "hiseries";
+    private static bool IsCatalog(LibraryRow row) => row.Collection is "uphw" or "bluray" or "relhw" or "mlott" or "mlup" or "seriesnew" or "seriesupcoming" or "enseries" or "mlseries" or "taseries" or "hiseries";
 
     private async Task PersistCatalogMetadataAsync(LibraryRow row)
     {
@@ -1753,12 +1813,12 @@ public partial class MainWindow : Window
     private void Wikipedia_Click(object sender, RoutedEventArgs e) => OpenExternal($"https://en.wikipedia.org/w/index.php?search={Uri.EscapeDataString(_selectedRow?.Name ?? "")}");
     private async void RefreshPlot_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedRow is not { } row || row.MediaType != "Game") return;
+        if (_selectedRow is not { } row) return;
         DetailOverview.Text = "Loading Wikipedia plot...";
-        if (row.Collection != "playing") { DetailOverview.Text = "Story summaries are available for games in Now Playing."; return; }
-        var plot = await _catalog.WikipediaSummaryAsync(row.Name, "Game", Text(row.Source, "year"));
+        if (row.MediaType == "Game" && row.Collection != "playing") { DetailOverview.Text = "Story summaries are available for games in Now Playing."; return; }
+        var plot = await _catalog.WikipediaSummaryAsync(row.Name, row.MediaType, Text(row.Source, "year", "date"));
         if (plot.Length == 0) { DetailOverview.Text = "No matching Wikipedia story section was found."; return; }
-        row.Source["overview"] = plot;
+        row.Source[row.MediaType == "Game" ? "overview" : "wikipediaPlot"] = plot;
         DetailOverview.Text = plot;
         if (!IsCatalog(row)) await _vault.UpdateAsync(row.Collection, row.Source);
     }
@@ -1987,9 +2047,10 @@ public partial class MainWindow : Window
         DetailSeasonBox.SelectionChanged += DetailSeason_Changed;
         DetailEpisodeBox.SelectionChanged += DetailEpisode_Changed;
         PopulateEpisodes();
+        if (row.MediaType == "TV Show" && DetailSeasonBox.SelectedItem is int) _ = PopulateEpisodesAsync();
     }
 
-    private void DetailSeason_Changed(object sender, SelectionChangedEventArgs e) => PopulateEpisodes();
+    private async void DetailSeason_Changed(object sender, SelectionChangedEventArgs e) => await PopulateEpisodesAsync();
     private void DetailEpisode_Changed(object sender, SelectionChangedEventArgs e) { }
     private void PopulateEpisodes()
     {
@@ -2006,16 +2067,35 @@ public partial class MainWindow : Window
         if (DetailEpisodeBox.Items.Count > 0) DetailEpisodeBox.SelectedIndex = 0;
     }
 
+    private async Task PopulateEpisodesAsync()
+    {
+        if (_selectedRow is not { } row || DetailSeasonBox.SelectedItem is not int season) return;
+        DetailEpisodeBox.Items.Clear();
+        DetailEpisodeBox.Items.Add("Loading episodes and IMDb ratings...");
+        try
+        {
+            var episodes = await _catalog.SeasonEpisodesAsync(row.TmdbId, row.ImdbId, season);
+            DetailEpisodeBox.Items.Clear();
+            foreach (var episode in episodes) DetailEpisodeBox.Items.Add(episode);
+            if (DetailEpisodeBox.Items.Count > 0) DetailEpisodeBox.SelectedIndex = 0;
+            else PopulateEpisodes();
+        }
+        catch { DetailEpisodeBox.Items.Clear(); PopulateEpisodes(); }
+    }
+
     private async void EpisodePlot_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedRow is not { } row || DetailSeasonBox.SelectedItem is not int season || DetailEpisodeBox.SelectedItem is not int episode) return;
+        if (_selectedRow is not { } row || DetailSeasonBox.SelectedItem is not int season) return;
+        var episode = DetailEpisodeBox.SelectedItem is EpisodeChoice choice ? choice.Number : DetailEpisodeBox.SelectedItem is int number ? number : 0;
+        if (episode <= 0) return;
         var tmdbId = row.TmdbId;
         var details = await _catalog.EpisodeAsync(tmdbId, row.ImdbId, season, episode);
-        var overview = details.Overview;
-        if (overview.Length == 0) overview = await _catalog.WikipediaSummaryAsync($"{row.Name} season {season} episode {episode}", "TV Show", Text(row.Source, "year"));
-        DetailOverview.Text = overview.Length > 0 ? $"S{season:00}E{episode:00} {details.Name}\n\n{overview}" : "No episode summary was found. Use Wikipedia search for this episode.";
-        DetailRating.Text = details.Rating > 0 ? $"Episode rating  {details.Rating:0.0}" : $"Rating  {row.RatingText}";
-        if (details.AirDate.Length > 0) DetailCountdown.Text = details.AirDate;
+        var overview = await _catalog.WikipediaSummaryAsync($"{row.Name} season {season} episode {episode} {details.Name}", "TV Show", Text(row.Source, "year"));
+        if (overview.Length == 0) overview = details.Overview;
+        DetailOverview.Text = overview.Length > 0 ? $"S{season:00}E{episode:00} {details.Name}\n\n{overview}" : "No Wikipedia episode story was found. TMDB also has no episode summary.";
+        var selectedRating = DetailEpisodeBox.SelectedItem is EpisodeChoice selected && selected.Rating > 0 ? selected.Rating : details.Rating;
+        DetailRating.Text = selectedRating > 0 ? $"Episode IMDb rating  {selectedRating:0.0}" : $"Series IMDb rating  {row.RatingText}";
+        if (details.AirDate.Length > 0) DetailCountdown.Text = DisplayDate(details.AirDate);
     }
 
     private async void MoveStatus_Click(object sender, RoutedEventArgs e)

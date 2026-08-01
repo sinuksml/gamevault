@@ -51,7 +51,7 @@ public sealed class LibraryRow
         "watchingMovies" or "watchingSeries" or "watching" => "Watching",
         "watchedMovies" or "watchedSeries" or "watched" => "Watched",
         "hiddenMovies" or "hiddenSeries" or "hidden" => "Not interested",
-        "uphw" or "seriesupcoming" => "Coming soon",
+        "uphw" or "seriesupcoming" or "mlup" => "Coming soon",
         "bluray" => "Blu-ray",
         "relhw" or "enseries" or "mlseries" or "taseries" or "hiseries" => "Discover",
         "mlott" => "Malayalam OTT",
@@ -66,7 +66,7 @@ public sealed class LibraryRow
         "catalogExtra" or "relhw" or "enseries" or "mlseries" or "taseries" or "hiseries" => "#7255C7",
         "played" or "watchedMovies" or "watchedSeries" or "watched" => "#267A50",
         "movieWatchlist" or "seriesWatchlist" or "watchlist" => "#2A70B8", "watchingMovies" or "watchingSeries" or "watching" => "#16836A",
-        "hiddenMovies" or "hiddenSeries" or "hidden" => "#626D7D", "uphw" or "seriesupcoming" => "#B13F68",
+        "hiddenMovies" or "hiddenSeries" or "hidden" => "#626D7D", "uphw" or "seriesupcoming" or "mlup" => "#B13F68",
         "bluray" => "#356DA8", "mlott" => "#8B4D9C", "seriesnew" => "#1689D8", "plex" => "#D09822", _ => "#36577D"
     };
     public string CardStatusText => Collection == "queue"
@@ -88,4 +88,22 @@ public sealed class LibraryRow
     public bool HasBadges => !string.IsNullOrWhiteSpace(Badges);
 
     private static string Join(params string[] values) => string.Join("  |  ", values.Where(value => !string.IsNullOrWhiteSpace(value)).Distinct());
+}
+
+public sealed class MonthlySpendRow
+{
+    public string Month { get; init; } = "";
+    public decimal Amount { get; init; }
+    public double BarHeight { get; init; }
+    public string AmountText => $"\u20B9{Amount:N0}";
+}
+
+public sealed class EpisodeChoice
+{
+    public int Number { get; init; }
+    public string Name { get; init; } = "";
+    public string AirDate { get; init; } = "";
+    public double Rating { get; init; }
+    public string Label => $"E{Number:00}  {Name}{(Rating > 0 ? $"  |  IMDb {Rating:0.0}" : "")}{(AirDate.Length > 0 ? $"  |  {AirDate}" : "")}";
+    public override string ToString() => Label;
 }

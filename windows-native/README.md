@@ -29,9 +29,9 @@ The script restores dependencies, builds the application, runs migration and rep
 
 ## Install
 
-Run `installer-output\SinuGameVault-Setup-v2.1.2.exe`. The installer upgrades the existing installation under `C:\Program Files\Sinu Game Vault`, creates a Start Menu entry, optionally creates a desktop shortcut, and registers a normal Windows uninstaller.
+Run `installer-output\SinuGameVault-Setup-v2.2.0.exe`. The installer upgrades the existing installation under `C:\Program Files\Sinu Game Vault`, creates a Start Menu entry, optionally creates a desktop shortcut, and registers a normal Windows uninstaller.
 
-The portable release is `SinuGameVault-Windows-v2.1.2.zip`. Extract it to a permanent directory and run `SinuGameVault.exe`.
+The portable release is `SinuGameVault-Windows-v2.2.0.zip`. Extract it to a permanent directory and run `SinuGameVault.exe`.
 
 Windows SmartScreen may display an unknown-publisher warning because this personal build is not code-signed.
 

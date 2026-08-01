@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization.Metadata;
 using System.IO;
 
 namespace SinuGameVault.Services;
@@ -7,7 +8,11 @@ namespace SinuGameVault.Services;
 public sealed class VaultRepository
 {
     public const int CurrentSchema = 14;
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        TypeInfoResolver = new DefaultJsonTypeInfoResolver()
+    };
     private readonly string _folder;
     private readonly string _vaultPath;
     private readonly string _recoveryFolder;
@@ -105,7 +110,7 @@ public sealed class VaultRepository
             item["id"] ??= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
             if (!AllowsDuplicates(collection) && Find(collection, item) is not null) return;
             ClearDeletion(collection, item);
-            Collection(collection).Insert(0, item);
+            Collection(collection).Insert(0, item.DeepClone());
             RecordActivity("Added", DisplayName(item), collection);
             Touch();
             await SaveAsync();
@@ -119,8 +124,9 @@ public sealed class VaultRepository
             item["id"] ??= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
             var list = Collection(collection);
             var existing = Find(collection, item, identityOnly: AllowsDuplicates(collection));
-            if (existing is null) list.Insert(0, item);
-            else list[list.IndexOf(existing)] = item;
+            var copy = item.DeepClone();
+            if (existing is null) list.Insert(0, copy);
+            else list[list.IndexOf(existing)] = copy;
             RecordActivity("Updated", DisplayName(item), collection);
             Touch();
             await SaveAsync();
@@ -214,13 +220,7 @@ public sealed class VaultRepository
         foreach (var old in deletions.OfType<JsonObject>().Where(node => NodeText(node, "collection") == collection && NodeText(node, "identity") == identity).ToList()) deletions.Remove(old);
     }
 
-    private static string StableIdentity(JsonObject? item)
-    {
-        if (item is null) return "";
-        foreach (var key in new[] { "canonicalId", "rawgId", "tmdbId", "imdbId", "plexRatingKey", "id" })
-            if (NodeText(item, key) is { Length: > 0 } value) return key + ":" + value;
-        return "title:" + FallbackIdentity(item, "");
-    }
+    private static string StableIdentity(JsonObject? item) => VaultIdentity.For(item);
 
     private JsonNode? Find(string collection, JsonObject item, bool identityOnly = false)
     {
@@ -332,12 +332,12 @@ public sealed class VaultRepository
             foreach (var node in source)
             {
                 if (node is not JsonObject item) continue;
-                var identity = RecordKeys(item).FirstOrDefault();
-                if (string.IsNullOrWhiteSpace(identity))
-                {
-                    identity = FallbackIdentity(item, name);
-                }
-                if (identity == "title:" || !seen.Add(identity)) continue;
+                var identity = VaultIdentity.For(item, name);
+                /* A record with neither an identifier nor a usable title cannot be
+                   compared, so keep it rather than collapsing every such record
+                   into one. */
+                if (string.IsNullOrWhiteSpace(identity)) { unique.Add(item.DeepClone()); continue; }
+                if (!seen.Add(identity)) continue;
                 unique.Add(item.DeepClone());
             }
             root[name] = unique;
@@ -364,30 +364,12 @@ public sealed class VaultRepository
         "hiddenMovies" or "hiddenSeries" => "Not Interested", _ => value
     };
     public static string NodeText(JsonNode? node, string key) => (node as JsonObject)?[key]?.ToString() ?? "";
-    private static IEnumerable<string> RecordKeys(JsonNode? node)
-    {
-        foreach (var key in new[] { "canonicalId", "rawgId", "tmdbId", "plexRatingKey", "key", "id" })
-        {
-            var value = NodeText(node, key);
-            if (!string.IsNullOrWhiteSpace(value)) yield return key + ":" + value;
-        }
-    }
 
-    private static string FallbackIdentity(JsonObject? item, string collection)
-    {
-        if (item is null) return "";
-        var title = NodeText(item, "name");
-        if (title.Length == 0) title = NodeText(item, "title");
-        if (collection == "subscriptions" && title.Length == 0) title = NodeText(item, "service");
-        var normalized = new string(title.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
-        if (normalized.Length == 0) return "";
-        var year = NodeText(item, "year");
-        if (year.Length == 0 && DateTime.TryParse(NodeText(item, "date"), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var date)) year = date.Year.ToString();
-        var discriminator = NodeText(item, "mediaType");
-        if (discriminator.Length == 0) discriminator = NodeText(item, "platform");
-        if (discriminator.Length == 0) discriminator = NodeText(item, "provider");
-        return $"title:{normalized}:{year}:{discriminator.ToLowerInvariant()}";
-    }
+    /* Identity now lives in VaultIdentity so local duplicate detection, deletion
+       markers and Drive merges cannot disagree about what counts as the same title. */
+    private static IEnumerable<string> RecordKeys(JsonNode? node) => VaultIdentity.Candidates(node as JsonObject);
+
+    private static string FallbackIdentity(JsonObject? item, string collection) => VaultIdentity.TitleIdentity(item, collection);
 }
 
 public sealed record RecoverySnapshot(string Path, string Name, long SizeBytes, DateTime ModifiedAt);

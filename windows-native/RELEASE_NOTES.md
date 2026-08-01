@@ -1,4 +1,11 @@
-# Sinu Game Vault for Windows 2.1.2
+# Sinu Game Vault for Windows 2.2.0
+
+## 2.2.0 web catalog parity and native integrations
+
+- Aligns movie and TV discovery with the web catalog, including separate upcoming Malayalam OTT results.
+- Adds full Wikipedia story loading for movies and TV shows plus per-episode IMDb ratings.
+- Adds Plex server discovery, integration setup guides, consistent long-form dates, and a monthly game-spending chart.
+- Keeps poster crops centered while card groups remain left-aligned.
 
 ## 2.1.2 centered cards and navigation polish
 

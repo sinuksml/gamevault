@@ -40,6 +40,10 @@ try
     edited["status"] = "Resume Later";
     await repository.UpdateAsync("playing", edited);
     Assert(repository.Collection("playing")[0]?["status"]?.ToString() == "Resume Later", "full record editing");
+    var attachedEdit = repository.Collection("playing")[0] as JsonObject ?? throw new InvalidOperationException("missing attached edit record");
+    attachedEdit["note"] = "enriched metadata";
+    await repository.UpdateAsync("playing", attachedEdit);
+    Assert(repository.Collection("playing")[0]?["note"]?.ToString() == "enriched metadata", "attached records are cloned before replacement");
     var revisionBeforeBrowsing = repository.Root["revision"]?.GetValue<long>() ?? 0;
     var updatedBeforeBrowsing = repository.Root["updatedAt"]?.GetValue<long>() ?? 0;
     await repository.MarkViewedAsync(edited, "Game", "playing");
@@ -92,6 +96,81 @@ try
     await corruptRepository.LoadAsync();
     Assert(corruptRepository.LoadWarning.Length > 0, "corrupt vault warning is visible");
     Assert(Directory.GetFiles(Path.Combine(corruptStore, "Recovery"), "unreadable-*.json").Length == 1, "corrupt vault is preserved");
+    Console.WriteLine("Checking record identity...");
+    // Identity used to be three disagreeing implementations. These pin the contract.
+    var imdbOnly = new JsonObject { ["id"] = "local-1", ["imdbId"] = "tt1234567", ["title"] = "Identity Movie", ["year"] = "2026" };
+    Assert(VaultIdentity.For(imdbOnly) == "imdbId:tt1234567", "imdbId is a first-class identity");
+    Assert(VaultIdentity.Candidates(imdbOnly).Contains("id:local-1"), "every identifier is offered as a candidate");
+    var titleOnly = new JsonObject { ["title"] = "Title Only", ["year"] = "2026" };
+    Assert(VaultIdentity.For(titleOnly).StartsWith("title:", StringComparison.Ordinal)
+        && !VaultIdentity.For(titleOnly).StartsWith("title:title:", StringComparison.Ordinal), "title identity is not double-prefixed");
+    Assert(VaultIdentity.Matches(imdbOnly, new JsonObject { ["imdbId"] = "tt1234567" }), "records match on any shared identifier");
+    Assert(!VaultIdentity.Matches(imdbOnly, new JsonObject { ["imdbId"] = "tt7654321" }), "different identifiers do not match");
+
+    Console.WriteLine("Checking Drive merge...");
+    // A delete recorded against the IMDb id must survive a merge with a copy of the
+    // same title that also carries a TMDB id. This is the case that silently failed.
+    var localVault = new JsonObject
+    {
+        ["updatedAt"] = 200,
+        ["movieWatchlist"] = new JsonArray(),
+        ["deletions"] = new JsonArray(new JsonObject
+        {
+            ["collection"] = "movieWatchlist", ["identity"] = "imdbId:tt1234567", ["at"] = 190
+        })
+    };
+    var remoteVault = new JsonObject
+    {
+        ["updatedAt"] = 100,
+        ["movieWatchlist"] = new JsonArray(new JsonObject
+        {
+            ["id"] = "remote-1", ["imdbId"] = "tt1234567", ["tmdbId"] = "555", ["title"] = "Identity Movie", ["year"] = "2026"
+        })
+    };
+    var mergedVault = DriveService.MergeVaults(localVault, remoteVault, preferRemote: false);
+    Assert((mergedVault["movieWatchlist"] as JsonArray)?.Count == 0, "deletion recorded by imdbId removes the remote copy");
+
+    // The same title keyed differently on each device must not duplicate.
+    var deviceA = new JsonObject
+    {
+        ["updatedAt"] = 200,
+        ["queue"] = new JsonArray(new JsonObject { ["rawgId"] = "9001", ["imdbId"] = "tt222", ["name"] = "Shared Game" })
+    };
+    var deviceB = new JsonObject
+    {
+        ["updatedAt"] = 100,
+        ["queue"] = new JsonArray(new JsonObject { ["imdbId"] = "tt222", ["name"] = "Shared Game" })
+    };
+    var mergedDevices = DriveService.MergeVaults(deviceA, deviceB, preferRemote: false);
+    Assert((mergedDevices["queue"] as JsonArray)?.Count == 1, "one title keyed two ways merges into a single record");
+
+    // Genuinely different titles must still both survive.
+    var distinctA = new JsonObject { ["updatedAt"] = 2, ["queue"] = new JsonArray(new JsonObject { ["id"] = "a", ["name"] = "Game A" }) };
+    var distinctB = new JsonObject { ["updatedAt"] = 1, ["queue"] = new JsonArray(new JsonObject { ["id"] = "b", ["name"] = "Game B" }) };
+    Assert((DriveService.MergeVaults(distinctA, distinctB, preferRemote: false)["queue"] as JsonArray)?.Count == 2, "distinct titles both survive a merge");
+
+    // Not-interested must continue to win over an active list.
+    var hiddenLocal = new JsonObject
+    {
+        ["updatedAt"] = 2,
+        ["hiddenMovies"] = new JsonArray(new JsonObject { ["tmdbId"] = "77", ["title"] = "Hidden Film" }),
+        ["movieWatchlist"] = new JsonArray()
+    };
+    var hiddenRemote = new JsonObject
+    {
+        ["updatedAt"] = 1,
+        ["movieWatchlist"] = new JsonArray(new JsonObject { ["tmdbId"] = "77", ["title"] = "Hidden Film" })
+    };
+    Assert((DriveService.MergeVaults(hiddenLocal, hiddenRemote, preferRemote: false)["movieWatchlist"] as JsonArray)?.Count == 0,
+        "not-interested still wins over the watchlist");
+
+    // Web-only fields must survive even when the local side wins the merge,
+    // otherwise a Windows sync uploads a vault with the web's data erased.
+    var webLocal = new JsonObject { ["updatedAt"] = 2, ["queue"] = new JsonArray() };
+    var webRemote = new JsonObject { ["updatedAt"] = 1, ["queue"] = new JsonArray(), ["webOnlyFutureField"] = new JsonObject { ["mustSurvive"] = true } };
+    Assert(DriveService.MergeVaults(webLocal, webRemote, preferRemote: false)["webOnlyFutureField"]?["mustSurvive"]?.GetValue<bool>() == true,
+        "web-only fields survive a locally-preferred Drive merge");
+
     Console.WriteLine("GameVault native smoke checks passed");
 }
 finally

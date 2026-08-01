@@ -32,6 +32,35 @@ public sealed class PlexService
     }
     public bool Connected => ServerUrl.Length > 0 && Token.Length > 0;
 
+    public async Task<string> DiscoverServerAsync(string token)
+    {
+        token = token.Trim();
+        if (token.Length == 0) throw new InvalidOperationException("Enter the X-Plex-Token before discovering a server.");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "https://plex.tv/api/resources?includeHttps=1&includeRelay=1");
+        request.Headers.TryAddWithoutValidation("X-Plex-Token", token);
+        request.Headers.TryAddWithoutValidation("X-Plex-Client-Identifier", "sinu-game-vault-windows");
+        request.Headers.TryAddWithoutValidation("X-Plex-Product", "Sinu Game Vault");
+        using var response = await _http.SendAsync(request);
+        var text = await response.Content.ReadAsStringAsync();
+        if (!response.IsSuccessStatusCode) throw new InvalidOperationException($"Plex discovery returned {(int)response.StatusCode}. Check the token.");
+        var xml = XDocument.Parse(text);
+        var candidates = xml.Descendants("Device")
+            .Where(device => ((string?)device.Attribute("provides") ?? "").Split(',').Contains("server"))
+            .SelectMany(device => device.Elements("Connection"))
+            .Select(connection => new
+            {
+                Uri = (string?)connection.Attribute("uri") ?? "",
+                Local = (string?)connection.Attribute("local") == "1",
+                Relay = (string?)connection.Attribute("relay") == "1"
+            })
+            .Where(connection => Uri.TryCreate(connection.Uri, UriKind.Absolute, out _))
+            .OrderByDescending(connection => connection.Local).ThenBy(connection => connection.Relay)
+            .ThenByDescending(connection => connection.Uri.StartsWith("https://", StringComparison.OrdinalIgnoreCase)).ToList();
+        var selected = candidates.FirstOrDefault()?.Uri ?? "";
+        if (selected.Length == 0) throw new InvalidOperationException("No accessible Plex Media Server was found for this account.");
+        return selected.TrimEnd('/');
+    }
+
     public async Task<IReadOnlyList<PlexLibraryItem>> LibraryAsync(string kind)
     {
         EnsureConfigured();

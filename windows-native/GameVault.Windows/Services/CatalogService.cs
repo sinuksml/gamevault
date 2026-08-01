@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using SinuGameVault.Models;
 
 namespace SinuGameVault.Services;
 
@@ -21,6 +22,8 @@ public sealed class CatalogService
 
     public CatalogService()
     {
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("SinuGameVault-Windows/2.2 (+https://sinuksml.github.io/gamevault/)");
+        _http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
         _cacheFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SinuGameVault", "CatalogCache");
         Directory.CreateDirectory(_cacheFolder);
     }
@@ -67,9 +70,10 @@ public sealed class CatalogService
         var today = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var path = (type, mode) switch
         {
-            ("Movie", "uphw") => "movie/upcoming?region=US",
+            ("Movie", "uphw") => $"discover/movie?region=US&with_release_type=2|3&release_date.gte={today}&release_date.lte={DateTime.Today.AddYears(2):yyyy-MM-dd}&sort_by=popularity.desc",
             ("Movie", "bluray") => $"discover/movie?region=US&with_release_type=4|5&release_date.lte={today}&sort_by=primary_release_date.desc",
-            ("Movie", "mlott") => "discover/movie?with_original_language=ml&watch_region=IN&with_watch_monetization_types=flatrate&sort_by=primary_release_date.desc",
+            ("Movie", "mlott") => $"discover/movie?with_original_language=ml&region=IN&with_release_type=4|6&release_date.lte={today}&sort_by=release_date.desc",
+            ("Movie", "mlup") => $"discover/movie?with_original_language=ml&region=IN&with_release_type=4|6&release_date.gte={DateTime.Today.AddDays(1):yyyy-MM-dd}&release_date.lte={DateTime.Today.AddDays(150):yyyy-MM-dd}&sort_by=release_date.asc",
             ("Movie", _) => "movie/top_rated?region=US",
             ("TV Show", "seriesnew") => "tv/on_the_air",
             ("TV Show", "seriesupcoming") => $"discover/tv?first_air_date.gte={today}&sort_by=first_air_date.asc",
@@ -88,10 +92,50 @@ public sealed class CatalogService
         }
         var distinct = combined.GroupBy(item => item["canonicalId"]?.ToString()).Select(group => group.First());
         if (type == "Movie" && mode == "uphw")
-            distinct = distinct.Where(item => Date(item, "date") >= DateTime.Today && (Number(item, "popularity") >= 8 || Number(item, "voteCount") >= 10));
+            distinct = distinct.Where(item => Date(item, "date") >= DateTime.Today && Number(item, "popularity") >= 5);
         var result = distinct.ToList();
-        foreach (var item in result) item["dateSource"] = mode == "mlott" ? "TMDB streaming availability; date is the title release date" : "TMDB";
+        if (type == "Movie" && mode is "uphw" or "bluray" or "mlott" or "mlup")
+        {
+            foreach (var item in result.Take(mode is "mlott" or "mlup" ? 35 : 60))
+                await EnrichReleaseDateAsync(item, mode);
+            result = result.Where(item => item["date"]?.ToString() is { Length: > 0 }).ToList();
+        }
+        foreach (var item in result) item["dateSource"] = mode is "mlott" or "mlup" ? "Confirmed India OTT/digital date from TMDB" : "TMDB release date";
+        result = mode is "uphw" or "mlup"
+            ? result.OrderBy(item => Date(item, "date")).ThenByDescending(item => Number(item, "popularity")).ToList()
+            : result.OrderByDescending(item => Date(item, "date")).ToList();
         return result;
+    }
+
+    private async Task EnrichReleaseDateAsync(JsonObject item, string mode)
+    {
+        var id = item["tmdbId"]?.ToString() ?? item["id"]?.ToString();
+        if (string.IsNullOrWhiteSpace(id)) return;
+        try
+        {
+            var details = await GetAsync($"https://api.themoviedb.org/3/movie/{Uri.EscapeDataString(id)}?api_key={Uri.EscapeDataString(TmdbKey)}&append_to_response=release_dates,watch/providers");
+            var country = mode is "mlott" or "mlup" ? "IN" : "US";
+            var types = mode switch { "uphw" => new[] { 2, 3 }, "bluray" => new[] { 5 }, _ => new[] { 4, 6 } };
+            var future = mode is "uphw" or "mlup";
+            var dates = (details["release_dates"]?["results"] as JsonArray)?.OfType<JsonObject>()
+                .Where(row => row["iso_3166_1"]?.ToString() == country)
+                .SelectMany(row => (row["release_dates"] as JsonArray)?.OfType<JsonObject>() ?? [])
+                .Where(row => int.TryParse(row["type"]?.ToString(), out var type) && types.Contains(type))
+                .Select(row => row["release_date"]?.ToString() is { Length: >= 10 } value ? value[..10] : "")
+                .Where(value => DateTime.TryParse(value, out var date) && (future ? date.Date >= DateTime.Today : date.Date <= DateTime.Today))
+                .OrderBy(value => value).ToList() ?? [];
+            var selected = future ? dates.FirstOrDefault() : dates.LastOrDefault();
+            if (!string.IsNullOrWhiteSpace(selected))
+            {
+                item["originalDate"] = item["date"]?.DeepClone();
+                item["date"] = selected;
+                item[mode is "mlott" or "mlup" ? "ottDate" : "releaseEventDate"] = selected;
+                item["year"] = selected[..4];
+            }
+            var providers = details["watch/providers"]?["results"]?[country]?["flatrate"] as JsonArray;
+            if (providers is not null) item["providers"] = new JsonArray(providers.OfType<JsonObject>().Select(provider => (JsonNode?)provider["provider_name"]?.ToString()).Where(value => value is not null).ToArray());
+        }
+        catch { }
     }
 
     public async Task EnrichMediaAsync(JsonObject item, string type)
@@ -201,6 +245,31 @@ public sealed class CatalogService
         }
         catch { return ("", "", "", 0); }
     }
+
+    public async Task<IReadOnlyList<EpisodeChoice>> SeasonEpisodesAsync(string tmdbId, string imdbId, int season)
+    {
+        if (TmdbKey.Length == 0 || tmdbId.Length == 0) return [];
+        var seasonData = await GetAsync($"https://api.themoviedb.org/3/tv/{Uri.EscapeDataString(tmdbId)}/season/{season}?api_key={Uri.EscapeDataString(TmdbKey)}");
+        var imdbRatings = new Dictionary<int, double>();
+        if (OmdbKey.Length > 0 && imdbId.Length > 0)
+        {
+            try
+            {
+                var omdb = await GetAsync($"https://www.omdbapi.com/?apikey={Uri.EscapeDataString(OmdbKey)}&i={Uri.EscapeDataString(imdbId)}&Season={season}");
+                foreach (var episode in (omdb["Episodes"] as JsonArray)?.OfType<JsonObject>() ?? [])
+                    if (int.TryParse(episode["Episode"]?.ToString(), out var number) && double.TryParse(episode["imdbRating"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var rating)) imdbRatings[number] = rating;
+            }
+            catch { }
+        }
+        return ((seasonData["episodes"] as JsonArray)?.OfType<JsonObject>() ?? []).Select(item =>
+        {
+            var number = int.TryParse(item["episode_number"]?.ToString(), out var parsed) ? parsed : 0;
+            var tmdbRating = double.TryParse(item["vote_average"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var rating) ? rating : 0;
+            return new EpisodeChoice { Number = number, Name = item["name"]?.ToString() ?? $"Episode {number}", AirDate = FormatDate(item["air_date"]?.ToString()), Rating = imdbRatings.GetValueOrDefault(number, tmdbRating) };
+        }).Where(item => item.Number > 0).ToList();
+    }
+
+    private static string FormatDate(string? value) => DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date.ToString("dd-MMMM-yyyy", CultureInfo.InvariantCulture) : value ?? "";
 
     private async Task<JsonObject> GetAsync(string url)
     {

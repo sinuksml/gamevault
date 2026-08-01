@@ -329,7 +329,11 @@ public sealed class DriveService
         if (!result.IsSuccessStatusCode) throw new InvalidOperationException($"Drive upload failed ({(int)result.StatusCode}).");
     }
 
-    private static JsonObject MergeVaults(JsonObject local, JsonObject remote, bool preferRemote)
+    /// <summary>
+    /// Pure vault merge. Public so the smoke suite can cover it directly — this is
+    /// the most failure-prone code in the application and previously had no test.
+    /// </summary>
+    public static JsonObject MergeVaults(JsonObject local, JsonObject remote, bool preferRemote)
     {
         var preferred = (preferRemote ? remote : local).DeepClone() as JsonObject ?? new JsonObject();
         var secondary = preferRemote ? local : remote;
@@ -342,13 +346,29 @@ public sealed class DriveService
                 output = new JsonArray();
                 preferred[name] = output;
             }
-            var existing = output.OfType<JsonObject>().Select(MergeIdentity).Where(value => value.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            /* Match on any shared identity rather than one primary key: the same
+               title can arrive keyed by rawgId from one device and by imdbId from
+               another, which previously produced a duplicate on every merge. */
+            var existing = output.OfType<JsonObject>()
+                .SelectMany(item => VaultIdentity.Candidates(item, name)).ToHashSet(StringComparer.OrdinalIgnoreCase);
             foreach (var item in (secondary[name] as JsonArray)?.OfType<JsonObject>() ?? [])
             {
-                var identity = MergeIdentity(item);
-                if (identity.Length == 0 || existing.Add(identity)) output.Add(item.DeepClone());
+                var candidates = VaultIdentity.Candidates(item, name).ToList();
+                if (candidates.Count == 0) { output.Add(item.DeepClone()); continue; }
+                if (candidates.Any(existing.Contains)) continue;
+                foreach (var candidate in candidates) existing.Add(candidate);
+                output.Add(item.DeepClone());
             }
         }
+        /* Only arrays were merged, so any non-array field that existed on one side
+           only — exactly the web-only data the architecture promises to preserve —
+           was dropped here and then uploaded back, erasing it from Drive. */
+        foreach (var pair in secondary)
+        {
+            if (pair.Value is JsonArray || preferred.ContainsKey(pair.Key)) continue;
+            preferred[pair.Key] = pair.Value?.DeepClone();
+        }
+
         ApplyHiddenWins(preferred, "hiddenGames", ["upcoming", "catalogExtra"]);
         ApplyHiddenWins(preferred, "upcomingRemoved", ["upcoming"]);
         ApplyHiddenWins(preferred, "hiddenMovies", ["movieWatchlist", "watchingMovies"]);
@@ -364,25 +384,27 @@ public sealed class DriveService
         {
             if (group.Key.Length == 0 || root[group.Key] is not JsonArray active) continue;
             var identities = group.Select(marker => Text(marker, "identity")).Where(value => value.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            foreach (var item in active.OfType<JsonObject>().Where(item => identities.Contains(MergeIdentity(item))).ToList()) active.Remove(item);
+            /* Compare against every identity the record could be known by. A marker
+               written on a device that only knew the IMDb id must still match the
+               same title on a device that also has a TMDB id, otherwise the delete
+               silently fails to travel and the title reappears. */
+            foreach (var item in active.OfType<JsonObject>()
+                         .Where(item => VaultIdentity.Candidates(item, group.Key).Any(identities.Contains)).ToList())
+                active.Remove(item);
         }
     }
 
     private static void ApplyHiddenWins(JsonObject root, string hiddenName, string[] activeNames)
     {
-        var hidden = (root[hiddenName] as JsonArray)?.OfType<JsonObject>().Select(MergeIdentity).ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
+        var hidden = (root[hiddenName] as JsonArray)?.OfType<JsonObject>()
+            .SelectMany(item => VaultIdentity.Candidates(item, hiddenName)).ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
         foreach (var name in activeNames)
             if (root[name] is JsonArray active)
-                foreach (var item in active.OfType<JsonObject>().Where(item => hidden.Contains(MergeIdentity(item))).ToList()) active.Remove(item);
+                foreach (var item in active.OfType<JsonObject>()
+                             .Where(item => VaultIdentity.Candidates(item, name).Any(hidden.Contains)).ToList())
+                    active.Remove(item);
     }
 
-    private static string MergeIdentity(JsonObject item)
-    {
-        foreach (var key in new[] { "canonicalId", "rawgId", "tmdbId", "plexRatingKey", "id" })
-            if (!string.IsNullOrWhiteSpace(item[key]?.ToString())) return key + ":" + item[key];
-        var title = Text(item, "name", "title", "service").ToLowerInvariant();
-        return "title:" + new string(title.Where(char.IsLetterOrDigit).ToArray()) + ":" + Text(item, "year", "date", "provider");
-    }
 
     private string LoadFileId()
     {

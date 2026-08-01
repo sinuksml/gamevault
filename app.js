@@ -477,7 +477,7 @@ function nativeTvCatalogSnapshot(){
   }
   return {
     generatedAt:Date.now(),
-    movies:snapshot(typeof filmCache!=="undefined"?filmCache:null,["uphw","bluray","mlott","relhw"]),
+    movies:snapshot(typeof filmCache!=="undefined"?filmCache:null,["uphw","bluray","mlott","mlup","relhw"]),
     series:snapshot(typeof seriesCache!=="undefined"?seriesCache:null,["seriesnew","seriesupcoming","enseries","mlseries","taseries","hiseries"])
   };
 }
