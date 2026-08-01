@@ -5,8 +5,22 @@ namespace SinuGameVault;
 
 public partial class App : Application
 {
+    /* Two copies of the app would each own vault.json and each run Drive sync,
+       so whichever saved last quietly overwrote the other. Held for the lifetime
+       of the process. */
+    private static Mutex? _singleInstance;
+
     protected override void OnStartup(StartupEventArgs e)
     {
+        _singleInstance = new Mutex(initiallyOwned: true, @"Local\SinuGameVault.SingleInstance", out var isOnlyInstance);
+        if (!isOnlyInstance)
+        {
+            MessageBox.Show("Sinu Game Vault is already running. Use the window that is already open.",
+                "Sinu Game Vault", MessageBoxButton.OK, MessageBoxImage.Information);
+            Shutdown();
+            return;
+        }
+
         DispatcherUnhandledException += (_, args) =>
         {
             DiagnosticsService.Log("Unhandled", "Unhandled UI exception", args.Exception);

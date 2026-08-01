@@ -26,11 +26,17 @@ Assert-LastCommand "Publish restore"
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ".\publish" --no-restore
 Assert-LastCommand "Windows publish"
 
-$Version = "2.2.0"
+# One version for the app, the archive and the installer: Directory.Build.props.
+[xml]$BuildProps = Get-Content ".\Directory.Build.props"
+$Version = $BuildProps.Project.PropertyGroup.GameVaultVersion
+if (-not $Version) { throw "GameVaultVersion was not found in Directory.Build.props." }
+$Version = $Version.Trim()
+Write-Host "Building version $Version"
+
 Compress-Archive -Path ".\publish\*" -DestinationPath ".\SinuGameVault-Windows-v$Version.zip" -Force
 $Iscc = Join-Path $Root ".tools\InnoSetup\ISCC.exe"
 if (Test-Path $Iscc) {
-    & $Iscc ".\installer.iss"
+    & $Iscc "/DMyAppVersion=$Version" ".\installer.iss"
     Assert-LastCommand "Installer compilation"
 }
 $Setup = ".\installer-output\SinuGameVault-Setup-v$Version.exe"

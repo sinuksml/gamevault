@@ -23,6 +23,7 @@ public sealed class DriveService
     private const string SecretTarget = "SinuGameVault/GoogleDriveClientSecret";
     private const string ExpiryTarget = "SinuGameVault/GoogleDriveAccessExpiry";
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(45) };
+    private readonly SemaphoreSlim _tokenGate = new(1, 1);
     private readonly string _settingsPath;
     private string _accessToken = "";
     private DateTimeOffset _accessExpires;
@@ -173,6 +174,9 @@ public sealed class DriveService
         }
 
         var id = Text(remoteFile, "id");
+        // Remember what the file looked like when it was read, so a write from
+        // another device between the read and the upload is not silently erased.
+        var seenModified = Text(remoteFile, "modifiedTime");
         var download = await SendAsync(HttpMethod.Get, $"https://www.googleapis.com/drive/v3/files/{id}?alt=media", token);
         var remoteText = await download.Content.ReadAsStringAsync();
         if (!download.IsSuccessStatusCode) throw new InvalidOperationException($"Drive download failed ({(int)download.StatusCode}).");
@@ -191,6 +195,8 @@ public sealed class DriveService
             merged["updatedAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             merged["revision"] = Math.Max(local["revision"]?.GetValue<long?>() ?? 0, remote["revision"]?.GetValue<long?>() ?? 0) + 1;
             await vault.ImportJsonAsync(merged.ToJsonString());
+            if (await RemoteChangedSinceAsync(id, seenModified, token))
+                return "Google Drive changed while merging. The merge was kept locally and will upload on the next sync.";
             await UploadFileAsync(id, vault.ExportJson(), token);
             return "Merged Windows and Google Drive changes, then saved a recovery snapshot.";
         }
@@ -235,9 +241,40 @@ public sealed class DriveService
         SaveFileId(Text(created ?? new JsonObject(), "id"));
     }
 
+    /// <summary>
+    /// Confirms nothing else wrote the backup between reading it and uploading the
+    /// merge. Without this the last writer silently wins and the other device's
+    /// changes are lost.
+    /// </summary>
+    private async Task<bool> RemoteChangedSinceAsync(string id, string seenModified, string token)
+    {
+        if (seenModified.Length == 0) return false;
+        try
+        {
+            var response = await SendAsync(HttpMethod.Get, $"https://www.googleapis.com/drive/v3/files/{Uri.EscapeDataString(id)}?fields=modifiedTime", token);
+            if (!response.IsSuccessStatusCode) return false;
+            var current = Text(JsonNode.Parse(await response.Content.ReadAsStringAsync()) as JsonObject ?? new JsonObject(), "modifiedTime");
+            return current.Length > 0 && !string.Equals(current, seenModified, StringComparison.Ordinal);
+        }
+        catch { return false; }
+    }
+
     private async Task<string> AccessTokenAsync()
     {
         if (HasUsableAccessToken()) return _accessToken;
+        // One refresh at a time; concurrent callers would otherwise each spend the
+        // refresh token and race to store the result.
+        await _tokenGate.WaitAsync();
+        try
+        {
+            if (HasUsableAccessToken()) return _accessToken;
+            return await RefreshAccessTokenAsync();
+        }
+        finally { _tokenGate.Release(); }
+    }
+
+    private async Task<string> RefreshAccessTokenAsync()
+    {
         var refresh = CredentialStore.Read(RefreshTarget);
         if (string.IsNullOrWhiteSpace(refresh))
         {

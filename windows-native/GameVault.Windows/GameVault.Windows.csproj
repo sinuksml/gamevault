@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>SinuGameVault</AssemblyName>
     <RootNamespace>SinuGameVault</RootNamespace>
-    <Version>2.2.0</Version>
+    <!-- Version comes from ..\Directory.Build.props -->
     <Authors>Sinu Game Vault</Authors>
     <Product>Sinu Game Vault for Windows</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>

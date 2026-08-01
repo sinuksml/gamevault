@@ -60,7 +60,9 @@ public sealed class CatalogService
         var endpoint = type == "Movie" ? "movie" : "tv";
         var root = await GetAsync($"https://api.themoviedb.org/3/search/{endpoint}?api_key={Uri.EscapeDataString(TmdbKey)}&query={Uri.EscapeDataString(query)}&include_adult=false&page=1");
         var items = (root["results"] as JsonArray)?.OfType<JsonObject>().Take(20).Select(item => Media(item, type)).ToList() ?? [];
-        foreach (var item in items.Take(8)) await EnrichMediaAsync(item, type);
+        // Enrich the visible results together rather than one after another; this
+        // was eight sequential round trips before any search result appeared.
+        await Task.WhenAll(items.Take(8).Select(item => EnrichMediaAsync(item, type)));
         return items;
     }
 
@@ -286,11 +288,27 @@ public sealed class CatalogService
         finally { lock (_requestLock) _inflight.Remove(url); }
     }
 
+    /// <summary>
+    /// How long a cached response stays usable. Detail records barely change, so
+    /// re-fetching them on the old flat 30-minute schedule was pure waste; the
+    /// dated discovery lists still refresh often.
+    /// </summary>
+    private static TimeSpan CacheLifetime(string url)
+    {
+        if (url.Contains("/season/", StringComparison.OrdinalIgnoreCase)
+            || url.Contains("external_ids", StringComparison.OrdinalIgnoreCase)
+            || url.Contains("omdbapi.com", StringComparison.OrdinalIgnoreCase)
+            || url.Contains("wikipedia.org", StringComparison.OrdinalIgnoreCase)) return TimeSpan.FromDays(7);
+        if (url.Contains("/movie/", StringComparison.OrdinalIgnoreCase) && url.Contains("append_to_response", StringComparison.OrdinalIgnoreCase))
+            return TimeSpan.FromDays(1);
+        return TimeSpan.FromMinutes(30);
+    }
+
     private async Task<JsonObject> GetAndCacheAsync(string url)
     {
         var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(url)));
         var path = Path.Combine(_cacheFolder, key + ".json");
-        var fresh = File.Exists(path) && DateTime.UtcNow - File.GetLastWriteTimeUtc(path) < TimeSpan.FromMinutes(30);
+        var fresh = File.Exists(path) && DateTime.UtcNow - File.GetLastWriteTimeUtc(path) < CacheLifetime(url);
         if (fresh)
         {
             try { return JsonNode.Parse(await File.ReadAllTextAsync(path)) as JsonObject ?? new JsonObject(); }
@@ -298,17 +316,47 @@ public sealed class CatalogService
         }
         try
         {
-            using var response = await _http.GetAsync(url);
-            var text = await response.Content.ReadAsStringAsync();
-            if (!response.IsSuccessStatusCode) throw new InvalidOperationException($"Online service returned {(int)response.StatusCode}.");
-            var result = JsonNode.Parse(text) as JsonObject ?? new JsonObject();
+            var result = await FetchWithBackoffAsync(url);
             await File.WriteAllTextAsync(path, result.ToJsonString());
+            TrimCache();
             return result;
         }
         catch when (File.Exists(path))
         {
+            // Serving slightly stale data beats showing an error.
             return JsonNode.Parse(await File.ReadAllTextAsync(path)) as JsonObject ?? new JsonObject();
         }
+    }
+
+    /// Honours Retry-After and backs off on rate limits instead of failing outright.
+    private async Task<JsonObject> FetchWithBackoffAsync(string url)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            using var response = await _http.GetAsync(url);
+            if (response.IsSuccessStatusCode)
+                return JsonNode.Parse(await response.Content.ReadAsStringAsync()) as JsonObject ?? new JsonObject();
+
+            var retryable = (int)response.StatusCode == 429 || (int)response.StatusCode >= 500;
+            if (!retryable || attempt >= 2)
+                throw new InvalidOperationException($"Online service returned {(int)response.StatusCode}.");
+
+            var wait = response.Headers.RetryAfter?.Delta
+                       ?? TimeSpan.FromSeconds(Math.Min(8, Math.Pow(2, attempt)));
+            await Task.Delay(wait);
+        }
+    }
+
+    /// The cache folder grew without limit; keep the newest entries only.
+    private void TrimCache()
+    {
+        try
+        {
+            var files = new DirectoryInfo(_cacheFolder).GetFiles("*.json");
+            if (files.Length <= 1200) return;
+            foreach (var old in files.OrderByDescending(file => file.LastWriteTimeUtc).Skip(1000)) old.Delete();
+        }
+        catch { /* Trimming is best effort. */ }
     }
 
     private static JsonObject Game(JsonObject item)

@@ -30,7 +30,10 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<TorrentHistoryRow> _torrentHistoryRows = [];
     private readonly ObservableCollection<MonthlySpendRow> _monthlySpendRows = [];
     private readonly ICollectionView _rowsView;
-    private readonly DispatcherTimer _driveSyncTimer = new() { Interval = TimeSpan.FromSeconds(2.5) };
+    /* Each sync downloads, merges and re-uploads the whole vault, so a 2.5 second
+       debounce meant a burst of that work while the user was still typing. This
+       waits for editing to settle instead; closing still flushes what is pending. */
+    private readonly DispatcherTimer _driveSyncTimer = new() { Interval = TimeSpan.FromSeconds(20) };
     private readonly DispatcherTimer _biglyRefreshTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private readonly DispatcherTimer _searchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private JsonObject? _undoRoot;
@@ -95,6 +98,7 @@ public partial class MainWindow : Window
     {
         await RunBusyAsync("Loading native vault…", async () => await _vault.LoadAsync());
         VaultPathText.Text = _vault.VaultPath;
+        AppVersionText.Text = $"Version {AppVersion} — Native Windows edition";
         DriveClientIdBox.Text = _drive.ClientId;
         DriveClientSecretBox.Password = _drive.ClientSecret;
         RawgKeyBox.Password = _catalog.RawgKey;
@@ -1032,7 +1036,7 @@ public partial class MainWindow : Window
     {
         if (_drive.Connected) await SyncDriveAsync(silent: false);
         else { await _vault.LoadAsync(); RefreshAll(); }
-        if (_section == "Plex") await RefreshPlexAsync();
+        if (_section == "Plex") await RefreshPlexAsync(force: true);
         if (_section == "BiglyBT") await RefreshBiglyAsync();
         StatusText.Text = $"Refreshed {DateTime.Now:t}";
     }
@@ -1058,9 +1062,9 @@ public partial class MainWindow : Window
         await RefreshPlexAsync();
     }
 
-    private async void PlexRefresh_Click(object sender, RoutedEventArgs e) => await RefreshPlexAsync();
+    private async void PlexRefresh_Click(object sender, RoutedEventArgs e) => await RefreshPlexAsync(force: true);
 
-    private async Task RefreshPlexAsync()
+    private async Task RefreshPlexAsync(bool force = false)
     {
         PlexSetupPanel.Visibility = _plex.Connected ? Visibility.Collapsed : Visibility.Visible;
         PlexLibraryScroll.Visibility = _plex.Connected ? Visibility.Visible : Visibility.Collapsed;
@@ -1068,7 +1072,7 @@ public partial class MainWindow : Window
         PlexStatusText.Text = "Loading Plex...";
         try
         {
-            var items = _plexMode == "continue" ? await _plex.ContinueWatchingAsync() : await _plex.LibraryAsync(_plexMode == "recent" ? "all" : _plexMode);
+            var items = _plexMode == "continue" ? await _plex.ContinueWatchingAsync(force) : await _plex.LibraryAsync(_plexMode == "recent" ? "all" : _plexMode, force);
             if (_plexMode == "recent") items = items.Take(50).ToList();
             _plexRows.Clear();
             foreach (var item in items)
@@ -2138,7 +2142,7 @@ public partial class MainWindow : Window
                 await RemoveMatchingTitleAsync(makeWatched ? watching : watched, row.Name, plexYear);
                 await RemoveMatchingTitleAsync(watchlist, row.Name, plexYear);
             });
-            DetailsPage.Visibility = Visibility.Collapsed; await RefreshPlexAsync(); RefreshDashboard(); return;
+            DetailsPage.Visibility = Visibility.Collapsed; await RefreshPlexAsync(force: true); RefreshDashboard(); return;
         }
         if (row.Collection == "rentals")
         {
@@ -2205,7 +2209,7 @@ public partial class MainWindow : Window
             if (MessageBox.Show(this, $"Permanently delete '{row.Name}' from Plex, including its media files?\n\nThis cannot be undone.", "Delete Plex media", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             try { await _plex.DeleteAsync(Text(row.Source, "plexRatingKey")); }
             catch (Exception ex) { MessageBox.Show(this, ex.Message, "Plex delete failed", MessageBoxButton.OK, MessageBoxImage.Error); return; }
-            DetailsPage.Visibility = Visibility.Collapsed; await RefreshPlexAsync(); return;
+            DetailsPage.Visibility = Visibility.Collapsed; await RefreshPlexAsync(force: true); return;
         }
         if (row.Collection == "upcoming")
         {
@@ -2374,5 +2378,57 @@ public partial class MainWindow : Window
         StatusText.Text = "Private diagnostics exported.";
     }
 
-    private void CheckUpdates_Click(object sender, RoutedEventArgs e) => OpenExternal("https://github.com/sinuksml/gamevault/releases/latest");
+    private static string AppVersion =>
+        System.Reflection.Assembly.GetExecutingAssembly().GetName().Version is { } version
+            ? $"{version.Major}.{version.Minor}.{version.Build}"
+            : "0.0.0";
+
+    /* Previously this just opened the releases page and left the comparison to
+       the user. It now asks GitHub what the latest release is and says plainly
+       whether this build is behind, falling back to the page if the check fails. */
+    private async void CheckUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        var button = sender as Button;
+        if (button is not null) button.IsEnabled = false;
+        try
+        {
+            using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(12) };
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("SinuGameVault-Windows");
+            http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+            var response = await http.GetAsync("https://api.github.com/repos/sinuksml/gamevault/releases/latest");
+            if (!response.IsSuccessStatusCode) throw new InvalidOperationException($"GitHub returned {(int)response.StatusCode}.");
+            var payload = JsonNode.Parse(await response.Content.ReadAsStringAsync()) as JsonObject ?? [];
+            var tag = (payload["tag_name"]?.ToString() ?? "").TrimStart('v', 'V');
+            if (tag.Length == 0) throw new InvalidOperationException("No release tag was published.");
+
+            var current = ParseVersion(AppVersion);
+            var latest = ParseVersion(tag);
+            if (latest > current)
+            {
+                var choice = MessageBox.Show(this,
+                    $"Version {tag} is available. You are running {AppVersion}.\n\nOpen the download page?",
+                    "Update available", MessageBoxButton.YesNo, MessageBoxImage.Information);
+                if (choice == MessageBoxResult.Yes) OpenExternal("https://github.com/sinuksml/gamevault/releases/latest");
+            }
+            else
+            {
+                MessageBox.Show(this, $"Sinu Game Vault {AppVersion} is up to date.", "No updates", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsService.Log("Updates", "Update check failed", ex);
+            var choice = MessageBox.Show(this,
+                $"The update check could not reach GitHub ({ex.Message})\n\nOpen the releases page instead?",
+                "Update check", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (choice == MessageBoxResult.Yes) OpenExternal("https://github.com/sinuksml/gamevault/releases/latest");
+        }
+        finally { if (button is not null) button.IsEnabled = true; }
+    }
+
+    private static Version ParseVersion(string value)
+    {
+        var cleaned = new string(value.Trim().TakeWhile(character => char.IsDigit(character) || character == '.').ToArray());
+        return Version.TryParse(cleaned, out var parsed) ? parsed : new Version(0, 0, 0);
+    }
 }

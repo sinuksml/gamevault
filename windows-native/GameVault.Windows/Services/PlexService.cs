@@ -1,8 +1,6 @@
 using System.Xml.Linq;
 using System.Net.Http;
 using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 using System.IO;
 
 namespace SinuGameVault.Services;
@@ -14,11 +12,47 @@ public sealed class PlexService
 {
     private const string UrlTarget = "SinuGameVault/Plex/Url";
     private const string TokenTarget = "SinuGameVault/Plex/Token";
+    private const int PageSize = 200;
+    private const int MaxPages = 100;
+    private static readonly TimeSpan RequestGap = TimeSpan.FromMilliseconds(350);
+    private static readonly TimeSpan CacheLifetime = TimeSpan.FromMinutes(30);
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(20) };
-    private readonly string _artworkFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SinuGameVault", "PlexArtwork");
-    private readonly SemaphoreSlim _artworkGate = new(4, 4);
+    private readonly SemaphoreSlim _requestGate = new(1, 1);
+    private DateTimeOffset _lastRequestAt = DateTimeOffset.MinValue;
+    private readonly Dictionary<string, (DateTimeOffset At, IReadOnlyList<PlexLibraryItem> Items)> _cache = new(StringComparer.Ordinal);
 
-    public PlexService() => Directory.CreateDirectory(_artworkFolder);
+    public PlexService() => RemoveLegacyArtworkFolder();
+
+    /// <summary>
+    /// Plex runs on the same box that transcodes, so every call is serialized with
+    /// a minimum gap. Sections used to be fetched all at once with Task.WhenAll and
+    /// no paging, which is the heaviest possible pattern against a home server.
+    /// </summary>
+    private async Task PaceAsync()
+    {
+        await _requestGate.WaitAsync();
+        try
+        {
+            var wait = RequestGap - (DateTimeOffset.UtcNow - _lastRequestAt);
+            if (wait > TimeSpan.Zero) await Task.Delay(wait);
+            _lastRequestAt = DateTimeOffset.UtcNow;
+        }
+        finally { _requestGate.Release(); }
+    }
+
+    public void ClearCache() { lock (_cache) _cache.Clear(); }
+
+    /// Artwork was mirrored into this folder and never trimmed. Images now load
+    /// straight from the server through the shared thumbnail cache instead.
+    private static void RemoveLegacyArtworkFolder()
+    {
+        try
+        {
+            var legacy = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SinuGameVault", "PlexArtwork");
+            if (Directory.Exists(legacy)) Directory.Delete(legacy, recursive: true);
+        }
+        catch { /* Reclaiming disk space is best effort. */ }
+    }
 
     public string ServerUrl
     {
@@ -54,34 +88,77 @@ public sealed class PlexService
                 Relay = (string?)connection.Attribute("relay") == "1"
             })
             .Where(connection => Uri.TryCreate(connection.Uri, UriKind.Absolute, out _))
-            .OrderByDescending(connection => connection.Local).ThenBy(connection => connection.Relay)
-            .ThenByDescending(connection => connection.Uri.StartsWith("https://", StringComparison.OrdinalIgnoreCase)).ToList();
+            /* Prefer a connection that also works away from home. Preferring the
+               LAN address meant a laptop set up at home saved an address that
+               stopped resolving the moment it left the house. Relay is the last
+               resort because it is slow. */
+            .OrderByDescending(connection => connection.Uri.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            .ThenBy(connection => connection.Relay)
+            .ThenBy(connection => connection.Local).ToList();
         var selected = candidates.FirstOrDefault()?.Uri ?? "";
         if (selected.Length == 0) throw new InvalidOperationException("No accessible Plex Media Server was found for this account.");
         return selected.TrimEnd('/');
     }
 
-    public async Task<IReadOnlyList<PlexLibraryItem>> LibraryAsync(string kind)
+    public async Task<IReadOnlyList<PlexLibraryItem>> LibraryAsync(string kind, bool force = false)
     {
         EnsureConfigured();
+        var cacheKey = "library:" + kind;
+        if (!force && TryGetCached(cacheKey, out var cached)) return cached;
+
         var sections = await XmlAsync("/library/sections");
-        var directories = sections.Descendants("Directory")
-            .Where(x => kind == "all" || string.Equals((string?)x.Attribute("type"), kind, StringComparison.OrdinalIgnoreCase));
-        var tasks = directories.Select(async section =>
+        var keys = sections.Descendants("Directory")
+            .Where(x => kind == "all" || string.Equals((string?)x.Attribute("type"), kind, StringComparison.OrdinalIgnoreCase))
+            .Select(x => (string?)x.Attribute("key"))
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .ToList();
+
+        var items = new List<PlexLibraryItem>();
+        // Sequential and paged: one section at a time, one page at a time.
+        foreach (var key in keys)
         {
-            var key = (string?)section.Attribute("key");
-            if (string.IsNullOrWhiteSpace(key)) return Array.Empty<PlexLibraryItem>();
-            var content = await XmlAsync($"/library/sections/{key}/all");
-            return (content.Root?.Elements().Where(x => x.Name.LocalName is "Video" or "Directory").Select(ParseItem) ?? []).ToArray();
-        }).ToArray();
-        var items = (await Task.WhenAll(tasks)).SelectMany(item => item).OrderByDescending(item => Long(item.AddedAt)).ToList();
-        return await LocalizeArtworkAsync(items);
+            for (var page = 0; page < MaxPages; page++)
+            {
+                var content = await XmlAsync($"/library/sections/{key}/all?X-Plex-Container-Start={page * PageSize}&X-Plex-Container-Size={PageSize}");
+                var batch = (content.Root?.Elements().Where(x => x.Name.LocalName is "Video" or "Directory").Select(ParseItem) ?? []).ToList();
+                items.AddRange(batch);
+                var total = (int)Long((string?)content.Root?.Attribute("totalSize"));
+                if (batch.Count < PageSize || (total > 0 && items.Count >= total)) break;
+            }
+        }
+
+        var ordered = WithArtworkUrls(items.OrderByDescending(item => Long(item.AddedAt)).ToList());
+        Store(cacheKey, ordered);
+        return ordered;
     }
 
-    public async Task<IReadOnlyList<PlexLibraryItem>> ContinueWatchingAsync()
+    public async Task<IReadOnlyList<PlexLibraryItem>> ContinueWatchingAsync(bool force = false)
     {
+        EnsureConfigured();
+        if (!force && TryGetCached("continue", out var cached)) return cached;
         var xml = await XmlAsync("/hubs/home/continueWatching");
-        return await LocalizeArtworkAsync((xml.Root?.Descendants("Video").Select(ParseItem) ?? []).ToList());
+        var items = WithArtworkUrls((xml.Root?.Descendants("Video").Select(ParseItem) ?? []).ToList());
+        Store("continue", items);
+        return items;
+    }
+
+    private bool TryGetCached(string key, out IReadOnlyList<PlexLibraryItem> items)
+    {
+        lock (_cache)
+        {
+            if (_cache.TryGetValue(key, out var entry) && DateTimeOffset.UtcNow - entry.At < CacheLifetime)
+            {
+                items = entry.Items;
+                return true;
+            }
+        }
+        items = [];
+        return false;
+    }
+
+    private void Store(string key, IReadOnlyList<PlexLibraryItem> items)
+    {
+        lock (_cache) _cache[key] = (DateTimeOffset.UtcNow, items);
     }
 
     public Task MarkWatchedAsync(string ratingKey, bool watched) => RequestAsync(HttpMethod.Get,
@@ -102,14 +179,15 @@ public sealed class PlexService
         if (!response.IsSuccessStatusCode) throw new InvalidOperationException($"Plex returned {(int)response.StatusCode}.");
     }
 
-    private Task<HttpResponseMessage> SendAsync(HttpMethod method, string path)
+    private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path)
     {
         EnsureConfigured();
+        await PaceAsync();
         var request = new HttpRequestMessage(method, $"{ServerUrl}{path}");
         request.Headers.TryAddWithoutValidation("X-Plex-Token", Token);
         request.Headers.TryAddWithoutValidation("X-Plex-Client-Identifier", "sinu-game-vault-windows");
         request.Headers.TryAddWithoutValidation("X-Plex-Product", "Sinu Game Vault");
-        return _http.SendAsync(request);
+        return await _http.SendAsync(request);
     }
 
     private PlexLibraryItem ParseItem(XElement node)
@@ -131,34 +209,30 @@ public sealed class PlexService
     private static long Long(string? value) => long.TryParse(value, out var number) ? number : 0;
     private static double Double(string? value) => double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) ? number : 0;
 
-    private async Task<IReadOnlyList<PlexLibraryItem>> LocalizeArtworkAsync(IReadOnlyList<PlexLibraryItem> items)
+    /// <summary>
+    /// Turns Plex artwork paths into direct authenticated URLs.
+    ///
+    /// Every image used to be downloaded to disk before the library appeared, so
+    /// the Plex tab stayed empty until the last file finished and the mirror grew
+    /// without limit. The shared thumbnail cache now fetches each image on demand,
+    /// only for cards actually on screen, and decodes it at display size.
+    /// </summary>
+    private IReadOnlyList<PlexLibraryItem> WithArtworkUrls(IReadOnlyList<PlexLibraryItem> items)
     {
-        var localized = await Task.WhenAll(items.Select(async item => item with
+        var server = ServerUrl;
+        var token = Token;
+        return items.Select(item => item with
         {
-            Thumb = await CacheArtworkAsync(item.Thumb),
-            Art = await CacheArtworkAsync(item.Art)
-        }));
-        return localized;
+            Thumb = ArtworkUrl(server, token, item.Thumb),
+            Art = ArtworkUrl(server, token, item.Art)
+        }).ToList();
     }
 
-    private async Task<string> CacheArtworkAsync(string path)
+    private static string ArtworkUrl(string server, string token, string path)
     {
-        if (path.Length == 0 || Uri.IsWellFormedUriString(path, UriKind.Absolute)) return path;
-        var file = Path.Combine(_artworkFolder, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(ServerUrl + path))) + ".jpg");
-        if (File.Exists(file) && new FileInfo(file).Length > 0) return new Uri(file).AbsoluteUri;
-        await _artworkGate.WaitAsync();
-        try
-        {
-            if (!File.Exists(file))
-            {
-                using var response = await SendAsync(HttpMethod.Get, path);
-                response.EnsureSuccessStatusCode();
-                await using var output = File.Create(file);
-                await response.Content.CopyToAsync(output);
-            }
-            return new Uri(file).AbsoluteUri;
-        }
-        catch { return ""; }
-        finally { _artworkGate.Release(); }
+        if (path.Length == 0) return "";
+        if (Uri.IsWellFormedUriString(path, UriKind.Absolute)) return path;
+        var separator = path.Contains('?') ? "&" : "?";
+        return $"{server}{path}{separator}X-Plex-Token={Uri.EscapeDataString(token)}";
     }
 }

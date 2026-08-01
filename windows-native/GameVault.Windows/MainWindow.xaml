@@ -328,7 +328,7 @@
                         </TabItem>
                         <TabItem Header="About">
                             <Border Style="{StaticResource SurfaceCard}" Margin="18,0,0,0" MaxWidth="820" VerticalAlignment="Top"><StackPanel>
-                                <TextBlock Text="Sinu Game Vault for Windows" FontSize="24" FontWeight="Bold"/><TextBlock Text="Version 2.2.0 - Native Windows edition" Foreground="{DynamicResource AccentBrush}" Margin="0,6,0,18"/><TextBlock Text="The complete vault automatically syncs to Google Drive after every saved change. After reinstalling, sign in with the same Google account to restore your library." TextWrapping="Wrap" LineHeight="23"/><Button Content="Check GitHub for updates" Margin="0,22,0,0" HorizontalAlignment="Left" Click="CheckUpdates_Click"/>
+                                <TextBlock Text="Sinu Game Vault for Windows" FontSize="24" FontWeight="Bold"/><TextBlock x:Name="AppVersionText" Text="Native Windows edition" Foreground="{DynamicResource AccentBrush}" Margin="0,6,0,18"/><TextBlock Text="The complete vault automatically syncs to Google Drive after every saved change. After reinstalling, sign in with the same Google account to restore your library." TextWrapping="Wrap" LineHeight="23"/><Button Content="Check GitHub for updates" Margin="0,22,0,0" HorizontalAlignment="Left" Click="CheckUpdates_Click"/>
                             </StackPanel></Border>
                         </TabItem>
                     </TabControl>

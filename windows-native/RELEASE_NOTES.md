@@ -1,4 +1,30 @@
-# Sinu Game Vault for Windows 2.2.0
+# Sinu Game Vault for Windows 2.3.0
+
+## 2.3.0 sync correctness and library performance
+
+Data fixes:
+
+- Deleted titles no longer come back after a Google Drive sync. Record identity had three separate implementations that disagreed with each other, so a deletion recorded on one device could never be matched on another and the title returned on the next merge.
+- Changes saved while a sync was already running are no longer dropped; they used to wait for the next unrelated save before reaching Drive.
+- Web-only data is no longer erased by a merge that the Windows side wins. Only list fields were merged, so anything else that existed on one side only was dropped and then uploaded over the top.
+- A merge is abandoned rather than uploaded when Google Drive changed while it was being prepared, instead of silently overwriting the other device.
+
+Performance:
+
+- Artwork is decoded at the size it is displayed instead of at full source resolution, which was holding several megabytes per poster.
+- The Games and Movies list views only build the rows that are on screen.
+- Switching tabs rebuilds the list once instead of re-sorting on every row.
+- A background Drive sync no longer rebuilds the views unless it actually changed something.
+- Plex requests are paced and paged, results are cached for thirty minutes, and artwork loads on demand rather than downloading the whole library before anything appears.
+- Catalog responses are cached for longer where the data rarely changes, respect rate limits, and the cache is trimmed.
+
+Behaviour:
+
+- The window remembers its size, position and maximised state.
+- Only one copy of the application can run at a time.
+- Closing no longer waits on Google Drive when there is nothing pending.
+- Checking for updates reports whether this build is actually behind rather than opening a page.
+- View preferences moved out of Windows Credential Manager into a settings file; only real secrets remain in Credential Manager.
 
 ## 2.2.0 web catalog parity and native integrations
 

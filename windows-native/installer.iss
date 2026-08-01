@@ -1,5 +1,9 @@
 #define MyAppName "Sinu Game Vault"
-#define MyAppVersion "2.2.0"
+; Supplied by build-release.ps1 from Directory.Build.props (ISCC /DMyAppVersion=...).
+; The literal below is only a fallback for compiling installer.iss by hand.
+#ifndef MyAppVersion
+  #define MyAppVersion "2.3.0"
+#endif
 #define MyAppPublisher "Sinu Game Vault"
 #define MyAppExeName "SinuGameVault.exe"
 
