@@ -33,7 +33,7 @@
                     <Border Background="{DynamicResource PanelRaisedBrush}" CornerRadius="7,7,0,0" ClipToBounds="True">
                         <Grid>
                             <TextBlock Text="GV" FontSize="36" FontWeight="Bold" Foreground="#30445E" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            <Image Source="{Binding Image}" Stretch="UniformToFill"/>
+                            <Image Source="{Binding Image}" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
                             <Border HorizontalAlignment="Left" VerticalAlignment="Top" Background="{Binding CategoryColor}" BorderBrush="#A9C9E9" BorderThickness="1" CornerRadius="6" Padding="9,5" Margin="9"><TextBlock Text="{Binding CategoryLabel}" Foreground="White" FontSize="10" FontWeight="Bold" MaxWidth="150" TextTrimming="CharacterEllipsis"/></Border>
                             <Border Visibility="{Binding HasBadges, Converter={StaticResource BoolToVisibility}}" HorizontalAlignment="Right" VerticalAlignment="Top" Background="{DynamicResource PanelRaisedBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="5" Padding="8,4" Margin="9"><TextBlock Text="{Binding Badges}" Foreground="{DynamicResource TextBrush}" FontSize="11" FontWeight="Bold" MaxWidth="120" TextTrimming="CharacterEllipsis"/></Border>
                             <Border VerticalAlignment="Bottom" Background="{DynamicResource DetailsBrush}" Padding="12,9">
@@ -91,7 +91,7 @@
                 </StackPanel>
                 <StackPanel DockPanel.Dock="Bottom" VerticalAlignment="Bottom">
                     <Button Content="⚙   Settings" Tag="Settings" Style="{StaticResource RailButton}" Click="Navigate_Click" />
-                    <TextBlock x:Name="VersionText" Text="Windows 2.1.1" Style="{StaticResource MutedText}" Margin="14,8" />
+                    <TextBlock x:Name="VersionText" Text="Windows 2.1.2" Style="{StaticResource MutedText}" Margin="14,8" />
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -196,8 +196,8 @@
                     </WrapPanel>
                     <ScrollViewer Grid.Row="6" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <ItemsControl x:Name="GamesCards" ItemTemplate="{StaticResource LibraryCardTemplate}">
-                            <ItemsControl.GroupStyle><GroupStyle><GroupStyle.HeaderTemplate><DataTemplate><Border Style="{StaticResource GroupDivider}"><TextBlock Text="{Binding Name}" FontSize="22" FontWeight="Bold"/></Border></DataTemplate></GroupStyle.HeaderTemplate><GroupStyle.Panel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></GroupStyle.Panel></GroupStyle></ItemsControl.GroupStyle>
-                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                            <ItemsControl.GroupStyle><GroupStyle><GroupStyle.HeaderTemplate><DataTemplate><Border Style="{StaticResource GroupDivider}"><TextBlock Text="{Binding Name}" FontSize="22" FontWeight="Bold"/></Border></DataTemplate></GroupStyle.HeaderTemplate><GroupStyle.Panel><ItemsPanelTemplate><WrapPanel HorizontalAlignment="Center"/></ItemsPanelTemplate></GroupStyle.Panel></GroupStyle></ItemsControl.GroupStyle>
+                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel HorizontalAlignment="Center"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                         </ItemsControl>
                     </ScrollViewer>
                     <ScrollViewer x:Name="GamesListScroll" Grid.Row="6" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
@@ -225,11 +225,12 @@
                     </Grid>
                     <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <ItemsControl x:Name="MediaCards" ItemTemplate="{StaticResource LibraryCardTemplate}">
-                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                            <ItemsControl.GroupStyle><GroupStyle><GroupStyle.HeaderTemplate><DataTemplate><Border Style="{StaticResource GroupDivider}"><TextBlock Text="{Binding Name}" FontSize="22" FontWeight="Bold"/></Border></DataTemplate></GroupStyle.HeaderTemplate><GroupStyle.Panel><ItemsPanelTemplate><WrapPanel HorizontalAlignment="Center"/></ItemsPanelTemplate></GroupStyle.Panel></GroupStyle></ItemsControl.GroupStyle>
+                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel HorizontalAlignment="Center"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                         </ItemsControl>
                     </ScrollViewer>
                     <ScrollViewer x:Name="MediaListScroll" Grid.Row="4" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
-                        <ItemsControl x:Name="MediaList" ItemTemplate="{StaticResource LibraryListTemplate}"/>
+                        <ItemsControl x:Name="MediaList" ItemTemplate="{StaticResource LibraryListTemplate}"><ItemsControl.GroupStyle><GroupStyle><GroupStyle.HeaderTemplate><DataTemplate><Border Style="{StaticResource GroupDivider}"><TextBlock Text="{Binding Name}" FontSize="22" FontWeight="Bold"/></Border></DataTemplate></GroupStyle.HeaderTemplate></GroupStyle></ItemsControl.GroupStyle></ItemsControl>
                     </ScrollViewer>
                 </Grid>
 
@@ -252,7 +253,7 @@
                         <StackPanel><TextBlock Text="Connect Plex Media Server" FontSize="24" FontWeight="Bold"/><TextBlock Text="Add the server URL and X-Plex-Token in Settings, then select Discover Plex library. Credentials stay in Windows Credential Manager." Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,8,0,16"/><WrapPanel><Button Content="Open Settings" Tag="Settings" Style="{StaticResource PrimaryButton}" Click="Navigate_Click" Margin="0,0,8,0"/><Button Content="How to get X-Plex-Token" Click="PlexTokenHelp_Click"/></WrapPanel></StackPanel>
                     </Border>
                     <ScrollViewer x:Name="PlexLibraryScroll" Grid.Row="2" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
-                        <ItemsControl x:Name="PlexCards" ItemTemplate="{StaticResource LibraryCardTemplate}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel></ItemsControl>
+                        <ItemsControl x:Name="PlexCards" ItemTemplate="{StaticResource LibraryCardTemplate}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel HorizontalAlignment="Center"/></ItemsPanelTemplate></ItemsControl.ItemsPanel></ItemsControl>
                     </ScrollViewer>
                 </Grid>
 
@@ -322,7 +323,7 @@
                         </TabItem>
                         <TabItem Header="About">
                             <Border Style="{StaticResource SurfaceCard}" Margin="18,0,0,0" MaxWidth="820" VerticalAlignment="Top"><StackPanel>
-                                <TextBlock Text="Sinu Game Vault for Windows" FontSize="24" FontWeight="Bold"/><TextBlock Text="Version 2.1.1 - Native Windows edition" Foreground="{DynamicResource AccentBrush}" Margin="0,6,0,18"/><TextBlock Text="The complete vault automatically syncs to Google Drive after every saved change. After reinstalling, sign in with the same Google account to restore your library." TextWrapping="Wrap" LineHeight="23"/><Button Content="Check GitHub for updates" Margin="0,22,0,0" HorizontalAlignment="Left" Click="CheckUpdates_Click"/>
+                                <TextBlock Text="Sinu Game Vault for Windows" FontSize="24" FontWeight="Bold"/><TextBlock Text="Version 2.1.2 - Native Windows edition" Foreground="{DynamicResource AccentBrush}" Margin="0,6,0,18"/><TextBlock Text="The complete vault automatically syncs to Google Drive after every saved change. After reinstalling, sign in with the same Google account to restore your library." TextWrapping="Wrap" LineHeight="23"/><Button Content="Check GitHub for updates" Margin="0,22,0,0" HorizontalAlignment="Left" Click="CheckUpdates_Click"/>
                             </StackPanel></Border>
                         </TabItem>
                     </TabControl>
@@ -339,7 +340,7 @@
                             <Grid MaxWidth="1220" HorizontalAlignment="Stretch" Margin="0,0,12,24">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="260"/><ColumnDefinition Width="28"/><ColumnDefinition Width="*" MinWidth="0"/></Grid.ColumnDefinitions>
                                 <Border Width="260" Height="390" Background="{DynamicResource PanelRaisedBrush}" CornerRadius="8" ClipToBounds="True" VerticalAlignment="Top">
-                                    <Grid><TextBlock Text="GV" FontSize="48" FontWeight="Bold" Foreground="#30445E" HorizontalAlignment="Center" VerticalAlignment="Center"/><Image x:Name="DetailPoster" Stretch="UniformToFill"/></Grid>
+                                    <Grid><TextBlock Text="GV" FontSize="48" FontWeight="Bold" Foreground="#30445E" HorizontalAlignment="Center" VerticalAlignment="Center"/><Image x:Name="DetailPoster" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/></Grid>
                                 </Border>
                                 <Border Grid.Column="2" MinWidth="0" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="28" CornerRadius="8">
                                 <StackPanel>

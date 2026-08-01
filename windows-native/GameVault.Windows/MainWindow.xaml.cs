@@ -79,6 +79,7 @@ public partial class MainWindow : Window
         };
         _vault.Saved += (_, _) => ScheduleDriveSync();
         PreviewMouseDown += BiglyInteraction;
+        PreviewMouseUp += Window_PreviewMouseUp;
         PreviewKeyDown += BiglyInteraction;
         Loaded += Window_Loaded;
         Closing += Window_Closing;
@@ -574,7 +575,8 @@ public partial class MainWindow : Window
         _rows.Clear();
         foreach (var row in source.Where(x => query.Length == 0 || x.Name.Contains(query, StringComparison.OrdinalIgnoreCase))) _rows.Add(row);
         _rowsView.GroupDescriptions.Clear();
-        if (_section == "Games" && _rows.Any(row => row.GroupName.Length > 0)) _rowsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(LibraryRow.GroupName)));
+        if ((_section == "Games" || _section == "Movies" && _mediaMode == "mlott") && _rows.Any(row => row.GroupName.Length > 0))
+            _rowsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(LibraryRow.GroupName)));
         _rowsView.Refresh();
         StatusText.Text = $"{_rows.Count} item{(_rows.Count == 1 ? "" : "s")}";
     }
@@ -593,6 +595,8 @@ public partial class MainWindow : Window
         "upcoming" when days is < 0 => "Released",
         "upcoming" => "Upcoming releases",
         "upcomingRemoved" => "Removed games",
+        "mlott" when days is >= 0 => "Coming to Malayalam OTT",
+        "mlott" => "Released on Malayalam OTT",
         _ => ""
     };
 
@@ -828,7 +832,13 @@ public partial class MainWindow : Window
             RefreshAll();
             StatusText.Text = "Online catalog refreshed.";
         }
-        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Catalog refresh", MessageBoxButton.OK, MessageBoxImage.Warning); }
+        catch (Exception ex)
+        {
+            DiagnosticsService.Log("Catalog", "Online catalog refresh failed", ex);
+            StatusText.Text = ex.Message.Contains("404", StringComparison.OrdinalIgnoreCase)
+                ? "The online catalog is temporarily unavailable. Existing titles remain visible."
+                : $"Catalog refresh paused: {ex.Message}";
+        }
     }
 
     private async Task RefreshQueueAvailabilityAsync()
@@ -2174,6 +2184,18 @@ public partial class MainWindow : Window
             else { (_section, _previousSection) = (_previousSection, _section); ShowSection(); }
             e.Handled = true;
         }
+    }
+
+    private void Window_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.XButton1) return;
+        if (DetailsPage.Visibility == Visibility.Visible) CloseDetails();
+        else if (_section != "Overview")
+        {
+            (_section, _previousSection) = (_previousSection, _section);
+            ShowSection();
+        }
+        e.Handled = true;
     }
 
     private void Window_SizeChanged(object sender, SizeChangedEventArgs e)

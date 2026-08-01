@@ -1,4 +1,11 @@
-# Sinu Game Vault for Windows 2.1.1
+# Sinu Game Vault for Windows 2.1.2
+
+## 2.1.2 centered cards and navigation polish
+
+- Centered poster-card rows and image crops across Games, Movies, TV Shows, and Plex.
+- Added separate Coming to Malayalam OTT and Released on Malayalam OTT dividers.
+- Added mouse Back button navigation, closing an open title before leaving the section.
+- Replaced disruptive temporary catalog 404 dialogs with a non-blocking status message.
 
 ## 2.1.1 title layout and sync stability
 
