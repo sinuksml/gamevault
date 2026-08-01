@@ -1,9 +1,11 @@
 using System.Globalization;
 using System.IO;
 using System.Net.Http;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 namespace SinuGameVault.Services;
 
@@ -37,7 +39,9 @@ public sealed class CatalogService
     public async Task<IReadOnlyList<JsonObject>> GameCatalogAsync(bool upcoming)
     {
         if (RawgKey.Length == 0) throw new InvalidOperationException("Save a RAWG API key in Settings first.");
-        var dateFilter = upcoming ? $"&dates={DateTime.Today:yyyy-MM-dd},{DateTime.Today.AddYears(1):yyyy-MM-dd}&ordering=released" : "&ordering=-metacritic";
+        var dateFilter = upcoming
+            ? $"&dates={DateTime.Today:yyyy-MM-dd},{DateTime.Today.AddYears(1):yyyy-MM-dd}&ordering=released"
+            : $"&dates={DateTime.Today.AddYears(-2):yyyy-MM-dd},{DateTime.Today:yyyy-MM-dd}&ordering=-released&metacritic=70,100";
         var root = await GetAsync($"https://api.rawg.io/api/games?key={Uri.EscapeDataString(RawgKey)}{dateFilter}&page_size=40&platforms=4,186,187");
         return (root["results"] as JsonArray)?.OfType<JsonObject>().Select(Game).ToList() ?? [];
     }
@@ -119,11 +123,35 @@ public sealed class CatalogService
             var search = await GetAsync($"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={Uri.EscapeDataString(title)}&srlimit=1&format=json&origin=*");
             var page = search["query"]?["search"]?[0]?["title"]?.ToString();
             if (string.IsNullOrWhiteSpace(page)) return "";
+            var parsed = await GetAsync($"https://en.wikipedia.org/w/api.php?action=parse&page={Uri.EscapeDataString(page)}&prop=sections&format=json&origin=*");
+            var storySection = (parsed["parse"]?["sections"] as JsonArray)?.OfType<JsonObject>()
+                .FirstOrDefault(section => Regex.IsMatch(section["line"]?.ToString() ?? "", "^(plot|story|synopsis|premise|setting)$", RegexOptions.IgnoreCase));
+            var sectionIndex = storySection?["index"]?.ToString();
+            if (!string.IsNullOrWhiteSpace(sectionIndex))
+            {
+                var section = await GetAsync($"https://en.wikipedia.org/w/api.php?action=parse&page={Uri.EscapeDataString(page)}&prop=text&section={Uri.EscapeDataString(sectionIndex)}&format=json&origin=*");
+                var html = section["parse"]?["text"]?["*"]?.ToString() ?? "";
+                var plot = WikipediaPlainText(html);
+                if (plot.Length > 0) return plot;
+            }
             var extract = await GetAsync($"https://en.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=true&exsectionformat=plain&titles={Uri.EscapeDataString(page)}&format=json&origin=*");
             var pages = extract["query"]?["pages"] as JsonObject;
             return pages?.FirstOrDefault().Value?["extract"]?.ToString() ?? "";
         }
         catch { return ""; }
+    }
+
+    private static string WikipediaPlainText(string html)
+    {
+        if (string.IsNullOrWhiteSpace(html)) return "";
+        var value = Regex.Replace(html, "<(script|style)[^>]*>.*?</\\1>", "", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        value = Regex.Replace(value, "</p>|<br\\s*/?>|</li>|</h[1-6]>", "\n\n", RegexOptions.IgnoreCase);
+        value = Regex.Replace(value, "<[^>]+>", " ");
+        value = WebUtility.HtmlDecode(value);
+        value = Regex.Replace(value, @"\[[0-9]+\]", "");
+        value = Regex.Replace(value, @"[ \t]+", " ");
+        value = Regex.Replace(value, @"\n\s*\n+", "\n\n").Trim();
+        return value;
     }
 
     public async Task<(string Name, string Overview, string AirDate, double Rating)> EpisodeAsync(string tmdbId, string imdbId, int season, int episode)

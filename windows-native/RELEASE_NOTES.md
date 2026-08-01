@@ -1,4 +1,13 @@
-# Sinu Game Vault for Windows 2.0.3
+# Sinu Game Vault for Windows 2.0.4
+
+## 2.0.4 game library navigation and discovery
+
+- Replaces generic game, movie, and TV tabs with recognizable icon-led navigation.
+- Shows each title's library category directly on grid cards and list rows.
+- Orders upcoming releases by nearest release date, with released and removed titles kept below upcoming games.
+- Orders Discover by newest release date while retaining the curated quality threshold.
+- Loads full Wikipedia plot or story sections inside every game detail page.
+- Automatically refreshes queue availability from The Game Hub and Gamer Planet and exposes a manual vendor refresh action.
 
 ## 2.0.3 subscription library fix
 

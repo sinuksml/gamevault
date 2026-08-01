@@ -11,6 +11,7 @@ using System.Windows.Data;
 using System.Windows.Threading;
 using System.ComponentModel;
 using System.Windows.Input;
+using System.Windows.Media;
 
 namespace SinuGameVault;
 
@@ -43,6 +44,7 @@ public partial class MainWindow : Window
     private string _theme = "dark";
     private bool _loadingSettings;
     private bool _refreshingBigly;
+    private bool _refreshingQueueAvailability;
     private DateTime _lastBiglyInteraction = DateTime.Now;
     private readonly HashSet<string> _catalogRefreshes = [];
 
@@ -243,6 +245,7 @@ public partial class MainWindow : Window
         _gameCollection = tab.Tag?.ToString() ?? "rentals";
         RefreshGames();
         _ = EnsureCurrentCatalogAsync();
+        if (_gameCollection == "queue") _ = EnsureQueueAvailabilityAsync();
     }
 
     private void RefreshGames()
@@ -254,7 +257,7 @@ public partial class MainWindow : Window
             : _gameCollection == "subscriptionGames"
             ? ReadSubscriptions().Concat(ReadCollection("subscriptionGames"))
             : ReadCollection(_gameCollection);
-        if (_gameCollection == "upcoming") source = source.Concat(ReadCollection("upcomingRemoved")).OrderBy(row => row.Collection == "upcomingRemoved" ? 2 : row.DaysLeft is < 0 ? 1 : 0).ThenBy(row => row.DaysLeft ?? int.MaxValue);
+        if (_gameCollection == "upcoming") source = source.Concat(ReadCollection("upcomingRemoved"));
         SetRows(source, GameSortBox.SelectedItem as ComboBoxItem);
     }
 
@@ -273,7 +276,7 @@ public partial class MainWindow : Window
         if (!isGameCatalog && !mediaCatalogs.Contains(_mediaMode)) return;
         if (isGameCatalog && _catalog.RawgKey.Length == 0 || !isGameCatalog && _catalog.TmdbKey.Length == 0) return;
         var mode = isGameCatalog ? _gameCollection : _mediaMode;
-        var key = $"{_section}:{mode}";
+        var key = isGameCatalog ? $"{_section}:{mode}:date-order-v2" : $"{_section}:{mode}";
         if (!_catalogRefreshes.Add(key)) return;
         try
         {
@@ -318,11 +321,30 @@ public partial class MainWindow : Window
         if (!definitions.Any(item => item.Item1 == _mediaMode)) _mediaMode = "watchlist";
         foreach (var (key, label) in definitions)
         {
-            var button = new Button { Content = label, Tag = key, Margin = new Thickness(0, 0, 8, 8) };
-            if (key == _mediaMode) button.Style = (Style)FindResource("PrimaryButton");
+            var button = new Button
+            {
+                Content = LibraryTabHeader(MediaTabGlyph(key), label), Tag = key, Margin = new Thickness(0, 0, 8, 8),
+                Style = (Style)FindResource(key == _mediaMode ? "LibraryTabSelectedButton" : "LibraryTabButton")
+            };
             button.Click += MediaFilter_Click;
             MediaTabsPanel.Children.Add(button);
         }
+    }
+
+    private static string MediaTabGlyph(string key) => key switch
+    {
+        "watchlist" => "\uE728", "watching" => "\uE768", "uphw" or "seriesupcoming" => "\uE787",
+        "bluray" => "\uE7F1", "relhw" or "enseries" => "\uE721", "mlott" => "\uE8B2",
+        "seriesnew" => "\uE823", "mlseries" => "\uE8D2", "taseries" => "\uE8D2", "hiseries" => "\uE8D2",
+        "watched" => "\uE73E", "hidden" => "\uED1A", _ => "\uE8A9"
+    };
+
+    private static StackPanel LibraryTabHeader(string glyph, string label)
+    {
+        var panel = new StackPanel { Orientation = Orientation.Horizontal };
+        panel.Children.Add(new TextBlock { Text = glyph, FontFamily = new FontFamily("Segoe Fluent Icons"), FontSize = 16, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center });
+        panel.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+        return panel;
     }
 
     private void RefreshMedia()
@@ -467,8 +489,10 @@ public partial class MainWindow : Window
     private void SetRows(IEnumerable<LibraryRow> source, ComboBoxItem? sortItem = null)
     {
         var query = SearchBox.Text.Trim();
-        source = _section == "Games" && _gameCollection == "catalogExtra" && (sortItem?.Tag?.ToString()) == "new"
-            ? source.OrderByDescending(RecommendationScore)
+        source = _section == "Games" && _gameCollection == "upcoming"
+            ? source.OrderBy(row => UpcomingOrder(row)).ThenBy(row => row.DaysLeft is >= 0 ? row.DaysLeft : int.MaxValue).ThenByDescending(row => ParseSortDate(row.Date)).ThenBy(row => row.Name)
+            : _section == "Games" && _gameCollection == "catalogExtra" && (sortItem?.Tag?.ToString()) == "new"
+            ? source.OrderByDescending(row => ParseSortDate(row.Date)).ThenByDescending(row => row.Rating).ThenBy(row => row.Name)
             : _section is "Movies" or "Series" && _mediaMode is "relhw" or "enseries" && (sortItem?.Tag?.ToString()) == "new"
             ? source.OrderByDescending(RecommendationScore)
             : _section == "Games" && _gameCollection == "rentals"
@@ -491,6 +515,8 @@ public partial class MainWindow : Window
         _rowsView.Refresh();
         StatusText.Text = $"{_rows.Count} item{(_rows.Count == 1 ? "" : "s")}";
     }
+
+    private static int UpcomingOrder(LibraryRow row) => row.Collection == "upcomingRemoved" ? 2 : row.DaysLeft is < 0 ? 1 : 0;
 
     private static string GroupName(string collection, string status, int? days) => collection switch
     {
@@ -728,6 +754,28 @@ public partial class MainWindow : Window
             StatusText.Text = $"Checking rental availability: {Text(item, "name", "title")}";
             await UpdateAvailabilityAsync(item);
         }
+    }
+
+    private async Task EnsureQueueAvailabilityAsync()
+    {
+        if (_refreshingQueueAvailability) return;
+        var staleBefore = DateTimeOffset.UtcNow.Subtract(TimeSpan.FromHours(6)).ToUnixTimeMilliseconds();
+        var pending = _vault.Collection("queue").OfType<JsonObject>()
+            .Where(item => item["shops"] is not JsonObject shops || Number(shops, "t") < staleBefore)
+            .ToList();
+        if (pending.Count == 0) return;
+        _refreshingQueueAvailability = true;
+        try
+        {
+            foreach (var item in pending)
+            {
+                StatusText.Text = $"Checking The Game Hub and Gamer Planet for {Text(item, "name", "title")}...";
+                await UpdateAvailabilityAsync(item);
+                if (_section == "Games" && _gameCollection == "queue") RefreshGames();
+            }
+            StatusText.Text = $"Rental availability checked for {pending.Count} queued game{(pending.Count == 1 ? "" : "s")}.";
+        }
+        finally { _refreshingQueueAvailability = false; }
     }
 
     private async Task UpdateAvailabilityAsync(JsonObject item)
@@ -1408,7 +1456,9 @@ public partial class MainWindow : Window
             var price = Number(gp, "rent", "price", "rentalPrice");
             parts.Add($"Gamer Planet: {status} {(price > 0 ? $"· Rs {price:N0}" : "")}".Trim());
         }
-        return parts.Count > 0 ? string.Join("  |  ", parts) : fallback;
+        if (parts.Count > 0) return string.Join("  |  ", parts);
+        if (shops["t"] is not null) return "Checked The Game Hub and Gamer Planet: no current listing found";
+        return fallback;
     }
 
     private async void LibraryCard_Click(object sender, RoutedEventArgs e)
@@ -1417,7 +1467,7 @@ public partial class MainWindow : Window
         _selectedRow = row;
         DetailPoster.Source = ImageSource(row.Image);
         DetailBackdrop.Source = ImageSource(row.Backdrop.Length > 0 ? row.Backdrop : row.Image);
-        DetailType.Text = row.MediaType.ToUpperInvariant();
+        DetailType.Text = $"{row.MediaType.ToUpperInvariant()}  /  {row.CategoryLabel.ToUpperInvariant()}";
         DetailTitle.Text = row.Name;
         var duration = Integer(row.Source, "used", "days");
         DetailMeta.Text = string.Join("  |  ", new[] { row.DetailMeta, row.Vendor, row.CostText,
@@ -1426,13 +1476,12 @@ public partial class MainWindow : Window
         DetailCountdown.Text = row.DaysText.Length > 0 ? row.DaysText : row.Status;
         DetailEpisodes.Text = string.Join("  |  ", new[] { row.SeasonsText, row.EpisodesText }.Where(x => x.Length > 0));
         DetailEpisodesBadge.Visibility = row.HasEpisodeInfo ? Visibility.Visible : Visibility.Collapsed;
-        DetailOverview.Text = row.MediaType == "Game" && row.Collection != "playing"
-            ? "Story summaries are intentionally shown for games only while they are in Now Playing."
-            : row.HasOverview ? row.Overview : "No summary is stored for this title yet.";
+        DetailOverview.Text = row.HasOverview ? row.Overview : row.MediaType == "Game" ? "Loading Wikipedia plot..." : "No summary is stored for this title yet.";
         DetailAvailability.Text = row.Availability.Length > 0 ? row.Availability : "No provider or vendor information stored.";
         DetailNote.Text = row.Note;
         FandomButton.Visibility = row.MediaType == "Game" && row.Collection == "playing" ? Visibility.Visible : Visibility.Collapsed;
         VendorLinksButton.Visibility = row.MediaType == "Game" && row.Collection is "queue" or "rentals" ? Visibility.Visible : Visibility.Collapsed;
+        VendorRefreshButton.Visibility = row.MediaType == "Game" && row.Collection == "queue" ? Visibility.Visible : Visibility.Collapsed;
         EpisodePicker.Visibility = row.MediaType == "TV Show" ? Visibility.Visible : Visibility.Collapsed;
         MalayalamReviewButtons.Visibility = row.MediaType == "Movie" && (row.Collection == "mlott" || Text(row.Source, "originalLanguage", "original_language") == "ml") ? Visibility.Visible : Visibility.Collapsed;
         var personalRating = Math.Clamp((int)Math.Round(Number(row.Source, "userRating", "myRating")), 0, 10);
@@ -1443,6 +1492,7 @@ public partial class MainWindow : Window
         DetailsPage.Visibility = Visibility.Visible;
         await _vault.MarkViewedAsync(row.Source, row.MediaType, row.Collection);
         await EnrichOpenTitleAsync(row);
+        if (row.Collection == "queue") _ = EnsureQueueAvailabilityAsync();
     }
 
     private async Task EnrichOpenTitleAsync(LibraryRow row)
@@ -1478,9 +1528,9 @@ public partial class MainWindow : Window
                 }
                 catch { }
             }
-            if (row.Collection == "playing" && row.Overview.Length == 0)
+            if (row.Overview.Length == 0)
             {
-                DetailOverview.Text = "Loading story summary...";
+                DetailOverview.Text = "Loading Wikipedia plot...";
                 var plot = await _catalog.WikipediaSummaryAsync($"{row.Name} video game plot");
                 if (plot.Length > 0) { row.Source["overview"] = plot; changed = true; }
             }
@@ -1490,9 +1540,7 @@ public partial class MainWindow : Window
         _selectedRow = refreshed;
         DetailPoster.Source = ImageSource(refreshed.Image);
         DetailBackdrop.Source = ImageSource(refreshed.Backdrop.Length > 0 ? refreshed.Backdrop : refreshed.Image);
-        DetailOverview.Text = refreshed.MediaType == "Game" && refreshed.Collection != "playing"
-            ? "Story summaries are intentionally shown for games only while they are in Now Playing."
-            : refreshed.Overview.Length > 0 ? refreshed.Overview : "No summary was found for this title.";
+        DetailOverview.Text = refreshed.Overview.Length > 0 ? refreshed.Overview : "No Wikipedia plot was found for this title.";
         DetailAvailability.Text = refreshed.Availability.Length > 0 ? refreshed.Availability : "No streaming or rental provider information found.";
         DetailRating.Text = $"IMDb / rating  {refreshed.RatingText}";
         if (!IsCatalog(row)) await _vault.UpdateAsync(row.Collection, row.Source);
@@ -1613,6 +1661,22 @@ public partial class MainWindow : Window
         menu.Items.Add(hub); menu.Items.Add(planet); menu.IsOpen = true;
     }
 
+    private async void VendorRefresh_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedRow is not { Collection: "queue" } row) return;
+        VendorRefreshButton.IsEnabled = false;
+        DetailAvailability.Text = "Checking The Game Hub and Gamer Planet...";
+        try
+        {
+            await UpdateAvailabilityAsync(row.Source);
+            var refreshed = ReadNodes(new JsonArray(row.Source.DeepClone()), row.Collection).First();
+            _selectedRow = refreshed;
+            DetailAvailability.Text = refreshed.Availability.Length > 0 ? refreshed.Availability : "No current rental listing was found.";
+            RefreshGames();
+        }
+        finally { VendorRefreshButton.IsEnabled = true; }
+    }
+
     private void AiAssistant_Click(object sender, RoutedEventArgs e)
     {
         var row = _selectedRow;
@@ -1695,6 +1759,7 @@ public partial class MainWindow : Window
         await RunBusyAsync("Updating status...", async () =>
         {
             await _vault.UpdateAsync(destination, clone);
+            if (destination == "queue") await UpdateAvailabilityAsync(clone);
             if (!IsCatalog(row) && row.Collection != "plex" && row.Collection != destination) await _vault.RemoveAsync(row.Collection, row.Id);
         });
         DetailsPage.Visibility = Visibility.Collapsed;
@@ -1853,6 +1918,7 @@ public partial class MainWindow : Window
         await RunBusyAsync("Updating library...", async () =>
         {
             if (!CollectionContains(destination, row)) await _vault.AddAsync(destination, clone);
+            if (destination == "queue") await UpdateAvailabilityAsync(clone);
             if (!IsCatalog(row)) await _vault.RemoveAsync(row.Collection, row.Id);
         });
         DetailsPage.Visibility = Visibility.Collapsed;

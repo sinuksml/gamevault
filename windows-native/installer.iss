@@ -1,5 +1,5 @@
 #define MyAppName "Sinu Game Vault"
-#define MyAppVersion "2.0.3"
+#define MyAppVersion "2.0.4"
 #define MyAppPublisher "Sinu Game Vault"
 #define MyAppExeName "SinuGameVault.exe"
 
