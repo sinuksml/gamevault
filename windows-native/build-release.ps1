@@ -26,7 +26,7 @@ Assert-LastCommand "Publish restore"
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ".\publish" --no-restore
 Assert-LastCommand "Windows publish"
 
-$Version = "2.0.4"
+$Version = "2.0.5"
 Compress-Archive -Path ".\publish\*" -DestinationPath ".\SinuGameVault-Windows-v$Version.zip" -Force
 $Iscc = Join-Path $Root ".tools\InnoSetup\ISCC.exe"
 if (Test-Path $Iscc) {

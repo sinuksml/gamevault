@@ -20,4 +20,4 @@
 
 ## Distribution
 
-The release is a self-contained, single-file `win-x64` application. Inno Setup installs it per machine and preserves the same application identity for future upgrades. The current package is version 2.0.4.
+The release is a self-contained, single-file `win-x64` application. Inno Setup installs it per machine and preserves the same application identity for future upgrades. The current package is version 2.0.5.

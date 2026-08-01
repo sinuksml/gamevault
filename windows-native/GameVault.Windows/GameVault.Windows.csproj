@@ -7,9 +7,15 @@
     <Nullable>enable</Nullable>
     <AssemblyName>SinuGameVault</AssemblyName>
     <RootNamespace>SinuGameVault</RootNamespace>
-    <Version>2.0.4</Version>
+    <Version>2.0.5</Version>
     <Authors>Sinu Game Vault</Authors>
     <Product>Sinu Game Vault for Windows</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\GameVault.ico</ApplicationIcon>
   </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="Assets\GameVault.ico" />
+    <Page Remove="HealthLabWindow.xaml;HealthTargetsWindow.xaml" />
+    <Compile Remove="HealthLabWindow.xaml.cs;HealthTargetsWindow.xaml.cs" />
+  </ItemGroup>
 </Project>

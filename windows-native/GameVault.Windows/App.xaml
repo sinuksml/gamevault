@@ -54,8 +54,14 @@
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
         </Style>
         <Style x:Key="SectionTitle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontSize" Value="22" />
             <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style x:Key="GroupDivider" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+            <Setter Property="BorderThickness" Value="0,1,0,0" />
+            <Setter Property="Padding" Value="0,18,0,12" />
+            <Setter Property="Margin" Value="0,8,0,0" />
         </Style>
         <Style x:Key="SurfaceCard" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource CardBrush}" />

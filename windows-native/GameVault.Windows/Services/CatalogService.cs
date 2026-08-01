@@ -41,8 +41,8 @@ public sealed class CatalogService
         if (RawgKey.Length == 0) throw new InvalidOperationException("Save a RAWG API key in Settings first.");
         var dateFilter = upcoming
             ? $"&dates={DateTime.Today:yyyy-MM-dd},{DateTime.Today.AddYears(1):yyyy-MM-dd}&ordering=released"
-            : $"&dates={DateTime.Today.AddYears(-2):yyyy-MM-dd},{DateTime.Today:yyyy-MM-dd}&ordering=-released&metacritic=70,100";
-        var root = await GetAsync($"https://api.rawg.io/api/games?key={Uri.EscapeDataString(RawgKey)}{dateFilter}&page_size=40&platforms=4,186,187");
+            : $"&dates={DateTime.Today.AddYears(-3):yyyy-MM-dd},{DateTime.Today:yyyy-MM-dd}&ordering=-released";
+        var root = await GetAsync($"https://api.rawg.io/api/games?key={Uri.EscapeDataString(RawgKey)}{dateFilter}&page_size=60&platforms=4,186,187");
         return (root["results"] as JsonArray)?.OfType<JsonObject>().Select(Game).ToList() ?? [];
     }
 
@@ -81,7 +81,10 @@ public sealed class CatalogService
             var root = await GetAsync($"https://api.themoviedb.org/3/{path}{separator}api_key={Uri.EscapeDataString(TmdbKey)}&page={page}&include_adult=false");
             combined.AddRange((root["results"] as JsonArray)?.OfType<JsonObject>().Select(item => Media(item, type)) ?? []);
         }
-        return combined.GroupBy(item => item["canonicalId"]?.ToString()).Select(group => group.First()).ToList();
+        var distinct = combined.GroupBy(item => item["canonicalId"]?.ToString()).Select(group => group.First());
+        if (type == "Movie" && mode == "uphw")
+            distinct = distinct.Where(item => Number(item, "popularity") >= 12 || Number(item, "voteCount") >= 20);
+        return distinct.ToList();
     }
 
     public async Task EnrichMediaAsync(JsonObject item, string type)
@@ -120,12 +123,19 @@ public sealed class CatalogService
     {
         try
         {
-            var search = await GetAsync($"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={Uri.EscapeDataString(title)}&srlimit=1&format=json&origin=*");
+            var cleaned = Regex.Replace(title, @"\s+(plot|story|summary)$", "", RegexOptions.IgnoreCase).Trim();
+            var query = cleaned.Contains("video game", StringComparison.OrdinalIgnoreCase) ? cleaned : $"\"{cleaned}\" video game";
+            var search = await GetAsync($"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={Uri.EscapeDataString(query)}&srlimit=5&format=json&origin=*");
             var page = search["query"]?["search"]?[0]?["title"]?.ToString();
+            if (string.IsNullOrWhiteSpace(page))
+            {
+                search = await GetAsync($"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={Uri.EscapeDataString(cleaned)}&srlimit=3&format=json&origin=*");
+                page = search["query"]?["search"]?[0]?["title"]?.ToString();
+            }
             if (string.IsNullOrWhiteSpace(page)) return "";
             var parsed = await GetAsync($"https://en.wikipedia.org/w/api.php?action=parse&page={Uri.EscapeDataString(page)}&prop=sections&format=json&origin=*");
             var storySection = (parsed["parse"]?["sections"] as JsonArray)?.OfType<JsonObject>()
-                .FirstOrDefault(section => Regex.IsMatch(section["line"]?.ToString() ?? "", "^(plot|story|synopsis|premise|setting)$", RegexOptions.IgnoreCase));
+                .FirstOrDefault(section => Regex.IsMatch(section["line"]?.ToString() ?? "", "(plot|story|synopsis|premise|setting|narrative)", RegexOptions.IgnoreCase));
             var sectionIndex = storySection?["index"]?.ToString();
             if (!string.IsNullOrWhiteSpace(sectionIndex))
             {
@@ -237,11 +247,14 @@ public sealed class CatalogService
             ["id"] = item["id"]?.DeepClone(), ["tmdbId"] = item["id"]?.DeepClone(), ["title"] = title,
             ["date"] = date, ["year"] = date.Length >= 4 ? date[..4] : "", ["poster"] = Image(item["poster_path"]?.ToString(), "w500"),
             ["backdrop"] = Image(item["backdrop_path"]?.ToString(), "w1280"), ["overview"] = item["overview"]?.DeepClone(),
+            ["popularity"] = item["popularity"]?.DeepClone(), ["voteCount"] = item["vote_count"]?.DeepClone(),
             ["tmdb"] = item["vote_average"]?.DeepClone(), ["genres"] = item["genre_ids"]?.DeepClone(),
             ["voteCount"] = item["vote_count"]?.DeepClone(), ["popularity"] = item["popularity"]?.DeepClone(),
             ["originalLanguage"] = item["original_language"]?.DeepClone(),
             ["canonicalId"] = $"tmdb:{(type == "Movie" ? "movie" : "tv")}:{item["id"]}"
         };
     }
+
+    private static double Number(JsonObject item, string key) => double.TryParse(item[key]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : 0;
     private static string Image(string? path, string size) => string.IsNullOrWhiteSpace(path) ? "" : $"https://image.tmdb.org/t/p/{size}{path}";
 }

@@ -40,13 +40,14 @@ public partial class MainWindow : Window
     private bool _gamesListView;
     private bool _mediaListView;
     private string _plexMode = "continue";
-    private bool _biglyHistoryMode;
+    private string _upcomingPlatform = "ps5";
     private string _theme = "dark";
     private bool _loadingSettings;
     private bool _refreshingBigly;
     private bool _refreshingQueueAvailability;
     private DateTime _lastBiglyInteraction = DateTime.Now;
     private readonly HashSet<string> _catalogRefreshes = [];
+    private bool _closingAfterDriveSync;
 
     public MainWindow()
     {
@@ -72,6 +73,7 @@ public partial class MainWindow : Window
         PreviewMouseDown += BiglyInteraction;
         PreviewKeyDown += BiglyInteraction;
         Loaded += Window_Loaded;
+        Closing += Window_Closing;
     }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
@@ -96,8 +98,18 @@ public partial class MainWindow : Window
         if (_drive.Connected) await SyncDriveAsync(silent: true);
     }
 
+    private async void Window_Closing(object? sender, CancelEventArgs e)
+    {
+        if (_closingAfterDriveSync || !_drive.Connected || _syncingDrive) return;
+        e.Cancel = true;
+        _closingAfterDriveSync = true;
+        try { await SyncDriveAsync(silent: true); }
+        finally { Close(); }
+    }
+
     private void Navigate_Click(object sender, RoutedEventArgs e)
     {
+        CloseDetails();
         _previousSection = _section;
         _section = (sender as Button)?.Tag?.ToString() ?? "Overview";
         CredentialStore.Save("SinuGameVault/Preferences/LastSection", _section);
@@ -114,7 +126,6 @@ public partial class MainWindow : Window
         PlaceholderPage.Visibility = Visibility.Collapsed;
         PlexPage.Visibility = Visibility.Collapsed;
         BiglyPage.Visibility = Visibility.Collapsed;
-        HealthPage.Visibility = Visibility.Collapsed;
         SettingsPage.Visibility = Visibility.Collapsed;
         SearchBox.IsEnabled = _section is "Games" or "Movies" or "Series";
         SearchBox.Text = "";
@@ -124,7 +135,7 @@ public partial class MainWindow : Window
             case "Overview":
                 PageTitle.Text = "Overview"; PageSubtitle.Text = "Your library at a glance"; OverviewPage.Visibility = Visibility.Visible; RefreshDashboard(); break;
             case "Games":
-                PageTitle.Text = "Games"; PageSubtitle.Text = "Rentals, subscriptions, playing, queue and completed games"; GamesPage.Visibility = Visibility.Visible; RefreshGames(); break;
+                PageTitle.Text = "Games"; PageSubtitle.Text = "Rentals, subscriptions, playing, queue and completed games"; GamesPage.Visibility = Visibility.Visible; UpcomingPlatformTabs.Visibility = _gameCollection == "upcoming" ? Visibility.Visible : Visibility.Collapsed; RefreshGames(); break;
             case "Movies":
                 PageTitle.Text = "Movies"; PageSubtitle.Text = "Watchlist, releases, discovery and history"; MediaPage.Visibility = Visibility.Visible; BuildMediaTabs(); RefreshMedia(); _ = EnsureCurrentCatalogAsync(); break;
             case "Series":
@@ -133,8 +144,6 @@ public partial class MainWindow : Window
                 PageTitle.Text = "Plex"; PageSubtitle.Text = "Continue watching and manage your Shield library"; PlexPage.Visibility = Visibility.Visible; _ = RefreshPlexAsync(); break;
             case "BiglyBT":
                 PageTitle.Text = "BiglyBT"; PageSubtitle.Text = "Native download status, controls and history"; BiglyPage.Visibility = Visibility.Visible; _lastBiglyInteraction = DateTime.Now; _biglyRefreshTimer.Start(); _ = RefreshBiglyAsync(); break;
-            case "Health":
-                PageTitle.Text = "Health"; PageSubtitle.Text = "Weekly nutrition, activity and lab tracking"; HealthPage.Visibility = Visibility.Visible; RefreshHealth(); break;
             case "Settings":
                 PageTitle.Text = "Settings"; PageSubtitle.Text = "Data migration, backup and native services"; SettingsPage.Visibility = Visibility.Visible; break;
             default:
@@ -242,7 +251,10 @@ public partial class MainWindow : Window
     private void GamesTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!IsLoaded || GamesTabs.SelectedItem is not TabItem tab) return;
+        CloseDetails();
         _gameCollection = tab.Tag?.ToString() ?? "rentals";
+        UpcomingPlatformTabs.Visibility = _gameCollection == "upcoming" ? Visibility.Visible : Visibility.Collapsed;
+        UpdateUpcomingPlatformStyles();
         RefreshGames();
         _ = EnsureCurrentCatalogAsync();
         if (_gameCollection == "queue") _ = EnsureQueueAvailabilityAsync();
@@ -257,12 +269,40 @@ public partial class MainWindow : Window
             : _gameCollection == "subscriptionGames"
             ? ReadSubscriptions().Concat(ReadCollection("subscriptionGames"))
             : ReadCollection(_gameCollection);
-        if (_gameCollection == "upcoming") source = source.Concat(ReadCollection("upcomingRemoved"));
+        if (_gameCollection == "upcoming")
+        {
+            source = source.Concat(ReadCollection("upcomingRemoved"));
+            source = source.Where(UpcomingPlatformMatches);
+        }
         SetRows(source, GameSortBox.SelectedItem as ComboBoxItem);
+    }
+
+    private void UpcomingPlatform_Click(object sender, RoutedEventArgs e)
+    {
+        CloseDetails();
+        _upcomingPlatform = (sender as Button)?.Tag?.ToString() ?? "ps5";
+        UpdateUpcomingPlatformStyles();
+        RefreshGames();
+    }
+
+    private void UpdateUpcomingPlatformStyles()
+    {
+        UpcomingPs5Button.Style = (Style)FindResource(_upcomingPlatform == "ps5" ? "LibraryTabSelectedButton" : "LibraryTabButton");
+        UpcomingXboxPcButton.Style = (Style)FindResource(_upcomingPlatform == "xboxpc" ? "LibraryTabSelectedButton" : "LibraryTabButton");
+    }
+
+    private bool UpcomingPlatformMatches(LibraryRow row)
+    {
+        var value = $"{row.Platform} {Text(row.Source, "platforms", "platform", "stores")}";
+        var xboxPc = value.Contains("xbox", StringComparison.OrdinalIgnoreCase) || value.Contains("pc", StringComparison.OrdinalIgnoreCase) || value.Contains("windows", StringComparison.OrdinalIgnoreCase);
+        var ps5 = value.Contains("playstation 5", StringComparison.OrdinalIgnoreCase) || value.Contains("ps5", StringComparison.OrdinalIgnoreCase);
+        if (!xboxPc && !ps5) return true;
+        return _upcomingPlatform == "ps5" ? ps5 : xboxPc;
     }
 
     private void MediaFilter_Click(object sender, RoutedEventArgs e)
     {
+        CloseDetails();
         _mediaMode = (sender as Button)?.Tag?.ToString() ?? "watchlist";
         RefreshMedia();
         _ = EnsureCurrentCatalogAsync();
@@ -276,7 +316,7 @@ public partial class MainWindow : Window
         if (!isGameCatalog && !mediaCatalogs.Contains(_mediaMode)) return;
         if (isGameCatalog && _catalog.RawgKey.Length == 0 || !isGameCatalog && _catalog.TmdbKey.Length == 0) return;
         var mode = isGameCatalog ? _gameCollection : _mediaMode;
-        var key = isGameCatalog ? $"{_section}:{mode}:date-order-v2" : $"{_section}:{mode}";
+        var key = isGameCatalog ? $"{_section}:{mode}:catalog-v3" : $"{_section}:{mode}:catalog-v3";
         if (!_catalogRefreshes.Add(key)) return;
         try
         {
@@ -493,8 +533,10 @@ public partial class MainWindow : Window
             ? source.OrderBy(row => UpcomingOrder(row)).ThenBy(row => row.DaysLeft is >= 0 ? row.DaysLeft : int.MaxValue).ThenByDescending(row => ParseSortDate(row.Date)).ThenBy(row => row.Name)
             : _section == "Games" && _gameCollection == "catalogExtra" && (sortItem?.Tag?.ToString()) == "new"
             ? source.OrderByDescending(row => ParseSortDate(row.Date)).ThenByDescending(row => row.Rating).ThenBy(row => row.Name)
-            : _section is "Movies" or "Series" && _mediaMode is "relhw" or "enseries" && (sortItem?.Tag?.ToString()) == "new"
-            ? source.OrderByDescending(RecommendationScore)
+            : _section is "Movies" or "Series" && IsDatedMediaCatalog(_mediaMode)
+            ? source.OrderBy(row => row.DaysLeft is >= 0 ? 0 : 1)
+                .ThenBy(row => row.DaysLeft is >= 0 ? row.DaysLeft : int.MaxValue)
+                .ThenByDescending(row => ParseSortDate(row.Date)).ThenBy(row => row.Name)
             : _section == "Games" && _gameCollection == "rentals"
             ? source.OrderBy(row => GroupOrder(row.GroupName)).ThenByDescending(row => ParseSortDate(Text(row.Source, "start", "date", "added")))
             : _section == "Games" && _gameCollection == "playing"
@@ -517,6 +559,7 @@ public partial class MainWindow : Window
     }
 
     private static int UpcomingOrder(LibraryRow row) => row.Collection == "upcomingRemoved" ? 2 : row.DaysLeft is < 0 ? 1 : 0;
+    private static bool IsDatedMediaCatalog(string mode) => mode is "uphw" or "bluray" or "relhw" or "mlott" or "seriesnew" or "seriesupcoming" or "enseries" or "mlseries" or "taseries" or "hiseries";
 
     private static string GroupName(string collection, string status, int? days) => collection switch
     {
@@ -910,6 +953,7 @@ public partial class MainWindow : Window
 
     private async void PlexMode_Click(object sender, RoutedEventArgs e)
     {
+        CloseDetails();
         _plexMode = (sender as Button)?.Tag?.ToString() ?? "continue";
         await RefreshPlexAsync();
     }
@@ -989,12 +1033,11 @@ public partial class MainWindow : Window
         if (!_bigly.Connected)
         {
             BiglyGrid.Visibility = Visibility.Collapsed;
-            BiglyHistoryGrid.Visibility = Visibility.Collapsed;
             BiglyStatusText.Text = "Not connected";
+            ShowBiglyHistory(false);
             _refreshingBigly = false;
             return;
         }
-        if (_biglyHistoryMode) { ShowBiglyHistory(); _refreshingBigly = false; return; }
         if (!silent) BiglyStatusText.Text = "Refreshing...";
         try
         {
@@ -1032,11 +1075,11 @@ public partial class MainWindow : Window
                 }
             }
             BiglySetupPanel.Visibility = Visibility.Collapsed;
-            BiglyHistoryGrid.Visibility = Visibility.Collapsed;
             BiglyGrid.Visibility = Visibility.Visible;
             BiglyActiveCount.Text = _torrentRows.Count(row => row.Progress < 100).ToString();
             BiglyTransferSpeed.Text = $"↓ {FormatBytes(_torrentRows.Sum(row => row.RateDown))}/s  ↑ {FormatBytes(_torrentRows.Sum(row => row.RateUp))}/s";
             BiglyRemainingData.Text = FormatBytes(_torrentRows.Sum(row => Math.Max(0, row.TotalSize - row.Downloaded)));
+            ShowBiglyHistory(false);
             BiglyStatusText.Text = $"{_torrentRows.Count} torrents · updated {DateTime.Now:t}";
         }
         catch (Exception ex)
@@ -1098,12 +1141,7 @@ public partial class MainWindow : Window
         try { await action(); await RefreshBiglyAsync(); }
         catch (Exception ex) { BiglyStatusText.Text = ex.Message; }
     }
-    private void BiglyHistory_Click(object sender, RoutedEventArgs e)
-    {
-        _biglyHistoryMode = !_biglyHistoryMode;
-        if (_biglyHistoryMode) ShowBiglyHistory(); else _ = RefreshBiglyAsync();
-    }
-    private void ShowBiglyHistory()
+    private void ShowBiglyHistory(bool updateStatus = true)
     {
         _torrentHistoryRows.Clear();
         foreach (var item in _vault.Collection("biglyHistory").OfType<JsonObject>().OrderByDescending(item => JsonNumber(item, "at")))
@@ -1115,10 +1153,8 @@ public partial class MainWindow : Window
                 Progress = $"{JsonNumber(item, "progress"):0.#}%", Downloaded = FormatBytes((long)JsonNumber(item, "downloaded")), Files = item["filesDeleted"]?.ToString() == "true" ? "Deleted" : "Kept"
             });
         }
-        BiglySetupPanel.Visibility = Visibility.Collapsed;
-        BiglyGrid.Visibility = Visibility.Collapsed;
         BiglyHistoryGrid.Visibility = Visibility.Visible;
-        BiglyStatusText.Text = $"{_torrentHistoryRows.Count} history records";
+        if (updateStatus) BiglyStatusText.Text = $"{_torrentHistoryRows.Count} history records";
     }
     private Task RecordTorrentHistoryAsync(TorrentRow row, string outcome, bool filesDeleted) => _vault.AddAsync("biglyHistory", new JsonObject
     {
@@ -1134,6 +1170,7 @@ public partial class MainWindow : Window
         return $"{size:0.#} {units[unit]}";
     }
 
+#if false // Health was removed from the Windows application in 2.0.5.
     private JsonObject HealthRoot()
     {
         if (_vault.Root["health"] is not JsonObject health)
@@ -1227,6 +1264,7 @@ public partial class MainWindow : Window
     };
     private static string HealthTypeName(string type) => type switch { "plant" => "Plant-based meal", "fish" => "Fish meal", "poultry" => "Poultry / egg meal", "redMeat" => "Red meat meal", "fried" => "Fried / takeaway", "sugary" => "Sugary item", "fruit" => "Fruit serving", "vegetable" => "Vegetable serving", "wholeGrain" => "Whole grain / legume", "water" => "Water cup", "activity" => "Activity minutes", "strength" => "Strength day", "sleep" => "Sleep hours", _ => type };
 
+#endif
     private async void DriveSignIn_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -1337,10 +1375,15 @@ public partial class MainWindow : Window
         try
         {
             var items = await _plex.LibraryAsync("movie");
+            _section = "Plex";
+            _plexMode = "all";
+            ShowSection();
             StatusText.Text = $"Plex connected · {items.Count} movies found";
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, "Plex connection", MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
+
+    private void PlexTokenHelp_Click(object sender, RoutedEventArgs e) => OpenExternal("https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/");
 
     private async void BiglySignIn_Click(object sender, RoutedEventArgs e)
     {
@@ -1464,6 +1507,11 @@ public partial class MainWindow : Window
     private async void LibraryCard_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is not LibraryRow row) return;
+        await OpenDetailsAsync(row);
+    }
+
+    private async Task OpenDetailsAsync(LibraryRow row)
+    {
         _selectedRow = row;
         DetailPoster.Source = ImageSource(row.Image);
         DetailBackdrop.Source = ImageSource(row.Backdrop.Length > 0 ? row.Backdrop : row.Image);
@@ -1531,7 +1579,7 @@ public partial class MainWindow : Window
             if (row.Overview.Length == 0)
             {
                 DetailOverview.Text = "Loading Wikipedia plot...";
-                var plot = await _catalog.WikipediaSummaryAsync($"{row.Name} video game plot");
+                var plot = await _catalog.WikipediaSummaryAsync(row.Name);
                 if (plot.Length > 0) { row.Source["overview"] = plot; changed = true; }
             }
         }
@@ -1604,6 +1652,16 @@ public partial class MainWindow : Window
     private void Trailer_Click(object sender, RoutedEventArgs e) => OpenExternal($"https://www.youtube.com/results?search_query={Uri.EscapeDataString((_selectedRow?.Name ?? "") + " official trailer")}");
     private void Google_Click(object sender, RoutedEventArgs e) => OpenExternal($"https://www.google.com/search?q={Uri.EscapeDataString(_selectedRow?.Name ?? "")}");
     private void Wikipedia_Click(object sender, RoutedEventArgs e) => OpenExternal($"https://en.wikipedia.org/w/index.php?search={Uri.EscapeDataString(_selectedRow?.Name ?? "")}");
+    private async void RefreshPlot_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedRow is not { } row || row.MediaType != "Game") return;
+        DetailOverview.Text = "Loading Wikipedia plot...";
+        var plot = await _catalog.WikipediaSummaryAsync(row.Name);
+        if (plot.Length == 0) { DetailOverview.Text = "No matching Wikipedia story section was found."; return; }
+        row.Source["overview"] = plot;
+        DetailOverview.Text = plot;
+        if (!IsCatalog(row)) await _vault.UpdateAsync(row.Collection, row.Source);
+    }
     private void Imdb_Click(object sender, RoutedEventArgs e)
     {
         var row = _selectedRow;
@@ -1776,6 +1834,12 @@ public partial class MainWindow : Window
         _selectedRow = row;
         switch (item.Tag?.ToString())
         {
+            case "open":
+                await OpenDetailsAsync(row);
+                return;
+            case "edit":
+                EditSelected_Click(sender, e);
+                return;
             case "primary":
                 MoveStatus_Click(sender, e);
                 return;

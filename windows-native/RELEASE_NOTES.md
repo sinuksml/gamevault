@@ -1,4 +1,13 @@
-# Sinu Game Vault for Windows 2.0.4
+# Sinu Game Vault for Windows 2.0.5
+
+## 2.0.5 Windows library reliability and clarity
+
+- Added a native application/taskbar icon and larger title, release-date, rental, and subscription countdown typography.
+- Added PS5 and Xbox/PC Upcoming Games filters, corrected mixed upcoming/released ordering, and broadened Discover results.
+- Improved Wikipedia plot discovery with a manual refresh action and safer fallback queries.
+- Added clear section dividers, light-mode-safe rating colors, editable card actions, and automatic details closing during navigation.
+- Added Plex token instructions and one-click library discovery, plus an always-visible BiglyBT history below active transfers.
+- Removed the Health section from the Windows edition and strengthened Drive synchronization when closing the application.
 
 ## 2.0.4 game library navigation and discovery
 
