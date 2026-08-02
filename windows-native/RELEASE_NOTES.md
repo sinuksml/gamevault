@@ -1,4 +1,19 @@
-# Sinu Game Vault for Windows 2.4.1
+# Sinu Game Vault for Windows 2.5.0
+
+## 2.5.0 Home rebuild, quick actions and list order
+
+- Title text is selectable. Detail titles, metadata, availability, notes and the story can be highlighted and copied; WPF text is not selectable by default, so these are now read-only text fields styled as body text.
+- Removed "Continue where you left off" and "Coming up" from Home.
+- Added a spending wheel to Home showing every vendor and subscription as its own arc, with a legend and the running total in the centre.
+- Selecting a vendor or subscription in that legend opens its website.
+- Added a Due dates panel to Home listing every active rental return and subscription renewal, soonest first, colour-coded once a date is close or overdue.
+- The Subscriptions tab now stacks Active subscriptions above Included games, separated by a divider, instead of placing them side by side.
+- Games section tabs now sit above the action buttons, matching Movies and TV Shows.
+- Cards carry a quick action suited to their state: Return and complete, Rent again, Start rental, Play now, Resume, Mark completed, Add to queue or Mark watched.
+- The Plex library cache is written to disk, so reopening the application reuses the last result instead of re-reading every section from the server.
+- Titles without artwork now draw a local placeholder with their initials on a colour derived from the title, rather than depending on an image service that could be slow or unreachable.
+- Finished games and watched titles no longer appear in Discover, the rental queue, upcoming or the watchlist.
+- Hand-built lists keep the order they were built in, newest first, instead of being re-sorted by release date.
 
 ## 2.4.1 Wikipedia plot only
 

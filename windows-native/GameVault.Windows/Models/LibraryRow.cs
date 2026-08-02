@@ -30,6 +30,17 @@ public sealed class LibraryRow
     public string Badges { get; init; } = "";
 
     /// <summary>
+    /// Position in the stored collection. New entries are inserted at the front,
+    /// so a smaller index means more recently added. Used to keep hand-curated
+    /// lists in the order the user built them rather than re-sorting by release
+    /// date, which made them look randomly ordered.
+    /// </summary>
+    public int SortIndex { get; init; }
+
+    /// <summary>When the record was added, if it carries a timestamp.</summary>
+    public long AddedAt { get; init; }
+
+    /// <summary>
     /// Artwork arrives in two different shapes and used to be forced into one
     /// fixed frame: TMDB posters are 2:3 portrait, RAWG game art is 16:9
     /// landscape. Filling a 252x326 box with a 1920x1080 image cropped away more
@@ -40,6 +51,72 @@ public sealed class LibraryRow
     /// </summary>
     public bool IsPortraitArt => MediaType is "Movie" or "TV Show";
     public double ArtHeight => IsPortraitArt ? 354 : 133;
+
+    /* Placeholder artwork is generated locally rather than fetched from an image
+       service, so a title without a cover still shows something recognisable when
+       the network is slow or unavailable. */
+    private static readonly string[] PlaceholderColors =
+        ["#2E4A6B", "#4A3A6B", "#6B3A4F", "#2F5B52", "#5B4A2F", "#3A4E6B", "#553A6B", "#6B4A3A"];
+
+    /// <summary>Up to two initials taken from the title.</summary>
+    public string Initials
+    {
+        get
+        {
+            var words = Name.Split([' ', '-', ':', '.'], StringSplitOptions.RemoveEmptyEntries)
+                .Where(word => char.IsLetterOrDigit(word[0])).Take(2).ToArray();
+            if (words.Length == 0) return "?";
+            return string.Concat(words.Select(word => char.ToUpperInvariant(word[0])));
+        }
+    }
+
+    /// <summary>A stable colour per title, so the same title always looks the same.</summary>
+    public string PlaceholderColor
+    {
+        get
+        {
+            var hash = 0;
+            foreach (var character in Name) hash = (hash * 31 + character) & 0x7FFFFFFF;
+            return PlaceholderColors[hash % PlaceholderColors.Length];
+        }
+    }
+
+    /// <summary>
+    /// The one action that makes sense for this title right now, shown directly on
+    /// the card so the common move does not require opening the detail page.
+    /// Empty means the card has no obvious next step.
+    /// </summary>
+    public string QuickActionLabel => Collection switch
+    {
+        "rentals" => "Return & complete",
+        "rentalHistory" => "Rent again",
+        "queue" => "Start rental",
+        "playing" when Status.Contains("hold", StringComparison.OrdinalIgnoreCase) || Status.Contains("drop", StringComparison.OrdinalIgnoreCase) => "Resume",
+        "playing" => "Mark completed",
+        "subscriptionGames" => "Play now",
+        "catalogExtra" => "Add to queue",
+        "upcoming" => "Add to queue",
+        "movieWatchlist" or "seriesWatchlist" => "Mark watched",
+        "watchingMovies" or "watchingSeries" => "Mark watched",
+        "watchedMovies" or "watchedSeries" or "played" => "",
+        _ => ""
+    };
+
+    /// <summary>Action key handled by the card's quick-action click handler.</summary>
+    public string QuickActionKey => Collection switch
+    {
+        "rentals" => "return-complete",
+        "rentalHistory" => "rent-again",
+        "queue" => "start-rental",
+        "playing" when Status.Contains("hold", StringComparison.OrdinalIgnoreCase) || Status.Contains("drop", StringComparison.OrdinalIgnoreCase) => "resume",
+        "playing" => "mark-completed",
+        "subscriptionGames" => "play-now",
+        "catalogExtra" or "upcoming" => "add-queue",
+        "movieWatchlist" or "seriesWatchlist" or "watchingMovies" or "watchingSeries" => "mark-watched",
+        _ => ""
+    };
+
+    public bool HasQuickAction => QuickActionLabel.Length > 0;
 
     public string RatingText => Rating > 0 ? $"{Rating:0.0}" : "Not rated";
     public string CardRatingText => Collection is "rentals" or "rentalHistory" ? ""

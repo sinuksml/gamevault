@@ -21,7 +21,55 @@ public sealed class PlexService
     private DateTimeOffset _lastRequestAt = DateTimeOffset.MinValue;
     private readonly Dictionary<string, (DateTimeOffset At, IReadOnlyList<PlexLibraryItem> Items)> _cache = new(StringComparer.Ordinal);
 
-    public PlexService() => RemoveLegacyArtworkFolder();
+    private readonly string _cachePath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SinuGameVault", "plex-cache.json");
+
+    public PlexService()
+    {
+        RemoveLegacyArtworkFolder();
+        LoadCache();
+    }
+
+    /* The library cache used to live only in memory, so every launch re-walked
+       every section on the server even though nothing had changed. Persisting it
+       means a restart reuses the last result until it goes stale. */
+    private void LoadCache()
+    {
+        try
+        {
+            if (!File.Exists(_cachePath)) return;
+            var stored = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, CachedLibrary>>(File.ReadAllText(_cachePath));
+            if (stored is null) return;
+            lock (_cache)
+                foreach (var entry in stored)
+                    if (DateTimeOffset.UtcNow - entry.Value.At < CacheLifetime)
+                        _cache[entry.Key] = (entry.Value.At, entry.Value.Items);
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsService.Log("Plex", "Could not read the cached library", ex);
+        }
+    }
+
+    private void SaveCache()
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_cachePath)!);
+            Dictionary<string, CachedLibrary> snapshot;
+            lock (_cache)
+                snapshot = _cache.ToDictionary(entry => entry.Key, entry => new CachedLibrary(entry.Value.At, entry.Value.Items.ToList()));
+            var temporary = _cachePath + ".tmp";
+            File.WriteAllText(temporary, System.Text.Json.JsonSerializer.Serialize(snapshot));
+            File.Move(temporary, _cachePath, overwrite: true);
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsService.Log("Plex", "Could not save the cached library", ex);
+        }
+    }
+
+    private sealed record CachedLibrary(DateTimeOffset At, List<PlexLibraryItem> Items);
 
     /// <summary>
     /// Plex runs on the same box that transcodes, so every call is serialized with
@@ -40,7 +88,11 @@ public sealed class PlexService
         finally { _requestGate.Release(); }
     }
 
-    public void ClearCache() { lock (_cache) _cache.Clear(); }
+    public void ClearCache()
+    {
+        lock (_cache) _cache.Clear();
+        try { if (File.Exists(_cachePath)) File.Delete(_cachePath); } catch { /* best effort */ }
+    }
 
     /// Artwork was mirrored into this folder and never trimmed. Images now load
     /// straight from the server through the shared thumbnail cache instead.
@@ -159,6 +211,7 @@ public sealed class PlexService
     private void Store(string key, IReadOnlyList<PlexLibraryItem> items)
     {
         lock (_cache) _cache[key] = (DateTimeOffset.UtcNow, items);
+        SaveCache();
     }
 
     public Task MarkWatchedAsync(string ratingKey, bool watched) => RequestAsync(HttpMethod.Get,

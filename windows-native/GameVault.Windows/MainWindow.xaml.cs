@@ -239,39 +239,223 @@ public partial class MainWindow : Window
         RefreshGameSpendChart();
         TotalSpentCount.Text = $"₹{rentalSpent + subscriptionSpent:N0}";
 
-        var continueRows = ReadCollection("rentals")
-            .Concat(ReadCollection("playing"))
-            .Concat(ReadCollection("watchingMovies"))
-            .Concat(ReadCollection("watchingSeries"))
-            .GroupBy(row => $"{row.MediaType}:{NormalizedTitle(row.Name)}")
-            .Select(group => group.First())
-            .Take(8)
-            .ToList();
-        ContinueCards.ItemsSource = continueRows;
+        var dueDates = BuildDueDates();
+        DueDatesList.ItemsSource = dueDates;
+        var overdue = dueDates.Count(row => row.DaysLeft is < 0);
+        var urgent = dueDates.Count(row => row.DaysLeft is >= 0 and <= 3);
+        DueDatesSubtitle.Text = dueDates.Count == 0
+            ? "No active rentals or subscriptions."
+            : overdue > 0
+                ? $"{dueDates.Count} tracked · {overdue} overdue"
+                : urgent > 0
+                    ? $"{dueDates.Count} tracked · {urgent} due within 3 days"
+                    : $"{dueDates.Count} tracked · nothing urgent";
 
-        var upcomingRows = ReadCollection("upcoming")
-            .Concat(ReadNativeCatalog("movies", "uphw"))
-            .Concat(ReadNativeCatalog("series", "seriesupcoming"))
-            .Where(row => row.DaysLeft is >= 0)
-            .OrderBy(row => row.DaysLeft ?? int.MaxValue)
-            .ThenBy(row => row.Name)
-            .Take(8)
-            .ToList();
-        UpcomingCards.ItemsSource = upcomingRows;
-        RecentActivityList.Items.Clear();
-        foreach (var item in _vault.RecentActivity(12).OfType<JsonObject>())
-        {
-            var at = item["at"]?.GetValue<long?>() ?? 0;
-            var when = at > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(at).LocalDateTime.ToString("dd MMM, h:mm tt") : "";
-            RecentActivityList.Items.Add($"{item["action"]} · {item["detail"]}   {when}");
-        }
-        if (RecentActivityList.Items.Count == 0) RecentActivityList.Items.Add("No recent changes yet.");
-        GamesRailButton.Content = $"▣   Games        {_vault.Collection("rentals").Count + _vault.Collection("playing").Count + _vault.Collection("played").Count}";
-        MoviesRailButton.Content = $"●   Movies       {_vault.Collection("movieWatchlist").Count + _vault.Collection("watchingMovies").Count + _vault.Collection("watchedMovies").Count}";
-        SeriesRailButton.Content = $"▤   TV Shows     {_vault.Collection("seriesWatchlist").Count + _vault.Collection("watchingSeries").Count + _vault.Collection("watchedSeries").Count}";
-        HomeSummaryText.Text = continueRows.Count == 0
+        BuildSpendBreakdown();
+
+        // Counts live in their own label so the rail keeps its icon layout.
+        GamesRailCount.Text = (_vault.Collection("rentals").Count + _vault.Collection("playing").Count + _vault.Collection("played").Count).ToString();
+        MoviesRailCount.Text = (_vault.Collection("movieWatchlist").Count + _vault.Collection("watchingMovies").Count + _vault.Collection("watchedMovies").Count).ToString();
+        SeriesRailCount.Text = (_vault.Collection("seriesWatchlist").Count + _vault.Collection("watchingSeries").Count + _vault.Collection("watchedSeries").Count).ToString();
+
+        var activeCount = _vault.Collection("rentals").Count + _vault.Collection("playing").Count;
+        HomeSummaryText.Text = activeCount == 0 && dueDates.Count == 0
             ? "Your library is ready. Add or import a title to begin."
-            : $"{continueRows.Count} active title{(continueRows.Count == 1 ? "" : "s")} · {upcomingRows.Count} upcoming date{(upcomingRows.Count == 1 ? "" : "s")} · {DriveHeaderStatus.Text}.";
+            : $"{activeCount} active title{(activeCount == 1 ? "" : "s")} · {dueDates.Count} upcoming date{(dueDates.Count == 1 ? "" : "s")} · {DriveHeaderStatus.Text}.";
+    }
+
+    /// <summary>Every active rental return and subscription renewal, soonest first.</summary>
+    private List<DueDateRow> BuildDueDates()
+    {
+        var rows = new List<DueDateRow>();
+        foreach (var item in _vault.Collection("rentals").OfType<JsonObject>())
+        {
+            var name = Text(item, "name", "title");
+            if (name.Length == 0) continue;
+            var due = RentalReturnDate(item);
+            int? days = DateTime.TryParse(due, out var parsed) ? (parsed.Date - DateTime.Today).Days : null;
+            var vendor = Text(item, "vendor");
+            var cost = Number(item, "cost");
+            var detail = string.Join("  ·  ", new[]
+            {
+                "Rental return",
+                vendor.Length > 0 ? vendor : "",
+                due.Length > 0 ? DisplayDate(due) : "",
+                cost > 0 ? $"₹{cost:N0}" : ""
+            }.Where(part => part.Length > 0));
+            rows.Add(new DueDateRow { Title = name, Detail = detail, DaysLeft = days });
+        }
+        foreach (var item in _vault.Collection("subscriptions").OfType<JsonObject>())
+        {
+            var service = Text(item, "service", "name");
+            if (service.Length == 0) continue;
+            // Cancelled subscriptions have no upcoming renewal to show.
+            if (string.Equals(Text(item, "active"), "false", StringComparison.OrdinalIgnoreCase)) continue;
+            var renews = Text(item, "renewsAt", "end", "start");
+            int? days = DateTime.TryParse(renews, out var parsed) ? (parsed.Date - DateTime.Today).Days : null;
+            var cost = Number(item, "cost", "monthlyCost");
+            var detail = string.Join("  ·  ", new[]
+            {
+                "Subscription renewal",
+                renews.Length > 0 ? DisplayDate(renews) : "",
+                cost > 0 ? $"₹{cost:N0}" : ""
+            }.Where(part => part.Length > 0));
+            rows.Add(new DueDateRow { Title = service, Detail = detail, DaysLeft = days });
+        }
+        return rows.OrderBy(row => row.DaysLeft ?? int.MaxValue).ThenBy(row => row.Title).ToList();
+    }
+
+    private static readonly string[] SpendPalette =
+        ["#4CC9F0", "#6366F1", "#F0616B", "#FFD166", "#5DE2B5", "#C77DFF", "#FF9F5A", "#4EA8DE"];
+
+    /// <summary>Totals spend per vendor and per subscription, then draws the donut.</summary>
+    private void BuildSpendBreakdown()
+    {
+        var totals = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in _vault.Collection("rentals").Concat(_vault.Collection("rentalHistory")).OfType<JsonObject>())
+        {
+            var cost = (decimal)Number(item, "cost");
+            if (cost <= 0) continue;
+            var vendor = Text(item, "vendor");
+            if (vendor.Length == 0) vendor = "Other rentals";
+            totals[vendor] = totals.GetValueOrDefault(vendor) + cost;
+        }
+        foreach (var item in _vault.Collection("subscriptions").OfType<JsonObject>())
+        {
+            var cost = (decimal)Number(item, "totalPaid", "cost");
+            if (cost <= 0) continue;
+            var service = Text(item, "service", "name");
+            if (service.Length == 0) service = "Subscription";
+            totals[service] = totals.GetValueOrDefault(service) + cost;
+        }
+
+        var slices = totals.OrderByDescending(pair => pair.Value)
+            .Select((pair, index) => new SpendSliceRow
+            {
+                Label = pair.Key,
+                Amount = pair.Value,
+                ToneColor = SpendPalette[index % SpendPalette.Length],
+                Website = VendorWebsite(pair.Key)
+            }).ToList();
+
+        SpendLegend.ItemsSource = slices;
+        var total = slices.Sum(slice => slice.Amount);
+        SpendDonutTotal.Text = $"₹{total:N0}";
+        SpendLegendHint.Text = slices.Count == 0
+            ? "No spending recorded yet."
+            : slices.Any(slice => slice.Website.Length > 0)
+                ? "Select a vendor to open its website."
+                : "Totals across rentals and subscriptions.";
+        DrawSpendDonut(slices, total);
+    }
+
+    /// <summary>Known storefronts, so a vendor in the breakdown can be opened directly.</summary>
+    private static string VendorWebsite(string name)
+    {
+        var value = name.ToLowerInvariant();
+        if (value.Contains("game hub") || value.Contains("gamehub")) return "https://thegamehub.in/";
+        if (value.Contains("gamer planet") || value.Contains("gamerplanet")) return "https://gamerplanet.in/";
+        if (value.Contains("geforce") || value.Contains("nvidia")) return "https://www.nvidia.com/en-in/geforce-now/";
+        if (value.Contains("game pass") || value.Contains("xbox")) return "https://www.xbox.com/en-IN/xbox-game-pass";
+        if (value.Contains("playstation") || value.Contains("ps plus") || value.Contains("ps+")) return "https://www.playstation.com/en-in/ps-plus/";
+        if (value.Contains("ea play")) return "https://www.ea.com/ea-play";
+        if (value.Contains("ubisoft")) return "https://www.ubisoft.com/en-us/ubisoft-plus";
+        if (value.Contains("steam")) return "https://store.steampowered.com/";
+        return "";
+    }
+
+    private void VendorSpend_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is not SpendSliceRow slice) return;
+        if (slice.Website.Length == 0)
+        {
+            StatusText.Text = $"No website on record for {slice.Label}.";
+            return;
+        }
+        OpenExternal(slice.Website);
+    }
+
+    /// <summary>Renders the spend split as donut arcs on the Home canvas.</summary>
+    private void DrawSpendDonut(IReadOnlyList<SpendSliceRow> slices, decimal total)
+    {
+        SpendDonut.Children.Clear();
+        const double size = 176, thickness = 26;
+        var radius = (size - thickness) / 2;
+        var centre = new Point(size / 2, size / 2);
+
+        if (total <= 0 || slices.Count == 0)
+        {
+            SpendDonut.Children.Add(new System.Windows.Shapes.Ellipse
+            {
+                Width = size - thickness, Height = size - thickness,
+                Stroke = (Brush)FindResource("DividerBrush"), StrokeThickness = thickness, Opacity = 0.5,
+                Margin = new Thickness(thickness / 2)
+            });
+            return;
+        }
+
+        // A single slice cannot be drawn as an arc (start and end coincide).
+        if (slices.Count == 1)
+        {
+            SpendDonut.Children.Add(new System.Windows.Shapes.Ellipse
+            {
+                Width = size - thickness, Height = size - thickness,
+                Stroke = BrushFromHex(slices[0].ToneColor), StrokeThickness = thickness,
+                Margin = new Thickness(thickness / 2)
+            });
+            return;
+        }
+
+        var startAngle = -90.0;
+        foreach (var slice in slices)
+        {
+            var sweep = (double)(slice.Amount / total) * 360.0;
+            if (sweep <= 0) continue;
+            // Leave a hairline gap so neighbouring arcs stay distinguishable.
+            var drawn = Math.Max(0.5, sweep - 1.5);
+            var end = startAngle + drawn;
+            var path = new System.Windows.Shapes.Path
+            {
+                Stroke = BrushFromHex(slice.ToneColor),
+                StrokeThickness = thickness,
+                StrokeStartLineCap = PenLineCap.Flat,
+                StrokeEndLineCap = PenLineCap.Flat,
+                Data = ArcGeometry(centre, radius, startAngle, end),
+                ToolTip = $"{slice.Label} · {slice.AmountText}"
+            };
+            SpendDonut.Children.Add(path);
+            startAngle += sweep;
+        }
+    }
+
+    private static Geometry ArcGeometry(Point centre, double radius, double startAngle, double endAngle)
+    {
+        var start = PointOnCircle(centre, radius, startAngle);
+        var end = PointOnCircle(centre, radius, endAngle);
+        var figure = new PathFigure { StartPoint = start, IsClosed = false, IsFilled = false };
+        figure.Segments.Add(new ArcSegment
+        {
+            Point = end,
+            Size = new Size(radius, radius),
+            SweepDirection = SweepDirection.Clockwise,
+            IsLargeArc = endAngle - startAngle > 180
+        });
+        var geometry = new PathGeometry();
+        geometry.Figures.Add(figure);
+        return geometry;
+    }
+
+    private static Point PointOnCircle(Point centre, double radius, double angleDegrees)
+    {
+        var radians = angleDegrees * Math.PI / 180.0;
+        return new Point(centre.X + radius * Math.Cos(radians), centre.Y + radius * Math.Sin(radians));
+    }
+
+    private static Brush BrushFromHex(string hex)
+    {
+        var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+        brush.Freeze();
+        return brush;
     }
 
     private void RefreshGameSpendChart()
@@ -332,6 +516,10 @@ public partial class MainWindow : Window
             source = source.Concat(ReadCollection("upcomingRemoved"));
             source = source.Where(UpcomingPlatformMatches);
         }
+        /* A finished game has no business sitting in Discover, the queue or the
+           upcoming list — it belongs in Completed only. */
+        if (_gameCollection is "catalogExtra" or "queue" or "upcoming")
+            source = ExcludeCompleted(source, "Game");
         SetRows(source, GameSortBox.SelectedItem as ComboBoxItem);
     }
 
@@ -468,6 +656,10 @@ public partial class MainWindow : Window
         var genre = MediaGenreBox.Text.Trim();
         if (year.Length > 0) rows = rows.Where(row => ParseSortDate(row.Date).Year.ToString(CultureInfo.InvariantCulture) == year || row.Source["year"]?.ToString() == year);
         if (genre.Length > 0) rows = rows.Where(row => row.Genre.Contains(genre, StringComparison.OrdinalIgnoreCase));
+        /* Discovery feeds already drop titles that live in a personal list, but the
+           watchlist itself could still show something also marked watched. */
+        if (_mediaMode is "watchlist" or "watching")
+            rows = ExcludeCompleted(rows, _section == "Movies" ? "Movie" : "TV Show");
         SetRows(rows, MediaSortBox.SelectedItem as ComboBoxItem);
         PopulateMediaYears(allRows);
         BuildMediaTabs();
@@ -488,7 +680,7 @@ public partial class MainWindow : Window
     private static string NormalizedTitle(string value) => new(value.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
     private static string CoverOrPlaceholder(string image, string title) => image.Length > 0
         ? image
-        : $"https://placehold.co/500x750/172235/EEF4FF/png?text={Uri.EscapeDataString(title)}";
+        : "";   // Empty means "draw the local initials placeholder".
 
     private IEnumerable<LibraryRow> ReadCollection(string collection) => ReadNodes(_vault.Collection(collection), collection);
 
@@ -506,11 +698,7 @@ public partial class MainWindow : Window
             var renewal = Text(node, "renewsAt", "end", "start");
             int? days = DateTime.TryParse(renewal, out var parsed) ? (parsed.Date - DateTime.Today).Days : null;
             var active = !string.Equals(Text(node, "active"), "false", StringComparison.OrdinalIgnoreCase) && days is null or >= 0;
-            var image = provider == "NVIDIA"
-                ? "https://placehold.co/500x750/76B900/FFFFFF/png?text=NVIDIA%0AGeForce+NOW"
-                : provider == "Xbox"
-                ? "https://placehold.co/500x750/107C10/FFFFFF/png?text=Xbox%0AGame+Pass"
-                : CoverOrPlaceholder("", service);
+            var image = Text(node, "img", "poster", "cover");
             yield return new LibraryRow
             {
                 Id = Text(node, "id"),
@@ -535,8 +723,10 @@ public partial class MainWindow : Window
 
     private IEnumerable<LibraryRow> ReadNodes(JsonArray source, string collection)
     {
+        var index = -1;
         foreach (var node in source.OfType<JsonObject>())
         {
+            index++;
             var name = Text(node, "name", "title");
             if (string.IsNullOrWhiteSpace(name)) continue;
             var date = collection == "rentals"
@@ -584,14 +774,74 @@ public partial class MainWindow : Window
                 DaysLeft = days,
                 GroupName = GroupName(collection, Text(node, "status", "state"), days),
                 Badges = GameBadges(name, node, mediaType),
+                SortIndex = index,
+                AddedAt = AddedTimestamp(node),
                 Source = node
             };
         }
     }
 
+    /// <summary>Timestamp a record was added, in milliseconds; 0 when unknown.</summary>
+    private static long AddedTimestamp(JsonObject node)
+    {
+        foreach (var key in new[] { "added", "addedAt", "started", "t", "createdAt" })
+        {
+            var raw = node[key];
+            if (raw is null) continue;
+            if (raw.GetValueKind() == System.Text.Json.JsonValueKind.Number && raw.GetValue<long?>() is { } number && number > 0) return number;
+            var text = raw.ToString();
+            if (long.TryParse(text, out var parsedNumber) && parsedNumber > 0) return parsedNumber;
+            if (DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var parsedDate))
+                return new DateTimeOffset(parsedDate).ToUnixTimeMilliseconds();
+        }
+        return 0;
+    }
+
+    /// <summary>
+    /// Lists the user curates by hand. These keep the order they were built in;
+    /// discovery feeds stay sorted by release date because they are not curated.
+    /// </summary>
+    private static bool IsCuratedList(string collection) => collection is
+        "rentals" or "rentalHistory" or "playing" or "queue" or "played" or "upcoming" or "upcomingRemoved"
+        or "subscriptions" or "subscriptionGames" or "hiddenGames"
+        or "movieWatchlist" or "watchingMovies" or "watchedMovies" or "hiddenMovies"
+        or "seriesWatchlist" or "watchingSeries" or "watchedSeries" or "hiddenSeries";
+
+    /// <summary>
+    /// Titles already finished, so they can be kept out of the active lists.
+    /// A completed game reappearing under Discover or Queue is noise.
+    /// </summary>
+    private HashSet<string> CompletedTitleKeys(string mediaType)
+    {
+        var collections = mediaType switch
+        {
+            "Movie" => new[] { "watchedMovies", "hiddenMovies" },
+            "TV Show" => ["watchedSeries", "hiddenSeries"],
+            _ => new[] { "played", "hiddenGames" }
+        };
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var collection in collections)
+            foreach (var node in _vault.Collection(collection).OfType<JsonObject>())
+            {
+                var title = Text(node, "name", "title");
+                if (title.Length > 0) keys.Add(NormalizedTitle(title));
+            }
+        return keys;
+    }
+
+    /// <summary>Removes finished titles from lists that are meant to show what is still outstanding.</summary>
+    private IEnumerable<LibraryRow> ExcludeCompleted(IEnumerable<LibraryRow> source, string mediaType)
+    {
+        var completed = CompletedTitleKeys(mediaType);
+        if (completed.Count == 0) return source;
+        return source.Where(row => !completed.Contains(NormalizedTitle(row.Name)));
+    }
+
     private void SetRows(IEnumerable<LibraryRow> source, ComboBoxItem? sortItem = null)
     {
         var query = SearchBox.Text.Trim();
+        // Materialise once: the sort selection inspects the rows before ordering them.
+        source = source as IList<LibraryRow> ?? source.ToList();
         source = _section == "Games" && _gameCollection == "upcoming"
             ? source.OrderBy(row => UpcomingOrder(row)).ThenBy(row => row.DaysLeft is >= 0 ? row.DaysLeft : int.MaxValue).ThenByDescending(row => ParseSortDate(row.Date)).ThenBy(row => row.Name)
             : _section == "Games" && _gameCollection == "catalogExtra" && (sortItem?.Tag?.ToString()) == "new"
@@ -611,6 +861,12 @@ public partial class MainWindow : Window
                 "title" => source.OrderBy(row => row.Name),
                 "date" => source.OrderBy(row => row.DaysLeft is < 0 ? 1 : 0).ThenBy(row => row.DaysLeft ?? int.MaxValue),
                 "rating" => source.OrderByDescending(row => row.Rating),
+                /* "Newest first" on a hand-built list means the order it was built
+                   in, newest at the front — not newest by release date, which is
+                   what made watchlists and queues look randomly shuffled. New
+                   records are inserted at index 0, so a lower SortIndex is newer. */
+                _ when source.Any() && source.All(row => IsCuratedList(row.Collection))
+                    => source.OrderByDescending(row => row.AddedAt).ThenBy(row => row.SortIndex),
                 _ => source.OrderByDescending(row => ParseSortDate(row.Date)).ThenBy(row => row.Name)
             };
         /* Suppress binding notifications while rebuilding the underlying collection
@@ -677,7 +933,9 @@ public partial class MainWindow : Window
         || DateTime.TryParse(value, System.Globalization.CultureInfo.CurrentCulture, System.Globalization.DateTimeStyles.AllowWhiteSpaces, out date) ? date : DateTime.MinValue;
     private static string DisplayDate(string value) => DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out var date)
         || DateTime.TryParse(value, CultureInfo.CurrentCulture, DateTimeStyles.AllowWhiteSpaces, out date) ? date.ToString("dd-MMMM-yyyy", CultureInfo.InvariantCulture) : value;
-    private static int GroupOrder(string group) => group switch { "Active rentals" or "Playing now" or "Upcoming releases" or "Active subscriptions" => 0, "Resume later" or "Included games" => 1, "On hold" or "Released" or "Past subscriptions" => 2, "Rental history" => 3, "Removed games" => 4, _ => 0 };
+    /* "Included games" sits last so the Subscriptions tab reads as the
+       subscriptions themselves first, then the games they include. */
+    private static int GroupOrder(string group) => group switch { "Active rentals" or "Playing now" or "Upcoming releases" or "Active subscriptions" => 0, "Resume later" => 1, "On hold" or "Released" or "Past subscriptions" => 2, "Rental history" => 3, "Removed games" => 4, "Included games" => 5, _ => 0 };
 
     private double RecommendationScore(LibraryRow candidate)
     {
@@ -2068,6 +2326,65 @@ public partial class MainWindow : Window
                 }, "Not Interested");
                 return;
         }
+    }
+
+    /// <summary>
+    /// The quick-action button on a card. Each action maps to the same move the
+    /// detail page would perform, so behaviour stays consistent either way.
+    /// </summary>
+    private async void CardQuickButton_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is not LibraryRow row) return;
+        // The card itself is a button; without this the click also opens details.
+        e.Handled = true;
+        _selectedRow = row;
+        switch (row.QuickActionKey)
+        {
+            case "return-complete":
+                await MoveRowToAsync(row, "played", "Finished");
+                StatusText.Text = $"{row.Name} returned and marked completed.";
+                return;
+            case "rent-again":
+            case "start-rental":
+                await StartRentalAsync(row);
+                return;
+            case "resume":
+                await MoveRowToAsync(row, "playing", "Playing");
+                StatusText.Text = $"Resumed {row.Name}.";
+                return;
+            case "mark-completed":
+                await MoveRowToAsync(row, "played", "Finished");
+                StatusText.Text = $"{row.Name} marked completed.";
+                return;
+            case "play-now":
+                await MoveRowToAsync(row, "playing", "Playing");
+                StatusText.Text = $"Now playing {row.Name}.";
+                return;
+            case "add-queue":
+                await MoveRowToAsync(row, "queue", "Queued");
+                StatusText.Text = $"{row.Name} added to the rental queue.";
+                return;
+            case "mark-watched":
+                await MoveRowToAsync(row, row.MediaType == "Movie" ? "watchedMovies" : "watchedSeries", "Watched");
+                StatusText.Text = $"{row.Name} marked watched.";
+                return;
+        }
+    }
+
+    /// <summary>Moves a title into active rentals, starting a fresh 30-day period today.</summary>
+    private async Task StartRentalAsync(LibraryRow row)
+    {
+        var rental = row.Source.DeepClone() as JsonObject ?? [];
+        rental["id"] = Guid.NewGuid().ToString("N");
+        rental["start"] = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        rental["returnDate"] = DateTime.Today.AddDays(30).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        rental["added"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        rental.Remove("end");
+        rental.Remove("returnedAt");
+        await _vault.AddAsync("rentals", rental);
+        if (row.Collection == "queue") await _vault.RemoveAsync("queue", Text(row.Source, "id"));
+        RefreshAll();
+        StatusText.Text = $"Started a 30-day rental for {row.Name}.";
     }
 
     private static void OpenExternal(string url) => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });

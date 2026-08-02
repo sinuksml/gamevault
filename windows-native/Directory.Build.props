@@ -8,7 +8,7 @@
     to Inno Setup, and the csproj inherits it.
   -->
   <PropertyGroup>
-    <GameVaultVersion>2.4.1</GameVaultVersion>
+    <GameVaultVersion>2.5.0</GameVaultVersion>
     <Version>$(GameVaultVersion)</Version>
   </PropertyGroup>
 </Project>
