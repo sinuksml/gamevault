@@ -171,6 +171,37 @@ try
     Assert(DriveService.MergeVaults(webLocal, webRemote, preferRemote: false)["webOnlyFutureField"]?["mustSurvive"]?.GetValue<bool>() == true,
         "web-only fields survive a locally-preferred Drive merge");
 
+    // The audit log has no record identity, so an earlier merge appended both
+    // sides' entries on every sync and grew the vault to hundreds of megabytes.
+    // A merge of two large audit logs must stay capped, not accumulate.
+    static JsonArray BigAudit(int count, long baseAt)
+    {
+        var log = new JsonArray();
+        for (var i = 0; i < count; i++)
+            log.Add(new JsonObject { ["at"] = baseAt + i, ["action"] = "sync", ["detail"] = $"entry {baseAt + i}", ["device"] = "d" });
+        return log;
+    }
+    var auditLocal = new JsonObject { ["updatedAt"] = 2, ["queue"] = new JsonArray(), ["audit"] = BigAudit(5000, 1_000_000) };
+    var auditRemote = new JsonObject { ["updatedAt"] = 1, ["queue"] = new JsonArray(), ["audit"] = BigAudit(5000, 2_000_000) };
+    var auditMerged = DriveService.MergeVaults(auditLocal, auditRemote, preferRemote: false)["audit"] as JsonArray;
+    Assert(auditMerged is { Count: <= 200 }, "merging two large audit logs stays capped instead of accumulating");
+    Assert(auditMerged?.OfType<JsonObject>().First()["at"]?.GetValue<long>() == 2_004_999, "the newest audit entry is the one kept");
+
+    // Deletion tombstones were appended, not deduped, so the same marker piled up
+    // thousands of times across merges. A merge must keep one marker per key.
+    static JsonArray DupDeletions(int count, string collection, string identity, long baseAt)
+    {
+        var log = new JsonArray();
+        for (var i = 0; i < count; i++)
+            log.Add(new JsonObject { ["collection"] = collection, ["identity"] = identity, ["at"] = baseAt + i });
+        return log;
+    }
+    var delLocal = new JsonObject { ["updatedAt"] = 2, ["queue"] = new JsonArray(), ["deletions"] = DupDeletions(500, "queue", "tmdb:99", 10) };
+    var delRemote = new JsonObject { ["updatedAt"] = 1, ["queue"] = new JsonArray(), ["deletions"] = DupDeletions(500, "queue", "tmdb:99", 500) };
+    var delMerged = DriveService.MergeVaults(delLocal, delRemote, preferRemote: false)["deletions"] as JsonArray;
+    Assert(delMerged?.Count == 1, "duplicate deletion markers collapse to one per (collection, identity)");
+    Assert(delMerged?.OfType<JsonObject>().First()["at"]?.GetValue<long>() == 999, "the newest deletion marker is the one kept");
+
     Console.WriteLine("Checking Wikipedia story cleanup...");
     // Plots saved by earlier versions carry the heading, [edit], citation markers
     // and the reference list. Only the prose should survive.

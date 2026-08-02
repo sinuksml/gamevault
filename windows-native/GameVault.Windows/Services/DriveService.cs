@@ -370,6 +370,12 @@ public sealed class DriveService
     /// Pure vault merge. Public so the smoke suite can cover it directly — this is
     /// the most failure-prone code in the application and previously had no test.
     /// </summary>
+    /// <summary>Append-only diagnostic logs: reconciled by keeping the newest entries, never by appending both sides.</summary>
+    private static readonly string[] LogArrays = ["audit"];
+
+    /// <summary>Reads a millisecond timestamp regardless of whether it is stored as int, long or text.</summary>
+    private static long At(JsonObject? item) => long.TryParse(item?["at"]?.ToString(), out var value) ? value : 0;
+
     public static JsonObject MergeVaults(JsonObject local, JsonObject remote, bool preferRemote)
     {
         var preferred = (preferRemote ? remote : local).DeepClone() as JsonObject ?? new JsonObject();
@@ -377,6 +383,12 @@ public sealed class DriveService
         var names = local.Concat(remote).Where(pair => pair.Value is JsonArray).Select(pair => pair.Key).Distinct(StringComparer.Ordinal).ToList();
         foreach (var name in names)
         {
+            /* Append-only logs (audit) and tombstones (deletions) have no record
+               identity, so the loop below would hit the "no candidates" branch for
+               every entry and append the other side's whole array on every sync.
+               That, uncapped, is what grew the vault past 600 MB (audit) and left
+               18k copies of 2 real deletions. Both are reconciled after the loop. */
+            if (LogArrays.Contains(name, StringComparer.Ordinal) || name == "deletions") continue;
             var output = preferred[name] as JsonArray;
             if (output is null)
             {
@@ -405,6 +417,42 @@ public sealed class DriveService
             if (pair.Value is JsonArray || preferred.ContainsKey(pair.Key)) continue;
             preferred[pair.Key] = pair.Value?.DeepClone();
         }
+
+        /* Reconcile the append-only logs skipped above: take the newest entries
+           from each side (so a legacy multi-million-entry log costs one sort, not
+           a giant merged array), drop exact duplicates, and keep the newest few.
+           Matches the web app, which caps its own audit log the same way. */
+        foreach (var name in LogArrays)
+        {
+            IEnumerable<JsonObject> Newest(JsonArray? array) => (array?.OfType<JsonObject>() ?? [])
+                .OrderByDescending(At).Take(VaultRepository.MaxAuditEntries);
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var trimmed = new JsonArray();
+            foreach (var item in Newest(preferred[name] as JsonArray).Concat(Newest(secondary[name] as JsonArray))
+                .OrderByDescending(At))
+            {
+                if (trimmed.Count >= VaultRepository.MaxAuditEntries) break;
+                if (seen.Add(item.ToJsonString())) trimmed.Add(item.DeepClone());
+            }
+            preferred[name] = trimmed;
+        }
+
+        /* Deletion markers are tombstones keyed by (collection, identity); the
+           timestamp only decides which copy is newest. Keep one marker per key —
+           the newest — instead of appending a fresh duplicate on every sync. */
+        var dedupedDeletions = new JsonArray();
+        var newestByKey = new Dictionary<string, JsonObject>(StringComparer.OrdinalIgnoreCase);
+        foreach (var marker in ((preferred["deletions"] as JsonArray)?.OfType<JsonObject>() ?? [])
+            .Concat((secondary["deletions"] as JsonArray)?.OfType<JsonObject>() ?? []))
+        {
+            var key = Text(marker, "collection") + " " + Text(marker, "identity");
+            if (key == " ") continue;
+            if (!newestByKey.TryGetValue(key, out var kept) || At(marker) > At(kept))
+                newestByKey[key] = marker;
+        }
+        foreach (var marker in newestByKey.Values.OrderByDescending(At))
+            dedupedDeletions.Add(marker.DeepClone());
+        preferred["deletions"] = dedupedDeletions;
 
         ApplyHiddenWins(preferred, "hiddenGames", ["upcoming", "catalogExtra"]);
         ApplyHiddenWins(preferred, "upcomingRemoved", ["upcoming"]);

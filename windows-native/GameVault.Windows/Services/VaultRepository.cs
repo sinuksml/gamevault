@@ -287,8 +287,23 @@ public sealed class VaultRepository
 
     private void TrimRecovery()
     {
-        foreach (var old in new DirectoryInfo(_recoveryFolder).GetFiles("*.json").OrderByDescending(x => x.CreationTimeUtc).Skip(60))
-            old.Delete();
+        /* Retention used to be a fixed 60 snapshots regardless of size. When the
+           vault itself had bloated to ~650 MB, that meant ~11 GB of recovery
+           copies on disk, and a full disk then failed the atomic save. Keep the
+           five newest unconditionally, then stop once the snapshots would exceed
+           a size budget or pass sixty files, so recovery is bounded even if an
+           individual snapshot is unexpectedly large. */
+        const long budgetBytes = 200L * 1024 * 1024;
+        var snapshots = new DirectoryInfo(_recoveryFolder).GetFiles("*.json")
+            .OrderByDescending(file => file.CreationTimeUtc).ToList();
+        long kept = 0;
+        var keeping = 0;
+        foreach (var snapshot in snapshots)
+        {
+            keeping++;
+            kept += snapshot.Length;
+            if (keeping > 5 && (kept > budgetBytes || keeping > 60)) snapshot.Delete();
+        }
     }
 
     public IReadOnlyList<RecoverySnapshot> RecoverySnapshots() => new DirectoryInfo(_recoveryFolder)
@@ -342,11 +357,56 @@ public sealed class VaultRepository
             }
             root[name] = unique;
         }
+        /* audit is an append-only diagnostic log whose entries carry no record
+           identity, so it was never deduplicated or capped here the way activity
+           and deletions are. Combined with a Drive merge that appended every
+           entry from both sides on each sync, it grew past two million records —
+           hundreds of megabytes that loaded into memory and were rewritten in
+           full on every save. Keep only the most recent entries. */
+        TrimLog(root, "audit", MaxAuditEntries);
+        /* Deletion tombstones are keyed by (collection, identity); a Drive merge
+           bug appended a duplicate on every sync, leaving thousands of copies of
+           a handful of real markers. Collapse them to one per key, newest kept. */
+        DedupeDeletions(root);
         root["version"] = CurrentSchema;
         root["revision"] ??= 0;
         root["updatedAt"] ??= 0;
         return root;
     }
+
+    /// <summary>Reads a millisecond timestamp regardless of whether it is stored as int, long or text.</summary>
+    private static long AtValue(JsonNode? node) => long.TryParse((node as JsonObject)?["at"]?.ToString(), out var value) ? value : 0;
+
+    /// <summary>Keeps one deletion tombstone per (collection, identity), newest wins.</summary>
+    internal static void DedupeDeletions(JsonObject root)
+    {
+        if (root["deletions"] is not JsonArray deletions || deletions.Count == 0) return;
+        var newest = new Dictionary<string, JsonObject>(StringComparer.OrdinalIgnoreCase);
+        foreach (var marker in deletions.OfType<JsonObject>())
+        {
+            var key = NodeText(marker, "collection") + " " + NodeText(marker, "identity");
+            if (key == " ") continue;
+            if (!newest.TryGetValue(key, out var kept) || AtValue(marker) > AtValue(kept))
+                newest[key] = marker;
+        }
+        var deduped = new JsonArray();
+        foreach (var marker in newest.Values.OrderByDescending(AtValue))
+            deduped.Add(marker.DeepClone());
+        root["deletions"] = deduped;
+    }
+
+    /// <summary>Newest entries in an append-only log array; older ones are dropped.</summary>
+    internal static void TrimLog(JsonObject root, string name, int keep)
+    {
+        if (root[name] is not JsonArray log || log.Count <= keep) return;
+        var trimmed = new JsonArray();
+        foreach (var node in log.OfType<JsonObject>().OrderByDescending(AtValue).Take(keep))
+            trimmed.Add(node.DeepClone());
+        root[name] = trimmed;
+    }
+
+    /// <summary>Kept audit entries. The web app caps its own audit log at 200; matching it keeps both sides small.</summary>
+    public const int MaxAuditEntries = 200;
 
     private static void Validate(JsonObject root)
     {

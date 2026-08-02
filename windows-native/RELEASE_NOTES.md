@@ -1,4 +1,13 @@
-# Sinu Game Vault for Windows 2.5.1
+# Sinu Game Vault for Windows 2.5.2
+
+## 2.5.2 Fix runaway vault growth (slowness and crashing)
+
+- Fixed the cause of the app becoming very slow and crashing: the vault file had grown to about 650 MB, almost all of it a diagnostic `audit` log that had reached 2.3 million entries. Loading it held roughly 13 GB of memory, and every edit rewrote the whole file, so the app thrashed and ran out of memory. The same oversized file syncs through Google Drive, so the web app was slow and could crash a phone tab for the same reason.
+- Root cause: the Drive merge appended every entry of identity-less arrays — the `audit` log and the `deletions` tombstones — from both sides on every sync, with no cap and no de-duplication. One vault here held 2.3 million audit entries and 18,402 deletion markers that were really only 2 distinct deletions repeated thousands of times.
+- The merge now keeps only the newest audit entries (matching the web app's 200-entry cap) and keeps one deletion marker per record, newest wins, instead of re-appending duplicates.
+- `audit` is now capped and `deletions` de-duplicated whenever the vault loads, so an already-bloated vault heals itself on the next start.
+- Recovery snapshots are now limited by total size (about 200 MB) rather than a fixed count of 60, which had let recovery grow to 11 GB when each snapshot was a copy of the 650 MB vault.
+- Your existing vault on this machine was compacted from 650 MB to under 4 MB with no library data lost; the previous copy was preserved as `vault.pre-audit-cleanup.bak.json`.
 
 ## 2.5.1 Horizontal card layout, artwork that loads, larger game cards
 
