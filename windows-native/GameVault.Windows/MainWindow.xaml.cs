@@ -24,12 +24,11 @@ public partial class MainWindow : Window
     private readonly BiglyBtService _bigly = new();
     private readonly CatalogService _catalog = new();
     private readonly AvailabilityService _availability = new();
-    private readonly ObservableCollection<LibraryRow> _rows = [];
+    private List<LibraryRow> _rows = [];
     private readonly ObservableCollection<LibraryRow> _plexRows = [];
     private readonly ObservableCollection<TorrentRow> _torrentRows = [];
     private readonly ObservableCollection<TorrentHistoryRow> _torrentHistoryRows = [];
     private readonly ObservableCollection<MonthlySpendRow> _monthlySpendRows = [];
-    private readonly ICollectionView _rowsView;
     /* Each sync downloads, merges and re-uploads the whole vault, so a 2.5 second
        debounce meant a burst of that work while the user was still typing. This
        waits for editing to settle instead; closing still flushes what is pending. */
@@ -62,11 +61,6 @@ public partial class MainWindow : Window
         InitializeComponent();
         _preferences = new UserPreferences(_vault.StorageFolder);
         _drive = new DriveService(_vault.StorageFolder);
-        _rowsView = CollectionViewSource.GetDefaultView(_rows);
-        GamesCards.ItemsSource = _rowsView;
-        GamesList.ItemsSource = _rowsView;
-        MediaCards.ItemsSource = _rowsView;
-        MediaList.ItemsSource = _rowsView;
         PlexCards.ItemsSource = _plexRows;
         BiglyGrid.ItemsSource = _torrentRows;
         BiglyHistoryGrid.ItemsSource = _torrentHistoryRows;
@@ -216,7 +210,7 @@ public partial class MainWindow : Window
         var featured = candidates.Where(row => row.DaysLeft is null or >= 0 || _section == "BiglyBT").OrderBy(row => row.DaysLeft ?? int.MaxValue).FirstOrDefault()
             ?? candidates.FirstOrDefault();
         var image = featured?.Backdrop.Length > 0 ? featured.Backdrop : featured?.Image ?? "";
-        SectionBackdrop.Source = ImageSource(image, 1280);
+        SetArtwork(SectionBackdrop, image, 1280);
         FeaturedTitleText.Text = featured is null ? "" : $"Featured: {featured.Name}";
     }
 
@@ -278,12 +272,11 @@ public partial class MainWindow : Window
             var cost = Number(item, "cost");
             var detail = string.Join("  ·  ", new[]
             {
-                "Rental return",
                 vendor.Length > 0 ? vendor : "",
                 due.Length > 0 ? DisplayDate(due) : "",
                 cost > 0 ? $"₹{cost:N0}" : ""
             }.Where(part => part.Length > 0));
-            rows.Add(new DueDateRow { Title = name, Detail = detail, DaysLeft = days });
+            rows.Add(new DueDateRow { Title = name, Kind = "Rental return", Detail = detail, DaysLeft = days });
         }
         foreach (var item in _vault.Collection("subscriptions").OfType<JsonObject>())
         {
@@ -296,11 +289,10 @@ public partial class MainWindow : Window
             var cost = Number(item, "cost", "monthlyCost");
             var detail = string.Join("  ·  ", new[]
             {
-                "Subscription renewal",
                 renews.Length > 0 ? DisplayDate(renews) : "",
                 cost > 0 ? $"₹{cost:N0}" : ""
             }.Where(part => part.Length > 0));
-            rows.Add(new DueDateRow { Title = service, Detail = detail, DaysLeft = days });
+            rows.Add(new DueDateRow { Title = service, Kind = "Subscription renewal", Detail = detail, DaysLeft = days });
         }
         return rows.OrderBy(row => row.DaysLeft ?? int.MaxValue).ThenBy(row => row.Title).ToList();
     }
@@ -878,12 +870,29 @@ public partial class MainWindow : Window
            cursor mid-block and throws "Cannot change... while Refresh is being
            deferred". Rebuilding into a fresh list and swapping the ItemsSource
            in one step gives the same benefit without that hazard. */
-        _rowsView.GroupDescriptions.Clear();
-        var filtered = source.Where(x => query.Length == 0 || x.Name.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
-        _rows.Clear();
-        foreach (var row in filtered) _rows.Add(row);
+        _rows = source.Where(x => query.Length == 0 || x.Name.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        /* A fresh view per refresh, given only to the page being shown.
+           One shared view used to feed all four card and list controls, so turning
+           grouping on for Games turned it on for Movies and TV as well. Clearing it
+           again did not undo the damage: those controls kept laying their cards out
+           with the group panel, which stacked them in a single centred column
+           instead of flowing them across the page. A new view also forces the item
+           containers to be regenerated, so the panel always matches the current
+           grouping instead of whatever the previous page left behind. */
+        var view = new ListCollectionView(_rows);
         if ((_section == "Games" || _section == "Movies" && _mediaMode is "mlott" or "mlup") && _rows.Any(row => row.GroupName.Length > 0))
-            _rowsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(LibraryRow.GroupName)));
+            view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(LibraryRow.GroupName)));
+        if (_section == "Games")
+        {
+            GamesCards.ItemsSource = view;
+            GamesList.ItemsSource = view;
+        }
+        else
+        {
+            MediaCards.ItemsSource = view;
+            MediaList.ItemsSource = view;
+        }
         StatusText.Text = $"{_rows.Count} item{(_rows.Count == 1 ? "" : "s")}";
     }
 
@@ -1940,8 +1949,8 @@ public partial class MainWindow : Window
         _selectedRow = row;
         // 260-wide frame: 2:3 for posters, 16:9 for game art.
         DetailPosterFrame.Height = row.IsPortraitArt ? 390 : 146;
-        DetailPoster.Source = ImageSource(row.Image, 420);
-        DetailBackdrop.Source = ImageSource(row.Backdrop.Length > 0 ? row.Backdrop : row.Image, 1280);
+        SetArtwork(DetailPoster, row.Image, 420);
+        SetArtwork(DetailBackdrop, row.Backdrop.Length > 0 ? row.Backdrop : row.Image, 1280);
         DetailType.Text = $"{row.MediaType.ToUpperInvariant()}  /  {row.CategoryLabel.ToUpperInvariant()}";
         DetailTitle.Text = row.Name;
         var duration = Integer(row.Source, "used", "days");
@@ -2037,8 +2046,8 @@ public partial class MainWindow : Window
         var refreshed = ReadNodes(new JsonArray(row.Source.DeepClone()), row.Collection).First();
         _selectedRow = refreshed;
         DetailPosterFrame.Height = refreshed.IsPortraitArt ? 390 : 146;
-        DetailPoster.Source = ImageSource(refreshed.Image, 420);
-        DetailBackdrop.Source = ImageSource(refreshed.Backdrop.Length > 0 ? refreshed.Backdrop : refreshed.Image, 1280);
+        SetArtwork(DetailPoster, refreshed.Image, 420);
+        SetArtwork(DetailBackdrop, refreshed.Backdrop.Length > 0 ? refreshed.Backdrop : refreshed.Image, 1280);
         DetailOverview.Text = CatalogService.CleanStoryText(Text(refreshed.Source, "wikipediaPlot")) is { Length: > 0 } wikipediaPlot ? wikipediaPlot : refreshed.Overview.Length > 0 ? refreshed.Overview : refreshed.MediaType == "Game" && refreshed.Collection != "playing"
             ? "Story summaries are available for games in Now Playing." : "No matching summary was found for this title.";
         DetailAvailability.Text = refreshed.Availability.Length > 0 ? refreshed.Availability : "No streaming or rental provider information found.";
@@ -2103,8 +2112,12 @@ public partial class MainWindow : Window
     /* Detail art and backdrops go through the shared cache too, so opening the
        same title repeatedly reuses one decoded bitmap instead of decoding the
        full-resolution original again each time. */
-    private static System.Windows.Media.ImageSource? ImageSource(string url, int decodeWidth = 640)
-        => ThumbnailCache.Load(url, decodeWidth);
+    /// <summary>Paints artwork into an Image once it has been downloaded and decoded.</summary>
+    private static void SetArtwork(Image target, string url, int decodeWidth = 640)
+    {
+        Artwork.SetDecodeWidth(target, decodeWidth);
+        Artwork.SetUrl(target, url ?? "");
+    }
 
     private void Trailer_Click(object sender, RoutedEventArgs e) => OpenExternal($"https://www.youtube.com/results?search_query={Uri.EscapeDataString((_selectedRow?.Name ?? "") + " official trailer")}");
     private void Google_Click(object sender, RoutedEventArgs e) => OpenExternal($"https://www.google.com/search?q={Uri.EscapeDataString(_selectedRow?.Name ?? "")}");

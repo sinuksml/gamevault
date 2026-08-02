@@ -1,4 +1,13 @@
-# Sinu Game Vault for Windows 2.5.0
+# Sinu Game Vault for Windows 2.5.1
+
+## 2.5.1 Horizontal card layout, artwork that loads, larger game cards
+
+- Games, movies and TV shows now flow across the page instead of stacking in a single column. All four card and list views used to share one collection view, so switching on grouping for Games switched it on everywhere; Movies and TV then kept laying their cards out with the group panel, which stacked them in one centred column. Each page now gets its own view.
+- Artwork loads reliably. Posters were handed to WPF as a remote URL, and a fetch could come back as a 1x1 bitmap with no error raised. Because that result was cached, the card showed its initials placeholder for the rest of the session, which is why movie and TV posters were usually blank while game art happened to survive. Artwork is now downloaded once through the application's own HTTP stack, kept in a local cache folder, and decoded from that file at the size the card displays.
+- Artwork is available offline after the first load, and a failed download is retried next time instead of being remembered as a failure.
+- Game cards are now the same size as movie cards. Game art is 16:9 and a card frame is 2:3, so filling the frame would have to crop away half the width. The picture is instead fitted whole and the space around it filled with a soft, heavily downscaled copy of the same image: nothing is cropped, stretched or zoomed, and every card is a uniform size.
+- Home shows rental returns and subscription renewals as a grid of cards rather than a single list, and each card names what is due.
+- The Home panels now size to their content instead of stretching to the bottom of the window.
 
 ## 2.5.0 Home rebuild, quick actions and list order
 

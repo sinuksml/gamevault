@@ -50,7 +50,24 @@ public sealed class LibraryRow
     /// there is the same media type.
     /// </summary>
     public bool IsPortraitArt => MediaType is "Movie" or "TV Show";
-    public double ArtHeight => IsPortraitArt ? 354 : 133;
+
+    /// <summary>
+    /// Every card uses the same 2:3 frame so Games, Movies and TV all look alike.
+    ///
+    /// The two artwork shapes are reconciled without cropping: a 2:3 poster fills
+    /// the frame exactly, while 16:9 game art is centred at its true aspect over a
+    /// soft fill made from the same image. Forcing landscape art to fill a
+    /// portrait frame would crop away half its width, which is the zoomed-in look
+    /// this replaces.
+    /// </summary>
+    public double ArtHeight => 354;
+
+    /// <summary>Portrait art fills the frame; landscape art is fitted whole inside it.</summary>
+    public System.Windows.Media.Stretch ArtStretch =>
+        IsPortraitArt ? System.Windows.Media.Stretch.UniformToFill : System.Windows.Media.Stretch.Uniform;
+
+    /// <summary>Landscape art leaves space above and below, filled with a blurred copy of itself.</summary>
+    public bool NeedsSoftFill => !IsPortraitArt && Image.Length > 0;
 
     /* Placeholder artwork is generated locally rather than fetched from an image
        service, so a title without a cover still shows something recognisable when

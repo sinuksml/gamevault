@@ -6,6 +6,8 @@ namespace SinuGameVault.Models;
 public sealed class DueDateRow
 {
     public string Title { get; init; } = "";
+    /// <summary>"Rental return" or "Subscription renewal".</summary>
+    public string Kind { get; init; } = "";
     public string Detail { get; init; } = "";
     public int? DaysLeft { get; init; }
 

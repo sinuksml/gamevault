@@ -33,7 +33,6 @@
         <SolidColorBrush x:Key="WarningBrush" Color="#FFD166" />
         <SolidColorBrush x:Key="BackdropScrimBrush" Color="#B30A0D14" />
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
-        <services:ThumbnailConverter x:Key="Thumbnail" />
 
         <!-- ===== Depth and finish =====
              The interface was flat: one border colour, one flat panel fill and no
