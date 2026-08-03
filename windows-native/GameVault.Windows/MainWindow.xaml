@@ -210,11 +210,46 @@
                         <Border Style="{StaticResource SurfaceCard}" Padding="18" Margin="4,0,0,0"><StackPanel><TextBlock Text="TOTAL SPENT" Foreground="#C28A00" FontWeight="Bold" FontSize="12"/><TextBlock x:Name="TotalSpentCount" Text="₹0" FontSize="24" FontWeight="Bold" Margin="0,8,0,0"/><TextBlock Text="rentals + subscriptions" Style="{StaticResource MutedText}"/></StackPanel></Border>
                     </UniformGrid>
                     <Border Grid.Row="4" Style="{StaticResource SurfaceCard}" Padding="18,14">
-                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="220"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                            <StackPanel VerticalAlignment="Center"><TextBlock Text="GAME SPENDING" Style="{StaticResource KickerText}"/><TextBlock Text="Last 12 months" FontSize="20" FontWeight="Bold" Margin="0,5,0,3"/><TextBlock Text="Rentals and subscriptions" Style="{StaticResource MutedText}"/></StackPanel>
-                            <ItemsControl x:Name="GameSpendChart" Grid.Column="1" HorizontalAlignment="Stretch">
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="230"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Top">
+                                <TextBlock Text="GAME SPENDING" Style="{StaticResource KickerText}"/>
+                                <TextBlock Text="Last 12 months" FontSize="20" FontWeight="Bold" Margin="0,5,0,3"/>
+                                <TextBlock Text="Each bar is a month, split by vendor" Style="{StaticResource MutedText}" TextWrapping="Wrap"/>
+                                <!-- Legend: vendor name, its colour and 12-month total. -->
+                                <ItemsControl x:Name="SpendChartLegend" Margin="0,12,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,0,5">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <Border Width="11" Height="11" CornerRadius="3" Background="{Binding ToneColor}" VerticalAlignment="Center" Margin="0,0,9,0"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding Label}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="2" Text="{Binding AmountText}" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource WarningBrush}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                            <ItemsControl x:Name="GameSpendChart" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Bottom">
                                 <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Rows="1"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate><DataTemplate><Grid Margin="4,0"><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Border Width="26" Height="{Binding BarHeight}" MinHeight="3" VerticalAlignment="Bottom" HorizontalAlignment="Center" Background="{DynamicResource AccentBrush}" CornerRadius="4,4,0,0"/><TextBlock Grid.Row="1" Text="{Binding AmountText}" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,4,0,0"/><TextBlock Grid.Row="2" Text="{Binding Month}" FontSize="10" Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center"/></Grid></DataTemplate></ItemsControl.ItemTemplate>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="4,0">
+                                            <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                            <!-- One stacked column: a coloured section per vendor. -->
+                                            <Border Grid.Row="0" Width="28" VerticalAlignment="Bottom" HorizontalAlignment="Center" CornerRadius="4,4,0,0" ClipToBounds="True">
+                                                <ItemsControl ItemsSource="{Binding Segments}" VerticalAlignment="Bottom">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Height="{Binding Height}" Background="{Binding ColorHex}" ToolTip="{Binding Tip}"/>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </Border>
+                                            <TextBlock Grid.Row="1" Text="{Binding AmountText}" FontSize="10" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                                            <TextBlock Grid.Row="2" Text="{Binding Month}" FontSize="10" Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </Grid>
                     </Border>
@@ -238,17 +273,28 @@
                                         <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel HorizontalAlignment="Left"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Width="286" Background="#14FFFFFF" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1"
-                                                        CornerRadius="10" Padding="13,11" Margin="0,0,10,10">
+                                                <!-- Title card: artwork on the left, then the title, the
+                                                     rental/subscription type, the vendor and the due date. -->
+                                                <Border Width="300" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1"
+                                                        CornerRadius="12" Margin="0,0,10,10" ClipToBounds="True" Effect="{StaticResource CardShadow}">
                                                     <Grid>
-                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="4"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                                        <Border Width="4" Background="{Binding ToneColor}" CornerRadius="2" Margin="0,1,11,1"/>
-                                                        <StackPanel Grid.Column="1">
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                        <Border Grid.Column="0" Width="94" Background="{Binding PlaceholderColor}" ClipToBounds="True">
+                                                            <Grid>
+                                                                <TextBlock Text="{Binding Initials}" FontSize="24" FontWeight="Bold" Foreground="#66FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                <Image app:Artwork.Url="{Binding Image}" app:Artwork.DecodeWidth="150" Stretch="UniformToFill"/>
+                                                            </Grid>
+                                                        </Border>
+                                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="13,11">
                                                             <TextBlock Text="{Binding Title}" FontWeight="Bold" FontSize="14" TextTrimming="CharacterEllipsis"/>
-                                                            <TextBlock Text="{Binding Kind}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
-                                                            <TextBlock Text="{Binding Detail}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                                                            <Border HorizontalAlignment="Left" Background="#22FFFFFF" CornerRadius="4" Padding="6,2" Margin="0,5,0,0">
+                                                                <TextBlock Text="{Binding Kind}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}"/>
+                                                            </Border>
+                                                            <TextBlock Text="{Binding VendorLine}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,5,0,0" TextTrimming="CharacterEllipsis"
+                                                                       Visibility="{Binding HasVendorLine, Converter={StaticResource BoolToVisibility}}"/>
+                                                            <TextBlock Text="{Binding DueText}" Foreground="{DynamicResource AccentBrush}" FontSize="12" FontWeight="Bold" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
                                                         </StackPanel>
-                                                        <TextBlock Grid.Column="2" Text="{Binding Countdown}" Foreground="{Binding ToneColor}" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding Countdown}" Foreground="{Binding ToneColor}" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" Margin="8,0,14,0"/>
                                                     </Grid>
                                                 </Border>
                                             </DataTemplate>
@@ -308,16 +354,18 @@
                         </StackPanel>
                     </Grid>
                     <TabControl x:Name="GamesTabs" SelectionChanged="GamesTabs_SelectionChanged">
-                        <TabItem Tag="rentals"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8B7;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Rentals"/></StackPanel></TabItem.Header></TabItem>
-                        <TabItem Tag="subscriptionGames"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8C7;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Subscriptions"/></StackPanel></TabItem.Header></TabItem>
-                        <TabItem Tag="playing"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE768;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Now Playing"/></StackPanel></TabItem.Header></TabItem>
-                        <TabItem Tag="queue"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8CB;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Rental Queue"/></StackPanel></TabItem.Header></TabItem>
-                        <TabItem Tag="upcoming"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE787;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Upcoming"/></StackPanel></TabItem.Header></TabItem>
-                        <TabItem Tag="catalogExtra"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE721;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Discover"/></StackPanel></TabItem.Header></TabItem>
-                        <TabItem Tag="played"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE73E;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Completed"/></StackPanel></TabItem.Header></TabItem>
+                        <TabItem Tag="rentals" app:TabAccent.Color="#1E9BE0"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8B7;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Rentals"/></StackPanel></TabItem.Header></TabItem>
+                        <TabItem Tag="subscriptionGames" app:TabAccent.Color="#7C5CFF"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8C7;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Subscriptions"/></StackPanel></TabItem.Header></TabItem>
+                        <TabItem Tag="playing" app:TabAccent.Color="#16A97F"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE768;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Now Playing"/></StackPanel></TabItem.Header></TabItem>
+                        <TabItem Tag="queue" app:TabAccent.Color="#E0952A"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8CB;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Rental Queue"/></StackPanel></TabItem.Header></TabItem>
+                        <TabItem Tag="upcoming" app:TabAccent.Color="#E0558A"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE787;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Upcoming"/></StackPanel></TabItem.Header></TabItem>
+                        <TabItem Tag="catalogExtra" app:TabAccent.Color="#8A63D2"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE721;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Discover"/></StackPanel></TabItem.Header></TabItem>
+                        <TabItem Tag="played" app:TabAccent.Color="#35B37E"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE73E;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Completed"/></StackPanel></TabItem.Header></TabItem>
                     </TabControl>
                     <WrapPanel x:Name="UpcomingPlatformTabs" Grid.Row="4" Visibility="Collapsed">
-                        <Button x:Name="UpcomingPs5Button" Content="PS5" Tag="ps5" Style="{StaticResource LibraryTabSelectedButton}" Click="UpcomingPlatform_Click" Margin="0,0,8,0"/>
+                        <TextBlock Text="Platform" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" FontWeight="SemiBold" Margin="0,0,10,0"/>
+                        <Button x:Name="UpcomingAllButton" Content="All" Tag="all" Style="{StaticResource LibraryTabSelectedButton}" Click="UpcomingPlatform_Click" Margin="0,0,8,0"/>
+                        <Button x:Name="UpcomingPs5Button" Content="PS5" Tag="ps5" Style="{StaticResource LibraryTabButton}" Click="UpcomingPlatform_Click" Margin="0,0,8,0"/>
                         <Button x:Name="UpcomingXboxPcButton" Content="Xbox &amp; PC" Tag="xboxpc" Style="{StaticResource LibraryTabButton}" Click="UpcomingPlatform_Click"/>
                     </WrapPanel>
                     <ScrollViewer Grid.Row="6" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -396,12 +444,26 @@
                     <DataGrid x:Name="BiglyGrid" Grid.Row="4" Visibility="Collapsed" ItemsSource="{Binding}" SelectionMode="Single">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Torrent" Binding="{Binding Name}" Width="*"/>
-                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
-                            <DataGridTextColumn Header="Progress" Binding="{Binding ProgressText}" Width="90"/>
-                            <DataGridTextColumn Header="Downloaded / Total" Binding="{Binding AmountText}" Width="180"/>
-                            <DataGridTextColumn Header="Speed" Binding="{Binding SpeedText}" Width="210"/>
-                            <DataGridTextColumn Header="ETA" Binding="{Binding EtaText}" Width="90"/>
-                            <DataGridTextColumn Header="Peers" Binding="{Binding Peers}" Width="70"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
+                            <!-- Visual progress bar with the percentage sitting on top,
+                                 like the web dashboard, instead of a bare number. -->
+                            <DataGridTemplateColumn Header="Progress" Width="190">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid VerticalAlignment="Center" Margin="4,0" Height="20">
+                                            <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}" Height="18"
+                                                         Background="{DynamicResource PanelRaisedBrush}" BorderThickness="0"
+                                                         Foreground="{DynamicResource AccentBrush}"/>
+                                            <TextBlock Text="{Binding ProgressText}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TextBrush}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Downloaded / Total" Binding="{Binding AmountText}" Width="170"/>
+                            <DataGridTextColumn Header="Speed" Binding="{Binding SpeedText}" Width="200"/>
+                            <DataGridTextColumn Header="Time left" Binding="{Binding EtaText}" Width="90"/>
+                            <DataGridTextColumn Header="Peers" Binding="{Binding Peers}" Width="60"/>
                         </DataGrid.Columns>
                     </DataGrid>
                     <Border Grid.Row="6" Style="{StaticResource GroupDivider}"><TextBlock Text="Torrent History" FontSize="22" FontWeight="Bold"/></Border>
@@ -479,6 +541,12 @@
                                     <TextBlock Text="AVAILABILITY" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12" Margin="0,22,0,7"/>
                                     <TextBox x:Name="DetailAvailability" Style="{StaticResource SelectableMutedText}" FontSize="14"/>
                                     <TextBox x:Name="DetailNote" Style="{StaticResource SelectableMutedText}" FontSize="13" Margin="0,14,0,0"/>
+                                    <!-- The short IMDb/TMDB synopsis, shown above the actions; the
+                                         longer Wikipedia plot keeps its own section below them. -->
+                                    <StackPanel x:Name="DetailSynopsisSection" Visibility="Collapsed">
+                                        <TextBlock Text="OVERVIEW" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12" Margin="0,22,0,7"/>
+                                        <TextBox x:Name="DetailSynopsis" Style="{StaticResource SelectableText}" FontSize="15"/>
+                                    </StackPanel>
                                     <WrapPanel x:Name="EpisodePicker" Visibility="Collapsed" Margin="0,18,0,0"><TextBlock Text="Season" VerticalAlignment="Center" Margin="0,0,7,0"/><ComboBox x:Name="DetailSeasonBox" Width="110" SelectionChanged="DetailSeason_Changed"/><TextBlock Text="Episode" VerticalAlignment="Center" Margin="14,0,7,0"/><ComboBox x:Name="DetailEpisodeBox" Width="360" SelectionChanged="DetailEpisode_Changed"/><Button Content="Load Wikipedia story" Margin="10,0,0,0" Click="EpisodePlot_Click"/></WrapPanel>
                                     <WrapPanel Margin="0,16,0,0"><TextBlock Text="My rating" VerticalAlignment="Center" Margin="0,0,8,0"/><ComboBox x:Name="PersonalRatingBox" Width="100"><ComboBoxItem Content="Not rated" Tag="0"/><ComboBoxItem Content="1 / 10" Tag="1"/><ComboBoxItem Content="2 / 10" Tag="2"/><ComboBoxItem Content="3 / 10" Tag="3"/><ComboBoxItem Content="4 / 10" Tag="4"/><ComboBoxItem Content="5 / 10" Tag="5"/><ComboBoxItem Content="6 / 10" Tag="6"/><ComboBoxItem Content="7 / 10" Tag="7"/><ComboBoxItem Content="8 / 10" Tag="8"/><ComboBoxItem Content="9 / 10" Tag="9"/><ComboBoxItem Content="10 / 10" Tag="10"/></ComboBox><Button Content="Save rating" Margin="8,0,0,0" Click="SaveRating_Click"/></WrapPanel>
                                     <WrapPanel Margin="0,26,0,0">
@@ -502,10 +570,10 @@
 
                                     <!-- The Wikipedia story sits below the actions: it is long-form
                                          reading, and keeping it above pushed every button off screen. -->
-                                    <Border Background="#14FFFFFF" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
+                                    <Border x:Name="DetailStorySection" Background="#14FFFFFF" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
                                             CornerRadius="12" Padding="22,18" Margin="0,26,0,0">
                                         <StackPanel>
-                                            <TextBlock Text="STORY / SUMMARY" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12" Margin="0,0,0,10"/>
+                                            <TextBlock Text="STORY / PLOT" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12" Margin="0,0,0,10"/>
                                             <TextBox x:Name="DetailOverview" Style="{StaticResource SelectableText}" FontSize="16"/>
                                         </StackPanel>
                                     </Border>

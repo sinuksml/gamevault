@@ -79,9 +79,9 @@ public sealed class CatalogService
             ("Movie", _) => "movie/top_rated?region=US",
             ("TV Show", "seriesnew") => "tv/on_the_air",
             ("TV Show", "seriesupcoming") => $"discover/tv?first_air_date.gte={today}&sort_by=first_air_date.asc",
-            ("TV Show", "mlseries") => "discover/tv?with_original_language=ml&sort_by=first_air_date.desc&vote_average.gte=6&vote_count.gte=3&without_genres=10763,10764,10766,10767&without_networks=247",
-            ("TV Show", "taseries") => "discover/tv?with_original_language=ta&sort_by=first_air_date.desc&vote_average.gte=6&vote_count.gte=5&without_genres=10763,10764,10766,10767&without_networks=247",
-            ("TV Show", "hiseries") => "discover/tv?with_original_language=hi&sort_by=first_air_date.desc&vote_average.gte=6&vote_count.gte=8&without_genres=10763,10764,10766,10767&without_networks=247",
+            ("TV Show", "mlseries") => $"discover/tv?with_original_language=ml&watch_region=IN&first_air_date.lte={today}&sort_by=first_air_date.desc&vote_average.gte=6&vote_count.gte=2&without_genres=10763,10764,10766,10767",
+            ("TV Show", "taseries") => $"discover/tv?with_original_language=ta&watch_region=IN&first_air_date.lte={today}&sort_by=first_air_date.desc&vote_average.gte=6&vote_count.gte=3&without_genres=10763,10764,10766,10767",
+            ("TV Show", "hiseries") => $"discover/tv?with_original_language=hi&watch_region=IN&first_air_date.lte={today}&sort_by=first_air_date.desc&vote_average.gte=6&vote_count.gte=5&without_genres=10763,10764,10766,10767",
             ("TV Show", _) => "tv/top_rated",
             _ => throw new ArgumentOutOfRangeException(nameof(type), "Catalog type must be Movie or TV Show.")
         };
@@ -96,6 +96,18 @@ public sealed class CatalogService
         if (type == "Movie" && mode == "uphw")
             distinct = distinct.Where(item => Date(item, "date") >= DateTime.Today && Number(item, "popularity") >= 5);
         var result = distinct.ToList();
+        /* Regional TV needs the same curation the web app applies, otherwise it
+           surfaces daily soaps, YouTube programmes and thinly-rated entries that
+           read as "the wrong shows". Enrich the newest candidates for episode
+           counts, networks, series type and IMDb rating, then keep only genuine,
+           well-produced scripted series in the requested language. */
+        if (type == "TV Show" && mode is "mlseries" or "taseries" or "hiseries")
+        {
+            var lang = mode == "mlseries" ? "ml" : mode == "taseries" ? "ta" : "hi";
+            result = result.OrderByDescending(item => Date(item, "date")).Take(45).ToList();
+            foreach (var item in result.Take(30)) await EnrichMediaAsync(item, "TV Show");
+            result = result.Where(item => RegionalTvSeriesOnly(item, lang) && RegionalPrestigeSeries(item)).ToList();
+        }
         if (type == "Movie" && mode is "uphw" or "bluray" or "mlott" or "mlup")
         {
             foreach (var item in result.Take(mode is "mlott" or "mlup" ? 35 : 60))
@@ -163,6 +175,17 @@ public sealed class CatalogService
                 if (!string.IsNullOrWhiteSpace(name) && !providerNames.Any(x => x?.ToString() == name)) providerNames.Add(name);
             }
             item["providers"] = providerNames;
+            /* Networks and the series type let the regional catalogs tell a real
+               scripted show apart from a daily soap or a YouTube channel. */
+            if (endpoint == "tv")
+            {
+                if (details["type"] is not null) item["seriesType"] = details["type"]?.DeepClone();
+                if (details["networks"] is JsonArray networks)
+                    item["networks"] = new JsonArray(networks.OfType<JsonObject>()
+                        .Select(network => network["name"]?.ToString())
+                        .Where(name => !string.IsNullOrWhiteSpace(name))
+                        .Select(name => (JsonNode)name!).ToArray());
+            }
             if (OmdbKey.Length > 0 && item["imdbId"]?.ToString() is { Length: > 0 } imdbId)
             {
                 var omdb = await GetAsync($"https://www.omdbapi.com/?apikey={Uri.EscapeDataString(OmdbKey)}&i={Uri.EscapeDataString(imdbId)}");
@@ -463,6 +486,39 @@ public sealed class CatalogService
             ["canonicalId"] = $"tmdb:{(type == "Movie" ? "movie" : "tv")}:{item["id"]}"
         };
     }
+
+    /// <summary>Port of the web app's regionalTvSeriesOnly: a real scripted series in the language, not a soap or YouTube show.</summary>
+    private static bool RegionalTvSeriesOnly(JsonObject item, string lang)
+    {
+        var text = ((item["title"]?.ToString() ?? "") + " " + (item["overview"]?.ToString() ?? "")).ToLowerInvariant();
+        var networks = Join(item["networks"] as JsonArray).ToLowerInvariant();
+        if (networks.Contains("youtube") || Regex.IsMatch(text, @"\byou\s*tube\b")) return false;
+        if (Regex.IsMatch(text, @"\b(daily soap|soap opera|television serial|tv serial|mega serial|daily serial)\b")) return false;
+        var seriesType = item["seriesType"]?.ToString() ?? "";
+        if (seriesType.Length > 0 && seriesType != "Scripted" && seriesType != "Miniseries") return false;
+        var originalLanguage = item["originalLanguage"]?.ToString() ?? "";
+        if (lang.Length > 0 && originalLanguage.Length > 0 && originalLanguage != lang) return false;
+        var episodes = Number(item, "episodeCount");
+        return episodes is >= 2 and <= 120;
+    }
+
+    /// <summary>Port of the web app's regionalPrestigeSeries: highly rated, established, or a premium-OTT production.</summary>
+    private static bool RegionalPrestigeSeries(JsonObject item)
+    {
+        var imdb = Number(item, "imdb");
+        var rating = imdb > 0 ? imdb : Number(item, "tmdb");
+        var votes = Number(item, "voteCount");
+        var pop = Number(item, "popularity");
+        var outlets = (Join(item["networks"] as JsonArray) + " " + Join(item["providers"] as JsonArray)).ToLowerInvariant();
+        var premium = Regex.IsMatch(outlets, @"netflix|amazon|prime video|disney|hotstar|jiohotstar|jio cinema|jiocinema|sony\s*liv|zee5|aha|sun nxt|manorama|max|hoichoi|hbo|apple tv|peacock|paramount");
+        var highlyRated = rating >= 7.2 && (votes >= 5 || imdb > 0);
+        var established = rating >= 6.8 && votes >= 15;
+        var highProduction = premium && rating >= 6.3 && (votes >= 3 || pop >= 2.5)
+            && ((item["poster"]?.ToString() ?? "").Length > 0 || (item["backdrop"]?.ToString() ?? "").Length > 0);
+        return highlyRated || established || highProduction;
+    }
+
+    private static string Join(JsonArray? array) => array is null ? "" : string.Join(" ", array.Select(node => node?.ToString()).Where(value => !string.IsNullOrWhiteSpace(value)));
 
     private static double Number(JsonObject item, string key) => double.TryParse(item[key]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : 0;
     private static DateTime Date(JsonObject item, string key) => DateTime.TryParse(item[key]?.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var value) ? value.Date : DateTime.MinValue;

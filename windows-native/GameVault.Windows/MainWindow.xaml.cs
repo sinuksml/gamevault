@@ -46,7 +46,7 @@ public partial class MainWindow : Window
     private bool _gamesListView;
     private bool _mediaListView;
     private string _plexMode = "continue";
-    private string _upcomingPlatform = "ps5";
+    private string _upcomingPlatform = "all";
     private string _theme = "dark";
     private bool _loadingSettings;
     private bool _refreshingBigly;
@@ -165,7 +165,7 @@ public partial class MainWindow : Window
             case "Overview":
                 PageTitle.Text = "Overview"; PageSubtitle.Text = "Your library at a glance"; OverviewPage.Visibility = Visibility.Visible; RefreshDashboard(); break;
             case "Games":
-                PageTitle.Text = "Games"; PageSubtitle.Text = "Rentals, subscriptions, playing, queue and completed games"; GamesPage.Visibility = Visibility.Visible; UpcomingPlatformTabs.Visibility = _gameCollection == "upcoming" ? Visibility.Visible : Visibility.Collapsed; RefreshGames(); break;
+                PageTitle.Text = "Games"; PageSubtitle.Text = "Rentals, subscriptions, playing, queue and completed games"; GamesPage.Visibility = Visibility.Visible; UpcomingPlatformTabs.Visibility = ShowsPlatformFilter(_gameCollection) ? Visibility.Visible : Visibility.Collapsed; StyleGameTabs(); RefreshGames(); break;
             case "Movies":
                 PageTitle.Text = "Movies"; PageSubtitle.Text = "Watchlist, releases, discovery and history"; MediaPage.Visibility = Visibility.Visible; BuildMediaTabs(); RefreshMedia(); _ = EnsureCurrentCatalogAsync(); break;
             case "Series":
@@ -270,13 +270,14 @@ public partial class MainWindow : Window
             int? days = DateTime.TryParse(due, out var parsed) ? (parsed.Date - DateTime.Today).Days : null;
             var vendor = Text(item, "vendor");
             var cost = Number(item, "cost");
-            var detail = string.Join("  ·  ", new[]
+            rows.Add(new DueDateRow
             {
-                vendor.Length > 0 ? vendor : "",
-                due.Length > 0 ? DisplayDate(due) : "",
-                cost > 0 ? $"₹{cost:N0}" : ""
-            }.Where(part => part.Length > 0));
-            rows.Add(new DueDateRow { Title = name, Kind = "Rental return", Detail = detail, DaysLeft = days });
+                Title = name, Kind = "Rental return", Vendor = vendor,
+                DueText = due.Length > 0 ? DisplayDate(due) : "",
+                Cost = cost > 0 ? $"₹{cost:N0}" : "",
+                Image = Text(item, "img", "poster", "cover"),
+                DaysLeft = days
+            });
         }
         foreach (var item in _vault.Collection("subscriptions").OfType<JsonObject>())
         {
@@ -287,12 +288,15 @@ public partial class MainWindow : Window
             var renews = Text(item, "renewsAt", "end", "start");
             int? days = DateTime.TryParse(renews, out var parsed) ? (parsed.Date - DateTime.Today).Days : null;
             var cost = Number(item, "cost", "monthlyCost");
-            var detail = string.Join("  ·  ", new[]
+            rows.Add(new DueDateRow
             {
-                renews.Length > 0 ? DisplayDate(renews) : "",
-                cost > 0 ? $"₹{cost:N0}" : ""
-            }.Where(part => part.Length > 0));
-            rows.Add(new DueDateRow { Title = service, Kind = "Subscription renewal", Detail = detail, DaysLeft = days });
+                Title = service, Kind = "Subscription renewal",
+                Vendor = Text(item, "provider", "platform"),
+                DueText = renews.Length > 0 ? DisplayDate(renews) : "",
+                Cost = cost > 0 ? $"₹{cost:N0}" : "",
+                Image = Text(item, "img", "poster", "cover"),
+                DaysLeft = days
+            });
         }
         return rows.OrderBy(row => row.DaysLeft ?? int.MaxValue).ThenBy(row => row.Title).ToList();
     }
@@ -321,12 +325,13 @@ public partial class MainWindow : Window
             totals[service] = totals.GetValueOrDefault(service) + cost;
         }
 
+        var colors = VendorColorMap();
         var slices = totals.OrderByDescending(pair => pair.Value)
-            .Select((pair, index) => new SpendSliceRow
+            .Select(pair => new SpendSliceRow
             {
                 Label = pair.Key,
                 Amount = pair.Value,
-                ToneColor = SpendPalette[index % SpendPalette.Length],
+                ToneColor = colors.GetValueOrDefault(pair.Key, "#4CC9F0"),
                 Website = VendorWebsite(pair.Key)
             }).ToList();
 
@@ -450,25 +455,87 @@ public partial class MainWindow : Window
         return brush;
     }
 
+    /// <summary>
+    /// A stable colour per vendor/subscription, ordered by total spend, so the
+    /// monthly bar sections, the bar-chart legend and the spending donut all use
+    /// the same colour for the same vendor.
+    /// </summary>
+    private Dictionary<string, string> VendorColorMap()
+    {
+        var totals = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in _vault.Collection("rentals").Concat(_vault.Collection("rentalHistory")).OfType<JsonObject>())
+        {
+            var cost = (decimal)Number(item, "cost");
+            if (cost <= 0) continue;
+            var vendor = Text(item, "vendor"); if (vendor.Length == 0) vendor = "Other rentals";
+            totals[vendor] = totals.GetValueOrDefault(vendor) + cost;
+        }
+        foreach (var item in _vault.Collection("subscriptions").OfType<JsonObject>())
+        {
+            var cost = (decimal)Number(item, "totalPaid", "cost");
+            if (cost <= 0) continue;
+            var service = Text(item, "service", "name"); if (service.Length == 0) service = "Subscription";
+            totals[service] = totals.GetValueOrDefault(service) + cost;
+        }
+        return totals.OrderByDescending(pair => pair.Value)
+            .Select((pair, index) => (pair.Key, Color: SpendPalette[index % SpendPalette.Length]))
+            .ToDictionary(entry => entry.Key, entry => entry.Color, StringComparer.OrdinalIgnoreCase);
+    }
+
     private void RefreshGameSpendChart()
     {
         var months = Enumerable.Range(0, 12).Select(offset => new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(offset - 11)).ToList();
-        var totals = months.ToDictionary(month => month, _ => 0m);
+        var colors = VendorColorMap();
+        var perMonth = months.ToDictionary(month => month, _ => new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase));
+        void Add(DateTime month, string vendor, decimal amount)
+        {
+            if (amount <= 0 || !perMonth.TryGetValue(month, out var bucket)) return;
+            bucket[vendor] = bucket.GetValueOrDefault(vendor) + amount;
+        }
         foreach (var item in _vault.Collection("rentals").Concat(_vault.Collection("rentalHistory")).OfType<JsonObject>())
         {
             if (!DateTime.TryParse(Text(item, "start", "date", "returnedAt", "end"), out var date)) continue;
-            var month = new DateTime(date.Year, date.Month, 1);
-            if (totals.ContainsKey(month)) totals[month] += (decimal)Number(item, "cost");
+            var vendor = Text(item, "vendor"); if (vendor.Length == 0) vendor = "Other rentals";
+            Add(new DateTime(date.Year, date.Month, 1), vendor, (decimal)Number(item, "cost"));
         }
         foreach (var item in _vault.Collection("subscriptions").OfType<JsonObject>())
         {
             if (!DateTime.TryParse(Text(item, "start", "startedAt", "date"), out var date)) continue;
-            var month = new DateTime(date.Year, date.Month, 1);
-            if (totals.ContainsKey(month)) totals[month] += (decimal)Number(item, "totalPaid", "cost");
+            var service = Text(item, "service", "name"); if (service.Length == 0) service = "Subscription";
+            Add(new DateTime(date.Year, date.Month, 1), service, (decimal)Number(item, "totalPaid", "cost"));
         }
-        var maximum = Math.Max(1m, totals.Values.DefaultIfEmpty(0).Max());
+
+        const double maxBar = 116;
+        var maximum = Math.Max(1m, perMonth.Values.Select(bucket => bucket.Values.DefaultIfEmpty(0).Sum()).DefaultIfEmpty(0).Max());
         _monthlySpendRows.Clear();
-        foreach (var month in months) _monthlySpendRows.Add(new MonthlySpendRow { Month = month.ToString("MMM", CultureInfo.InvariantCulture), Amount = totals[month], BarHeight = Math.Max(3, (double)(totals[month] / maximum) * 74) });
+        foreach (var month in months)
+        {
+            var bucket = perMonth[month];
+            // Vendors ordered by the shared colour map so a vendor keeps the same
+            // position (and colour) in every month's stack.
+            var segments = bucket.Where(pair => pair.Value > 0)
+                .OrderBy(pair => colors.Keys.ToList().IndexOf(pair.Key))
+                .Select(pair => new SpendSegment
+                {
+                    Height = Math.Max(2.0, (double)(pair.Value / maximum) * maxBar),
+                    ColorHex = colors.GetValueOrDefault(pair.Key, "#4CC9F0"),
+                    Tip = $"{pair.Key}: ₹{pair.Value:N0}"
+                }).ToList();
+            _monthlySpendRows.Add(new MonthlySpendRow
+            {
+                Month = month.ToString("MMM", CultureInfo.InvariantCulture),
+                Amount = bucket.Values.DefaultIfEmpty(0).Sum(),
+                Segments = segments
+            });
+        }
+
+        // Legend: every vendor that contributed to the last 12 months.
+        var vendorTotals = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        foreach (var bucket in perMonth.Values)
+            foreach (var pair in bucket) vendorTotals[pair.Key] = vendorTotals.GetValueOrDefault(pair.Key) + pair.Value;
+        SpendChartLegend.ItemsSource = vendorTotals.OrderByDescending(pair => pair.Value)
+            .Select(pair => new SpendSliceRow { Label = pair.Key, Amount = pair.Value, ToneColor = colors.GetValueOrDefault(pair.Key, "#4CC9F0") })
+            .ToList();
     }
 
     private void HomeShortcut_Click(object sender, RoutedEventArgs e)
@@ -484,14 +551,43 @@ public partial class MainWindow : Window
 
     private void GamesTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        StyleGameTabs();
         if (!IsLoaded || GamesTabs.SelectedItem is not TabItem tab) return;
         CloseDetails();
         _gameCollection = tab.Tag?.ToString() ?? "rentals";
-        UpcomingPlatformTabs.Visibility = _gameCollection == "upcoming" ? Visibility.Visible : Visibility.Collapsed;
+        UpcomingPlatformTabs.Visibility = ShowsPlatformFilter(_gameCollection) ? Visibility.Visible : Visibility.Collapsed;
         UpdateUpcomingPlatformStyles();
         RefreshGames();
         _ = EnsureCurrentCatalogAsync();
         if (_gameCollection == "queue") _ = EnsureQueueAvailabilityAsync();
+    }
+
+    /// <summary>
+    /// Fills the selected Games tab with its own colour (from the TabAccent set in
+    /// XAML) and leaves the rest a thin coloured outline, so each tab is easy to
+    /// identify. Done in code because a template binding to the attached colour did
+    /// not resolve reliably.
+    /// </summary>
+    private void StyleGameTabs()
+    {
+        foreach (var tab in GamesTabs.Items.OfType<TabItem>())
+        {
+            var hex = Services.TabAccent.GetColor(tab);
+            if (string.IsNullOrEmpty(hex)) continue;
+            var accent = BrushFromHex(hex);
+            if (tab.IsSelected)
+            {
+                tab.Background = accent;
+                tab.BorderBrush = accent;
+                tab.Foreground = Brushes.White;
+            }
+            else
+            {
+                tab.Background = Brushes.Transparent;
+                tab.BorderBrush = new SolidColorBrush(((SolidColorBrush)accent).Color) { Opacity = 0.55 };
+                tab.Foreground = (Brush)FindResource("MutedBrush");
+            }
+        }
     }
 
     private void RefreshGames()
@@ -504,10 +600,11 @@ public partial class MainWindow : Window
             ? ReadSubscriptions().Concat(ReadCollection("subscriptionGames"))
             : ReadCollection(_gameCollection);
         if (_gameCollection == "upcoming")
-        {
             source = source.Concat(ReadCollection("upcomingRemoved"));
+        // PS5 vs Xbox & PC filtering also applies to Discover and Completed, so
+        // those sections can be narrowed to one platform the same way.
+        if (ShowsPlatformFilter(_gameCollection))
             source = source.Where(UpcomingPlatformMatches);
-        }
         /* A finished game has no business sitting in Discover, the queue or the
            upcoming list — it belongs in Completed only. */
         if (_gameCollection is "catalogExtra" or "queue" or "upcoming")
@@ -523,18 +620,23 @@ public partial class MainWindow : Window
         RefreshGames();
     }
 
+    /// <summary>Sections that offer the PS5 / Xbox &amp; PC platform filter.</summary>
+    private static bool ShowsPlatformFilter(string collection) => collection is "upcoming" or "catalogExtra" or "played";
+
     private void UpdateUpcomingPlatformStyles()
     {
+        UpcomingAllButton.Style = (Style)FindResource(_upcomingPlatform == "all" ? "LibraryTabSelectedButton" : "LibraryTabButton");
         UpcomingPs5Button.Style = (Style)FindResource(_upcomingPlatform == "ps5" ? "LibraryTabSelectedButton" : "LibraryTabButton");
         UpcomingXboxPcButton.Style = (Style)FindResource(_upcomingPlatform == "xboxpc" ? "LibraryTabSelectedButton" : "LibraryTabButton");
     }
 
     private bool UpcomingPlatformMatches(LibraryRow row)
     {
+        if (_upcomingPlatform == "all") return true;
         var value = $"{row.Platform} {Text(row.Source, "platforms", "platform", "stores")}";
         var xboxPc = value.Contains("xbox", StringComparison.OrdinalIgnoreCase) || value.Contains("pc", StringComparison.OrdinalIgnoreCase) || value.Contains("windows", StringComparison.OrdinalIgnoreCase);
-        var ps5 = value.Contains("playstation 5", StringComparison.OrdinalIgnoreCase) || value.Contains("ps5", StringComparison.OrdinalIgnoreCase);
-        if (!xboxPc && !ps5) return true;
+        var ps5 = value.Contains("playstation 5", StringComparison.OrdinalIgnoreCase) || value.Contains("ps5", StringComparison.OrdinalIgnoreCase) || value.Contains("playstation", StringComparison.OrdinalIgnoreCase);
+        if (!xboxPc && !ps5) return false;
         return _upcomingPlatform == "ps5" ? ps5 : xboxPc;
     }
 
@@ -607,12 +709,41 @@ public partial class MainWindow : Window
             var button = new Button
             {
                 Content = LibraryTabHeader(MediaTabGlyph(key), label), Tag = key, Margin = new Thickness(0, 0, 8, 8),
-                Style = (Style)FindResource(key == _mediaMode ? "LibraryTabSelectedButton" : "LibraryTabButton")
+                Style = (Style)FindResource("LibraryTabButton")
             };
+            // Each tab keeps its own colour, and the selected one fills with it, so
+            // Movies and TV tabs are as easy to tell apart as the Games tabs: the
+            // selected tab is filled, the rest carry a thin outline in that colour.
+            var accent = BrushFromHex(TabColor(key));
+            if (key == _mediaMode)
+            {
+                button.Background = accent;
+                button.BorderBrush = accent;
+                button.Foreground = Brushes.White;
+            }
+            else
+            {
+                button.BorderBrush = new SolidColorBrush(((SolidColorBrush)accent).Color) { Opacity = 0.55 };
+            }
             button.Click += MediaFilter_Click;
             MediaTabsPanel.Children.Add(button);
         }
     }
+
+    /// <summary>A distinct highlight colour per library tab, shared by Games, Movies and TV.</summary>
+    private static string TabColor(string key) => key switch
+    {
+        "watchlist" or "rentals" or "seriesnew" => "#1E9BE0",
+        "watching" or "playing" => "#16A97F",
+        "uphw" or "queue" or "seriesupcoming" or "taseries" => "#E0952A",
+        "bluray" or "enseries" => "#4A78E0",
+        "relhw" or "catalogExtra" or "subscriptionGames" => "#8A63D2",
+        "mlup" or "upcoming" or "hiseries" => "#E0558A",
+        "mlott" or "mlseries" => "#C455C7",
+        "watched" or "played" => "#35B37E",
+        "hidden" => "#6B7686",
+        _ => "#1E9BE0"
+    };
 
     private static string MediaTabGlyph(string key) => key switch
     {
@@ -963,8 +1094,14 @@ public partial class MainWindow : Window
     private void PopulateMediaYears(IEnumerable<LibraryRow> source)
     {
         var selected = (MediaYearBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
-        var years = source.Select(row => row.Source["year"]?.ToString() ?? (row.Date.Length >= 4 ? row.Date[..4] : ""))
-            .Where(value => value.Length == 4 && int.TryParse(value, out _)).Distinct().OrderByDescending(value => value).ToList();
+        var dataYears = source.Select(row => row.Source["year"]?.ToString() ?? (row.Date.Length >= 4 ? row.Date[..4] : ""))
+            .Where(value => value.Length == 4 && int.TryParse(value, out _)).Select(int.Parse);
+        /* Always offer the current year and the next two even before any title with
+           that year has been fetched, so the filter keeps working as the years roll
+           over instead of stopping at whatever the catalog last happened to hold. */
+        var future = Enumerable.Range(DateTime.Today.Year - 1, 4);   // last year through two years ahead
+        var years = dataYears.Concat(future).Distinct().OrderByDescending(value => value)
+            .Select(value => value.ToString(CultureInfo.InvariantCulture)).ToList();
         MediaYearBox.SelectionChanged -= MediaFilter_Changed;
         MediaYearBox.Items.Clear();
         MediaYearBox.Items.Add(new ComboBoxItem { Content = "All years", Tag = "" });
@@ -1960,9 +2097,17 @@ public partial class MainWindow : Window
         DetailCountdown.Text = row.DaysText.Length > 0 ? row.DaysText : row.Status;
         DetailEpisodes.Text = string.Join("  |  ", new[] { row.SeasonsText, row.EpisodesText }.Where(x => x.Length > 0));
         DetailEpisodesBadge.Visibility = row.HasEpisodeInfo ? Visibility.Visible : Visibility.Collapsed;
-        DetailOverview.Text = row.HasOverview ? row.Overview : row.MediaType == "Game" && row.Collection == "playing"
-            ? "Loading Wikipedia plot..." : row.MediaType == "Game"
-            ? "Story summaries are available for games in Now Playing." : "No summary is stored for this title yet.";
+        // Overview (the short IMDb/TMDB synopsis) and the Wikipedia story are shown
+        // as separate sections; the synopsis used to be hidden whenever a Wikipedia
+        // plot existed, which is why the IMDb overview appeared to be missing.
+        DetailSynopsis.Text = row.Overview;
+        DetailSynopsisSection.Visibility = row.HasOverview ? Visibility.Visible : Visibility.Collapsed;
+        var openWiki = CatalogService.CleanStoryText(Text(row.Source, "wikipediaPlot"));
+        DetailStorySection.Visibility = row.MediaType is "Movie" or "TV Show" || row.Collection == "playing" ? Visibility.Visible : Visibility.Collapsed;
+        DetailOverview.Text = openWiki.Length > 0 ? openWiki
+            : row.MediaType is "Movie" or "TV Show" ? "Loading Wikipedia story..."
+            : row.MediaType == "Game" && row.Collection == "playing" ? "Loading Wikipedia plot..."
+            : row.Overview.Length > 0 ? row.Overview : "No summary is stored for this title yet.";
         DetailAvailability.Text = row.Availability.Length > 0 ? row.Availability : "No provider or vendor information stored.";
         DetailNote.Text = row.Note;
         FandomButton.Visibility = row.MediaType == "Game" && row.Collection == "playing" ? Visibility.Visible : Visibility.Collapsed;
@@ -1994,7 +2139,7 @@ public partial class MainWindow : Window
             var ratingIsStale = checkedAt <= 0 || DateTimeOffset.UtcNow - DateTimeOffset.FromUnixTimeMilliseconds(checkedAt) > TimeSpan.FromDays(7);
             if (row.Image.Length == 0 || row.Overview.Length == 0 || row.Providers.Length == 0 || row.ImdbId.Length == 0 || ratingIsStale)
             {
-                DetailOverview.Text = row.Overview.Length > 0 ? row.Overview : "Loading title details...";
+                if (DetailOverview.Text.Length == 0 || !DetailStorySection.IsVisible) DetailOverview.Text = "Loading Wikipedia story...";
                 if (row.TmdbId.Length == 0)
                 {
                     try
@@ -2040,7 +2185,8 @@ public partial class MainWindow : Window
         }
         if (!changed)
         {
-            if (DetailOverview.Text.StartsWith("Loading", StringComparison.OrdinalIgnoreCase)) DetailOverview.Text = row.Overview.Length > 0 ? row.Overview : "No matching Wikipedia story section was found.";
+            if (DetailOverview.Text.StartsWith("Loading", StringComparison.OrdinalIgnoreCase))
+                DetailOverview.Text = row.Collection == "playing" && row.Overview.Length > 0 ? row.Overview : "No matching Wikipedia story section was found.";
             return;
         }
         var refreshed = ReadNodes(new JsonArray(row.Source.DeepClone()), row.Collection).First();
@@ -2048,8 +2194,14 @@ public partial class MainWindow : Window
         DetailPosterFrame.Height = refreshed.IsPortraitArt ? 390 : 146;
         SetArtwork(DetailPoster, refreshed.Image, 420);
         SetArtwork(DetailBackdrop, refreshed.Backdrop.Length > 0 ? refreshed.Backdrop : refreshed.Image, 1280);
-        DetailOverview.Text = CatalogService.CleanStoryText(Text(refreshed.Source, "wikipediaPlot")) is { Length: > 0 } wikipediaPlot ? wikipediaPlot : refreshed.Overview.Length > 0 ? refreshed.Overview : refreshed.MediaType == "Game" && refreshed.Collection != "playing"
-            ? "Story summaries are available for games in Now Playing." : "No matching summary was found for this title.";
+        // The IMDb/TMDB synopsis now that enrichment has filled it in.
+        DetailSynopsis.Text = refreshed.Overview;
+        DetailSynopsisSection.Visibility = refreshed.HasOverview ? Visibility.Visible : Visibility.Collapsed;
+        DetailOverview.Text = CatalogService.CleanStoryText(Text(refreshed.Source, "wikipediaPlot")) is { Length: > 0 } wikipediaPlot ? wikipediaPlot
+            : refreshed.MediaType == "Game" && refreshed.Collection == "playing" && refreshed.Overview.Length > 0 ? refreshed.Overview
+            : refreshed.MediaType is "Movie" or "TV Show" ? "No matching Wikipedia story section was found."
+            : refreshed.MediaType == "Game" && refreshed.Collection != "playing" ? "Story summaries are available for games in Now Playing."
+            : "No matching summary was found for this title.";
         DetailAvailability.Text = refreshed.Availability.Length > 0 ? refreshed.Availability : "No streaming or rental provider information found.";
         DetailRating.Text = $"IMDb / rating  {refreshed.RatingText}";
         if (refreshed.MediaType == "TV Show") PopulateEpisodePicker(refreshed);

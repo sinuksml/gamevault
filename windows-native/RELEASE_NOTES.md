@@ -1,4 +1,15 @@
-# Sinu Game Vault for Windows 2.5.2
+# Sinu Game Vault for Windows 2.5.3
+
+## 2.5.3 Overview text, stacked spend chart, coloured tabs and more
+
+- The detail view now shows the IMDb/TMDB overview in its own section, separate from the longer Wikipedia story. The overview was previously hidden whenever a Wikipedia plot existed, which is why it looked missing.
+- The Home spending chart now draws one bar per month, split into a coloured section for each vendor, with a legend of vendor names, colours and totals. The same colour is used for a vendor across the bars, the legend and the spending donut.
+- Home due dates are shown as title cards with the artwork, the rental or subscription type, the vendor and cost, and the due date, matching the library cards.
+- The Game Discover and Completed sections gain a Platform filter (All / PS5 / Xbox & PC), so titles can be narrowed to one platform the same way Upcoming already could.
+- Each library tab now has its own highlight colour. The selected tab is filled with its colour and the rest carry a thin outline in it, across Games, Movies and TV Shows, so tabs are easy to tell apart at a glance.
+- Malayalam, Tamil and Hindi TV catalogs now apply the same curation the web app uses — enriching each candidate for episode count, networks, series type and IMDb rating, then keeping only genuine, well-produced scripted series in the language and dropping soaps, YouTube programmes and thinly-rated entries. (Takes effect on the next catalog refresh.)
+- The TV year filter always offers the current year and the next two, so it keeps working as the years roll over instead of stopping at whatever the catalog last held.
+- The BiglyBT downloads list now shows a progress bar with the percentage on it, alongside the downloaded and total size, speed and time remaining.
 
 ## 2.5.2 Fix runaway vault growth (slowness and crashing)
 

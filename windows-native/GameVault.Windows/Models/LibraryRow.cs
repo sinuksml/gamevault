@@ -201,7 +201,17 @@ public sealed class MonthlySpendRow
     public string Month { get; init; } = "";
     public decimal Amount { get; init; }
     public double BarHeight { get; init; }
-    public string AmountText => $"\u20B9{Amount:N0}";
+    public string AmountText => Amount > 0 ? $"\u20B9{Amount:N0}" : "";
+    /// <summary>The month's bar split into one coloured section per vendor, tallest total scaled to the chart height.</summary>
+    public List<SpendSegment> Segments { get; init; } = [];
+}
+
+/// <summary>One vendor's slice of a month's spending bar.</summary>
+public sealed class SpendSegment
+{
+    public double Height { get; init; }
+    public string ColorHex { get; init; } = "#4CC9F0";
+    public string Tip { get; init; } = "";
 }
 
 public sealed class EpisodeChoice

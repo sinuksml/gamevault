@@ -413,27 +413,32 @@
             <Setter Property="Padding" Value="15,11" />
             <Setter Property="MinHeight" Value="46" />
             <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="TabSurface" Background="{TemplateBinding Background}" BorderBrush="{DynamicResource CardBorderBrush}"
-                                BorderThickness="1" CornerRadius="7" Margin="0,0,6,0" Padding="{TemplateBinding Padding}">
+                        <!-- A plain surface driven by the tab's own Background /
+                             BorderBrush. The per-tab highlight colour is applied in
+                             code (see StyleGameTabs), which is more reliable than a
+                             template binding to an attached property. -->
+                        <Border x:Name="TabSurface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7" Margin="0,0,6,0" Padding="{TemplateBinding Padding}">
                             <ContentPresenter ContentSource="Header" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="TabSurface" Property="Background" Value="{DynamicResource HoverBrush}" /></Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="TabSurface" Property="Background" Value="{DynamicResource SelectedBrush}" />
-                                <Setter TargetName="TabSurface" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
             <Style.Triggers>
+                <!-- Default selected look, used by the Settings tabs. The library
+                     tabs override this per-tab from code. -->
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
                     <Setter Property="Background" Value="{DynamicResource SelectedBrush}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -453,6 +458,9 @@
             <Setter Property="HorizontalContentAlignment" Value="Left" />
             <Setter Property="Padding" Value="16,12" />
             <Setter Property="Margin" Value="0,0,0,6" />
+            <!-- Settings tabs are not per-category coloured; give them the global
+                 accent so the shared template still shows a clear selected state. -->
+            <Setter Property="services:TabAccent.Color" Value="#4CC9F0" />
         </Style>
         <Style TargetType="DataGrid">
             <Setter Property="Background" Value="Transparent" />

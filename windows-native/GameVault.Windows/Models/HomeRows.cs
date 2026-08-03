@@ -1,15 +1,25 @@
 using System.Globalization;
+using System.Linq;
 
 namespace SinuGameVault.Models;
 
-/// <summary>One rental return or subscription renewal on the Home page.</summary>
+/// <summary>One rental return or subscription renewal on the Home page, shown as a title card.</summary>
 public sealed class DueDateRow
 {
     public string Title { get; init; } = "";
     /// <summary>"Rental return" or "Subscription renewal".</summary>
     public string Kind { get; init; } = "";
-    public string Detail { get; init; } = "";
+    public string Vendor { get; init; } = "";
+    public string DueText { get; init; } = "";
+    public string Cost { get; init; } = "";
+    public string Image { get; init; } = "";
     public int? DaysLeft { get; init; }
+
+    public bool HasVendor => Vendor.Length > 0;
+    public bool HasCost => Cost.Length > 0;
+    public string VendorLine => Vendor.Length > 0 && Cost.Length > 0 ? $"{Vendor}  ·  {Cost}"
+        : Vendor.Length > 0 ? Vendor : Cost;
+    public bool HasVendorLine => VendorLine.Length > 0;
 
     public string Countdown => DaysLeft is null ? "--"
         : DaysLeft < 0 ? $"{Math.Abs(DaysLeft.Value)}d over"
@@ -22,6 +32,29 @@ public sealed class DueDateRow
         : DaysLeft <= 3 ? "#FF6577"
         : DaysLeft <= 10 ? "#FFD166"
         : "#5DE2B5";
+
+    private static readonly string[] PlaceholderColors =
+        ["#2E4A6B", "#4A3A6B", "#6B3A4F", "#2F5B52", "#5B4A2F", "#3A4E6B", "#553A6B", "#6B4A3A"];
+
+    public string Initials
+    {
+        get
+        {
+            var words = Title.Split([' ', '-', ':', '.'], StringSplitOptions.RemoveEmptyEntries)
+                .Where(word => char.IsLetterOrDigit(word[0])).Take(2).ToArray();
+            return words.Length == 0 ? "?" : string.Concat(words.Select(word => char.ToUpperInvariant(word[0])));
+        }
+    }
+
+    public string PlaceholderColor
+    {
+        get
+        {
+            var hash = 0;
+            foreach (var character in Title) hash = (hash * 31 + character) & 0x7FFFFFFF;
+            return PlaceholderColors[hash % PlaceholderColors.Length];
+        }
+    }
 }
 
 /// <summary>One arc of the Home spending donut, and its legend entry.</summary>
