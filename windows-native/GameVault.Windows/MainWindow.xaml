@@ -11,7 +11,7 @@
                     HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="58"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                    <Border Background="{DynamicResource PanelRaisedBrush}" CornerRadius="7,0,0,7" ClipToBounds="True">
+                    <Border Background="{DynamicResource PanelRaisedBrush}" CornerRadius="8,0,0,8" ClipToBounds="True">
                         <Grid Background="{Binding PlaceholderColor}"><TextBlock Text="{Binding Initials}" Foreground="#7AFFFFFF" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/><Image app:Artwork.Url="{Binding Image}" app:Artwork.DecodeWidth="120" Stretch="UniformToFill"/></Grid>
                     </Border>
                     <StackPanel Grid.Column="1" Margin="15,0" VerticalAlignment="Center">
@@ -48,7 +48,7 @@
                 <Button.ContextMenu><ContextMenu><MenuItem Header="Open details" Tag="open" Click="CardQuickAction_Click"/><MenuItem Header="Edit details" Tag="edit" Click="CardQuickAction_Click"/><Separator/><MenuItem Header="Primary action" Tag="primary" Click="CardQuickAction_Click"/><MenuItem Header="Add to watchlist / queue" Tag="watchlist" Click="CardQuickAction_Click"/><MenuItem Header="Mark watched / completed" Tag="watched" Click="CardQuickAction_Click"/><MenuItem Header="Not interested" Tag="hidden" Click="CardQuickAction_Click"/></ContextMenu></Button.ContextMenu>
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                    <Border Height="{Binding ArtHeight}" Background="{Binding PlaceholderColor}" CornerRadius="15,15,0,0" ClipToBounds="True">
+                    <Border Height="{Binding ArtHeight}" Background="{Binding PlaceholderColor}" CornerRadius="16,16,0,0" ClipToBounds="True">
                         <Grid>
                             <!-- Drawn locally so a title without a cover is never a blank card. -->
                             <TextBlock Text="{Binding Initials}" FontSize="44" FontWeight="Bold" Foreground="#66FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
@@ -92,7 +92,7 @@
                 <Button.ContextMenu><ContextMenu><MenuItem Header="Open details" Tag="open" Click="CardQuickAction_Click"/><MenuItem Header="Edit details" Tag="edit" Click="CardQuickAction_Click"/><Separator/><MenuItem Header="Primary action" Tag="primary" Click="CardQuickAction_Click"/><MenuItem Header="Add to watchlist / queue" Tag="watchlist" Click="CardQuickAction_Click"/><MenuItem Header="Mark watched / completed" Tag="watched" Click="CardQuickAction_Click"/><MenuItem Header="Not interested" Tag="hidden" Click="CardQuickAction_Click"/></ContextMenu></Button.ContextMenu>
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="70"/><ColumnDefinition Width="*"/><ColumnDefinition Width="190"/><ColumnDefinition Width="130"/></Grid.ColumnDefinitions>
-                    <Border Background="{DynamicResource PanelRaisedBrush}" CornerRadius="7,0,0,7" ClipToBounds="True"><Grid Background="{Binding PlaceholderColor}"><TextBlock Text="{Binding Initials}" Foreground="#7AFFFFFF" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/><Image app:Artwork.Url="{Binding Image}" app:Artwork.DecodeWidth="140" Stretch="UniformToFill"/></Grid></Border>
+                    <Border Background="{DynamicResource PanelRaisedBrush}" CornerRadius="8,0,0,8" ClipToBounds="True"><Grid Background="{Binding PlaceholderColor}"><TextBlock Text="{Binding Initials}" Foreground="#7AFFFFFF" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/><Image app:Artwork.Url="{Binding Image}" app:Artwork.DecodeWidth="140" Stretch="UniformToFill"/></Grid></Border>
                     <StackPanel Grid.Column="1" Margin="18,0" VerticalAlignment="Center"><TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="18" TextTrimming="CharacterEllipsis"/><TextBlock Text="{Binding DetailMeta}" Foreground="{DynamicResource MutedBrush}" FontSize="15" FontWeight="SemiBold" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/></StackPanel>
                     <StackPanel Grid.Column="2" VerticalAlignment="Center"><Border HorizontalAlignment="Left" Background="{Binding CategoryColor}" CornerRadius="5" Padding="8,4"><TextBlock Text="{Binding CategoryLabel}" Foreground="White" FontSize="11" FontWeight="Bold"/></Border><TextBlock Text="{Binding CardStatusText}" Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/></StackPanel>
                     <StackPanel Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,16,0"><TextBlock Text="{Binding CardRatingText}" Foreground="{DynamicResource WarningBrush}" FontWeight="Bold"/><TextBlock Text="{Binding DaysText}" Foreground="{Binding CountdownColor}" FontWeight="Bold" FontSize="19" Margin="0,4,0,0"/></StackPanel>
@@ -101,7 +101,7 @@
         </DataTemplate>
     </Window.Resources>
     <Grid Background="{DynamicResource WindowBrush}">
-        <Grid.ColumnDefinitions><ColumnDefinition x:Name="RailColumn" Width="248"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+        <Grid.ColumnDefinitions><ColumnDefinition x:Name="RailColumn" Width="228"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
         <!-- Layered background: section artwork, a scrim to keep text legible,
              then an ambient glow and a faint weave so large empty regions have
              some depth instead of reading as one flat colour. -->
@@ -126,30 +126,30 @@
                     </StackPanel>
                     <TextBlock Text="LIBRARY" Style="{StaticResource KickerText}" Margin="16,0,0,4"/>
                     <Button x:Name="HomeRailButton" Tag="Overview" Style="{StaticResource RailButton}" Click="Navigate_Click">
-                        <StackPanel Orientation="Horizontal"><TextBlock Text="âŒ‚" FontSize="16" Width="26"/><TextBlock Text="Home"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="Ôîé" FontSize="16" Width="26"/><TextBlock Text="Home"/></StackPanel>
                     </Button>
                     <Button x:Name="GamesRailButton" Tag="Games" Style="{StaticResource RailButton}" Click="Navigate_Click">
-                        <StackPanel Orientation="Horizontal"><TextBlock Text="â–£" FontSize="15" Width="26"/><TextBlock Text="Games"/><TextBlock x:Name="GamesRailCount" Foreground="{DynamicResource MutedBrush}" FontSize="11" FontWeight="Bold" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="Ôûú" FontSize="15" Width="26"/><TextBlock Text="Games"/><TextBlock x:Name="GamesRailCount" Foreground="{DynamicResource MutedBrush}" FontSize="11" FontWeight="Bold" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
                     </Button>
                     <Button x:Name="MoviesRailButton" Tag="Movies" Style="{StaticResource RailButton}" Click="Navigate_Click">
-                        <StackPanel Orientation="Horizontal"><TextBlock Text="â—‰" FontSize="15" Width="26"/><TextBlock Text="Movies"/><TextBlock x:Name="MoviesRailCount" Foreground="{DynamicResource MutedBrush}" FontSize="11" FontWeight="Bold" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="Ôùë" FontSize="15" Width="26"/><TextBlock Text="Movies"/><TextBlock x:Name="MoviesRailCount" Foreground="{DynamicResource MutedBrush}" FontSize="11" FontWeight="Bold" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
                     </Button>
                     <Button x:Name="SeriesRailButton" Tag="Series" Style="{StaticResource RailButton}" Click="Navigate_Click">
-                        <StackPanel Orientation="Horizontal"><TextBlock Text="â–¤" FontSize="15" Width="26"/><TextBlock Text="TV Shows"/><TextBlock x:Name="SeriesRailCount" Foreground="{DynamicResource MutedBrush}" FontSize="11" FontWeight="Bold" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="Ôûñ" FontSize="15" Width="26"/><TextBlock Text="TV Shows"/><TextBlock x:Name="SeriesRailCount" Foreground="{DynamicResource MutedBrush}" FontSize="11" FontWeight="Bold" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
                     </Button>
                     <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="14,14,6,14" Opacity="0.6"/>
                     <TextBlock Text="SERVICES" Style="{StaticResource KickerText}" Margin="16,0,0,4"/>
                     <Button Tag="Plex" Style="{StaticResource RailButton}" Click="Navigate_Click">
-                        <StackPanel Orientation="Horizontal"><TextBlock Text="â–¶" FontSize="14" Width="26"/><TextBlock Text="Plex"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="ÔûÂ" FontSize="14" Width="26"/><TextBlock Text="Plex"/></StackPanel>
                     </Button>
                     <Button Tag="BiglyBT" Style="{StaticResource RailButton}" Click="Navigate_Click">
-                        <StackPanel Orientation="Horizontal"><TextBlock Text="â‡©" FontSize="15" Width="26"/><TextBlock Text="BiglyBT"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="Ôç®" FontSize="15" Width="26"/><TextBlock Text="BiglyBT"/></StackPanel>
                     </Button>
                 </StackPanel>
                 <StackPanel x:Name="RailFooter" DockPanel.Dock="Bottom" VerticalAlignment="Bottom">
                     <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="14,0,6,12" Opacity="0.6"/>
                     <Button Tag="Settings" Style="{StaticResource RailButton}" Click="Navigate_Click">
-                        <StackPanel Orientation="Horizontal"><TextBlock Text="âš™" FontSize="15" Width="26"/><TextBlock Text="Settings"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="ÔÜÖ" FontSize="15" Width="26"/><TextBlock Text="Settings"/></StackPanel>
                     </Button>
                     <TextBlock x:Name="VersionText" Style="{StaticResource MutedText}" FontSize="11" Margin="16,10,0,0" />
                 </StackPanel>
@@ -207,7 +207,7 @@
                             <StackPanel><TextBlock Text="COMPLETED" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12"/><TextBlock x:Name="CompletedCount" Text="0" FontSize="30" FontWeight="Bold" Margin="0,8,0,0"/><TextBlock Text="games finished" Style="{StaticResource MutedText}"/></StackPanel>
                         </Border>
                         <Border Style="{StaticResource SurfaceCard}" Padding="18" Margin="4,0,4,0"><StackPanel><TextBlock Text="TOTAL RENTED" Foreground="#A45BDD" FontWeight="Bold" FontSize="12"/><TextBlock x:Name="TotalRentedCount" Text="0" FontSize="30" FontWeight="Bold" Margin="0,8,0,0"/><TextBlock Text="all rental periods" Style="{StaticResource MutedText}"/></StackPanel></Border>
-                        <Border Style="{StaticResource SurfaceCard}" Padding="18" Margin="4,0,0,0"><StackPanel><TextBlock Text="TOTAL SPENT" Foreground="#C28A00" FontWeight="Bold" FontSize="12"/><TextBlock x:Name="TotalSpentCount" Text="â‚¹0" FontSize="24" FontWeight="Bold" Margin="0,8,0,0"/><TextBlock Text="rentals + subscriptions" Style="{StaticResource MutedText}"/></StackPanel></Border>
+                        <Border Style="{StaticResource SurfaceCard}" Padding="18" Margin="4,0,0,0"><StackPanel><TextBlock Text="TOTAL SPENT" Foreground="#C28A00" FontWeight="Bold" FontSize="12"/><TextBlock x:Name="TotalSpentCount" Text="Ôé¦0" FontSize="24" FontWeight="Bold" Margin="0,8,0,0"/><TextBlock Text="rentals + subscriptions" Style="{StaticResource MutedText}"/></StackPanel></Border>
                     </UniformGrid>
                     <Border Grid.Row="4" Style="{StaticResource SurfaceCard}" Padding="18,14">
                         <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="230"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -314,7 +314,7 @@
                                 <Grid Grid.Row="1" Height="176" HorizontalAlignment="Center">
                                     <Canvas x:Name="SpendDonut" Width="176" Height="176"/>
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" IsHitTestVisible="False">
-                                        <TextBlock x:Name="SpendDonutTotal" Text="â‚¹0" FontSize="21" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                        <TextBlock x:Name="SpendDonutTotal" Text="Ôé¦0" FontSize="21" FontWeight="Bold" HorizontalAlignment="Center"/>
                                         <TextBlock Text="total spent" Style="{StaticResource MutedText}" FontSize="11" HorizontalAlignment="Center"/>
                                     </StackPanel>
                                 </Grid>
@@ -479,7 +479,7 @@
                                 <TextBlock Text="General and appearance" FontSize="22" FontWeight="Bold"/><TextBlock Text="Choose the Windows presentation without changing the web or TV interface." Style="{StaticResource MutedText}" Margin="0,7,0,18"/>
                                 <TextBlock Text="APPEARANCE" Style="{StaticResource KickerText}"/><WrapPanel Margin="0,10,0,18"><Button Content="Dark" Tag="dark" Click="SetTheme_Click" Margin="0,0,8,8"/><Button Content="Light" Tag="light" Click="SetTheme_Click" Margin="0,0,8,8"/><Button Content="OLED black" Tag="oled" Click="SetTheme_Click" Margin="0,0,8,8"/></WrapPanel>
                                 <TextBlock Text="LOCAL VAULT" Style="{StaticResource KickerText}"/><TextBlock x:Name="VaultPathText" TextWrapping="Wrap" Margin="0,7,0,14"/><Button Content="Open data folder" Click="OpenVaultFolder_Click" HorizontalAlignment="Left"/>
-                                <Separator Margin="0,24"/><TextBlock Text="Keyboard shortcuts" Style="{StaticResource SectionTitle}"/><TextBlock Text="Ctrl+K search Â· Ctrl+R refresh Â· Ctrl+, settings Â· Alt+Left go back Â· Esc close details" Style="{StaticResource MutedText}" Margin="0,8,0,0"/>
+                                <Separator Margin="0,24"/><TextBlock Text="Keyboard shortcuts" Style="{StaticResource SectionTitle}"/><TextBlock Text="Ctrl+K search -À Ctrl+R refresh -À Ctrl+, settings -À Alt+Left go back -À Esc close details" Style="{StaticResource MutedText}" Margin="0,8,0,0"/>
                             </StackPanel></Border></ScrollViewer>
                         </TabItem>
                         <TabItem Header="Cloud and APIs">
