@@ -237,6 +237,14 @@ const merged=core.sync.merge(local,remote,collections);
 assert.deepEqual(Array.from(merged.queue,x=>x.name).sort(),["Alpha","Local edit","Remote edit"],"concurrent device additions must converge");
 const deleted=core.sync.merge({...merged,updatedAt:300,queue:merged.queue.filter(x=>x.id!=="remote"),_sync:{version:1,records:{queue:{"id:a":100,"id:local":200}},tombstones:{queue:{"id:remote":300}}}},remote,collections);
 assert.ok(!deleted.queue.some(x=>x.id==="remote"),"newer tombstones must prevent deleted records from returning");
+/* A list only the desktop application knows about used to be copied wholesale
+   from whichever vault was newer, so changes made there were dropped. */
+const desktopLocal={updatedAt:200,queue:[],hiddenGames:[{id:"g1",name:"Already hidden"}]};
+const desktopRemote={updatedAt:100,queue:[],hiddenGames:[{id:"g1",name:"Already hidden"},{id:"g2",name:"Hidden on the desktop"}]};
+const desktopMerged=core.sync.merge(desktopLocal,desktopRemote,collections);
+assert.deepEqual(Array.from(desktopMerged.hiddenGames,x=>x.name).sort(),["Already hidden","Hidden on the desktop"],
+  "lists owned by the other client must merge, not be replaced by the newer vault");
+
 const envelope=await core.crypto.seal({token:"private-value"},"correct horse battery staple");
 assert.ok(!JSON.stringify(envelope).includes("private-value"),"encrypted configuration must not contain plaintext credentials");
 assert.deepEqual(await core.crypto.open(envelope,"correct horse battery staple"),{token:"private-value"},"encrypted configuration must round-trip");

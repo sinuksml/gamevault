@@ -139,8 +139,12 @@ public sealed class VaultRepository
 
     public int UserItemCount()
     {
+        /* Every collection the user can put data in. A missing name here reads as
+           an empty vault, and Drive sync treats an empty vault as a new device and
+           adopts the cloud copy wholesale — so anything held only in the missing
+           collection is discarded. */
         string[] collections = ["rentals", "subscriptions", "subscriptionGames", "playing", "queue", "upcoming", "upcomingRemoved", "played", "hiddenGames", "rentalHistory",
-            "movieWatchlist", "watchingMovies", "watchedMovies", "hiddenMovies", "seriesWatchlist", "watchingSeries", "watchedSeries", "hiddenSeries", "biglyHistory"];
+            "movieWatchlist", "watchingMovies", "watchedMovies", "hiddenMovies", "seriesWatchlist", "watchingSeries", "watchedSeries", "hiddenSeries", "biglyHistory", "petrol"];
         return collections.Sum(name => Collection(name).Count);
     }
 

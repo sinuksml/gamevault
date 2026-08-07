@@ -3,6 +3,9 @@ using System.Text.Json.Nodes;
 
 var temp = Path.Combine(Path.GetTempPath(), "gamevault-native-smoke-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(temp);
+// These checks load deliberately damaged vaults. Keep that noise out of the real
+// diagnostics log, where it reads as the application corrupting live data.
+DiagnosticsService.UseFolder(Path.Combine(temp, "Diagnostics"));
 try
 {
     var source = Path.Combine(temp, "source.json");
@@ -217,6 +220,34 @@ try
     var webRemote = new JsonObject { ["updatedAt"] = 1, ["queue"] = new JsonArray(), ["webOnlyFutureField"] = new JsonObject { ["mustSurvive"] = true } };
     Assert(DriveService.MergeVaults(webLocal, webRemote, preferRemote: false)["webOnlyFutureField"]?["mustSurvive"]?.GetValue<bool>() == true,
         "web-only fields survive a locally-preferred Drive merge");
+
+    /* Finance and health are only ever edited on the web, so the desktop copy is
+       just the last download. Keeping the local copy when both sides had one threw
+       away newer edits made on the phone. */
+    var staleLocal = new JsonObject
+    {
+        ["updatedAt"] = 900, ["queue"] = new JsonArray(),
+        ["finance"] = new JsonObject { ["balance"] = 100 },
+        ["nativeTvCatalog"] = new JsonObject { ["owner"] = "desktop" }
+    };
+    var freshRemote = new JsonObject
+    {
+        ["updatedAt"] = 100, ["queue"] = new JsonArray(),
+        ["finance"] = new JsonObject { ["balance"] = 250 },
+        ["nativeTvCatalog"] = new JsonObject { ["owner"] = "stale-download" }
+    };
+    var ownership = DriveService.MergeVaults(staleLocal, freshRemote, preferRemote: false);
+    Assert(VaultRepository.Number(ownership["finance"]?["balance"]) == 250,
+        "web-owned data comes from the cloud copy even when the desktop vault is newer");
+    Assert(ownership["nativeTvCatalog"]?["owner"]?.ToString() == "desktop",
+        "the catalog cache the desktop app writes keeps its own copy");
+
+    /* A collection missing from the item count reads as an empty vault, and Drive
+       sync adopts the cloud copy wholesale when the vault looks empty. */
+    var petrolOnly = new VaultRepository(Path.Combine(temp, "petrol-only"));
+    await petrolOnly.LoadAsync();
+    await petrolOnly.AddAsync("petrol", new JsonObject { ["id"] = "p1", ["date"] = "2026-08-07" });
+    Assert(petrolOnly.UserItemCount() == 1, "a vault holding only petrol refills does not read as empty");
 
     // The audit log has no record identity, so an earlier merge appended both
     // sides' entries on every sync and grew the vault to hundreds of megabytes.

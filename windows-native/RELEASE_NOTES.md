@@ -1,4 +1,11 @@
-# Sinu Game Vault for Windows 2.6.2
+# Sinu Game Vault for Windows 2.6.3
+
+## 2.6.3 Synchronisation fixes
+
+- Data that only the web application edits — finance, health, saved chats — is no longer reverted by a desktop sync. This app never writes those, so its copy is only ever the last download, but the merge preferred that stale copy whenever the desktop vault was the newer one. Edits made on the phone were quietly undone on the next sync. The cloud copy now wins for anything this application does not write itself.
+- Petrol refills are now counted as library data. Sync treats an empty vault as a new device and adopts the cloud copy wholesale, and because refills were not counted, a vault holding only refills looked empty and lost them.
+- Lists that only one application knows about — "not interested" games, kept on the desktop — are now merged rather than copied from whichever vault was newer, so changes on the other device are no longer dropped.
+- The smoke checks no longer write to the real diagnostic log. They deliberately load damaged vaults, and those entries were being recorded alongside genuine ones, where they read exactly like the application corrupting live data.
 
 ## 2.6.2 Faster large lists, and a delete for petrol refills
 

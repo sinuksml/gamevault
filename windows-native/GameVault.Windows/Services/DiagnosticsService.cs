@@ -4,13 +4,23 @@ using System.Text.RegularExpressions;
 
 namespace SinuGameVault.Services;
 
-internal static class DiagnosticsService
+public static class DiagnosticsService
 {
     private static readonly object Gate = new();
-    private static readonly string Folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SinuGameVault", "Diagnostics");
-    private static readonly string LogPath = Path.Combine(Folder, "gamevault.log");
+    private static string Folder { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SinuGameVault", "Diagnostics");
+    private static string LogPath => Path.Combine(Folder, "gamevault.log");
 
     public static string CurrentLogPath => LogPath;
+
+    /// <summary>
+    /// Sends diagnostics somewhere else, for the smoke checks.
+    ///
+    /// They deliberately load damaged vaults, and because this wrote to one fixed
+    /// path those deliberate failures were recorded in the real log — where they
+    /// read exactly like the application corrupting live data. That cost a genuine
+    /// misdiagnosis, so the tests now keep to their own folder.
+    /// </summary>
+    public static void UseFolder(string folder) => Folder = folder;
 
     public static void Log(string area, string message, Exception? exception = null)
     {

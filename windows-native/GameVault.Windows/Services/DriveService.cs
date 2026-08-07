@@ -373,6 +373,14 @@ public sealed class DriveService
     /// <summary>Append-only diagnostic logs: reconciled by keeping the newest entries, never by appending both sides.</summary>
     private static readonly string[] LogArrays = ["audit"];
 
+    /// <summary>
+    /// Non-list fields this application writes itself, so its own copy is the
+    /// authoritative one. Everything else non-list is web-owned and is taken from
+    /// the remote vault. The counters are rewritten by the caller after merging.
+    /// </summary>
+    private static readonly string[] DesktopOwnedKeys =
+        ["nativeTvCatalog", "nativeCatalogRefreshAt", "version", "revision", "updatedAt"];
+
     /// <summary>Reads a millisecond timestamp regardless of whether it is stored as int, long or text.</summary>
     private static long At(JsonObject? item) => long.TryParse(item?["at"]?.ToString(), out var value) ? value : 0;
 
@@ -416,6 +424,18 @@ public sealed class DriveService
         {
             if (pair.Value is JsonArray || preferred.ContainsKey(pair.Key)) continue;
             preferred[pair.Key] = pair.Value?.DeepClone();
+        }
+
+        /* Data only the web application edits — finance, health, saved chats and
+           the rest — is carried here untouched between syncs, so the desktop copy
+           is never anything but the last download. When both sides hold it the
+           remote copy is therefore the newer one, and keeping the local copy
+           quietly reverted edits made on the phone. */
+        foreach (var pair in remote)
+        {
+            if (pair.Value is null or JsonArray) continue;
+            if (DesktopOwnedKeys.Contains(pair.Key, StringComparer.Ordinal)) continue;
+            preferred[pair.Key] = pair.Value.DeepClone();
         }
 
         /* Reconcile the append-only logs skipped above: take the newest entries

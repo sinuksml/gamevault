@@ -229,6 +229,17 @@
     local=clone(local||{});remote=clone(remote||{});
     var localNewer=Number(local.updatedAt||0)>=Number(remote.updatedAt||0);
     var result=clone(localNewer?local:remote);
+    /* Reconcile every list either side has, not only the ones this client knows
+       about. A list owned by the other client (the desktop app keeps hiddenGames,
+       for example) used to be copied wholesale from whichever vault was newer, so
+       changes made on that client were dropped on the next sync. */
+    collections=collections.slice();
+    [local,remote].forEach(function(side){
+      Object.keys(side).forEach(function(key){
+        if(key.charAt(0)==="_"||key==="audit") return;      // internal / diagnostic log
+        if(Array.isArray(side[key])&&collections.indexOf(key)<0) collections.push(key);
+      });
+    });
     var ls=ensureSync(local,collections),rs=ensureSync(remote,collections);
     result._sync={version:1,records:{},tombstones:{}};
     collections.forEach(function(collection){

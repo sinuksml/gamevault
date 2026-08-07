@@ -1,6 +1,6 @@
 "use strict";
-var APP_VERSION = "2.6.0";
-var APP_BUILD_DATE = "2026-08-03";
+var APP_VERSION = "2.6.1";
+var APP_BUILD_DATE = "2026-08-07";
 var APP_RELEASE_CHANNEL = "Stable";
 
 if(/iPhone|iPad|iPod/i.test(navigator.userAgent)){
@@ -137,7 +137,7 @@ var BUILTIN_CATALOG = [
 ].map(function(g){ return {name:g[0], year:g[1], score:g[2], genre:g[3], note:g[4], rem:g[5]||""}; });
 
 /* ---------- storage ---------- */
-var VAULT_ARRAY_FIELDS = ["rentals","upcoming","played","dismissed","catalogExtra","vendors","queue","rentalHistory","playing","upcomingRemoved","watchedMovies","movieWatchlist","watchingMovies","hiddenMovies","watchedSeries","seriesWatchlist","watchingSeries","hiddenSeries","biglyHistory","subscriptions","subscriptionGames","petrol"];
+var VAULT_ARRAY_FIELDS = ["rentals","upcoming","played","dismissed","catalogExtra","vendors","queue","rentalHistory","playing","upcomingRemoved","watchedMovies","movieWatchlist","watchingMovies","hiddenMovies","watchedSeries","seriesWatchlist","watchingSeries","hiddenSeries","biglyHistory","subscriptions","subscriptionGames","petrol","hiddenGames","deletions"];
 var VAULT_OBJECT_FIELDS = ["covers","gamePlatforms","dismissedNames","fandom","hubkeys","keys","seriesRatings","aiChats","health","finance","secureConfig","_sync"];
 var HEALTH_SYNC_STORE="gamevault-sync-health-v1";
 function healthDefaults(){
