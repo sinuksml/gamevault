@@ -3063,3 +3063,10 @@ html.light .plex-card:hover{
 .amount-prompt-actions .btn{min-height:46px;justify-content:center}
 body.amount-prompt-open{overflow:hidden}
 @media (max-width:720px){html .amount-prompt{align-items:flex-end;padding:0}html .amount-prompt-panel{width:100%;border-radius:16px 16px 0 0;padding:20px 16px calc(20px + env(safe-area-inset-bottom))}}
+
+/* Petrol tracking (Honda Activa) */
+.petrol-layout{grid-template-columns:1fr}
+.petrol-stats{display:flex;gap:28px;flex-wrap:wrap}
+.petrol-stats>div{display:flex;flex-direction:column;min-width:96px}
+.petrol-stats strong{font-size:32px;font-weight:800;line-height:1}
+.petrol-stats span{color:var(--muted);font-size:12px;margin-top:5px}

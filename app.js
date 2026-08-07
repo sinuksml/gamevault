@@ -1,6 +1,6 @@
 "use strict";
-var APP_VERSION = "2.5.1";
-var APP_BUILD_DATE = "2026-08-01";
+var APP_VERSION = "2.6.0";
+var APP_BUILD_DATE = "2026-08-03";
 var APP_RELEASE_CHANNEL = "Stable";
 
 if(/iPhone|iPad|iPod/i.test(navigator.userAgent)){
@@ -137,7 +137,7 @@ var BUILTIN_CATALOG = [
 ].map(function(g){ return {name:g[0], year:g[1], score:g[2], genre:g[3], note:g[4], rem:g[5]||""}; });
 
 /* ---------- storage ---------- */
-var VAULT_ARRAY_FIELDS = ["rentals","upcoming","played","dismissed","catalogExtra","vendors","queue","rentalHistory","playing","upcomingRemoved","watchedMovies","movieWatchlist","watchingMovies","hiddenMovies","watchedSeries","seriesWatchlist","watchingSeries","hiddenSeries","biglyHistory","subscriptions","subscriptionGames"];
+var VAULT_ARRAY_FIELDS = ["rentals","upcoming","played","dismissed","catalogExtra","vendors","queue","rentalHistory","playing","upcomingRemoved","watchedMovies","movieWatchlist","watchingMovies","hiddenMovies","watchedSeries","seriesWatchlist","watchingSeries","hiddenSeries","biglyHistory","subscriptions","subscriptionGames","petrol"];
 var VAULT_OBJECT_FIELDS = ["covers","gamePlatforms","dismissedNames","fandom","hubkeys","keys","seriesRatings","aiChats","health","finance","secureConfig","_sync"];
 var HEALTH_SYNC_STORE="gamevault-sync-health-v1";
 function healthDefaults(){
@@ -1951,7 +1951,7 @@ function tabCountHtml(kind,key){
 }
 
 function renderTabs(){
-  if(section==="biglybt"||section==="library"||section==="home"){
+  if(section==="biglybt"||section==="library"||section==="home"||section==="petrol"){
     document.getElementById("tabs").innerHTML="";
     return;
   }
@@ -2062,6 +2062,17 @@ function renderHome(){
   });
   else html+='<div class="meta">Nothing due in the next 7 days.</div>';
   html+='<div class="home-foot">'+homeGoBtn("Open Rentals","games","rentals")+'</div></div>';
+
+  // petrol: days since the most recent Activa refill
+  var pl=petrolRefills();
+  var pLast=pl.length?pl[pl.length-1]:null;
+  var pSince=pLast?Math.max(0,petrolDaysBetween(pLast.date,localISO(t0))):null;
+  html+='<div class="card home-card"><div class="home-title">⛽ Petrol</div>';
+  if(pLast){
+    html+='<div class="home-row"><span class="grow">Days since last fill</span><b>'+pSince+'d</b></div>';
+    html+='<div class="meta">Last filled '+esc(fmt(pLast.date))+' · '+pl.length+' refill'+(pl.length===1?'':'s')+' logged</div>';
+  } else html+='<div class="meta">No refills logged yet.</div>';
+  html+='<div class="home-foot">'+homeGoBtn("Open Petrol","petrol","")+'</div></div>';
 
   // subscriptions renewing within 7 days
   var subsSoon=(data.subscriptions||[]).filter(function(s){return s.active!==false;}).map(function(s){return {name:s.service,left:subDaysLeft(s,t0)};}).filter(function(s){return s.left<=7;}).sort(function(a,b){return a.left-b.left;});
@@ -3680,13 +3691,14 @@ function plexDeleteItem(id,confirmed){
 function renderPageContext(){
   var el=document.getElementById("pageContext"); if(!el) return;
   var parent="Games",key=tab,title="",desc="",count="";
-  var labels={rentals:"Rentals",subscriptions:"Subscriptions",playing:"Now Playing",queue:"Rental Queue",upcoming:"Upcoming Releases",suggest:"Discover",played:"Completed",watchlist:"My Watchlist",watching:"Watching",bluray:"New on Blu-ray",uphw:"Coming Soon",relhw:"Discover",mlott:"Malayalam OTT",watched:"Watched",serieswatchlist:"My Watchlist",serieswatching:"Watching",seriesnew:"New Episodes",seriesupcoming:"Upcoming",enseries:"English",mlseries:"Malayalam",taseries:"Tamil",hiseries:"Hindi",serieswatched:"Watched",home:"Home",continue:"Continue Watching",movies:"Movies",shows:"TV Shows",recent:"Recently Added",healthoverview:"Overview",healthfood:"Food & Activity",healthlabs:"Lab Trends",financeoverview:"Monthly Summary",financetransactions:"Details",financeloans:"EMI & Recurring",financestatements:"Gmail Sync"};
-  var descriptions={rentals:"Active rentals, return dates and complete history",subscriptions:"Gaming subscriptions, renewal countdowns and spend",playing:"Games in progress, saved for later, or on hold",queue:"Your prioritized rental queue and vendor availability",upcoming:"Upcoming game releases and release countdowns",suggest:"Recommendations shaped by your ratings and library",played:"Finished games, ratings and personal history",watchlist:"Movies saved for later",watching:"Movies you have started watching",bluray:"Major new Hollywood physical-media releases",uphw:"Major movies in every language with a confirmed U.S. theatrical release",relhw:"Critically acclaimed Hollywood movies to discover",mlott:"Latest and upcoming Malayalam streaming releases",watched:"Your completed movie library",serieswatchlist:"TV shows saved for later",serieswatching:"TV shows you are currently watching",seriesnew:"Latest episodes from shows you are watching",seriesupcoming:"New and returning TV shows coming soon",enseries:"Highly rated English TV shows",mlseries:"Malayalam TV shows, newest first",taseries:"Tamil TV shows, newest first",hiseries:"Hindi TV shows, newest first",serieswatched:"Watched",home:"A summary of your Plex library",continue:"Partially watched movies and TV shows",movies:"Movies available on your Plex server",shows:"TV shows available on your Plex server",recent:"The latest media added to your Plex server",healthoverview:"Your July 2026 report priorities and this week's progress",healthfood:"Track vegetarian and non-vegetarian meals, activity and recovery",healthlabs:"Compare future blood-test results with your July 2026 baseline",financeoverview:"Monthly credits, spending, cash flow and key insights",financetransactions:"Statement transactions, collapsed by category",financeloans:"Detected EMI schedules, subscriptions and upcoming payments",financestatements:"Secure Gmail statement synchronization and import review"};
+  var labels={rentals:"Rentals",subscriptions:"Subscriptions",playing:"Now Playing",queue:"Rental Queue",upcoming:"Upcoming Releases",suggest:"Discover",played:"Completed",watchlist:"My Watchlist",watching:"Watching",bluray:"New on Blu-ray",uphw:"Coming Soon",relhw:"Discover",mlott:"Malayalam OTT",watched:"Watched",serieswatchlist:"My Watchlist",serieswatching:"Watching",seriesnew:"New Episodes",seriesupcoming:"Upcoming",enseries:"English",mlseries:"Malayalam",taseries:"Tamil",hiseries:"Hindi",serieswatched:"Watched",home:"Home",continue:"Continue Watching",movies:"Movies",shows:"TV Shows",recent:"Recently Added",healthoverview:"Overview",healthfood:"Food & Activity",healthlabs:"Lab Trends",petrol:"Refill log",financeoverview:"Monthly Summary",financetransactions:"Details",financeloans:"EMI & Recurring",financestatements:"Gmail Sync"};
+  var descriptions={rentals:"Active rentals, return dates and complete history",subscriptions:"Gaming subscriptions, renewal countdowns and spend",playing:"Games in progress, saved for later, or on hold",queue:"Your prioritized rental queue and vendor availability",upcoming:"Upcoming game releases and release countdowns",suggest:"Recommendations shaped by your ratings and library",played:"Finished games, ratings and personal history",watchlist:"Movies saved for later",watching:"Movies you have started watching",bluray:"Major new Hollywood physical-media releases",uphw:"Major movies in every language with a confirmed U.S. theatrical release",relhw:"Critically acclaimed Hollywood movies to discover",mlott:"Latest and upcoming Malayalam streaming releases",watched:"Your completed movie library",serieswatchlist:"TV shows saved for later",serieswatching:"TV shows you are currently watching",seriesnew:"Latest episodes from shows you are watching",seriesupcoming:"New and returning TV shows coming soon",enseries:"Highly rated English TV shows",mlseries:"Malayalam TV shows, newest first",taseries:"Tamil TV shows, newest first",hiseries:"Hindi TV shows, newest first",serieswatched:"Watched",home:"A summary of your Plex library",continue:"Partially watched movies and TV shows",movies:"Movies available on your Plex server",shows:"TV shows available on your Plex server",recent:"The latest media added to your Plex server",healthoverview:"Your July 2026 report priorities and this week's progress",healthfood:"Track vegetarian and non-vegetarian meals, activity and recovery",healthlabs:"Compare future blood-test results with your July 2026 baseline",petrol:"Honda Activa petrol refills, days since last fill and the gap between fills",financeoverview:"Monthly credits, spending, cash flow and key insights",financetransactions:"Statement transactions, collapsed by category",financeloans:"Detected EMI schedules, subscriptions and upcoming payments",financestatements:"Secure Gmail statement synchronization and import review"};
   if(section==="films"){ parent="Movies"; key=filmTab; }
   else if(section==="series"){ parent="TV Shows"; key=seriesTab; }
   else if(section==="plex"){ parent="Plex Library"; key=plexTab; }
   else if(section==="biglybt"){ parent="BiglyBT"; key="biglybt"; }
   else if(section==="health"){ parent="Health"; key=healthTab; }
+  else if(section==="petrol"){ parent="Petrol Tracking"; key="petrol"; }
   else if(section==="finance"){ parent="Finance"; key=financeTab; }
   else if(section==="library"){ parent="GameVault";key="phonelibrary"; }
   else if(section==="home"){ parent="GameVault";key="homedash"; }
@@ -3755,7 +3767,8 @@ function renderPhoneLibrary(){
       phoneLibraryRow("phone-library-open","plex","&#9654;","Plex","Continue watching, library and recently added",plexOk?"Connected":"Setup needed",plexOk?"ok":"warn")
     ])+
     phoneLibraryGroup("Personal",[
-      phoneLibraryRow("phone-library-open","health","&#9829;","Health","Food, activity, lab trends and weekly progress","Local","muted")
+      phoneLibraryRow("phone-library-open","health","&#9829;","Health","Food, activity, lab trends and weekly progress","Local","muted"),
+      phoneLibraryRow("phone-library-open","petrol","&#9981;","Petrol","Activa refills, days since last fill and history","Local","muted")
     ])+
     phoneLibraryGroup("Vault",[
       phoneLibraryRow("phone-sync","","&#8635;","Sync now","Check Google Drive for the newest vault",cloudMode()?"Connected":"Local only",cloudMode()?"ok":"warn"),
@@ -3852,6 +3865,53 @@ function renderHealthLabs(){
 function healthLabValue(v){return v==null||v===""?"-":esc(String(v));}
 function healthDisclaimer(){return '<p class="health-disclaimer">This tracker supports habit tracking and is not a diagnosis or treatment plan. Review abnormal results and personal targets with a doctor or registered dietitian.</p>';}
 function renderHealth(){data.health=normalizeHealth(data.health);return healthTab==="healthfood"?renderHealthFood():healthTab==="healthlabs"?renderHealthLabs():renderHealthOverview();}
+
+/* ================= PETROL TRACKING (Honda Activa) =================
+   Each refill is a record { id, date, litres, cost, odometer, note }. The list
+   counts the days since the most recent fill and, in the history, the gap in
+   days between each refill and the previous one. Stored in the synced vault. */
+function petrolRefills(){
+  return (data.petrol||[]).filter(function(x){return x&&x.date;}).slice()
+    .sort(function(a,b){return a.date<b.date?-1:(a.date>b.date?1:0);}); // oldest -> newest
+}
+function petrolDaysBetween(a,b){ return Math.round((new Date(b+"T00:00:00")-new Date(a+"T00:00:00"))/86400000); }
+function renderPetrol(){
+  var list=petrolRefills();
+  var todayIso=localISO(today());
+  var last=list.length?list[list.length-1]:null;
+  var daysSince=last?Math.max(0,petrolDaysBetween(last.date,todayIso)):null;
+  var gaps=[]; for(var i=1;i<list.length;i++) gaps.push(petrolDaysBetween(list[i-1].date,list[i].date));
+  var avg=gaps.length?Math.round(gaps.reduce(function(a,b){return a+b;},0)/gaps.length):null;
+
+  var form='<section class="health-panel"><div class="health-section-head"><div><span>LOG A REFILL</span><h3>Add each time you fill petrol on the Activa</h3></div></div>'+
+    '<div class="health-lab-form">'+
+    '<label>Date<input id="petrolDate" type="date" value="'+esc(todayIso)+'"></label>'+
+    '<label>Litres<input id="petrolLitres" type="number" step="0.01" min="0" placeholder="L"></label>'+
+    '<label>Cost (&#8377;)<input id="petrolCost" type="number" step="1" min="0" placeholder="&#8377;"></label>'+
+    '<label>Odometer (km)<input id="petrolOdo" type="number" step="1" min="0" placeholder="km"></label>'+
+    '<label class="wide">Note<input id="petrolNote" type="text" placeholder="Station or remarks"></label>'+
+    '<button class="btn blue" data-act="petrol-save">Save refill</button></div></section>';
+
+  var stats='<section class="health-panel"><div class="petrol-stats">'+
+    '<div><strong>'+(daysSince===null?"&mdash;":daysSince)+'</strong><span>Days since last fill</span></div>'+
+    '<div><strong>'+list.length+'</strong><span>Total refills</span></div>'+
+    '<div><strong>'+(avg===null?"&mdash;":avg)+'</strong><span>Avg days between</span></div>'+
+    '</div>'+(last?'<p class="muted">Last filled '+esc(fmt(last.date))+'</p>':'')+'</section>';
+
+  var rows=list.slice().reverse().map(function(x){
+    var pos=list.indexOf(x);
+    var gap=pos>0?petrolDaysBetween(list[pos-1].date,x.date):null;
+    return '<tr><td>'+esc(fmt(x.date))+'</td><td>'+(gap===null?"First refill":gap+" day"+(gap===1?"":"s"))+'</td>'+
+      '<td>'+(x.litres?esc(x.litres)+" L":"")+'</td><td>'+(x.cost?"&#8377;"+esc(x.cost):"")+'</td>'+
+      '<td>'+(x.odometer?esc(x.odometer)+" km":"")+'</td><td>'+esc(x.note||"")+'</td>'+
+      '<td><button class="iconbtn" data-act="petrol-delete" data-id="'+esc(x.id||x.date)+'" aria-label="Delete refill">&times;</button></td></tr>';
+  }).join("");
+  var history=list.length
+    ? '<section class="health-panel health-table-wrap"><table class="health-table"><thead><tr><th>Date</th><th>Days since previous</th><th>Litres</th><th>Cost</th><th>Odometer</th><th>Note</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></section>'
+    : '<section class="health-panel"><p class="muted">No refills logged yet. Add your first fill above and the days-since counter starts.</p></section>';
+
+  return '<div class="health-layout petrol-layout">'+form+stats+history+'</div>';
+}
 function healthCaptureDayForm(d){
   var activity=document.getElementById("healthActivity"),water=document.getElementById("healthWater"),sleep=document.getElementById("healthSleep"),strength=document.getElementById("healthStrength"),notes=document.getElementById("healthNotes");
   if(activity)d.activityMinutes=Math.max(0,Number(activity.value)||0);if(water)d.waterCups=Math.max(0,Number(water.value)||0);if(sleep)d.sleepHours=Math.max(0,Number(sleep.value)||0);if(strength)d.strength=!!strength.checked;if(notes)d.notes=(notes.value||"").trim();
@@ -3901,6 +3961,13 @@ function render(){
     statsEl.style.display="none";
     renderTabs();
     renderContentHtml(renderHealth());
+    applyBackground();
+    return;
+  }
+  if(section==="petrol"){
+    statsEl.style.display="none";
+    renderTabs();
+    renderContentHtml(renderPetrol());
     applyBackground();
     return;
   }
@@ -3964,8 +4031,8 @@ var section="games", filmTab="watchlist", healthTab="healthoverview", healthWeek
 function phoneUi(){ return window.matchMedia&&window.matchMedia("(max-width:720px)").matches; }
 try{ section=localStorage.getItem(SECTION_KEY)||"games"; }catch(e){}
 var requestedSection=new URLSearchParams(location.search).get("section");
-if(["home","games","films","series","plex","biglybt","health","library"].indexOf(requestedSection)>=0)section=requestedSection;
-if(["home","games","films","series","plex","biglybt","health","library"].indexOf(section)<0)section="games";
+if(["home","games","films","series","plex","biglybt","health","petrol","library"].indexOf(requestedSection)>=0)section=requestedSection;
+if(["home","games","films","series","plex","biglybt","health","petrol","library"].indexOf(section)<0)section="games";
 if(!phoneUi()&&section==="library")section="games";
 var requestedHealthTab=new URLSearchParams(location.search).get("healthTab");
 if(["healthoverview","healthfood","healthlabs"].indexOf(requestedHealthTab)>=0)healthTab=requestedHealthTab;
@@ -6308,6 +6375,23 @@ document.getElementById("content").addEventListener("click",function(e){
   }
   if(act==="health-save-day"){healthSaveDay();return;}
   if(act==="health-save-lab"){healthSaveLab();return;}
+  if(act==="petrol-save"){
+    var pdate=(document.getElementById("petrolDate")||{}).value||localISO(today());
+    var rec={id:uid(),date:pdate,addedAt:Date.now()};
+    var lit=Number((document.getElementById("petrolLitres")||{}).value); if(lit>0)rec.litres=lit;
+    var pcost=Number((document.getElementById("petrolCost")||{}).value); if(pcost>0)rec.cost=pcost;
+    var podo=Number((document.getElementById("petrolOdo")||{}).value); if(podo>0)rec.odometer=podo;
+    var pnote=((document.getElementById("petrolNote")||{}).value||"").trim(); if(pnote)rec.note=pnote;
+    if(!Array.isArray(data.petrol))data.petrol=[];
+    data.petrol.unshift(rec);
+    addAudit("petrol-refill","Logged petrol refill on "+pdate);
+    save();flash("Refill saved");return;
+  }
+  if(act==="petrol-delete"){
+    var rid=b.getAttribute("data-id");
+    data.petrol=(data.petrol||[]).filter(function(x){return String(x.id||x.date)!==String(rid);});
+    save();flash("Refill removed");return;
+  }
   if(act==="health-delete-lab"){
     var labDate=b.getAttribute("data-date");confirmDestructive("Delete the lab entry dated "+fmt(labDate)+"? This cannot be undone.","Delete lab entry",function(){data.health.labs=data.health.labs.filter(function(x){return x.date!==labDate;});save();flash("Lab entry removed");});return;
   }

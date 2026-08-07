@@ -57,6 +57,21 @@ public sealed class DueDateRow
     }
 }
 
+/// <summary>One petrol refill in the history, with the gap since the previous fill.</summary>
+public sealed class PetrolRow
+{
+    public string Date { get; init; } = "";
+    public int? Gap { get; init; }
+    public double Litres { get; init; }
+    public double Cost { get; init; }
+    public double Odometer { get; init; }
+    public string Note { get; init; } = "";
+    public string GapText => Gap is null ? "First refill" : $"{Gap} day{(Gap == 1 ? "" : "s")}";
+    public string LitresText => Litres > 0 ? $"{Litres:0.##} L" : "";
+    public string CostText => Cost > 0 ? "₹" + Cost.ToString("N0", CultureInfo.InvariantCulture) : "";
+    public string OdometerText => Odometer > 0 ? Odometer.ToString("N0", CultureInfo.InvariantCulture) + " km" : "";
+}
+
 /// <summary>One arc of the Home spending donut, and its legend entry.</summary>
 public sealed class SpendSliceRow
 {

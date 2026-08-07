@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<TorrentRow> _torrentRows = [];
     private readonly ObservableCollection<TorrentHistoryRow> _torrentHistoryRows = [];
     private readonly ObservableCollection<MonthlySpendRow> _monthlySpendRows = [];
+    private readonly ObservableCollection<PetrolRow> _petrolRows = [];
     /* Each sync downloads, merges and re-uploads the whole vault, so a 2.5 second
        debounce meant a burst of that work while the user was still typing. This
        waits for editing to settle instead; closing still flushes what is pending. */
@@ -46,6 +47,9 @@ public partial class MainWindow : Window
     private bool _gamesListView;
     private bool _mediaListView;
     private string _plexMode = "continue";
+    private DateTime _lastPlexProgressSync = DateTime.MinValue;
+    /// <summary>When true, the current section shows every title grouped into year sections instead of one tab.</summary>
+    private bool _categoryView;
     private string _upcomingPlatform = "all";
     private string _theme = "dark";
     private bool _loadingSettings;
@@ -65,6 +69,7 @@ public partial class MainWindow : Window
         BiglyGrid.ItemsSource = _torrentRows;
         BiglyHistoryGrid.ItemsSource = _torrentHistoryRows;
         GameSpendChart.ItemsSource = _monthlySpendRows;
+        PetrolGrid.ItemsSource = _petrolRows;
         _gamesListView = _preferences.Get("GamesView") == "list";
         _mediaListView = _preferences.Get("MediaView") == "list";
         _theme = _preferences.Get("Theme", "dark");
@@ -140,6 +145,7 @@ public partial class MainWindow : Window
     private void Navigate_Click(object sender, RoutedEventArgs e)
     {
         CloseDetails();
+        SetCategoryView(false);
         _previousSection = _section;
         _section = (sender as Button)?.Tag?.ToString() ?? "Overview";
         _preferences.Set("LastSection", _section);
@@ -156,6 +162,7 @@ public partial class MainWindow : Window
         PlaceholderPage.Visibility = Visibility.Collapsed;
         PlexPage.Visibility = Visibility.Collapsed;
         BiglyPage.Visibility = Visibility.Collapsed;
+        PetrolPage.Visibility = Visibility.Collapsed;
         SettingsPage.Visibility = Visibility.Collapsed;
         SearchBox.IsEnabled = _section is "Games" or "Movies" or "Series";
         SearchBox.Text = "";
@@ -167,13 +174,15 @@ public partial class MainWindow : Window
             case "Games":
                 PageTitle.Text = "Games"; PageSubtitle.Text = "Rentals, subscriptions, playing, queue and completed games"; GamesPage.Visibility = Visibility.Visible; UpcomingPlatformTabs.Visibility = ShowsPlatformFilter(_gameCollection) ? Visibility.Visible : Visibility.Collapsed; StyleGameTabs(); RefreshGames(); break;
             case "Movies":
-                PageTitle.Text = "Movies"; PageSubtitle.Text = "Watchlist, releases, discovery and history"; MediaPage.Visibility = Visibility.Visible; BuildMediaTabs(); RefreshMedia(); _ = EnsureCurrentCatalogAsync(); break;
+                PageTitle.Text = "Movies"; PageSubtitle.Text = "Watchlist, releases, discovery and history"; MediaPage.Visibility = Visibility.Visible; BuildMediaTabs(); RefreshMedia(); _ = EnsureCurrentCatalogAsync(); _ = SyncPlexContinueAsync(); break;
             case "Series":
-                PageTitle.Text = "TV Shows"; PageSubtitle.Text = "Watchlist, new episodes, regional discovery and history"; MediaPage.Visibility = Visibility.Visible; BuildMediaTabs(); RefreshMedia(); _ = EnsureCurrentCatalogAsync(); break;
+                PageTitle.Text = "TV Shows"; PageSubtitle.Text = "Watchlist, new episodes, regional discovery and history"; MediaPage.Visibility = Visibility.Visible; BuildMediaTabs(); RefreshMedia(); _ = EnsureCurrentCatalogAsync(); _ = SyncPlexContinueAsync(); break;
             case "Plex":
                 PageTitle.Text = "Plex"; PageSubtitle.Text = "Continue watching and manage your Shield library"; PlexPage.Visibility = Visibility.Visible; _ = RefreshPlexAsync(); break;
             case "BiglyBT":
                 PageTitle.Text = "BiglyBT"; PageSubtitle.Text = "Native download status, controls and history"; BiglyPage.Visibility = Visibility.Visible; _lastBiglyInteraction = DateTime.Now; _biglyRefreshTimer.Start(); _ = RefreshBiglyAsync(); break;
+            case "Petrol":
+                PageTitle.Text = "Petrol Tracking"; PageSubtitle.Text = "Honda Activa refills, days since last fill and history"; PetrolPage.Visibility = Visibility.Visible; if (PetrolDate.SelectedDate is null) PetrolDate.SelectedDate = DateTime.Today; RefreshPetrol(); break;
             case "Settings":
                 PageTitle.Text = "Settings"; PageSubtitle.Text = "Data migration, backup and native services"; SettingsPage.Visibility = Visibility.Visible; break;
             default:
@@ -232,6 +241,12 @@ public partial class MainWindow : Window
         var subscriptionSpent = _vault.Collection("subscriptions").OfType<JsonObject>().Sum(item => Number(item, "totalPaid", "cost"));
         RefreshGameSpendChart();
         TotalSpentCount.Text = $"₹{rentalSpent + subscriptionSpent:N0}";
+
+        // Petrol summary: days since the most recent Activa refill.
+        var petrol = PetrolRefills();
+        PetrolHomeSummary.Text = petrol.Count == 0
+            ? "No petrol refills logged yet"
+            : $"Activa: {(int)(DateTime.Today - petrol[^1].Date.Date).TotalDays} days since last petrol fill  ·  last {DisplayDate(petrol[^1].Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))}";
 
         var dueDates = BuildDueDates();
         DueDatesList.ItemsSource = dueDates;
@@ -538,6 +553,75 @@ public partial class MainWindow : Window
             .ToList();
     }
 
+    /// <summary>Parsed petrol refills, oldest first, so gaps between consecutive fills can be computed.</summary>
+    private List<(DateTime Date, JsonObject Node)> PetrolRefills() =>
+        _vault.Collection("petrol").OfType<JsonObject>()
+            .Select(node => (Ok: DateTime.TryParse(Text(node, "date"), out var date), Date: date, Node: node))
+            .Where(entry => entry.Ok)
+            .OrderBy(entry => entry.Date)
+            .Select(entry => (entry.Date, entry.Node))
+            .ToList();
+
+    private void RefreshPetrol()
+    {
+        var refills = PetrolRefills();
+        _petrolRows.Clear();
+        // Build newest-first, tagging each with the gap in days since the previous fill.
+        for (var index = refills.Count - 1; index >= 0; index--)
+        {
+            var (date, node) = refills[index];
+            int? gap = index > 0 ? (int)(date.Date - refills[index - 1].Date.Date).TotalDays : null;
+            _petrolRows.Add(new PetrolRow
+            {
+                Date = DisplayDate(date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+                Gap = gap,
+                Litres = Number(node, "litres", "liters"),
+                Cost = Number(node, "cost", "amount"),
+                Odometer = Number(node, "odometer", "km"),
+                Note = Text(node, "note", "notes")
+            });
+        }
+
+        PetrolCount.Text = refills.Count.ToString(CultureInfo.InvariantCulture);
+        if (refills.Count > 0)
+        {
+            var days = (int)(DateTime.Today - refills[^1].Date.Date).TotalDays;
+            PetrolDaysSince.Text = days.ToString(CultureInfo.InvariantCulture);
+            PetrolLastDate.Text = $"Last filled {DisplayDate(refills[^1].Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))}";
+        }
+        else { PetrolDaysSince.Text = "--"; PetrolLastDate.Text = "No refills logged yet"; }
+
+        // Average gap across all recorded intervals.
+        if (refills.Count >= 2)
+        {
+            var gaps = Enumerable.Range(1, refills.Count - 1).Select(i => (refills[i].Date.Date - refills[i - 1].Date.Date).TotalDays);
+            PetrolAvgGap.Text = Math.Round(gaps.Average()).ToString(CultureInfo.InvariantCulture);
+        }
+        else PetrolAvgGap.Text = "--";
+    }
+
+    private async void AddPetrolRefill_Click(object sender, RoutedEventArgs e)
+    {
+        var date = PetrolDate.SelectedDate ?? DateTime.Today;
+        var record = new JsonObject
+        {
+            ["id"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture),
+            ["date"] = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["addedAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        };
+        if (double.TryParse(PetrolLitres.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var litres) && litres > 0) record["litres"] = litres;
+        if (double.TryParse(PetrolCost.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var cost) && cost > 0) record["cost"] = cost;
+        if (double.TryParse(PetrolOdometer.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var odo) && odo > 0) record["odometer"] = odo;
+        if (PetrolNote.Text.Trim().Length > 0) record["note"] = PetrolNote.Text.Trim();
+
+        await _vault.AddAsync("petrol", record);
+        PetrolLitres.Text = PetrolCost.Text = PetrolOdometer.Text = PetrolNote.Text = "";
+        PetrolDate.SelectedDate = DateTime.Today;
+        RefreshPetrol();
+        RefreshDashboard();
+        StatusText.Text = "Refill saved.";
+    }
+
     private void HomeShortcut_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button) return;
@@ -554,6 +638,7 @@ public partial class MainWindow : Window
         StyleGameTabs();
         if (!IsLoaded || GamesTabs.SelectedItem is not TabItem tab) return;
         CloseDetails();
+        SetCategoryView(false);
         _gameCollection = tab.Tag?.ToString() ?? "rentals";
         UpcomingPlatformTabs.Visibility = ShowsPlatformFilter(_gameCollection) ? Visibility.Visible : Visibility.Collapsed;
         UpdateUpcomingPlatformStyles();
@@ -574,24 +659,57 @@ public partial class MainWindow : Window
         {
             var hex = Services.TabAccent.GetColor(tab);
             if (string.IsNullOrEmpty(hex)) continue;
-            var accent = BrushFromHex(hex);
-            if (tab.IsSelected)
-            {
-                tab.Background = accent;
-                tab.BorderBrush = accent;
-                tab.Foreground = Brushes.White;
-            }
-            else
-            {
-                tab.Background = Brushes.Transparent;
-                tab.BorderBrush = new SolidColorBrush(((SolidColorBrush)accent).Color) { Opacity = 0.55 };
-                tab.Foreground = (Brush)FindResource("MutedBrush");
-            }
+            ApplyTabColor(tab, hex, tab.IsSelected, brush => tab.Background = brush, brush => tab.BorderBrush = brush, brush => tab.Foreground = brush);
         }
     }
 
+    /// <summary>
+    /// Gives a tab a permanent colour: the selected tab is filled with it and
+    /// shows white text, while an unselected tab keeps a light tint, a full-colour
+    /// border and coloured text, so every tab is identifiable by colour whether or
+    /// not it is selected.
+    /// </summary>
+    private static void ApplyTabColor(object _, string hex, bool selected, Action<Brush> setBackground, Action<Brush> setBorder, Action<Brush> setForeground)
+    {
+        var color = (Color)ColorConverter.ConvertFromString(hex);
+        var solid = new SolidColorBrush(color); solid.Freeze();
+        if (selected)
+        {
+            setBackground(solid);
+            setBorder(solid);
+            setForeground(Brushes.White);
+        }
+        else
+        {
+            var tint = new SolidColorBrush(color) { Opacity = 0.16 }; tint.Freeze();
+            setBackground(tint);
+            setBorder(solid);
+            setForeground(solid);
+        }
+    }
+
+    /// <summary>De-duplicates rows by title and year so the same title from two collections appears once in the Category view.</summary>
+    private static IEnumerable<LibraryRow> DedupeByTitleYear(IEnumerable<LibraryRow> rows)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var row in rows)
+            if (seen.Add(NormalizedTitle(row.Name) + "|" + row.YearGroup)) yield return row;
+    }
+
+    /// <summary>Every game in the personal library, for the year-grouped Category view.</summary>
+    private IEnumerable<LibraryRow> CategoryGameRows() => DedupeByTitleYear(
+        new[] { "playing", "rentals", "rentalHistory", "queue", "played", "subscriptionGames", "catalogExtra" }
+            .SelectMany(ReadCollection));
+
+    /// <summary>Every movie or show in the personal library, for the year-grouped Category view.</summary>
+    private IEnumerable<LibraryRow> CategoryMediaRows() => DedupeByTitleYear(
+        (_section == "Movies"
+            ? new[] { "movieWatchlist", "watchingMovies", "watchedMovies" }
+            : new[] { "seriesWatchlist", "watchingSeries", "watchedSeries" }).SelectMany(ReadCollection));
+
     private void RefreshGames()
     {
+        if (_categoryView) { SetRows(CategoryGameRows(), GameSortBox.SelectedItem as ComboBoxItem); return; }
         var source = _gameCollection == "playing"
             ? ReadCollection("playing").Concat(ReadCollection("rentals")).GroupBy(row => NormalizedTitle(row.Name)).Select(group => group.First())
             : _gameCollection == "rentals"
@@ -643,9 +761,27 @@ public partial class MainWindow : Window
     private void MediaFilter_Click(object sender, RoutedEventArgs e)
     {
         CloseDetails();
+        SetCategoryView(false);
         _mediaMode = (sender as Button)?.Tag?.ToString() ?? "watchlist";
         RefreshMedia();
         _ = EnsureCurrentCatalogAsync();
+    }
+
+    /// <summary>Toggles the year-grouped Category view for the current section.</summary>
+    private void CategoryView_Click(object sender, RoutedEventArgs e)
+    {
+        CloseDetails();
+        SetCategoryView(!_categoryView);
+        if (_section == "Games") RefreshGames(); else RefreshMedia();
+    }
+
+    /// <summary>Sets the Category view state and keeps both Category buttons labelled to match.</summary>
+    private void SetCategoryView(bool on)
+    {
+        _categoryView = on;
+        var label = on ? "Exit category" : "Category";
+        GamesCategoryButton.Content = label;
+        MediaCategoryButton.Content = label;
     }
 
     private async Task EnsureCurrentCatalogAsync()
@@ -711,20 +847,10 @@ public partial class MainWindow : Window
                 Content = LibraryTabHeader(MediaTabGlyph(key), label), Tag = key, Margin = new Thickness(0, 0, 8, 8),
                 Style = (Style)FindResource("LibraryTabButton")
             };
-            // Each tab keeps its own colour, and the selected one fills with it, so
-            // Movies and TV tabs are as easy to tell apart as the Games tabs: the
-            // selected tab is filled, the rest carry a thin outline in that colour.
-            var accent = BrushFromHex(TabColor(key));
-            if (key == _mediaMode)
-            {
-                button.Background = accent;
-                button.BorderBrush = accent;
-                button.Foreground = Brushes.White;
-            }
-            else
-            {
-                button.BorderBrush = new SolidColorBrush(((SolidColorBrush)accent).Color) { Opacity = 0.55 };
-            }
+            // Each tab keeps its own permanent colour: the selected one is filled,
+            // the rest carry a light tint, a coloured border and coloured text, so
+            // Movies and TV tabs are identifiable by colour like the Games tabs.
+            ApplyTabColor(button, TabColor(key), key == _mediaMode, b => button.Background = b, b => button.BorderBrush = b, b => button.Foreground = b);
             button.Click += MediaFilter_Click;
             MediaTabsPanel.Children.Add(button);
         }
@@ -763,6 +889,13 @@ public partial class MainWindow : Window
 
     private void RefreshMedia()
     {
+        if (_categoryView)
+        {
+            PageSubtitle.Text = $"{(_section == "Movies" ? "Movies" : "TV Shows")} · by year";
+            SetRows(CategoryMediaRows(), MediaSortBox.SelectedItem as ComboBoxItem);
+            BuildMediaTabs();
+            return;
+        }
         var prefix = _section == "Movies" ? "Movies" : "TV Shows";
         var collection = _mediaMode switch
         {
@@ -779,6 +912,14 @@ public partial class MainWindow : Window
         var genre = MediaGenreBox.Text.Trim();
         if (year.Length > 0) rows = rows.Where(row => ParseSortDate(row.Date).Year.ToString(CultureInfo.InvariantCulture) == year || row.Source["year"]?.ToString() == year);
         if (genre.Length > 0) rows = rows.Where(row => row.Genre.Contains(genre, StringComparison.OrdinalIgnoreCase));
+        /* Every section except the Upcoming feeds should show titles only up to the
+           current year; anything dated later belongs under Coming Soon / Upcoming.
+           Undated rows (year 0) are kept. */
+        if (!AllowsFutureYears(_mediaMode))
+        {
+            var currentYear = DateTime.Today.Year;
+            rows = rows.Where(row => MediaRowYear(row) <= currentYear);
+        }
         /* Discovery feeds already drop titles that live in a personal list, but the
            watchlist itself could still show something also marked watched. */
         if (_mediaMode is "watchlist" or "watching")
@@ -965,7 +1106,9 @@ public partial class MainWindow : Window
         var query = SearchBox.Text.Trim();
         // Materialise once: the sort selection inspects the rows before ordering them.
         source = source as IList<LibraryRow> ?? source.ToList();
-        source = _section == "Games" && _gameCollection == "upcoming"
+        source = _categoryView
+            ? source.OrderByDescending(row => row.YearValue).ThenBy(row => row.Name)
+            : _section == "Games" && _gameCollection == "upcoming"
             ? source.OrderBy(row => UpcomingOrder(row)).ThenBy(row => row.DaysLeft is >= 0 ? row.DaysLeft : int.MaxValue).ThenByDescending(row => ParseSortDate(row.Date)).ThenBy(row => row.Name)
             : _section == "Games" && _gameCollection == "catalogExtra" && (sortItem?.Tag?.ToString()) == "new"
             ? source.OrderByDescending(row => ParseSortDate(row.Date)).ThenByDescending(row => row.Rating).ThenBy(row => row.Name)
@@ -1012,7 +1155,9 @@ public partial class MainWindow : Window
            containers to be regenerated, so the panel always matches the current
            grouping instead of whatever the previous page left behind. */
         var view = new ListCollectionView(_rows);
-        if ((_section == "Games" || _section == "Movies" && _mediaMode is "mlott" or "mlup") && _rows.Any(row => row.GroupName.Length > 0))
+        if (_categoryView && _rows.Count > 0)
+            view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(LibraryRow.YearGroup)));
+        else if ((_section == "Games" || _section == "Movies" && _mediaMode is "mlott" or "mlup") && _rows.Any(row => row.GroupName.Length > 0))
             view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(LibraryRow.GroupName)));
         if (_section == "Games")
         {
@@ -1091,16 +1236,31 @@ public partial class MainWindow : Window
         return affinity + candidate.Rating * 2;
     }
 
+    /// <summary>The Upcoming-style feeds are the only sections where future-dated titles belong.</summary>
+    private static bool AllowsFutureYears(string mode) => mode is "uphw" or "mlup" or "seriesupcoming";
+
+    /// <summary>A row's release/air year, preferring the stored year and falling back to its date; 0 when unknown.</summary>
+    private static int MediaRowYear(LibraryRow row)
+    {
+        if (int.TryParse(row.Source["year"]?.ToString(), out var stored) && stored > 1900) return stored;
+        var parsed = ParseSortDate(row.Date).Year;
+        return parsed > 1900 ? parsed : 0;
+    }
+
     private void PopulateMediaYears(IEnumerable<LibraryRow> source)
     {
         var selected = (MediaYearBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+        var currentYear = DateTime.Today.Year;
+        var allowFuture = AllowsFutureYears(_mediaMode);
+        var maxYear = allowFuture ? currentYear + 2 : currentYear;
         var dataYears = source.Select(row => row.Source["year"]?.ToString() ?? (row.Date.Length >= 4 ? row.Date[..4] : ""))
-            .Where(value => value.Length == 4 && int.TryParse(value, out _)).Select(int.Parse);
-        /* Always offer the current year and the next two even before any title with
-           that year has been fetched, so the filter keeps working as the years roll
-           over instead of stopping at whatever the catalog last happened to hold. */
-        var future = Enumerable.Range(DateTime.Today.Year - 1, 4);   // last year through two years ahead
-        var years = dataYears.Concat(future).Distinct().OrderByDescending(value => value)
+            .Where(value => value.Length == 4 && int.TryParse(value, out _)).Select(int.Parse).Where(value => value <= maxYear);
+        /* Always offer the recent years even before a title with that year has been
+           fetched, so the filter keeps working as the years roll over. Only the
+           Upcoming feeds extend into future years; normal sections stop at the
+           current year, so 2027/2028 never appear there. */
+        var baseline = Enumerable.Range(currentYear - 1, allowFuture ? 4 : 2);
+        var years = dataYears.Concat(baseline).Where(value => value <= maxYear).Distinct().OrderByDescending(value => value)
             .Select(value => value.ToString(CultureInfo.InvariantCulture)).ToList();
         MediaYearBox.SelectionChanged -= MediaFilter_Changed;
         MediaYearBox.Items.Clear();
@@ -1505,7 +1665,7 @@ public partial class MainWindow : Window
                     ["plexType"] = item.Type
                 };
                 _plexRows.Add(ReadNodes(new JsonArray(source), "plex").First());
-                if (item.ViewCount > 0) await SyncPlexWatchedRecordAsync(source, item.Type is "show" or "season" or "episode" ? "TV Show" : "Movie");
+                await SyncPlexProgressAsync(item);
             }
             PlexStatusText.Text = $"{_plexRows.Count} items";
             UpdateSectionBackdrop();
@@ -1516,6 +1676,43 @@ public partial class MainWindow : Window
             PlexSetupPanel.Visibility = Visibility.Visible;
             PlexLibraryScroll.Visibility = Visibility.Collapsed;
         }
+    }
+
+    /// <summary>
+    /// Records one Plex item's progress in the library: finished items go to
+    /// Watched, in-progress items to Watching. A continue-watching episode is
+    /// recorded against its show, not the individual episode, so a series in
+    /// progress on Plex shows up under Movies/TV → Watching.
+    /// </summary>
+    private async Task SyncPlexProgressAsync(PlexLibraryItem item)
+    {
+        var isTv = item.Type is "show" or "season" or "episode";
+        var mediaType = isTv ? "TV Show" : "Movie";
+        var progress = item.Duration > 0 ? Math.Clamp(item.ViewOffset * 100d / item.Duration, 0, 100) : 0;
+        var title = isTv && item.ShowTitle.Length > 0 ? item.ShowTitle : item.Title;
+        var key = isTv && item.ShowKey.Length > 0 ? item.ShowKey : item.RatingKey;
+        var thumb = isTv && item.ShowThumb.Length > 0 ? item.ShowThumb : item.Thumb;
+        var record = new JsonObject
+        {
+            ["id"] = $"plex:{key}", ["plexRatingKey"] = key, ["title"] = title, ["year"] = item.Year,
+            ["poster"] = thumb, ["backdrop"] = item.Art, ["rating"] = item.Rating, ["genre"] = item.Genres,
+            ["plexType"] = isTv ? "show" : "movie"
+        };
+        if (item.ViewCount > 0) await SyncPlexWatchedRecordAsync(record, mediaType);
+        else if (progress >= 5) await SyncPlexWatchingRecordAsync(record, mediaType, progress);
+    }
+
+    /// <summary>Runs the Plex continue-watching sync in the background, at most every ten minutes, and refreshes Movies/TV if it changed anything.</summary>
+    private async Task SyncPlexContinueAsync()
+    {
+        if (!_plex.Connected || DateTime.Now - _lastPlexProgressSync < TimeSpan.FromMinutes(10)) return;
+        _lastPlexProgressSync = DateTime.Now;
+        try
+        {
+            foreach (var item in await _plex.ContinueWatchingAsync()) await SyncPlexProgressAsync(item);
+            if (_section is "Movies" or "Series") RefreshMedia();
+        }
+        catch { /* Plex being unreachable must not disturb browsing. */ }
     }
 
     private async Task SyncPlexWatchedRecordAsync(JsonObject source, string mediaType)
@@ -1531,6 +1728,23 @@ public partial class MainWindow : Window
             await _vault.AddAsync(watched, clone);
         }
         await RemoveMatchingTitleAsync(watching, name, year);
+        await RemoveMatchingTitleAsync(watchlist, name, year);
+    }
+
+    /// <summary>Adds an in-progress Plex title to Watching (unless already watched or already there), and clears it from the watchlist.</summary>
+    private async Task SyncPlexWatchingRecordAsync(JsonObject source, string mediaType, double progress)
+    {
+        var watched = mediaType == "Movie" ? "watchedMovies" : "watchedSeries";
+        var watching = mediaType == "Movie" ? "watchingMovies" : "watchingSeries";
+        var watchlist = mediaType == "Movie" ? "movieWatchlist" : "seriesWatchlist";
+        var name = Text(source, "title", "name");
+        var year = Text(source, "year");
+        if (_vault.Collection(watched).OfType<JsonObject>().Any(item => SameTitleAndYear(item, name, year))) return;
+        if (_vault.Collection(watching).OfType<JsonObject>().Any(item => SameTitleAndYear(item, name, year))) return;
+        var clone = source.DeepClone() as JsonObject ?? [];
+        clone["status"] = $"{progress:0}% watched on Plex";
+        clone["plexSyncedAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        await _vault.AddAsync(watching, clone);
         await RemoveMatchingTitleAsync(watchlist, name, year);
     }
 

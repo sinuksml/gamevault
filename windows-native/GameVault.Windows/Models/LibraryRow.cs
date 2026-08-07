@@ -135,6 +135,19 @@ public sealed class LibraryRow
 
     public bool HasQuickAction => QuickActionLabel.Length > 0;
 
+    /// <summary>The release/air year as a section heading for the year-grouped Category view.</summary>
+    public string YearGroup
+    {
+        get
+        {
+            if (int.TryParse(Source["year"]?.ToString(), out var stored) && stored > 1900) return stored.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var match = System.Text.RegularExpressions.Regex.Match(Date, @"(19|20)\d{2}");
+            return match.Success ? match.Value : "Undated";
+        }
+    }
+    /// <summary>Numeric year for sorting the Category sections; 0 sorts undated titles last.</summary>
+    public int YearValue => int.TryParse(YearGroup, out var year) ? year : 0;
+
     public string RatingText => Rating > 0 ? $"{Rating:0.0}" : "Not rated";
     public string CardRatingText => Collection is "rentals" or "rentalHistory" ? ""
         : Collection == "subscriptions" ? (Cost > 0 ? $"\u20B9{Cost:N0} / cycle" : Status)

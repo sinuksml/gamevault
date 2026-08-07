@@ -337,7 +337,7 @@ public sealed class VaultRepository
     private static JsonObject Normalize(JsonObject root)
     {
         string[] arrays = ["rentals", "subscriptions", "subscriptionGames", "playing", "queue", "upcoming", "upcomingRemoved", "catalogExtra", "played", "hiddenGames", "rentalHistory",
-            "movieWatchlist", "watchingMovies", "watchedMovies", "hiddenMovies", "seriesWatchlist", "watchingSeries", "watchedSeries", "hiddenSeries", "biglyHistory", "activity", "recentViewed"];
+            "movieWatchlist", "watchingMovies", "watchedMovies", "hiddenMovies", "seriesWatchlist", "watchingSeries", "watchedSeries", "hiddenSeries", "biglyHistory", "petrol", "activity", "recentViewed"];
         foreach (var name in arrays) if (root[name] is not JsonArray) root[name] = new JsonArray();
         foreach (var name in arrays.Where(name => !AllowsDuplicates(name)))
         {

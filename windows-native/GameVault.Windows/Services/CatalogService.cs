@@ -46,7 +46,9 @@ public sealed class CatalogService
             ? $"&dates={DateTime.Today:yyyy-MM-dd},{DateTime.Today.AddYears(1):yyyy-MM-dd}&ordering=released"
             : $"&dates={DateTime.Today.AddYears(-3):yyyy-MM-dd},{DateTime.Today:yyyy-MM-dd}&ordering=-released";
         var combined = new List<JsonObject>();
-        for (var page = 1; page <= 3; page++)
+        // Eight pages of 40 gives roughly 300 titles so the list is worth scrolling
+        // through without a manual refresh.
+        for (var page = 1; page <= 8; page++)
         {
             var root = await GetAsync($"https://api.rawg.io/api/games?key={Uri.EscapeDataString(RawgKey)}{dateFilter}&page_size=40&page={page}&platforms=4,186,187");
             combined.AddRange((root["results"] as JsonArray)?.OfType<JsonObject>().Select(Game) ?? []);
@@ -85,12 +87,20 @@ public sealed class CatalogService
             ("TV Show", _) => "tv/top_rated",
             _ => throw new ArgumentOutOfRangeException(nameof(type), "Catalog type must be Movie or TV Show.")
         };
+        /* Fetch more pages so the lists are worth scrolling through. The plain
+           feeds (Discover, English, on-the-air, upcoming) are cheap list calls, so
+           they pull ~300 titles; the date- and enrichment-heavy feeds stay smaller
+           to avoid a burst of per-title detail requests. TMDB returns 20 per page. */
+        var pageCount = mode is "relhw" or "enseries" or "seriesnew" or "seriesupcoming" ? 15
+            : mode is "uphw" or "bluray" or "mlott" or "mlup" ? 5 : 8;
         var combined = new List<JsonObject>();
-        for (var page = 1; page <= 3; page++)
+        for (var page = 1; page <= pageCount; page++)
         {
             var separator = path.Contains('?') ? '&' : '?';
             var root = await GetAsync($"https://api.themoviedb.org/3/{path}{separator}api_key={Uri.EscapeDataString(TmdbKey)}&page={page}&include_adult=false");
-            combined.AddRange((root["results"] as JsonArray)?.OfType<JsonObject>().Select(item => Media(item, type)) ?? []);
+            var results = (root["results"] as JsonArray)?.OfType<JsonObject>().Select(item => Media(item, type)).ToList() ?? [];
+            combined.AddRange(results);
+            if (results.Count == 0) break;   // no more pages
         }
         var distinct = combined.GroupBy(item => item["canonicalId"]?.ToString()).Select(group => group.First());
         if (type == "Movie" && mode == "uphw")
@@ -104,8 +114,8 @@ public sealed class CatalogService
         if (type == "TV Show" && mode is "mlseries" or "taseries" or "hiseries")
         {
             var lang = mode == "mlseries" ? "ml" : mode == "taseries" ? "ta" : "hi";
-            result = result.OrderByDescending(item => Date(item, "date")).Take(45).ToList();
-            foreach (var item in result.Take(30)) await EnrichMediaAsync(item, "TV Show");
+            result = result.OrderByDescending(item => Date(item, "date")).Take(60).ToList();
+            foreach (var item in result.Take(40)) await EnrichMediaAsync(item, "TV Show");
             result = result.Where(item => RegionalTvSeriesOnly(item, lang) && RegionalPrestigeSeries(item)).ToList();
         }
         if (type == "Movie" && mode is "uphw" or "bluray" or "mlott" or "mlup")

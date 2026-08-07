@@ -126,30 +126,33 @@
                     </StackPanel>
                     <TextBlock Text="LIBRARY" Style="{StaticResource KickerText}" Margin="16,0,0,4"/>
                     <Button x:Name="HomeRailButton" Tag="Overview" Style="{StaticResource RailButton}" Click="Navigate_Click">
-                        <StackPanel Orientation="Horizontal"><TextBlock Text="Ôîé" FontSize="16" Width="26"/><TextBlock Text="Home"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="âŒ‚" FontSize="16" Width="26"/><TextBlock Text="Home"/></StackPanel>
                     </Button>
                     <Button x:Name="GamesRailButton" Tag="Games" Style="{StaticResource RailButton}" Click="Navigate_Click">
-                        <StackPanel Orientation="Horizontal"><TextBlock Text="Ôûú" FontSize="15" Width="26"/><TextBlock Text="Games"/><TextBlock x:Name="GamesRailCount" Foreground="{DynamicResource MutedBrush}" FontSize="11" FontWeight="Bold" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="â–£" FontSize="15" Width="26"/><TextBlock Text="Games"/><TextBlock x:Name="GamesRailCount" Foreground="{DynamicResource MutedBrush}" FontSize="11" FontWeight="Bold" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
                     </Button>
                     <Button x:Name="MoviesRailButton" Tag="Movies" Style="{StaticResource RailButton}" Click="Navigate_Click">
-                        <StackPanel Orientation="Horizontal"><TextBlock Text="Ôùë" FontSize="15" Width="26"/><TextBlock Text="Movies"/><TextBlock x:Name="MoviesRailCount" Foreground="{DynamicResource MutedBrush}" FontSize="11" FontWeight="Bold" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="â—‰" FontSize="15" Width="26"/><TextBlock Text="Movies"/><TextBlock x:Name="MoviesRailCount" Foreground="{DynamicResource MutedBrush}" FontSize="11" FontWeight="Bold" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
                     </Button>
                     <Button x:Name="SeriesRailButton" Tag="Series" Style="{StaticResource RailButton}" Click="Navigate_Click">
-                        <StackPanel Orientation="Horizontal"><TextBlock Text="Ôûñ" FontSize="15" Width="26"/><TextBlock Text="TV Shows"/><TextBlock x:Name="SeriesRailCount" Foreground="{DynamicResource MutedBrush}" FontSize="11" FontWeight="Bold" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="â–¤" FontSize="15" Width="26"/><TextBlock Text="TV Shows"/><TextBlock x:Name="SeriesRailCount" Foreground="{DynamicResource MutedBrush}" FontSize="11" FontWeight="Bold" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
                     </Button>
                     <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="14,14,6,14" Opacity="0.6"/>
                     <TextBlock Text="SERVICES" Style="{StaticResource KickerText}" Margin="16,0,0,4"/>
                     <Button Tag="Plex" Style="{StaticResource RailButton}" Click="Navigate_Click">
-                        <StackPanel Orientation="Horizontal"><TextBlock Text="ÔûÂ" FontSize="14" Width="26"/><TextBlock Text="Plex"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="â–¶" FontSize="14" Width="26"/><TextBlock Text="Plex"/></StackPanel>
                     </Button>
                     <Button Tag="BiglyBT" Style="{StaticResource RailButton}" Click="Navigate_Click">
-                        <StackPanel Orientation="Horizontal"><TextBlock Text="Ôç®" FontSize="15" Width="26"/><TextBlock Text="BiglyBT"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="â‡©" FontSize="15" Width="26"/><TextBlock Text="BiglyBT"/></StackPanel>
+                    </Button>
+                    <Button Tag="Petrol" Style="{StaticResource RailButton}" Click="Navigate_Click">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="â›½" FontSize="15" Width="26"/><TextBlock Text="Petrol"/></StackPanel>
                     </Button>
                 </StackPanel>
                 <StackPanel x:Name="RailFooter" DockPanel.Dock="Bottom" VerticalAlignment="Bottom">
                     <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="14,0,6,12" Opacity="0.6"/>
                     <Button Tag="Settings" Style="{StaticResource RailButton}" Click="Navigate_Click">
-                        <StackPanel Orientation="Horizontal"><TextBlock Text="ÔÜÖ" FontSize="15" Width="26"/><TextBlock Text="Settings"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="âš™" FontSize="15" Width="26"/><TextBlock Text="Settings"/></StackPanel>
                     </Button>
                     <TextBlock x:Name="VersionText" Style="{StaticResource MutedText}" FontSize="11" Margin="16,10,0,0" />
                 </StackPanel>
@@ -185,6 +188,12 @@
                                 <TextBlock Text="YOUR LIBRARY TODAY" Style="{StaticResource KickerText}"/>
                                 <TextBlock Text="Pick up where you stopped." FontSize="28" FontWeight="Bold" Margin="0,7,0,4"/>
                                 <TextBlock x:Name="HomeSummaryText" Text="Rentals, watchlists and upcoming releases are ready." Style="{StaticResource MutedText}"/>
+                                <Border Background="#1F4CC9F0" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="0,12,0,0" HorizontalAlignment="Left">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="â›½" FontSize="16" VerticalAlignment="Center" Margin="0,0,9,0"/>
+                                        <TextBlock x:Name="PetrolHomeSummary" Text="No petrol refills logged yet" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                             <WrapPanel Grid.Column="1" VerticalAlignment="Center" Margin="26,0,0,0">
                                 <Button Content="Now playing" Tag="Games" Style="{StaticResource PrimaryButton}" Click="HomeShortcut_Click" Margin="0,0,8,8"/>
@@ -207,7 +216,7 @@
                             <StackPanel><TextBlock Text="COMPLETED" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12"/><TextBlock x:Name="CompletedCount" Text="0" FontSize="30" FontWeight="Bold" Margin="0,8,0,0"/><TextBlock Text="games finished" Style="{StaticResource MutedText}"/></StackPanel>
                         </Border>
                         <Border Style="{StaticResource SurfaceCard}" Padding="18" Margin="4,0,4,0"><StackPanel><TextBlock Text="TOTAL RENTED" Foreground="#A45BDD" FontWeight="Bold" FontSize="12"/><TextBlock x:Name="TotalRentedCount" Text="0" FontSize="30" FontWeight="Bold" Margin="0,8,0,0"/><TextBlock Text="all rental periods" Style="{StaticResource MutedText}"/></StackPanel></Border>
-                        <Border Style="{StaticResource SurfaceCard}" Padding="18" Margin="4,0,0,0"><StackPanel><TextBlock Text="TOTAL SPENT" Foreground="#C28A00" FontWeight="Bold" FontSize="12"/><TextBlock x:Name="TotalSpentCount" Text="Ôé¦0" FontSize="24" FontWeight="Bold" Margin="0,8,0,0"/><TextBlock Text="rentals + subscriptions" Style="{StaticResource MutedText}"/></StackPanel></Border>
+                        <Border Style="{StaticResource SurfaceCard}" Padding="18" Margin="4,0,0,0"><StackPanel><TextBlock Text="TOTAL SPENT" Foreground="#C28A00" FontWeight="Bold" FontSize="12"/><TextBlock x:Name="TotalSpentCount" Text="â‚¹0" FontSize="24" FontWeight="Bold" Margin="0,8,0,0"/><TextBlock Text="rentals + subscriptions" Style="{StaticResource MutedText}"/></StackPanel></Border>
                     </UniformGrid>
                     <Border Grid.Row="4" Style="{StaticResource SurfaceCard}" Padding="18,14">
                         <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="230"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -314,7 +323,7 @@
                                 <Grid Grid.Row="1" Height="176" HorizontalAlignment="Center">
                                     <Canvas x:Name="SpendDonut" Width="176" Height="176"/>
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" IsHitTestVisible="False">
-                                        <TextBlock x:Name="SpendDonutTotal" Text="Ôé¦0" FontSize="21" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                        <TextBlock x:Name="SpendDonutTotal" Text="â‚¹0" FontSize="21" FontWeight="Bold" HorizontalAlignment="Center"/>
                                         <TextBlock Text="total spent" Style="{StaticResource MutedText}" FontSize="11" HorizontalAlignment="Center"/>
                                     </StackPanel>
                                 </Grid>
@@ -346,7 +355,7 @@
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                         <WrapPanel Grid.Column="0">
                             <Button Content="Add game" Style="{StaticResource PrimaryButton}" Click="AddGame_Click" Margin="0,0,8,8"/>
-                            <Button Content="Edit selected" Margin="0,0,8,8" Click="EditSelected_Click"/><Button Content="Rental history" Margin="0,0,8,8" Click="RentalHistory_Click"/><Button Content="Vendor report" Margin="0,0,8,8" Click="VendorReport_Click"/><Button Content="Subscriptions" Margin="0,0,8,8" Click="ManageSubscriptions_Click"/><Button Content="Refresh online" Margin="0,0,8,8" Click="RefreshOnline_Click"/>
+                            <Button Content="Edit selected" Margin="0,0,8,8" Click="EditSelected_Click"/><Button x:Name="GamesCategoryButton" Content="Category" Margin="0,0,8,8" Click="CategoryView_Click"/><Button Content="Rental history" Margin="0,0,8,8" Click="RentalHistory_Click"/><Button Content="Vendor report" Margin="0,0,8,8" Click="VendorReport_Click"/><Button Content="Subscriptions" Margin="0,0,8,8" Click="ManageSubscriptions_Click"/><Button Content="Refresh online" Margin="0,0,8,8" Click="RefreshOnline_Click"/>
                         </WrapPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="18,0,0,0" VerticalAlignment="Top">
                             <ComboBox x:Name="GameSortBox" Width="150" SelectionChanged="LibrarySort_Changed"><ComboBoxItem Content="Newest first" Tag="new"/><ComboBoxItem Content="Title A-Z" Tag="title"/><ComboBoxItem Content="Release date" Tag="date"/><ComboBoxItem Content="Rating" Tag="rating"/></ComboBox>
@@ -385,6 +394,7 @@
                             <WrapPanel Grid.Column="0">
                                 <Button Content="Add title" Style="{StaticResource PrimaryButton}" Click="AddMedia_Click" Margin="0,0,8,8"/>
                                 <Button Content="Edit selected" Margin="0,0,8,8" Click="EditSelected_Click"/>
+                                <Button x:Name="MediaCategoryButton" Content="Category" Margin="0,0,8,8" Click="CategoryView_Click"/>
                                 <Button Content="Find online" Margin="0,0,8,8" Click="FindOnline_Click"/>
                                 <Button Content="Refresh this catalog" Margin="0,0,8,8" Click="RefreshOnline_Click"/>
                             </WrapPanel>
@@ -472,6 +482,43 @@
                     </DataGrid>
                 </Grid>
 
+                <Grid x:Name="PetrolPage" Visibility="Collapsed">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="16"/><RowDefinition Height="Auto"/><RowDefinition Height="16"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <!-- Add a refill: date, litres, cost, odometer and a note. -->
+                    <Border Style="{StaticResource SurfaceCard}" Padding="20,16">
+                        <StackPanel>
+                            <TextBlock Text="LOG A REFILL" Style="{StaticResource KickerText}"/>
+                            <TextBlock Text="Add each time you fill petrol on the Activa" Style="{StaticResource MutedText}" Margin="0,4,0,14"/>
+                            <WrapPanel>
+                                <StackPanel Margin="0,0,16,10"><TextBlock Text="Date" Style="{StaticResource MutedText}" FontSize="11" Margin="0,0,0,4"/><DatePicker x:Name="PetrolDate" Width="150"/></StackPanel>
+                                <StackPanel Margin="0,0,16,10"><TextBlock Text="Litres" Style="{StaticResource MutedText}" FontSize="11" Margin="0,0,0,4"/><TextBox x:Name="PetrolLitres" Width="90"/></StackPanel>
+                                <StackPanel Margin="0,0,16,10"><TextBlock Text="Cost (â‚¹)" Style="{StaticResource MutedText}" FontSize="11" Margin="0,0,0,4"/><TextBox x:Name="PetrolCost" Width="90"/></StackPanel>
+                                <StackPanel Margin="0,0,16,10"><TextBlock Text="Odometer (km)" Style="{StaticResource MutedText}" FontSize="11" Margin="0,0,0,4"/><TextBox x:Name="PetrolOdometer" Width="110"/></StackPanel>
+                                <StackPanel Margin="0,0,16,10"><TextBlock Text="Note" Style="{StaticResource MutedText}" FontSize="11" Margin="0,0,0,4"/><TextBox x:Name="PetrolNote" Width="200"/></StackPanel>
+                                <Button Content="Save refill" Style="{StaticResource PrimaryButton}" Click="AddPetrolRefill_Click" VerticalAlignment="Bottom" Margin="0,0,0,10"/>
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <UniformGrid Grid.Row="2" Columns="3">
+                        <Border Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,0,8,0"><StackPanel><TextBlock Text="DAYS SINCE LAST FILL" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12"/><TextBlock x:Name="PetrolDaysSince" Text="--" FontSize="34" FontWeight="Bold" Margin="0,6,0,0"/><TextBlock x:Name="PetrolLastDate" Text="No refills logged yet" Style="{StaticResource MutedText}"/></StackPanel></Border>
+                        <Border Style="{StaticResource SurfaceCard}" Padding="20" Margin="4,0,4,0"><StackPanel><TextBlock Text="TOTAL REFILLS" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12"/><TextBlock x:Name="PetrolCount" Text="0" FontSize="34" FontWeight="Bold" Margin="0,6,0,0"/><TextBlock Text="fillings recorded" Style="{StaticResource MutedText}"/></StackPanel></Border>
+                        <Border Style="{StaticResource SurfaceCard}" Padding="20" Margin="8,0,0,0"><StackPanel><TextBlock Text="AVERAGE GAP" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12"/><TextBlock x:Name="PetrolAvgGap" Text="--" FontSize="34" FontWeight="Bold" Margin="0,6,0,0"/><TextBlock Text="days between refills" Style="{StaticResource MutedText}"/></StackPanel></Border>
+                    </UniformGrid>
+
+                    <TextBlock Grid.Row="4" Text="History" Style="{StaticResource SectionTitle}" VerticalAlignment="Top"/>
+                    <DataGrid x:Name="PetrolGrid" Grid.Row="4" Margin="0,44,0,0" IsReadOnly="True" SelectionMode="Single">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="150"/>
+                            <DataGridTextColumn Header="Days since previous" Binding="{Binding GapText}" Width="160"/>
+                            <DataGridTextColumn Header="Litres" Binding="{Binding LitresText}" Width="90"/>
+                            <DataGridTextColumn Header="Cost" Binding="{Binding CostText}" Width="110"/>
+                            <DataGridTextColumn Header="Odometer" Binding="{Binding OdometerText}" Width="120"/>
+                            <DataGridTextColumn Header="Note" Binding="{Binding Note}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+
                 <Grid x:Name="SettingsPage" Visibility="Collapsed">
                     <TabControl TabStripPlacement="Left" MaxWidth="1120" HorizontalAlignment="Stretch" ItemContainerStyle="{StaticResource SettingsTabItem}">
                         <TabItem Header="General">
@@ -479,7 +526,7 @@
                                 <TextBlock Text="General and appearance" FontSize="22" FontWeight="Bold"/><TextBlock Text="Choose the Windows presentation without changing the web or TV interface." Style="{StaticResource MutedText}" Margin="0,7,0,18"/>
                                 <TextBlock Text="APPEARANCE" Style="{StaticResource KickerText}"/><WrapPanel Margin="0,10,0,18"><Button Content="Dark" Tag="dark" Click="SetTheme_Click" Margin="0,0,8,8"/><Button Content="Light" Tag="light" Click="SetTheme_Click" Margin="0,0,8,8"/><Button Content="OLED black" Tag="oled" Click="SetTheme_Click" Margin="0,0,8,8"/></WrapPanel>
                                 <TextBlock Text="LOCAL VAULT" Style="{StaticResource KickerText}"/><TextBlock x:Name="VaultPathText" TextWrapping="Wrap" Margin="0,7,0,14"/><Button Content="Open data folder" Click="OpenVaultFolder_Click" HorizontalAlignment="Left"/>
-                                <Separator Margin="0,24"/><TextBlock Text="Keyboard shortcuts" Style="{StaticResource SectionTitle}"/><TextBlock Text="Ctrl+K search -À Ctrl+R refresh -À Ctrl+, settings -À Alt+Left go back -À Esc close details" Style="{StaticResource MutedText}" Margin="0,8,0,0"/>
+                                <Separator Margin="0,24"/><TextBlock Text="Keyboard shortcuts" Style="{StaticResource SectionTitle}"/><TextBlock Text="Ctrl+K search Â· Ctrl+R refresh Â· Ctrl+, settings Â· Alt+Left go back Â· Esc close details" Style="{StaticResource MutedText}" Margin="0,8,0,0"/>
                             </StackPanel></Border></ScrollViewer>
                         </TabItem>
                         <TabItem Header="Cloud and APIs">

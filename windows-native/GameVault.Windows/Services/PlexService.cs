@@ -6,7 +6,10 @@ using System.IO;
 namespace SinuGameVault.Services;
 
 public sealed record PlexLibraryItem(string RatingKey, string Title, string Type, string Year, string Summary, string Thumb, string Art,
-    double Rating, long Duration, long ViewOffset, int ViewCount, string AddedAt, string Genres);
+    double Rating, long Duration, long ViewOffset, int ViewCount, string AddedAt, string Genres,
+    // For a continue-watching episode these carry the show it belongs to, so an
+    // in-progress episode can be recorded against the series, not the episode.
+    string ShowTitle = "", string ShowThumb = "", string ShowKey = "");
 
 public sealed class PlexService
 {
@@ -251,7 +254,8 @@ public sealed class PlexService
             (string?)node.Attribute("type") ?? "movie", (string?)node.Attribute("year") ?? "",
             (string?)node.Attribute("summary") ?? "", (string?)node.Attribute("thumb") ?? "", (string?)node.Attribute("art") ?? "",
             Double((string?)node.Attribute("rating")), Long((string?)node.Attribute("duration")), Long((string?)node.Attribute("viewOffset")),
-            (int)Long((string?)node.Attribute("viewCount")), (string?)node.Attribute("addedAt") ?? "", genres);
+            (int)Long((string?)node.Attribute("viewCount")), (string?)node.Attribute("addedAt") ?? "", genres,
+            (string?)node.Attribute("grandparentTitle") ?? "", (string?)node.Attribute("grandparentThumb") ?? "", (string?)node.Attribute("grandparentRatingKey") ?? "");
     }
 
     private void EnsureConfigured()
@@ -277,7 +281,8 @@ public sealed class PlexService
         return items.Select(item => item with
         {
             Thumb = ArtworkUrl(server, token, item.Thumb),
-            Art = ArtworkUrl(server, token, item.Art)
+            Art = ArtworkUrl(server, token, item.Art),
+            ShowThumb = ArtworkUrl(server, token, item.ShowThumb)
         }).ToList();
     }
 

@@ -1,4 +1,14 @@
-# Sinu Game Vault for Windows 2.5.3
+# Sinu Game Vault for Windows 2.6.0
+
+## 2.6.0 Petrol tracking, Category view, bigger lists and fixes
+
+- New Petrol Tracking tab for the Honda Activa: log each refill (date, litres, cost, odometer, note), see the days since the last fill, total refills and the average gap, and a full history showing the number of days between each refill. A summary also appears on the Home page. (Added to the web app too.)
+- Games, Movies and TV lists now load many more titles — around 300 per discovery feed — so there is far more to browse without a manual refresh.
+- Normal Movies and TV sections now show titles only up to the current year; anything dated later appears under the Upcoming feeds, and the year filter no longer lists 2027/2028 outside those feeds.
+- New Category button in Games, Movies and TV Shows: it lays out the whole library on one page grouped into year sections (2026, 2025, 2024 …) instead of a single tab.
+- Each top tab now keeps its own permanent colour even when unselected — a coloured border, tint and label — so sections are easy to identify at a glance, across Games, Movies and TV.
+- Currently-watching Plex movies and shows now appear under Movies/TV → Watching. In-progress Plex items (an episode counts for its show) sync into the Watching list; opening Movies or TV refreshes this in the background.
+- Fixed a build issue where the window's icon glyphs had been corrupted.
 
 ## 2.5.3 Overview text, stacked spend chart, coloured tabs and more
 
