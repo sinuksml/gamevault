@@ -377,7 +377,7 @@
                         <Button x:Name="UpcomingPs5Button" Content="PS5" Tag="ps5" Style="{StaticResource LibraryTabButton}" Click="UpcomingPlatform_Click" Margin="0,0,8,0"/>
                         <Button x:Name="UpcomingXboxPcButton" Content="Xbox &amp; PC" Tag="xboxpc" Style="{StaticResource LibraryTabButton}" Click="UpcomingPlatform_Click"/>
                     </WrapPanel>
-                    <ScrollViewer Grid.Row="6" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer x:Name="GamesCardScroll" Grid.Row="6" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ScrollChanged="CardScroll_ScrollChanged">
                         <ItemsControl x:Name="GamesCards" ItemTemplate="{StaticResource LibraryCardTemplate}">
                             <ItemsControl.GroupStyle><GroupStyle><GroupStyle.HeaderTemplate><DataTemplate><Border Style="{StaticResource GroupDivider}"><TextBlock Text="{Binding Name}" FontSize="22" FontWeight="Bold"/></Border></DataTemplate></GroupStyle.HeaderTemplate><GroupStyle.Panel><ItemsPanelTemplate><StackPanel Orientation="Vertical"/></ItemsPanelTemplate></GroupStyle.Panel></GroupStyle></ItemsControl.GroupStyle>
                             <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel HorizontalAlignment="Left"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
@@ -405,7 +405,7 @@
                                 <Button x:Name="MediaViewButton" Content="List view" Margin="8,0,0,0" Click="MediaView_Click"/>
                             </StackPanel>
                     </Grid>
-                    <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer x:Name="MediaCardScroll" Grid.Row="4" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ScrollChanged="CardScroll_ScrollChanged">
                         <ItemsControl x:Name="MediaCards" ItemTemplate="{StaticResource LibraryCardTemplate}">
                             <ItemsControl.GroupStyle><GroupStyle><GroupStyle.HeaderTemplate><DataTemplate><Border Style="{StaticResource GroupDivider}"><TextBlock Text="{Binding Name}" FontSize="22" FontWeight="Bold"/></Border></DataTemplate></GroupStyle.HeaderTemplate><GroupStyle.Panel><ItemsPanelTemplate><StackPanel Orientation="Vertical"/></ItemsPanelTemplate></GroupStyle.Panel></GroupStyle></ItemsControl.GroupStyle>
                             <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel HorizontalAlignment="Left"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
@@ -506,7 +506,10 @@
                         <Border Style="{StaticResource SurfaceCard}" Padding="20" Margin="8,0,0,0"><StackPanel><TextBlock Text="AVERAGE GAP" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12"/><TextBlock x:Name="PetrolAvgGap" Text="--" FontSize="34" FontWeight="Bold" Margin="0,6,0,0"/><TextBlock Text="days between refills" Style="{StaticResource MutedText}"/></StackPanel></Border>
                     </UniformGrid>
 
-                    <TextBlock Grid.Row="4" Text="History" Style="{StaticResource SectionTitle}" VerticalAlignment="Top"/>
+                    <Grid Grid.Row="4" VerticalAlignment="Top">
+                        <TextBlock Text="History" Style="{StaticResource SectionTitle}"/>
+                        <Button Content="Delete selected refill" HorizontalAlignment="Right" Click="DeletePetrolRefill_Click"/>
+                    </Grid>
                     <DataGrid x:Name="PetrolGrid" Grid.Row="4" Margin="0,44,0,0" IsReadOnly="True" SelectionMode="Single">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="150"/>

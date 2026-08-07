@@ -24,3 +24,7 @@ jobs:
 
       - name: Run structural and syntax checks
         run: npm test
+
+      # The BiglyBT gateway deploys separately and had no checks of its own.
+      - name: Check the BiglyBT worker parses
+        run: node --check biglybt-worker/worker.js

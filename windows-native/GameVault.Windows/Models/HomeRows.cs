@@ -60,6 +60,8 @@ public sealed class DueDateRow
 /// <summary>One petrol refill in the history, with the gap since the previous fill.</summary>
 public sealed class PetrolRow
 {
+    /// <summary>Record identifier, so a mistyped refill can be removed again.</summary>
+    public string Id { get; init; } = "";
     public string Date { get; init; } = "";
     public int? Gap { get; init; }
     public double Litres { get; init; }

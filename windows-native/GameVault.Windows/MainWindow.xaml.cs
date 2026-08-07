@@ -25,6 +25,8 @@ public partial class MainWindow : Window
     private readonly CatalogService _catalog = new();
     private readonly AvailabilityService _availability = new();
     private List<LibraryRow> _rows = [];
+    /// <summary>The cards currently built; grows a page at a time as the list is scrolled.</summary>
+    private ObservableCollection<LibraryRow> _visibleRows = [];
     private readonly ObservableCollection<LibraryRow> _plexRows = [];
     private readonly ObservableCollection<TorrentRow> _torrentRows = [];
     private readonly ObservableCollection<TorrentHistoryRow> _torrentHistoryRows = [];
@@ -573,6 +575,7 @@ public partial class MainWindow : Window
             int? gap = index > 0 ? (int)(date.Date - refills[index - 1].Date.Date).TotalDays : null;
             _petrolRows.Add(new PetrolRow
             {
+                Id = Text(node, "id"),
                 Date = DisplayDate(date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
                 Gap = gap,
                 Litres = Number(node, "litres", "liters"),
@@ -620,6 +623,21 @@ public partial class MainWindow : Window
         RefreshPetrol();
         RefreshDashboard();
         StatusText.Text = "Refill saved.";
+    }
+
+    private async void DeletePetrolRefill_Click(object sender, RoutedEventArgs e)
+    {
+        if (PetrolGrid.SelectedItem is not PetrolRow row || row.Id.Length == 0)
+        {
+            StatusText.Text = "Select a refill in the history first.";
+            return;
+        }
+        if (MessageBox.Show(this, $"Delete the refill dated {row.Date}?", "Petrol Tracking",
+            MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        await _vault.RemoveAsync("petrol", row.Id);
+        RefreshPetrol();
+        RefreshDashboard();
+        StatusText.Text = "Refill deleted.";
     }
 
     private void HomeShortcut_Click(object sender, RoutedEventArgs e)
@@ -1154,22 +1172,49 @@ public partial class MainWindow : Window
            instead of flowing them across the page. A new view also forces the item
            containers to be regenerated, so the panel always matches the current
            grouping instead of whatever the previous page left behind. */
-        var view = new ListCollectionView(_rows);
-        if (_categoryView && _rows.Count > 0)
-            view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(LibraryRow.YearGroup)));
-        else if ((_section == "Games" || _section == "Movies" && _mediaMode is "mlott" or "mlup") && _rows.Any(row => row.GroupName.Length > 0))
-            view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(LibraryRow.GroupName)));
+        /* Cards are added a page at a time as the list is scrolled. A card carries
+           two decoded bitmaps, so building all three hundred of a discovery feed up
+           front cost hundreds of megabytes and a visible pause on every tab change.
+           The list view is left whole because its ListBox already virtualizes. */
+        _visibleRows = new ObservableCollection<LibraryRow>(_rows.Take(CardPageSize));
+        var cardView = new ListCollectionView(_visibleRows);
+        var listView = new ListCollectionView(_rows);
+        foreach (var view in new[] { cardView, listView })
+        {
+            if (_categoryView && _rows.Count > 0)
+                view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(LibraryRow.YearGroup)));
+            else if ((_section == "Games" || _section == "Movies" && _mediaMode is "mlott" or "mlup") && _rows.Any(row => row.GroupName.Length > 0))
+                view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(LibraryRow.GroupName)));
+        }
         if (_section == "Games")
         {
-            GamesCards.ItemsSource = view;
-            GamesList.ItemsSource = view;
+            GamesCards.ItemsSource = cardView;
+            GamesList.ItemsSource = listView;
+            GamesCardScroll.ScrollToTop();
         }
         else
         {
-            MediaCards.ItemsSource = view;
-            MediaList.ItemsSource = view;
+            MediaCards.ItemsSource = cardView;
+            MediaList.ItemsSource = listView;
+            MediaCardScroll.ScrollToTop();
         }
-        StatusText.Text = $"{_rows.Count} item{(_rows.Count == 1 ? "" : "s")}";
+        UpdateRowCountStatus();
+    }
+
+    /// <summary>Cards added per page as the list is scrolled.</summary>
+    private const int CardPageSize = 120;
+
+    private void UpdateRowCountStatus() => StatusText.Text = _visibleRows.Count < _rows.Count
+        ? $"{_visibleRows.Count} of {_rows.Count} items"
+        : $"{_rows.Count} item{(_rows.Count == 1 ? "" : "s")}";
+
+    /// <summary>Appends the next page of cards once the list is scrolled near its end.</summary>
+    private void CardScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (sender is not ScrollViewer scroll || _visibleRows.Count >= _rows.Count) return;
+        if (scroll.ScrollableHeight - scroll.VerticalOffset > 600) return;
+        foreach (var row in _rows.Skip(_visibleRows.Count).Take(CardPageSize)) _visibleRows.Add(row);
+        UpdateRowCountStatus();
     }
 
     private static int UpcomingOrder(LibraryRow row) => row.Collection == "upcomingRemoved" ? 2 : row.DaysLeft is < 0 ? 1 : 0;

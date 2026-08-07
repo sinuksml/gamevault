@@ -1,4 +1,11 @@
-# Sinu Game Vault for Windows 2.6.1
+# Sinu Game Vault for Windows 2.6.2
+
+## 2.6.2 Faster large lists, and a delete for petrol refills
+
+- Big lists now build a page of cards at a time instead of all at once. A card carries two decoded images, so a three hundred title discovery feed built every one of them up front, which cost hundreds of megabytes and paused the interface on each tab change. The first hundred and twenty appear immediately and the rest are added as you scroll, so nothing is hidden — the status bar shows how many of the total are on screen.
+- The petrol history can now delete a refill. It was possible to log one on Windows but not remove a mistake, which only the web version allowed.
+- Added a continuous build for the Windows application. Every push now compiles it and runs the vault and sync checks, so the kind of fault that previously reached you — a corrupted vault or a crash on first run — is caught before a release is built.
+- The BiglyBT gateway is now syntax checked alongside the web application.
 
 ## 2.6.1 Stop the vault being lost, and fix a first-run crash
 

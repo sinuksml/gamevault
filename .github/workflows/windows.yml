@@ -1,0 +1,39 @@
+name: GameVault Windows
+
+# The Windows app had no automated checks at all, so regressions in the vault
+# layer — the ones that previously corrupted the library or crashed on a fresh
+# install — were only caught by running the smoke project locally by hand.
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "windows-native/**"
+      - ".github/workflows/windows.yml"
+  pull_request:
+    paths:
+      - "windows-native/**"
+      - ".github/workflows/windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build the Windows application
+        run: dotnet build windows-native/GameVault.Windows/GameVault.Windows.csproj -c Release --nologo
+
+      - name: Run vault and sync smoke checks
+        run: dotnet run --project windows-native/GameVault.Windows.Smoke/GameVault.Windows.Smoke.csproj -c Release --nologo
