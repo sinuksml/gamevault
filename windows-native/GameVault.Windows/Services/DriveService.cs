@@ -181,7 +181,7 @@ public sealed class DriveService
         var remoteText = await download.Content.ReadAsStringAsync();
         if (!download.IsSuccessStatusCode) throw new InvalidOperationException($"Drive download failed ({(int)download.StatusCode}).");
         var remote = JsonNode.Parse(remoteText) as JsonObject ?? throw new InvalidDataException("The Drive backup is not valid JSON.");
-        var remoteUpdated = remote["updatedAt"]?.GetValue<long?>() ?? 0;
+        var remoteUpdated = VaultRepository.Number(remote["updatedAt"]);
         if (vault.UserItemCount() == 0)
         {
             await vault.ImportJsonAsync(remoteText);
@@ -193,7 +193,7 @@ public sealed class DriveService
             var local = JsonNode.Parse(vault.ExportJson()) as JsonObject ?? new JsonObject();
             var merged = MergeVaults(local, remote, preferRemote: remoteUpdated > vault.UpdatedAt);
             merged["updatedAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            merged["revision"] = Math.Max(local["revision"]?.GetValue<long?>() ?? 0, remote["revision"]?.GetValue<long?>() ?? 0) + 1;
+            merged["revision"] = Math.Max(VaultRepository.Number(local["revision"]), VaultRepository.Number(remote["revision"])) + 1;
             await vault.ImportJsonAsync(merged.ToJsonString());
             if (await RemoteChangedSinceAsync(id, seenModified, token))
                 return "Google Drive changed while merging. The merge was kept locally and will upload on the next sync.";

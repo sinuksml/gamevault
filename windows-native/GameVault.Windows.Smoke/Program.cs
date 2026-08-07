@@ -87,6 +87,19 @@ try
     Console.WriteLine("Concurrent writes complete.");
     Assert(repository.Collection("queue").Count == 12, "concurrent writes are serialized");
 
+    /* A new vault stores "revision": 0 as an Int32, and reading it back with
+       GetValue<long?>() threw — so the first edit after a fresh install failed
+       instead of saving. Numbers must be read whatever their stored width. */
+    Console.WriteLine("Checking fresh-vault edits...");
+    var freshStore = Path.Combine(temp, "fresh-store");
+    var fresh = new VaultRepository(freshStore);
+    await fresh.LoadAsync();
+    await fresh.AddAsync("playing", new JsonObject { ["id"] = "first", ["name"] = "First Ever Game" });
+    Assert(fresh.Collection("playing").Count == 1, "the first edit on a brand new vault succeeds");
+    Assert(VaultRepository.Number(fresh.Root["revision"]) == 1, "revision advances on a brand new vault");
+    Assert(VaultRepository.Number(new JsonObject { ["n"] = 5 }["n"]) == 5, "an Int32 number reads back cleanly");
+    Assert(VaultRepository.Number(new JsonObject { ["n"] = 5L }["n"]) == 5, "an Int64 number reads back cleanly");
+
     Console.WriteLine("Checking corrupt-vault recovery...");
     var corruptStore = Path.Combine(temp, "corrupt-store");
     Directory.CreateDirectory(corruptStore);
@@ -96,6 +109,40 @@ try
     await corruptRepository.LoadAsync();
     Assert(corruptRepository.LoadWarning.Length > 0, "corrupt vault warning is visible");
     Assert(Directory.GetFiles(Path.Combine(corruptStore, "Recovery"), "unreadable-*.json").Length == 1, "corrupt vault is preserved");
+
+    /* A damaged vault used to reset the library to empty, which then let the next
+       Drive sync adopt the remote copy and drop anything saved locally since the
+       last upload. It must rebuild from the newest snapshot instead. */
+    var rescueStore = Path.Combine(temp, "rescue-store");
+    var rescue = new VaultRepository(rescueStore);
+    await rescue.LoadAsync();
+    await rescue.AddAsync("playing", new JsonObject { ["id"] = "rescue-1", ["name"] = "Rescued Game" });
+    await rescue.CreateSnapshotAsync("test");
+    await File.WriteAllTextAsync(Path.Combine(rescueStore, "vault.json"), "{n");
+    var rescued = new VaultRepository(rescueStore);
+    await rescued.LoadAsync();
+    Assert(rescued.Collection("playing").Count == 1, "a damaged vault is rebuilt from the newest snapshot, not emptied");
+    Assert(rescued.Collection("playing")[0]?["name"]?.ToString() == "Rescued Game", "the rebuilt vault keeps its records");
+
+    // The forensic copy must survive later saves; trimming used to delete it.
+    var damagedBefore = Directory.GetFiles(Path.Combine(rescueStore, "Recovery"), "unreadable-*.json").Length;
+    Assert(damagedBefore == 1, "the damaged vault is preserved for inspection");
+    for (var i = 0; i < 8; i++) await rescued.AddAsync("playing", new JsonObject { ["id"] = $"fill-{i}", ["name"] = $"Fill {i}" });
+    Assert(Directory.GetFiles(Path.Combine(rescueStore, "Recovery"), "unreadable-*.json").Length == damagedBefore,
+        "trimming recovery snapshots does not delete the damaged-vault copies");
+
+    // A batch writes once at the end rather than once per record.
+    var bulkStore = Path.Combine(temp, "bulk-store");
+    var bulk = new VaultRepository(bulkStore);
+    await bulk.LoadAsync();
+    var writes = 0;
+    bulk.Saved += (_, _) => writes++;
+    await bulk.BulkAsync(async () =>
+    {
+        for (var i = 0; i < 25; i++) await bulk.AddAsync("playing", new JsonObject { ["id"] = $"bulk-{i}", ["name"] = $"Bulk {i}" });
+    });
+    Assert(bulk.Collection("playing").Count == 25, "a batch still records every item");
+    Assert(writes == 1, "a batch of 25 records writes the vault once, not 25 times");
     Console.WriteLine("Checking record identity...");
     // Identity used to be three disagreeing implementations. These pin the contract.
     var imdbOnly = new JsonObject { ["id"] = "local-1", ["imdbId"] = "tt1234567", ["title"] = "Identity Movie", ["year"] = "2026" };

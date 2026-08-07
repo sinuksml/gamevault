@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization.Metadata;
@@ -7,6 +8,22 @@ namespace SinuGameVault.Services;
 
 public sealed class VaultRepository
 {
+    /// <summary>
+    /// Reads a whole number from a node whatever its stored type.
+    ///
+    /// GetValue&lt;long?&gt;() throws when the value happens to be an Int32, and every
+    /// number written from code rather than parsed from a file is stored that way —
+    /// including the "revision": 0 that a new vault starts with. That made the very
+    /// first edit on a freshly created vault throw instead of saving.
+    /// </summary>
+    public static long Number(JsonNode? node)
+    {
+        if (node is null) return 0;
+        var text = node.ToString();
+        if (long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var whole)) return whole;
+        return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var real) ? (long)real : 0;
+    }
+
     public const int CurrentSchema = 14;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -23,7 +40,7 @@ public sealed class VaultRepository
     public string VaultPath => _vaultPath;
     public string StorageFolder => _folder;
     public string RecoveryFolder => _recoveryFolder;
-    public long UpdatedAt => Root["updatedAt"]?.GetValue<long?>() ?? 0;
+    public long UpdatedAt => Number(Root["updatedAt"]);
     public string LoadWarning { get; private set; } = "";
     public event EventHandler? Saved;
 
@@ -54,11 +71,45 @@ public sealed class VaultRepository
         {
             var broken = Path.Combine(_recoveryFolder, $"unreadable-{DateTime.Now:yyyyMMdd-HHmmss}.json");
             File.Copy(_vaultPath, broken, overwrite: true);
-            Root = NewVault();
-            LoadWarning = $"The local vault was unreadable and was preserved as {Path.GetFileName(broken)}. Restore it from Settings > Recovery after checking the file.";
             DiagnosticsService.Log("Vault", "Unreadable local vault preserved for recovery", ex);
+            /* Rebuild from the newest snapshot that still parses rather than
+               starting empty. An empty vault looks like a brand new device, so the
+               next Drive sync would adopt the remote copy wholesale and any local
+               change made since the last upload would be lost. */
+            if (NewestUsableSnapshot() is { } recovered)
+            {
+                Root = recovered;
+                LoadWarning = $"The local vault could not be read and was rebuilt from the most recent good snapshot. The damaged copy is kept as {Path.GetFileName(broken)}.";
+                DiagnosticsService.Log("Vault", "Rebuilt the vault from the newest usable recovery snapshot");
+            }
+            else
+            {
+                Root = NewVault();
+                LoadWarning = $"The local vault was unreadable and no usable snapshot was found. The damaged copy is kept as {Path.GetFileName(broken)}.";
+            }
         }
     }
+
+    /// <summary>The newest recovery snapshot that still parses, or null when none can be read.</summary>
+    private JsonObject? NewestUsableSnapshot()
+    {
+        foreach (var file in SnapshotFiles().OrderByDescending(file => file.LastWriteTimeUtc))
+        {
+            try
+            {
+                if (JsonNode.Parse(File.ReadAllText(file.FullName)) is JsonObject snapshot && snapshot.Count > 0)
+                    return Normalize(snapshot);
+            }
+            catch { /* Damaged snapshot: fall through to the next oldest. */ }
+        }
+        return null;
+    }
+
+    /// <summary>Recovery snapshots, excluding the forensic copies of damaged vaults.</summary>
+    private IEnumerable<FileInfo> SnapshotFiles() => new DirectoryInfo(_recoveryFolder).GetFiles("*.json")
+        .Where(file => !file.Name.StartsWith(UnreadablePrefix, StringComparison.OrdinalIgnoreCase));
+
+    private const string UnreadablePrefix = "unreadable-";
 
     public async Task ImportAsync(string path)
     {
@@ -248,12 +299,22 @@ public sealed class VaultRepository
 
     public async Task SaveAsync(bool createRecovery = true, bool notifySaved = true)
     {
+        // A bulk import writes once at the end instead of once per record.
+        if (_deferSaves) { _deferredSavePending = true; return; }
         await _ioGate.WaitAsync();
         try
         {
+            var json = SerializeRoot();
+            if (json is null)
+            {
+                /* Serialization produced something unusable, so leave the good file
+                   on disk. Overwriting it here is what previously replaced a healthy
+                   vault with truncated JSON that would not load on the next start. */
+                DiagnosticsService.Log("Vault", "Skipped a vault save because the snapshot could not be serialized cleanly");
+                return;
+            }
             if (createRecovery && File.Exists(_vaultPath)) await SaveRecoveryCoreAsync("autosave");
             var temporary = _vaultPath + $".{Environment.ProcessId}.tmp";
-            var json = Root.ToJsonString(JsonOptions);
             await File.WriteAllTextAsync(temporary, json);
             File.Move(temporary, _vaultPath, overwrite: true);
             TrimRecovery();
@@ -262,11 +323,59 @@ public sealed class VaultRepository
         if (notifySaved) Saved?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Serializes the vault and proves the text parses before it is allowed to
+    /// replace the file on disk.
+    ///
+    /// The tree is edited from the interface thread (enriching an open title writes
+    /// straight into the stored record) while background work — a catalog refresh, a
+    /// Plex scan — can be saving at the same moment. JsonObject is not thread safe,
+    /// so a save could capture a half-applied edit and write malformed JSON, which
+    /// then failed to load and reset the library. Serializing twice absorbs that
+    /// race, and returning null tells the caller to keep the last good file.
+    /// </summary>
+    private string? SerializeRoot()
+    {
+        for (var attempt = 1; attempt <= 2; attempt++)
+        {
+            try
+            {
+                var json = Root.ToJsonString(JsonOptions);
+                using var _ = JsonDocument.Parse(json);
+                return json;
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidOperationException or ArgumentException or NullReferenceException)
+            {
+                DiagnosticsService.Log("Vault", $"Vault serialization attempt {attempt} produced unusable JSON", ex);
+            }
+        }
+        return null;
+    }
+
+    private bool _deferSaves;
+    private bool _deferredSavePending;
+
+    /// <summary>
+    /// Runs a batch of changes with a single write at the end. A Plex library scan
+    /// records hundreds of titles, and saving the whole vault after each one made
+    /// the scan slow and widened the window for a concurrent-edit corruption.
+    /// </summary>
+    public async Task BulkAsync(Func<Task> work)
+    {
+        var nested = _deferSaves;
+        _deferSaves = true;
+        try { await work(); }
+        finally { if (!nested) _deferSaves = false; }
+        if (nested || !_deferredSavePending) return;
+        _deferredSavePending = false;
+        await SaveAsync();
+    }
+
     private void Touch()
     {
         Root["version"] = CurrentSchema;
         Root["updatedAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        Root["revision"] = (Root["revision"]?.GetValue<long?>() ?? 0) + 1;
+        Root["revision"] = (Number(Root["revision"])) + 1;
     }
 
     private async Task SaveRecoveryAsync(string reason)
@@ -294,16 +403,26 @@ public sealed class VaultRepository
            a size budget or pass sixty files, so recovery is bounded even if an
            individual snapshot is unexpectedly large. */
         const long budgetBytes = 200L * 1024 * 1024;
-        var snapshots = new DirectoryInfo(_recoveryFolder).GetFiles("*.json")
-            .OrderByDescending(file => file.CreationTimeUtc).ToList();
+        /* Only real snapshots are trimmed here. This used to match every *.json in
+           the folder, so it deleted the forensic copy of a damaged vault moments
+           after it was written — the copy the warning tells the user to go and
+           check. Those are kept separately, newest ten. */
+        var snapshots = SnapshotFiles().OrderByDescending(file => file.CreationTimeUtc).ToList();
         long kept = 0;
         var keeping = 0;
         foreach (var snapshot in snapshots)
         {
             keeping++;
             kept += snapshot.Length;
-            if (keeping > 5 && (kept > budgetBytes || keeping > 60)) snapshot.Delete();
+            if (keeping > 5 && (kept > budgetBytes || keeping > 60)) Delete(snapshot);
         }
+        foreach (var damaged in new DirectoryInfo(_recoveryFolder).GetFiles(UnreadablePrefix + "*.json")
+            .OrderByDescending(file => file.CreationTimeUtc).Skip(10)) Delete(damaged);
+    }
+
+    private static void Delete(FileInfo file)
+    {
+        try { file.Delete(); } catch { /* A locked file is retried on the next save. */ }
     }
 
     public IReadOnlyList<RecoverySnapshot> RecoverySnapshots() => new DirectoryInfo(_recoveryFolder)
@@ -320,7 +439,7 @@ public sealed class VaultRepository
     }
 
     public JsonArray RecentActivity(int count = 50) => new(Collection("activity").OfType<JsonObject>()
-        .OrderByDescending(item => item["at"]?.GetValue<long?>() ?? 0).Take(count)
+        .OrderByDescending(item => Number(item["at"])).Take(count)
         .Select(item => (JsonNode)item.DeepClone()).ToArray());
 
     private void RecordActivity(string action, string detail, string collection)

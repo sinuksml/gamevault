@@ -1,4 +1,14 @@
-# Sinu Game Vault for Windows 2.6.0
+# Sinu Game Vault for Windows 2.6.1
+
+## 2.6.1 Stop the vault being lost, and fix a first-run crash
+
+- Fixed the recurring "local vault was unreadable" problem. The vault tree is edited from the interface (opening a title stores its plot and artwork) while background work — a catalog refresh or a Plex scan — can be saving at the same moment. That could capture a half-written snapshot and save malformed JSON over a healthy vault, which then failed to load on the next start; it had happened thirty times. A save now proves the text parses before it is allowed to replace the file, so a bad moment costs one skipped save instead of the library.
+- A vault that still cannot be read is now rebuilt from the most recent good snapshot instead of starting empty. An empty vault looked like a brand new device, so the next Google Drive sync adopted the cloud copy and dropped anything saved locally since the last upload.
+- The damaged copy kept "for recovery" is no longer deleted moments later. Snapshot trimming matched every file in the folder, including the forensic copy the warning tells you to check — which is why none of the thirty were ever there to inspect.
+- Fixed a crash on the first edit after a fresh install. A new vault stores its revision counter as a 32-bit number and the code insisted on reading a 64-bit one, so adding the very first title threw instead of saving. All the places that read stored numbers now accept either.
+- A Plex library scan now writes the vault once instead of once per title. Several hundred full-file writes made a scan slow and greatly widened the window for the corruption above.
+- The artwork cache is now capped at about 300 MB, oldest first. Nothing trimmed it before, and a full disk is what makes an otherwise safe save fail.
+- Added regression tests covering all of the above, so these cannot come back unnoticed.
 
 ## 2.6.0 Petrol tracking, Category view, bigger lists and fixes
 

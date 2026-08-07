@@ -114,6 +114,7 @@ public static class Artwork
                     var staging = path + ".part";
                     await File.WriteAllBytesAsync(staging, bytes);
                     File.Move(staging, path, overwrite: true);
+                    TrimFolder();
                 }
                 return Decode(path, decodeWidth);
             });
@@ -167,6 +168,29 @@ public static class Artwork
             try { File.Delete(path); } catch { /* best effort */ }
             return null;
         }
+    }
+
+    /// <summary>
+    /// Keeps the artwork folder under a size budget, dropping the least recently
+    /// used files first. Nothing trimmed it before, so it grew without limit — and
+    /// a full disk is what makes an otherwise atomic vault save fail.
+    /// </summary>
+    private static void TrimFolder()
+    {
+        const long budgetBytes = 300L * 1024 * 1024;
+        try
+        {
+            var files = new DirectoryInfo(Folder).GetFiles("*.img");
+            var total = files.Sum(file => file.Length);
+            if (total <= budgetBytes) return;
+            foreach (var file in files.OrderBy(file => file.LastAccessTimeUtc))
+            {
+                if (total <= budgetBytes) break;
+                total -= file.Length;
+                try { file.Delete(); } catch { /* In use: it is retried next time. */ }
+            }
+        }
+        catch { /* Housekeeping must never break artwork loading. */ }
     }
 
     private static string CachedFile(string url)

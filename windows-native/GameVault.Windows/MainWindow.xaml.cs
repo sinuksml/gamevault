@@ -797,10 +797,10 @@ public partial class MainWindow : Window
         try
         {
             var timestamps = _vault.Root["nativeCatalogRefreshAt"] as JsonObject;
-            var previous = timestamps?[key]?.GetValue<long?>() ?? 0;
+            var previous = VaultRepository.Number(timestamps?[key]);
             if (!isGameCatalog)
             {
-                var webSnapshotAt = _vault.Root["nativeTvCatalog"]?["generatedAt"]?.GetValue<long?>() ?? 0;
+                var webSnapshotAt = VaultRepository.Number(_vault.Root["nativeTvCatalog"]?["generatedAt"]);
                 previous = Math.Max(previous, webSnapshotAt);
             }
             var hasData = isGameCatalog ? _vault.Collection(mode).Count > 0 : (_vault.Root["nativeTvCatalog"]?[_section == "Movies" ? "movies" : "series"]?[mode] as JsonArray)?.Count > 0;
@@ -1052,7 +1052,7 @@ public partial class MainWindow : Window
         {
             var raw = node[key];
             if (raw is null) continue;
-            if (raw.GetValueKind() == System.Text.Json.JsonValueKind.Number && raw.GetValue<long?>() is { } number && number > 0) return number;
+            if (raw.GetValueKind() == System.Text.Json.JsonValueKind.Number && VaultRepository.Number(raw) is var number && number > 0) return number;
             var text = raw.ToString();
             if (long.TryParse(text, out var parsedNumber) && parsedNumber > 0) return parsedNumber;
             if (DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var parsedDate))
@@ -1654,19 +1654,23 @@ public partial class MainWindow : Window
             var items = _plexMode == "continue" ? await _plex.ContinueWatchingAsync(force) : await _plex.LibraryAsync(_plexMode == "recent" ? "all" : _plexMode, force);
             if (_plexMode == "recent") items = items.Take(50).ToList();
             _plexRows.Clear();
-            foreach (var item in items)
+            // One vault write for the whole scan rather than one per title.
+            await _vault.BulkAsync(async () =>
             {
-                var progress = item.Duration > 0 ? Math.Clamp(item.ViewOffset * 100d / item.Duration, 0, 100) : 0;
-                var source = new JsonObject
+                foreach (var item in items)
                 {
-                    ["id"] = $"plex:{item.RatingKey}", ["plexRatingKey"] = item.RatingKey, ["title"] = item.Title,
-                    ["year"] = item.Year, ["overview"] = item.Summary, ["poster"] = item.Thumb, ["backdrop"] = item.Art,
-                    ["rating"] = item.Rating, ["genre"] = item.Genres, ["status"] = item.ViewCount > 0 ? "Watched" : progress > 0 ? $"{progress:0}% watched" : "Unwatched",
-                    ["plexType"] = item.Type
-                };
-                _plexRows.Add(ReadNodes(new JsonArray(source), "plex").First());
-                await SyncPlexProgressAsync(item);
-            }
+                    var progress = item.Duration > 0 ? Math.Clamp(item.ViewOffset * 100d / item.Duration, 0, 100) : 0;
+                    var source = new JsonObject
+                    {
+                        ["id"] = $"plex:{item.RatingKey}", ["plexRatingKey"] = item.RatingKey, ["title"] = item.Title,
+                        ["year"] = item.Year, ["overview"] = item.Summary, ["poster"] = item.Thumb, ["backdrop"] = item.Art,
+                        ["rating"] = item.Rating, ["genre"] = item.Genres, ["status"] = item.ViewCount > 0 ? "Watched" : progress > 0 ? $"{progress:0}% watched" : "Unwatched",
+                        ["plexType"] = item.Type
+                    };
+                    _plexRows.Add(ReadNodes(new JsonArray(source), "plex").First());
+                    await SyncPlexProgressAsync(item);
+                }
+            });
             PlexStatusText.Text = $"{_plexRows.Count} items";
             UpdateSectionBackdrop();
         }
@@ -1709,7 +1713,11 @@ public partial class MainWindow : Window
         _lastPlexProgressSync = DateTime.Now;
         try
         {
-            foreach (var item in await _plex.ContinueWatchingAsync()) await SyncPlexProgressAsync(item);
+            var continueWatching = await _plex.ContinueWatchingAsync();
+            await _vault.BulkAsync(async () =>
+            {
+                foreach (var item in continueWatching) await SyncPlexProgressAsync(item);
+            });
             if (_section is "Movies" or "Series") RefreshMedia();
         }
         catch { /* Plex being unreachable must not disturb browsing. */ }
@@ -2050,7 +2058,7 @@ public partial class MainWindow : Window
         try
         {
             DriveHeaderStatus.Text = "Drive syncing…";
-            var revisionBefore = _vault.Root["revision"]?.GetValue<long?>() ?? 0;
+            var revisionBefore = VaultRepository.Number(_vault.Root["revision"]);
             var updatedBefore = _vault.UpdatedAt;
             var result = await _drive.SyncAsync(_vault);
             DriveSettingsStatus.Text = result;
@@ -2059,7 +2067,7 @@ public partial class MainWindow : Window
             /* Only rebuild the lists when the sync actually brought something back.
                Refreshing unconditionally rewrote every view on each background
                sync, losing the user's place while they were still browsing. */
-            var changed = (_vault.Root["revision"]?.GetValue<long?>() ?? 0) != revisionBefore || _vault.UpdatedAt != updatedBefore;
+            var changed = (VaultRepository.Number(_vault.Root["revision"])) != revisionBefore || _vault.UpdatedAt != updatedBefore;
             if (changed) RefreshAll();
             if (!silent) StatusText.Text = result;
         }
