@@ -1,4 +1,8 @@
-# Sinu Game Vault for Windows 2.6.5
+# Sinu Game Vault for Windows 2.6.6
+
+## 2.6.6 Game artwork fills its card
+
+- Game cards no longer show a picture floating in a band of blur. Every card used one tall poster-shaped frame, which suits a film poster but not game artwork: game art is wide, so fitting it whole inside a tall frame covered only the middle third and the rest was padded with a blurred copy of the same picture. The frame now matches the artwork — a wide frame for games, a poster frame for films and shows — so the picture fills it edge to edge with nothing cropped and nothing padded. Game cards are shorter as a result, which also fits more of them on screen.
 
 ## 2.6.5 Platform tabs, a visible released divider, and a petrol chart
 

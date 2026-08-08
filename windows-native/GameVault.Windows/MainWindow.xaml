@@ -52,13 +52,6 @@
                         <Grid>
                             <!-- Drawn locally so a title without a cover is never a blank card. -->
                             <TextBlock Text="{Binding Initials}" FontSize="44" FontWeight="Bold" Foreground="#66FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            <!-- Soft fill behind landscape art. Decoding the same image at
-                                 32px and stretching it up is blurry by nature, so the frame
-                                 fills without the cost of a real blur effect. -->
-                            <Image app:Artwork.Url="{Binding Image}" app:Artwork.DecodeWidth="32"
-                                   Stretch="UniformToFill" Opacity="0.7"
-                                   Visibility="{Binding NeedsSoftFill, Converter={StaticResource BoolToVisibility}}"
-                                   RenderOptions.BitmapScalingMode="LowQuality"/>
                             <Image app:Artwork.Url="{Binding Image}" app:Artwork.DecodeWidth="320" Stretch="{Binding ArtStretch}" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
                             <Border Background="{StaticResource ArtScrimBrush}"/>
                             <!-- Stacked rather than left/right: on a 236px card the two

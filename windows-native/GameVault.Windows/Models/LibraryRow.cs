@@ -52,22 +52,20 @@ public sealed class LibraryRow
     public bool IsPortraitArt => MediaType is "Movie" or "TV Show";
 
     /// <summary>
-    /// Every card uses the same 2:3 frame so Games, Movies and TV all look alike.
+    /// The art frame matches the shape of the artwork behind it: a 2:3 box for
+    /// posters, a 16:9 box for game art on a 236 wide card.
     ///
-    /// The two artwork shapes are reconciled without cropping: a 2:3 poster fills
-    /// the frame exactly, while 16:9 game art is centred at its true aspect over a
-    /// soft fill made from the same image. Forcing landscape art to fill a
-    /// portrait frame would crop away half its width, which is the zoomed-in look
-    /// this replaces.
+    /// Every card used to be one tall 2:3 frame. A poster filled it, but 16:9 game
+    /// art fitted whole inside it only covered the middle third, and the space left
+    /// over was padded with a blurred copy of the same picture — so a game card was
+    /// mostly blur. Sizing the frame to the picture fills it completely with no
+    /// crop and no padding; cards stay uniform within a section because every row
+    /// there is the same kind of title.
     /// </summary>
-    public double ArtHeight => 354;
+    public double ArtHeight => IsPortraitArt ? 354 : 133;
 
-    /// <summary>Portrait art fills the frame; landscape art is fitted whole inside it.</summary>
-    public System.Windows.Media.Stretch ArtStretch =>
-        IsPortraitArt ? System.Windows.Media.Stretch.UniformToFill : System.Windows.Media.Stretch.Uniform;
-
-    /// <summary>Landscape art leaves space above and below, filled with a blurred copy of itself.</summary>
-    public bool NeedsSoftFill => !IsPortraitArt && Image.Length > 0;
+    /// <summary>The frame matches the artwork's shape, so filling it crops nothing worth keeping.</summary>
+    public System.Windows.Media.Stretch ArtStretch => System.Windows.Media.Stretch.UniformToFill;
 
     /* Placeholder artwork is generated locally rather than fetched from an image
        service, so a title without a cover still shows something recognisable when
