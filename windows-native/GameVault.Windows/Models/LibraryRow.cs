@@ -221,10 +221,6 @@ public sealed class MonthlySpendRow
     /// <summary>The month's bar split into one coloured section per vendor, tallest total scaled to the chart height.</summary>
     public List<SpendSegment> Segments { get; init; } = [];
 
-    /// <summary>Petrol refills logged in this month, shown under the bar so refill frequency is visible over time.</summary>
-    public int Refills { get; init; }
-    public string RefillText => Refills > 0 ? "\u26FD " + Refills.ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
-    public bool HasRefills => Refills > 0;
 }
 
 /// <summary>One vendor's slice of a month's spending bar.</summary>

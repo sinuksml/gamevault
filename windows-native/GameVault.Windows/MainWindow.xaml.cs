@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<TorrentHistoryRow> _torrentHistoryRows = [];
     private readonly ObservableCollection<MonthlySpendRow> _monthlySpendRows = [];
     private readonly ObservableCollection<PetrolRow> _petrolRows = [];
+    private readonly ObservableCollection<PetrolMonthRow> _petrolMonthRows = [];
     /* Each sync downloads, merges and re-uploads the whole vault, so a 2.5 second
        debounce meant a burst of that work while the user was still typing. This
        waits for editing to settle instead; closing still flushes what is pending. */
@@ -52,7 +53,8 @@ public partial class MainWindow : Window
     private DateTime _lastPlexProgressSync = DateTime.MinValue;
     /// <summary>When true, the current section shows every title grouped into year sections instead of one tab.</summary>
     private bool _categoryView;
-    private string _upcomingPlatform = "ps5";
+    /// <summary>Platform the selected tab is for; empty on tabs that are not platform specific.</summary>
+    private string _upcomingPlatform = "";
     private string _theme = "dark";
     private bool _loadingSettings;
     private bool _refreshingBigly;
@@ -72,6 +74,7 @@ public partial class MainWindow : Window
         BiglyHistoryGrid.ItemsSource = _torrentHistoryRows;
         GameSpendChart.ItemsSource = _monthlySpendRows;
         PetrolHistory.ItemsSource = _petrolRows;
+        PetrolChart.ItemsSource = _petrolMonthRows;
         _gamesListView = _preferences.Get("GamesView") == "list";
         _mediaListView = _preferences.Get("MediaView") == "list";
         _theme = _preferences.Get("Theme", "dark");
@@ -174,7 +177,7 @@ public partial class MainWindow : Window
             case "Overview":
                 PageTitle.Text = "Overview"; PageSubtitle.Text = "Your library at a glance"; OverviewPage.Visibility = Visibility.Visible; RefreshDashboard(); break;
             case "Games":
-                PageTitle.Text = "Games"; PageSubtitle.Text = "Rentals, subscriptions, playing, queue and completed games"; GamesPage.Visibility = Visibility.Visible; UpcomingPlatformTabs.Visibility = ShowsPlatformFilter(_gameCollection) ? Visibility.Visible : Visibility.Collapsed; StyleGameTabs(); RefreshGames(); break;
+                PageTitle.Text = "Games"; PageSubtitle.Text = "Rentals, subscriptions, playing, queue and completed games"; GamesPage.Visibility = Visibility.Visible; StyleGameTabs(); RefreshGames(); break;
             case "Movies":
                 PageTitle.Text = "Movies"; PageSubtitle.Text = "Watchlist, releases, discovery and history"; MediaPage.Visibility = Visibility.Visible; BuildMediaTabs(); RefreshMedia(); _ = EnsureCurrentCatalogAsync(); _ = SyncPlexContinueAsync(); break;
             case "Series":
@@ -259,6 +262,7 @@ public partial class MainWindow : Window
             PetrolHomeCaption.Text = since == 1 ? "day since last fill" : "days since last fill";
             PetrolHomeSummary.Text = $"Honda Activa  ·  last filled {DisplayDate(petrol[^1].Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))}";
         }
+        RefreshPetrolChart();
 
         var dueDates = BuildDueDates();
         DueDatesList.ItemsSource = dueDates;
@@ -534,14 +538,6 @@ public partial class MainWindow : Window
             Add(new DateTime(date.Year, date.Month, 1), service, (decimal)Number(item, "totalPaid", "cost"));
         }
 
-        // Petrol refills per month, so refill frequency reads off the same timeline.
-        var refillsByMonth = new Dictionary<DateTime, int>();
-        foreach (var (date, _) in PetrolRefills())
-        {
-            var month = new DateTime(date.Year, date.Month, 1);
-            if (perMonth.ContainsKey(month)) refillsByMonth[month] = refillsByMonth.GetValueOrDefault(month) + 1;
-        }
-
         const double maxBar = 116;
         var maximum = Math.Max(1m, perMonth.Values.Select(bucket => bucket.Values.DefaultIfEmpty(0).Sum()).DefaultIfEmpty(0).Max());
         _monthlySpendRows.Clear();
@@ -562,8 +558,7 @@ public partial class MainWindow : Window
             {
                 Month = month.ToString("MMM", CultureInfo.InvariantCulture),
                 Amount = bucket.Values.DefaultIfEmpty(0).Sum(),
-                Segments = segments,
-                Refills = refillsByMonth.GetValueOrDefault(month)
+                Segments = segments
             });
         }
 
@@ -584,6 +579,32 @@ public partial class MainWindow : Window
             .OrderBy(entry => entry.Date)
             .Select(entry => (entry.Date, entry.Node))
             .ToList();
+
+    /// <summary>Refills per month over the last year, as its own small chart on Home.</summary>
+    private void RefreshPetrolChart()
+    {
+        var months = Enumerable.Range(0, 12)
+            .Select(offset => new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(offset - 11)).ToList();
+        var counts = months.ToDictionary(month => month, _ => 0);
+        foreach (var (date, _) in PetrolRefills())
+        {
+            var month = new DateTime(date.Year, date.Month, 1);
+            if (counts.ContainsKey(month)) counts[month]++;
+        }
+        var busiest = Math.Max(1, counts.Values.DefaultIfEmpty(0).Max());
+        _petrolMonthRows.Clear();
+        foreach (var month in months)
+            _petrolMonthRows.Add(new PetrolMonthRow
+            {
+                Month = month.ToString("MMM", CultureInfo.InvariantCulture),
+                Count = counts[month],
+                BarHeight = counts[month] == 0 ? 3 : Math.Max(8, counts[month] / (double)busiest * 92)
+            });
+        var total = counts.Values.Sum();
+        PetrolChartHint.Text = total == 0
+            ? "No refills logged in the last year"
+            : $"{total} refill{(total == 1 ? "" : "s")} in the last 12 months";
+    }
 
     private void RefreshPetrol()
     {
@@ -671,9 +692,11 @@ public partial class MainWindow : Window
         if (!IsLoaded || GamesTabs.SelectedItem is not TabItem tab) return;
         CloseDetails();
         SetCategoryView(false);
-        _gameCollection = tab.Tag?.ToString() ?? "rentals";
-        UpcomingPlatformTabs.Visibility = ShowsPlatformFilter(_gameCollection) ? Visibility.Visible : Visibility.Collapsed;
-        UpdateUpcomingPlatformStyles();
+        /* A tab tag is either a collection or "collection:platform" — the Upcoming
+           and Discover feeds have one tab per platform so the two are never mixed. */
+        var parts = (tab.Tag?.ToString() ?? "rentals").Split(':');
+        _gameCollection = parts[0];
+        _upcomingPlatform = parts.Length > 1 ? parts[1] : "";
         RefreshGames();
         _ = EnsureCurrentCatalogAsync();
         if (_gameCollection == "queue") _ = EnsureQueueAvailabilityAsync();
@@ -731,10 +754,8 @@ public partial class MainWindow : Window
             : ReadCollection(_gameCollection);
         if (_gameCollection == "upcoming")
             source = source.Concat(ReadCollection("upcomingRemoved"));
-        // PS5 vs Xbox & PC filtering also applies to Discover and Completed, so
-        // those sections can be narrowed to one platform the same way.
-        if (ShowsPlatformFilter(_gameCollection))
-            source = source.Where(UpcomingPlatformMatches);
+        // The Upcoming and Discover feeds have one tab per platform.
+        source = source.Where(UpcomingPlatformMatches);
         /* A finished game has no business sitting in Discover, the queue or the
            upcoming list — it belongs in Completed only. */
         if (_gameCollection is "catalogExtra" or "queue" or "upcoming")
@@ -742,25 +763,10 @@ public partial class MainWindow : Window
         SetRows(source, GameSortBox.SelectedItem as ComboBoxItem);
     }
 
-    private void UpcomingPlatform_Click(object sender, RoutedEventArgs e)
-    {
-        CloseDetails();
-        _upcomingPlatform = (sender as Button)?.Tag?.ToString() ?? "ps5";
-        UpdateUpcomingPlatformStyles();
-        RefreshGames();
-    }
-
-    /// <summary>Sections that offer the PS5 / Xbox &amp; PC platform filter.</summary>
-    private static bool ShowsPlatformFilter(string collection) => collection is "upcoming" or "catalogExtra" or "played";
-
-    private void UpdateUpcomingPlatformStyles()
-    {
-        UpcomingPs5Button.Style = (Style)FindResource(_upcomingPlatform == "ps5" ? "LibraryTabSelectedButton" : "LibraryTabButton");
-        UpcomingXboxPcButton.Style = (Style)FindResource(_upcomingPlatform == "xboxpc" ? "LibraryTabSelectedButton" : "LibraryTabButton");
-    }
-
+    /// <summary>Keeps a row when it belongs to the platform the current tab is for.</summary>
     private bool UpcomingPlatformMatches(LibraryRow row)
     {
+        if (_upcomingPlatform.Length == 0) return true;
         var value = $"{row.Platform} {Text(row.Source, "platforms", "platform", "stores")}";
         var xboxPc = value.Contains("xbox", StringComparison.OrdinalIgnoreCase) || value.Contains("pc", StringComparison.OrdinalIgnoreCase) || value.Contains("windows", StringComparison.OrdinalIgnoreCase);
         var ps5 = value.Contains("playstation 5", StringComparison.OrdinalIgnoreCase) || value.Contains("ps5", StringComparison.OrdinalIgnoreCase) || value.Contains("playstation", StringComparison.OrdinalIgnoreCase);
@@ -1612,8 +1618,14 @@ public partial class MainWindow : Window
 
     private void SelectGameCollection(string collection)
     {
+        // Platform tabs carry "collection:platform"; match on the collection and
+        // land on the first of its tabs.
         foreach (var item in GamesTabs.Items.OfType<TabItem>())
-            if (string.Equals(item.Tag?.ToString(), collection, StringComparison.OrdinalIgnoreCase)) GamesTabs.SelectedItem = item;
+            if (string.Equals((item.Tag?.ToString() ?? "").Split(':')[0], collection, StringComparison.OrdinalIgnoreCase))
+            {
+                GamesTabs.SelectedItem = item;
+                return;
+            }
     }
 
     private async void RemoveGame_Click(object sender, RoutedEventArgs e)

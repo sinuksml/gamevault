@@ -73,6 +73,16 @@ public sealed class PetrolRow
     public string GapCaption => Gap is null ? "first refill" : Gap == 1 ? "day since previous" : "days since previous";
 }
 
+/// <summary>One month of the Home petrol chart: how many refills were logged.</summary>
+public sealed class PetrolMonthRow
+{
+    public string Month { get; init; } = "";
+    public int Count { get; init; }
+    public double BarHeight { get; init; }
+    public string CountText => Count > 0 ? Count.ToString(CultureInfo.InvariantCulture) : "";
+    public string Tip => Count == 1 ? "1 refill" : $"{Count} refills";
+}
+
 /// <summary>One arc of the Home spending donut, and its legend entry.</summary>
 public sealed class SpendSliceRow
 {

@@ -1,4 +1,10 @@
-# Sinu Game Vault for Windows 2.6.4
+# Sinu Game Vault for Windows 2.6.5
+
+## 2.6.5 Platform tabs, a visible released divider, and a petrol chart
+
+- PS5 and Xbox & PC now have their own tabs: PS5 Upcoming, Xbox & PC Upcoming, PS5 Discover and Xbox & PC Discover. The shared tab with a platform switch underneath is gone, so the two platforms are never listed together.
+- That also makes the "Already released" divider visible. Titles past their date were being grouped correctly, but the old shared tab opened on PS5 and every released title in the list was a PC one, so the section had nothing to show. Each platform tab now ends with its own Already released section.
+- Petrol refills have their own chart on the Home page, showing how many fills were logged in each of the last twelve months, instead of a small marker under the spending chart.
 
 ## 2.6.4 Deletions that stay deleted, and a simpler Petrol section
 
