@@ -57,21 +57,20 @@ public sealed class DueDateRow
     }
 }
 
-/// <summary>One petrol refill in the history, with the gap since the previous fill.</summary>
+/// <summary>
+/// One petrol refill in the history. Only the date is stored; the gap since the
+/// previous fill is worked out from it.
+/// </summary>
 public sealed class PetrolRow
 {
-    /// <summary>Record identifier, so a mistyped refill can be removed again.</summary>
+    /// <summary>Record identifier, so a mistaken refill can be removed again.</summary>
     public string Id { get; init; } = "";
     public string Date { get; init; } = "";
     public int? Gap { get; init; }
-    public double Litres { get; init; }
-    public double Cost { get; init; }
-    public double Odometer { get; init; }
-    public string Note { get; init; } = "";
-    public string GapText => Gap is null ? "First refill" : $"{Gap} day{(Gap == 1 ? "" : "s")}";
-    public string LitresText => Litres > 0 ? $"{Litres:0.##} L" : "";
-    public string CostText => Cost > 0 ? "₹" + Cost.ToString("N0", CultureInfo.InvariantCulture) : "";
-    public string OdometerText => Odometer > 0 ? Odometer.ToString("N0", CultureInfo.InvariantCulture) + " km" : "";
+    /// <summary>Position in the history, newest first: "Most recent", "2nd most recent"…</summary>
+    public string Ordinal { get; init; } = "";
+    public string GapValue => Gap is null ? "—" : Gap.Value.ToString(CultureInfo.InvariantCulture);
+    public string GapCaption => Gap is null ? "first refill" : Gap == 1 ? "day since previous" : "days since previous";
 }
 
 /// <summary>One arc of the Home spending donut, and its legend entry.</summary>

@@ -242,6 +242,41 @@ try
     Assert(ownership["nativeTvCatalog"]?["owner"]?.ToString() == "desktop",
         "the catalog cache the desktop app writes keeps its own copy");
 
+    /* The web application records deletions in _sync.tombstones, not in the
+       "deletions" list. Ignoring them meant a title deleted on the phone looked
+       like a record the phone merely lacked, and the union handed it back. */
+    var webDeleted = new JsonObject
+    {
+        ["updatedAt"] = 100, ["watchingMovies"] = new JsonArray(),
+        ["_sync"] = new JsonObject
+        {
+            ["records"] = new JsonObject { ["watchingMovies"] = new JsonObject() },
+            ["tombstones"] = new JsonObject { ["watchingMovies"] = new JsonObject { ["tmdb:555"] = 5000L } }
+        }
+    };
+    var desktopStillHas = new JsonObject
+    {
+        ["updatedAt"] = 200,
+        ["watchingMovies"] = new JsonArray(new JsonObject { ["tmdbId"] = "555", ["title"] = "Deleted On Phone" })
+    };
+    var afterWebDelete = DriveService.MergeVaults(desktopStillHas, webDeleted, preferRemote: false);
+    Assert((afterWebDelete["watchingMovies"] as JsonArray)?.Count == 0,
+        "a title deleted on the web stays deleted after a desktop merge");
+
+    // A title saved again after the deletion is a genuine re-add and must survive.
+    var readded = new JsonObject
+    {
+        ["updatedAt"] = 200,
+        ["watchingMovies"] = new JsonArray(new JsonObject { ["tmdbId"] = "555", ["title"] = "Added Back" }),
+        ["_sync"] = new JsonObject
+        {
+            ["records"] = new JsonObject { ["watchingMovies"] = new JsonObject { ["tmdb:555"] = 9000L } },
+            ["tombstones"] = new JsonObject { ["watchingMovies"] = new JsonObject() }
+        }
+    };
+    Assert((DriveService.MergeVaults(readded, webDeleted, preferRemote: false)["watchingMovies"] as JsonArray)?.Count == 1,
+        "a title added back after a deletion is kept");
+
     /* A collection missing from the item count reads as an empty vault, and Drive
        sync adopts the cloud copy wholesale when the vault looks empty. */
     var petrolOnly = new VaultRepository(Path.Combine(temp, "petrol-only"));

@@ -178,7 +178,10 @@ public sealed class LibraryRow
         "plex" => "Plex",
         _ => MediaType
     };
-    public string CategoryColor => Collection switch
+    /* A subscription card is labelled with its service, so it carries that
+       service's own colour instead of one shared purple for every provider. */
+    public string CategoryColor => Collection is "subscriptions" or "subscriptionGames"
+        && Services.BrandColors.For(Name + " " + Providers + " " + Platform) is { } brand ? brand : Collection switch
     {
         "rentals" => "#1689D8", "rentalHistory" => "#66758C", "subscriptions" or "subscriptionGames" => "#5D56C9",
         "playing" => "#16836A", "queue" => "#B97816", "upcoming" => "#B13F68", "upcomingRemoved" => "#626D7D",
@@ -217,6 +220,11 @@ public sealed class MonthlySpendRow
     public string AmountText => Amount > 0 ? $"\u20B9{Amount:N0}" : "";
     /// <summary>The month's bar split into one coloured section per vendor, tallest total scaled to the chart height.</summary>
     public List<SpendSegment> Segments { get; init; } = [];
+
+    /// <summary>Petrol refills logged in this month, shown under the bar so refill frequency is visible over time.</summary>
+    public int Refills { get; init; }
+    public string RefillText => Refills > 0 ? "\u26FD " + Refills.ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
+    public bool HasRefills => Refills > 0;
 }
 
 /// <summary>One vendor's slice of a month's spending bar.</summary>

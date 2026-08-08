@@ -1,6 +1,6 @@
 "use strict";
-var APP_VERSION = "2.6.1";
-var APP_BUILD_DATE = "2026-08-07";
+var APP_VERSION = "2.6.2";
+var APP_BUILD_DATE = "2026-08-08";
 var APP_RELEASE_CHANNEL = "Stable";
 
 if(/iPhone|iPad|iPod/i.test(navigator.userAgent)){
@@ -2069,9 +2069,9 @@ function renderHome(){
   var pSince=pLast?Math.max(0,petrolDaysBetween(pLast.date,localISO(t0))):null;
   html+='<div class="card home-card"><div class="home-title">⛽ Petrol</div>';
   if(pLast){
-    html+='<div class="home-row"><span class="grow">Days since last fill</span><b>'+pSince+'d</b></div>';
+    html+='<div class="petrol-home"><b>'+pSince+'</b><span>'+(pSince===1?"day":"days")+' since last fill</span></div>';
     html+='<div class="meta">Last filled '+esc(fmt(pLast.date))+' · '+pl.length+' refill'+(pl.length===1?'':'s')+' logged</div>';
-  } else html+='<div class="meta">No refills logged yet.</div>';
+  } else html+='<div class="petrol-home"><b>&mdash;</b><span>no refills logged yet</span></div>';
   html+='<div class="home-foot">'+homeGoBtn("Open Petrol","petrol","")+'</div></div>';
 
   // subscriptions renewing within 7 days
@@ -3883,31 +3883,28 @@ function renderPetrol(){
   var gaps=[]; for(var i=1;i<list.length;i++) gaps.push(petrolDaysBetween(list[i-1].date,list[i].date));
   var avg=gaps.length?Math.round(gaps.reduce(function(a,b){return a+b;},0)/gaps.length):null;
 
-  var form='<section class="health-panel"><div class="health-section-head"><div><span>LOG A REFILL</span><h3>Add each time you fill petrol on the Activa</h3></div></div>'+
-    '<div class="health-lab-form">'+
-    '<label>Date<input id="petrolDate" type="date" value="'+esc(todayIso)+'"></label>'+
-    '<label>Litres<input id="petrolLitres" type="number" step="0.01" min="0" placeholder="L"></label>'+
-    '<label>Cost (&#8377;)<input id="petrolCost" type="number" step="1" min="0" placeholder="&#8377;"></label>'+
-    '<label>Odometer (km)<input id="petrolOdo" type="number" step="1" min="0" placeholder="km"></label>'+
-    '<label class="wide">Note<input id="petrolNote" type="text" placeholder="Station or remarks"></label>'+
-    '<button class="btn blue" data-act="petrol-save">Save refill</button></div></section>';
+  // Only the date is recorded; everything else is worked out from it.
+  var form='<section class="health-panel petrol-form"><span class="petrol-form-icon">&#9981;</span>'+
+    '<div class="petrol-form-copy"><span>LOG A REFILL</span><h3>Pick the day you filled up</h3></div>'+
+    '<input id="petrolDate" type="date" value="'+esc(todayIso)+'">'+
+    '<button class="btn blue" data-act="petrol-save">Save refill</button></section>';
 
   var stats='<section class="health-panel"><div class="petrol-stats">'+
     '<div><strong>'+(daysSince===null?"&mdash;":daysSince)+'</strong><span>Days since last fill</span></div>'+
     '<div><strong>'+list.length+'</strong><span>Total refills</span></div>'+
-    '<div><strong>'+(avg===null?"&mdash;":avg)+'</strong><span>Avg days between</span></div>'+
+    '<div><strong>'+(avg===null?"&mdash;":avg)+'</strong><span>Typical days between</span></div>'+
     '</div>'+(last?'<p class="muted">Last filled '+esc(fmt(last.date))+'</p>':'')+'</section>';
 
-  var rows=list.slice().reverse().map(function(x){
+  var rows=list.slice().reverse().map(function(x,index){
     var pos=list.indexOf(x);
     var gap=pos>0?petrolDaysBetween(list[pos-1].date,x.date):null;
-    return '<tr><td>'+esc(fmt(x.date))+'</td><td>'+(gap===null?"First refill":gap+" day"+(gap===1?"":"s"))+'</td>'+
-      '<td>'+(x.litres?esc(x.litres)+" L":"")+'</td><td>'+(x.cost?"&#8377;"+esc(x.cost):"")+'</td>'+
-      '<td>'+(x.odometer?esc(x.odometer)+" km":"")+'</td><td>'+esc(x.note||"")+'</td>'+
-      '<td><button class="iconbtn" data-act="petrol-delete" data-id="'+esc(x.id||x.date)+'" aria-label="Delete refill">&times;</button></td></tr>';
+    return '<div class="petrol-row"><div class="petrol-row-main"><strong>'+esc(fmt(x.date))+'</strong>'+
+      '<small>'+(index===0?"Most recent fill":(index+1)+" fills ago")+'</small></div>'+
+      '<div class="petrol-row-gap"><b>'+(gap===null?"&mdash;":gap)+'</b><small>'+(gap===null?"first refill":(gap===1?"day since previous":"days since previous"))+'</small></div>'+
+      '<button class="iconbtn" data-act="petrol-delete" data-id="'+esc(x.id||x.date)+'" aria-label="Delete refill">&times;</button></div>';
   }).join("");
   var history=list.length
-    ? '<section class="health-panel health-table-wrap"><table class="health-table"><thead><tr><th>Date</th><th>Days since previous</th><th>Litres</th><th>Cost</th><th>Odometer</th><th>Note</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></section>'
+    ? '<section class="health-panel"><h3 class="petrol-history-title">History</h3>'+rows+'</section>'
     : '<section class="health-panel"><p class="muted">No refills logged yet. Add your first fill above and the days-since counter starts.</p></section>';
 
   return '<div class="health-layout petrol-layout">'+form+stats+history+'</div>';
@@ -6378,10 +6375,6 @@ document.getElementById("content").addEventListener("click",function(e){
   if(act==="petrol-save"){
     var pdate=(document.getElementById("petrolDate")||{}).value||localISO(today());
     var rec={id:uid(),date:pdate,addedAt:Date.now()};
-    var lit=Number((document.getElementById("petrolLitres")||{}).value); if(lit>0)rec.litres=lit;
-    var pcost=Number((document.getElementById("petrolCost")||{}).value); if(pcost>0)rec.cost=pcost;
-    var podo=Number((document.getElementById("petrolOdo")||{}).value); if(podo>0)rec.odometer=podo;
-    var pnote=((document.getElementById("petrolNote")||{}).value||"").trim(); if(pnote)rec.note=pnote;
     if(!Array.isArray(data.petrol))data.petrol=[];
     data.petrol.unshift(rec);
     addAudit("petrol-refill","Logged petrol refill on "+pdate);

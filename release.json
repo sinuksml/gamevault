@@ -1,11 +1,11 @@
 {
-  "version": "2.6.1",
-  "buildDate": "2026-08-07",
+  "version": "2.6.2",
+  "buildDate": "2026-08-08",
   "schema": 12,
   "minimumCompatibleSchema": 1,
   "assets": {
-    "css": "app.css?v=2.6.1",
-    "core": "core.js?v=2.6.1",
-    "app": "app.js?v=2.6.1"
+    "css": "app.css?v=2.6.2",
+    "core": "core.js?v=2.6.2",
+    "app": "app.js?v=2.6.2"
   }
 }

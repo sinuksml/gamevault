@@ -245,6 +245,20 @@ const desktopMerged=core.sync.merge(desktopLocal,desktopRemote,collections);
 assert.deepEqual(Array.from(desktopMerged.hiddenGames,x=>x.name).sort(),["Already hidden","Hidden on the desktop"],
   "lists owned by the other client must merge, not be replaced by the newer vault");
 
+/* The desktop application records deletions in a "deletions" list. Ignoring it
+   meant a title deleted there was treated as one this device merely still had,
+   and it returned on the next merge. */
+const desktopDeleted={updatedAt:100,watchingMovies:[],deletions:[
+  {collection:"watchingMovies",identity:"canonicalId:tmdb:movie:plex-movie-191",at:1785692189821}
+]};
+const stillHere={updatedAt:300,watchingMovies:[
+  {canonicalId:"tmdb:movie:plex-movie-191",title:"Deleted on the desktop"},
+  {canonicalId:"tmdb:movie:701387",title:"Still watching"}
+],deletions:[]};
+const afterDelete=core.sync.merge(stillHere,desktopDeleted,["watchingMovies"]);
+assert.deepEqual(Array.from(afterDelete.watchingMovies,x=>x.title),["Still watching"],
+  "a title deleted on the desktop must not return on the next merge");
+
 const envelope=await core.crypto.seal({token:"private-value"},"correct horse battery staple");
 assert.ok(!JSON.stringify(envelope).includes("private-value"),"encrypted configuration must not contain plaintext credentials");
 assert.deepEqual(await core.crypto.open(envelope,"correct horse battery staple"),{token:"private-value"},"encrypted configuration must round-trip");

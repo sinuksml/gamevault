@@ -3066,7 +3066,24 @@ body.amount-prompt-open{overflow:hidden}
 
 /* Petrol tracking (Honda Activa) */
 .petrol-layout{grid-template-columns:1fr}
-.petrol-stats{display:flex;gap:28px;flex-wrap:wrap}
-.petrol-stats>div{display:flex;flex-direction:column;min-width:96px}
-.petrol-stats strong{font-size:32px;font-weight:800;line-height:1}
-.petrol-stats span{color:var(--muted);font-size:12px;margin-top:5px}
+.petrol-stats{display:flex;gap:34px;flex-wrap:wrap}
+.petrol-stats>div{display:flex;flex-direction:column;min-width:110px}
+.petrol-stats strong{font-size:44px;font-weight:800;line-height:1}
+.petrol-stats span{color:var(--muted);font-size:12px;margin-top:6px}
+.petrol-form{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.petrol-form-icon{font-size:26px}
+.petrol-form-copy{flex:1;min-width:190px}
+.petrol-form-copy span{color:var(--success);font-size:9px;font-weight:900;letter-spacing:.14em}
+.petrol-form-copy h3{margin:4px 0 0;font-size:17px}
+.petrol-form input[type=date]{min-width:170px}
+.petrol-history-title{margin:0 0 12px;font-size:17px}
+.petrol-row{display:flex;align-items:center;gap:14px;padding:13px 15px;margin-bottom:8px;border:1px solid var(--border);border-radius:9px;background:var(--inset)}
+.petrol-row-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.petrol-row-main strong{font-size:16px}
+.petrol-row-main small{color:var(--muted);font-size:11px;margin-top:2px}
+.petrol-row-gap{display:flex;flex-direction:column;align-items:flex-end;text-align:right}
+.petrol-row-gap b{font-size:24px;color:var(--accent);line-height:1}
+.petrol-row-gap small{color:var(--muted);font-size:10px;margin-top:2px}
+.petrol-home{display:flex;align-items:baseline;gap:9px;margin:6px 0 4px}
+.petrol-home b{font-size:40px;font-weight:800;line-height:1}
+.petrol-home span{color:var(--muted);font-size:12px}

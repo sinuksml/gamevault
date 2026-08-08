@@ -52,7 +52,7 @@ public partial class MainWindow : Window
     private DateTime _lastPlexProgressSync = DateTime.MinValue;
     /// <summary>When true, the current section shows every title grouped into year sections instead of one tab.</summary>
     private bool _categoryView;
-    private string _upcomingPlatform = "all";
+    private string _upcomingPlatform = "ps5";
     private string _theme = "dark";
     private bool _loadingSettings;
     private bool _refreshingBigly;
@@ -71,7 +71,7 @@ public partial class MainWindow : Window
         BiglyGrid.ItemsSource = _torrentRows;
         BiglyHistoryGrid.ItemsSource = _torrentHistoryRows;
         GameSpendChart.ItemsSource = _monthlySpendRows;
-        PetrolGrid.ItemsSource = _petrolRows;
+        PetrolHistory.ItemsSource = _petrolRows;
         _gamesListView = _preferences.Get("GamesView") == "list";
         _mediaListView = _preferences.Get("MediaView") == "list";
         _theme = _preferences.Get("Theme", "dark");
@@ -244,11 +244,21 @@ public partial class MainWindow : Window
         RefreshGameSpendChart();
         TotalSpentCount.Text = $"₹{rentalSpent + subscriptionSpent:N0}";
 
-        // Petrol summary: days since the most recent Activa refill.
+        // Petrol summary: days since the most recent Activa refill, shown large.
         var petrol = PetrolRefills();
-        PetrolHomeSummary.Text = petrol.Count == 0
-            ? "No petrol refills logged yet"
-            : $"Activa: {(int)(DateTime.Today - petrol[^1].Date.Date).TotalDays} days since last petrol fill  ·  last {DisplayDate(petrol[^1].Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))}";
+        if (petrol.Count == 0)
+        {
+            PetrolHomeDays.Text = "--";
+            PetrolHomeCaption.Text = "no refills logged yet";
+            PetrolHomeSummary.Text = "Honda Activa";
+        }
+        else
+        {
+            var since = (int)(DateTime.Today - petrol[^1].Date.Date).TotalDays;
+            PetrolHomeDays.Text = since.ToString(CultureInfo.InvariantCulture);
+            PetrolHomeCaption.Text = since == 1 ? "day since last fill" : "days since last fill";
+            PetrolHomeSummary.Text = $"Honda Activa  ·  last filled {DisplayDate(petrol[^1].Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))}";
+        }
 
         var dueDates = BuildDueDates();
         DueDatesList.ItemsSource = dueDates;
@@ -320,6 +330,7 @@ public partial class MainWindow : Window
 
     private static readonly string[] SpendPalette =
         ["#4CC9F0", "#6366F1", "#F0616B", "#FFD166", "#5DE2B5", "#C77DFF", "#FF9F5A", "#4EA8DE"];
+
 
     /// <summary>Totals spend per vendor and per subscription, then draws the donut.</summary>
     private void BuildSpendBreakdown()
@@ -495,7 +506,8 @@ public partial class MainWindow : Window
             totals[service] = totals.GetValueOrDefault(service) + cost;
         }
         return totals.OrderByDescending(pair => pair.Value)
-            .Select((pair, index) => (pair.Key, Color: SpendPalette[index % SpendPalette.Length]))
+            // A recognised service keeps its own brand colour; the rest take the palette.
+            .Select((pair, index) => (pair.Key, Color: BrandColors.For(pair.Key) ?? SpendPalette[index % SpendPalette.Length]))
             .ToDictionary(entry => entry.Key, entry => entry.Color, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -522,6 +534,14 @@ public partial class MainWindow : Window
             Add(new DateTime(date.Year, date.Month, 1), service, (decimal)Number(item, "totalPaid", "cost"));
         }
 
+        // Petrol refills per month, so refill frequency reads off the same timeline.
+        var refillsByMonth = new Dictionary<DateTime, int>();
+        foreach (var (date, _) in PetrolRefills())
+        {
+            var month = new DateTime(date.Year, date.Month, 1);
+            if (perMonth.ContainsKey(month)) refillsByMonth[month] = refillsByMonth.GetValueOrDefault(month) + 1;
+        }
+
         const double maxBar = 116;
         var maximum = Math.Max(1m, perMonth.Values.Select(bucket => bucket.Values.DefaultIfEmpty(0).Sum()).DefaultIfEmpty(0).Max());
         _monthlySpendRows.Clear();
@@ -542,7 +562,8 @@ public partial class MainWindow : Window
             {
                 Month = month.ToString("MMM", CultureInfo.InvariantCulture),
                 Amount = bucket.Values.DefaultIfEmpty(0).Sum(),
-                Segments = segments
+                Segments = segments,
+                Refills = refillsByMonth.GetValueOrDefault(month)
             });
         }
 
@@ -569,19 +590,18 @@ public partial class MainWindow : Window
         var refills = PetrolRefills();
         _petrolRows.Clear();
         // Build newest-first, tagging each with the gap in days since the previous fill.
+        var position = 0;
         for (var index = refills.Count - 1; index >= 0; index--)
         {
             var (date, node) = refills[index];
             int? gap = index > 0 ? (int)(date.Date - refills[index - 1].Date.Date).TotalDays : null;
+            position++;
             _petrolRows.Add(new PetrolRow
             {
                 Id = Text(node, "id"),
                 Date = DisplayDate(date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
                 Gap = gap,
-                Litres = Number(node, "litres", "liters"),
-                Cost = Number(node, "cost", "amount"),
-                Odometer = Number(node, "odometer", "km"),
-                Note = Text(node, "note", "notes")
+                Ordinal = position == 1 ? "Most recent fill" : $"{position} fills ago"
             });
         }
 
@@ -612,13 +632,7 @@ public partial class MainWindow : Window
             ["date"] = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             ["addedAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
         };
-        if (double.TryParse(PetrolLitres.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var litres) && litres > 0) record["litres"] = litres;
-        if (double.TryParse(PetrolCost.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var cost) && cost > 0) record["cost"] = cost;
-        if (double.TryParse(PetrolOdometer.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var odo) && odo > 0) record["odometer"] = odo;
-        if (PetrolNote.Text.Trim().Length > 0) record["note"] = PetrolNote.Text.Trim();
-
         await _vault.AddAsync("petrol", record);
-        PetrolLitres.Text = PetrolCost.Text = PetrolOdometer.Text = PetrolNote.Text = "";
         PetrolDate.SelectedDate = DateTime.Today;
         RefreshPetrol();
         RefreshDashboard();
@@ -627,7 +641,7 @@ public partial class MainWindow : Window
 
     private async void DeletePetrolRefill_Click(object sender, RoutedEventArgs e)
     {
-        if (PetrolGrid.SelectedItem is not PetrolRow row || row.Id.Length == 0)
+        if (PetrolHistory.SelectedItem is not PetrolRow row || row.Id.Length == 0)
         {
             StatusText.Text = "Select a refill in the history first.";
             return;
@@ -706,28 +720,8 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>De-duplicates rows by title and year so the same title from two collections appears once in the Category view.</summary>
-    private static IEnumerable<LibraryRow> DedupeByTitleYear(IEnumerable<LibraryRow> rows)
-    {
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var row in rows)
-            if (seen.Add(NormalizedTitle(row.Name) + "|" + row.YearGroup)) yield return row;
-    }
-
-    /// <summary>Every game in the personal library, for the year-grouped Category view.</summary>
-    private IEnumerable<LibraryRow> CategoryGameRows() => DedupeByTitleYear(
-        new[] { "playing", "rentals", "rentalHistory", "queue", "played", "subscriptionGames", "catalogExtra" }
-            .SelectMany(ReadCollection));
-
-    /// <summary>Every movie or show in the personal library, for the year-grouped Category view.</summary>
-    private IEnumerable<LibraryRow> CategoryMediaRows() => DedupeByTitleYear(
-        (_section == "Movies"
-            ? new[] { "movieWatchlist", "watchingMovies", "watchedMovies" }
-            : new[] { "seriesWatchlist", "watchingSeries", "watchedSeries" }).SelectMany(ReadCollection));
-
     private void RefreshGames()
     {
-        if (_categoryView) { SetRows(CategoryGameRows(), GameSortBox.SelectedItem as ComboBoxItem); return; }
         var source = _gameCollection == "playing"
             ? ReadCollection("playing").Concat(ReadCollection("rentals")).GroupBy(row => NormalizedTitle(row.Name)).Select(group => group.First())
             : _gameCollection == "rentals"
@@ -761,14 +755,12 @@ public partial class MainWindow : Window
 
     private void UpdateUpcomingPlatformStyles()
     {
-        UpcomingAllButton.Style = (Style)FindResource(_upcomingPlatform == "all" ? "LibraryTabSelectedButton" : "LibraryTabButton");
         UpcomingPs5Button.Style = (Style)FindResource(_upcomingPlatform == "ps5" ? "LibraryTabSelectedButton" : "LibraryTabButton");
         UpcomingXboxPcButton.Style = (Style)FindResource(_upcomingPlatform == "xboxpc" ? "LibraryTabSelectedButton" : "LibraryTabButton");
     }
 
     private bool UpcomingPlatformMatches(LibraryRow row)
     {
-        if (_upcomingPlatform == "all") return true;
         var value = $"{row.Platform} {Text(row.Source, "platforms", "platform", "stores")}";
         var xboxPc = value.Contains("xbox", StringComparison.OrdinalIgnoreCase) || value.Contains("pc", StringComparison.OrdinalIgnoreCase) || value.Contains("windows", StringComparison.OrdinalIgnoreCase);
         var ps5 = value.Contains("playstation 5", StringComparison.OrdinalIgnoreCase) || value.Contains("ps5", StringComparison.OrdinalIgnoreCase) || value.Contains("playstation", StringComparison.OrdinalIgnoreCase);
@@ -907,13 +899,6 @@ public partial class MainWindow : Window
 
     private void RefreshMedia()
     {
-        if (_categoryView)
-        {
-            PageSubtitle.Text = $"{(_section == "Movies" ? "Movies" : "TV Shows")} · by year";
-            SetRows(CategoryMediaRows(), MediaSortBox.SelectedItem as ComboBoxItem);
-            BuildMediaTabs();
-            return;
-        }
         var prefix = _section == "Movies" ? "Movies" : "TV Shows";
         var collection = _mediaMode switch
         {
@@ -922,7 +907,8 @@ public partial class MainWindow : Window
             "hidden" => _section == "Movies" ? "hiddenMovies" : "hiddenSeries",
             _ => _section == "Movies" ? "movieWatchlist" : "seriesWatchlist"
         };
-        PageSubtitle.Text = $"{prefix} · {_mediaMode}";
+        // Category regroups the tab you are on by year; it is not a separate list.
+        PageSubtitle.Text = _categoryView ? $"{prefix} · {_mediaMode} · by year" : $"{prefix} · {_mediaMode}";
         var catalog = _section == "Movies" ? new[] { "uphw", "bluray", "relhw", "mlott", "mlup" } : new[] { "seriesnew", "seriesupcoming", "enseries", "mlseries", "taseries", "hiseries" };
         var allRows = (catalog.Contains(_mediaMode) ? ReadNativeCatalog(_section == "Movies" ? "movies" : "series", _mediaMode) : ReadCollection(collection)).ToList();
         IEnumerable<LibraryRow> rows = allRows;
@@ -1183,7 +1169,9 @@ public partial class MainWindow : Window
         {
             if (_categoryView && _rows.Count > 0)
                 view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(LibraryRow.YearGroup)));
-            else if ((_section == "Games" || _section == "Movies" && _mediaMode is "mlott" or "mlup") && _rows.Any(row => row.GroupName.Length > 0))
+            else if ((_section == "Games"
+                      || _section is "Movies" or "Series" && _mediaMode is "mlott" or "mlup" or "uphw" or "seriesupcoming")
+                     && _rows.Any(row => row.GroupName.Length > 0))
                 view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(LibraryRow.GroupName)));
         }
         if (_section == "Games")
@@ -1228,9 +1216,16 @@ public partial class MainWindow : Window
         "playing" when status.Contains("hold", StringComparison.OrdinalIgnoreCase) || status.Contains("drop", StringComparison.OrdinalIgnoreCase) => "On hold",
         "playing" => "Playing now",
         "subscriptionGames" => "Included games",
-        "upcoming" when days is < 0 => "Released",
+        /* Anything whose date has passed drops to its own section at the bottom, so
+           a list of what is still to come is not mixed with what already arrived. */
+        "upcoming" when days is < 0 => "Already released",
         "upcoming" => "Upcoming releases",
         "upcomingRemoved" => "Removed games",
+        "uphw" when days is < 0 => "Already released",
+        "uphw" => "Coming soon",
+        "seriesupcoming" when days is < 0 => "Already released",
+        "seriesupcoming" => "Upcoming shows",
+        "mlup" when days is < 0 => "Already released",
         "mlup" => "Coming to Malayalam OTT",
         "mlott" => "Released on Malayalam OTT",
         _ => ""

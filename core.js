@@ -236,10 +236,11 @@
     collections=collections.slice();
     [local,remote].forEach(function(side){
       Object.keys(side).forEach(function(key){
-        if(key.charAt(0)==="_"||key==="audit") return;      // internal / diagnostic log
+        if(key.charAt(0)==="_"||key==="audit"||key==="deletions") return;  // internal / log / handled below
         if(Array.isArray(side[key])&&collections.indexOf(key)<0) collections.push(key);
       });
     });
+    collections=collections.filter(function(name){return name!=="deletions";});
     var ls=ensureSync(local,collections),rs=ensureSync(remote,collections);
     result._sync={version:1,records:{},tombstones:{}};
     collections.forEach(function(collection){
@@ -267,9 +268,72 @@
       result._sync.records[collection]=recordTimes;
       result._sync.tombstones[collection]=tombstones;
     });
+    applyDeletionMarkers(result,local,remote);
     result.updatedAt=Math.max(Number(local.updatedAt)||0,Number(remote.updatedAt)||0);
     result.revision=Math.max(Number(local.revision)||0,Number(remote.revision)||0);
     return result;
+  }
+
+  /* The desktop application records a deletion as an entry in "deletions",
+     { collection, identity, at }, using the identity scheme below. This client
+     tracked deletions only in its own _sync.tombstones, so a title deleted on the
+     desktop was simply missing from the incoming vault, was treated as a record
+     this device still had, and came straight back on the next merge. */
+  var IDENTITY_KEYS=["canonicalId","rawgId","tmdbId","imdbId","plexRatingKey","key","id"];
+  function letterOrDigit(value){
+    try{ return String(value).toLowerCase().replace(/[^\p{L}\p{N}]/gu,""); }
+    catch(e){ return String(value).toLowerCase().replace(/[^a-z0-9]/g,""); }
+  }
+  function titleIdentity(item){
+    var title=String(item.name||item.title||item.service||"");
+    var normalized=letterOrDigit(title);
+    if(!normalized) return "";
+    var year=String(item.year||"");
+    if(!year&&item.date){ var parsed=new Date(item.date); if(!isNaN(parsed.getTime())) year=String(parsed.getFullYear()); }
+    var discriminator=String(item.mediaType||item.platform||item.provider||"");
+    return "title:"+normalized+":"+year+":"+discriminator.toLowerCase();
+  }
+  function identityCandidates(item){
+    var out=[];
+    if(!item||typeof item!=="object") return out;
+    IDENTITY_KEYS.forEach(function(key){
+      var value=item[key];
+      if(value!==undefined&&value!==null&&String(value).length) out.push(key+":"+String(value));
+    });
+    var title=titleIdentity(item);
+    if(title) out.push(title);
+    return out;
+  }
+  function applyDeletionMarkers(result,local,remote){
+    // Keep one marker per collection and identity, the newest, as the desktop does.
+    var newest={};
+    [].concat(local.deletions||[],remote.deletions||[]).forEach(function(marker){
+      if(!marker||!marker.collection||!marker.identity) return;
+      var key=marker.collection+" "+marker.identity;
+      if(!newest[key]||Number(marker.at||0)>Number(newest[key].at||0)) newest[key]=marker;
+    });
+    var markers=Object.keys(newest).map(function(key){return newest[key];});
+    result.deletions=markers.slice().sort(function(a,b){return Number(b.at||0)-Number(a.at||0);});
+
+    var byCollection={};
+    markers.forEach(function(marker){
+      (byCollection[marker.collection]=byCollection[marker.collection]||{})[String(marker.identity).toLowerCase()]=Number(marker.at||0);
+    });
+    Object.keys(byCollection).forEach(function(collection){
+      if(!Array.isArray(result[collection])) return;
+      var deleted=byCollection[collection];
+      var times=(result._sync&&result._sync.records&&result._sync.records[collection])||{};
+      result[collection]=result[collection].filter(function(item){
+        var hit=0;
+        identityCandidates(item).forEach(function(candidate){
+          var at=deleted[candidate.toLowerCase()];
+          if(at&&at>hit) hit=at;
+        });
+        if(!hit) return true;
+        // A record saved again after the deletion is a genuine re-add; keep it.
+        return Number(times[recordKey(collection,item)]||0)>hit;
+      });
+    });
   }
 
   function focusSignature(element){

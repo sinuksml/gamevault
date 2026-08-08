@@ -474,6 +474,7 @@ public sealed class DriveService
             dedupedDeletions.Add(marker.DeepClone());
         preferred["deletions"] = dedupedDeletions;
 
+        ApplyWebTombstones(preferred, local, remote);
         ApplyHiddenWins(preferred, "hiddenGames", ["upcoming", "catalogExtra"]);
         ApplyHiddenWins(preferred, "upcomingRemoved", ["upcoming"]);
         ApplyHiddenWins(preferred, "hiddenMovies", ["movieWatchlist", "watchingMovies"]);
@@ -481,6 +482,62 @@ public sealed class DriveService
         ApplyDeletionMarkers(preferred);
         return preferred;
     }
+
+    /// <summary>
+    /// Honours the deletions the web application records.
+    ///
+    /// It tracks them in _sync.tombstones as { recordKey: whenDeleted } rather than
+    /// in the "deletions" list this application writes, so a title deleted on the
+    /// phone simply looked like a record the phone did not have — and the merge,
+    /// which unions both sides, handed it straight back. The key format below is
+    /// the web client's, which differs from VaultIdentity, so it is reproduced here.
+    /// </summary>
+    private static void ApplyWebTombstones(JsonObject root, JsonObject local, JsonObject remote)
+    {
+        foreach (var collection in root.Where(pair => pair.Value is JsonArray).Select(pair => pair.Key).ToList())
+        {
+            var deletedAt = new Dictionary<string, long>(StringComparer.Ordinal);
+            foreach (var side in new[] { local, remote })
+                if (side["_sync"]?["tombstones"]?[collection] is JsonObject stones)
+                    foreach (var stone in stones)
+                        if (SyncTime(stone.Value) is var when && when > deletedAt.GetValueOrDefault(stone.Key))
+                            deletedAt[stone.Key] = when;
+            if (deletedAt.Count == 0) continue;
+
+            var savedAt = new Dictionary<string, long>(StringComparer.Ordinal);
+            foreach (var side in new[] { local, remote })
+                if (side["_sync"]?["records"]?[collection] is JsonObject records)
+                    foreach (var record in records)
+                        if (SyncTime(record.Value) is var when && when > savedAt.GetValueOrDefault(record.Key))
+                            savedAt[record.Key] = when;
+
+            var kept = new JsonArray();
+            foreach (var item in (root[collection] as JsonArray)?.OfType<JsonObject>() ?? [])
+            {
+                var key = WebRecordKey(item, collection);
+                // A record saved again after the deletion is a genuine re-add.
+                if (deletedAt.TryGetValue(key, out var removed) && savedAt.GetValueOrDefault(key) <= removed) continue;
+                kept.Add(item.DeepClone());
+            }
+            root[collection] = kept;
+        }
+    }
+
+    /// <summary>The web client's record key, reproduced so its tombstones can be matched.</summary>
+    private static string WebRecordKey(JsonObject item, string collection)
+    {
+        if (Text(item, "canonicalId") is { Length: > 0 } canonical) return canonical;
+        if (Text(item, "key") is { Length: > 0 } key) return key;
+        if (Text(item, "tmdbId") is { Length: > 0 } tmdb)
+            return (collection.Contains("series", StringComparison.OrdinalIgnoreCase) ? "tmdbtv:" : "tmdb:") + tmdb;
+        if (Text(item, "imdbId") is { Length: > 0 } imdb) return "imdb:" + imdb;
+        if (Text(item, "id") is { Length: > 0 } id) return "id:" + id;
+        var title = Text(item, "name") is { Length: > 0 } name ? name : Text(item, "title");
+        return "name:" + new string(title.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+    }
+
+    /// <summary>Timestamp of a _sync entry, whatever numeric width it was stored as.</summary>
+    private static long SyncTime(JsonNode? node) => VaultRepository.Number(node);
 
     private static void ApplyDeletionMarkers(JsonObject root)
     {

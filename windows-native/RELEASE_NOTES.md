@@ -1,4 +1,14 @@
-# Sinu Game Vault for Windows 2.6.3
+# Sinu Game Vault for Windows 2.6.4
+
+## 2.6.4 Deletions that stay deleted, and a simpler Petrol section
+
+- A title deleted in one application no longer comes back from the other. Each side recorded deletions in its own way — this app in a "deletions" list, the web in its sync metadata — and neither read the other's, so a deleted title simply looked like a record the other device still had and was handed straight back on the next merge. Both formats are now understood in both directions, and a title added again after a deletion is still kept.
+- Petrol tracking now records only the date. Litres, cost, odometer and notes are gone, and the history is a plain list of each fill with the number of days since the previous one.
+- The Home petrol summary leads with the number of days since the last fill, and the monthly chart marks how many refills were logged in each month.
+- Upcoming Releases and Discover are split into separate PS5 and Xbox & PC tabs; the combined view is gone.
+- Titles whose date has passed now drop into an "Already released" section at the bottom, under their own heading, for Movies and TV Shows as well as Games.
+- Services keep their own brand colour wherever they appear — GeForce NOW in NVIDIA green, Game Pass in Xbox green, PlayStation in its blue — instead of taking whichever colour their position in the palette produced.
+- Category now regroups the tab you are on by year, rather than gathering titles from every tab.
 
 ## 2.6.3 Synchronisation fixes
 
