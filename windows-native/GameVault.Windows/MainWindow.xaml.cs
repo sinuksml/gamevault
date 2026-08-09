@@ -356,6 +356,12 @@ public partial class MainWindow : Window
             if (service.Length == 0) service = "Subscription";
             totals[service] = totals.GetValueOrDefault(service) + cost;
         }
+        foreach (var item in _vault.Collection("purchasedGames").OfType<JsonObject>())
+        {
+            var cost = (decimal)Number(item, "purchasePrice", "cost");
+            if (cost <= 0) continue;
+            totals["Steam purchases"] = totals.GetValueOrDefault("Steam purchases") + cost;
+        }
 
         var colors = VendorColorMap();
         var slices = totals.OrderByDescending(pair => pair.Value)
@@ -374,7 +380,7 @@ public partial class MainWindow : Window
             ? "No spending recorded yet."
             : slices.Any(slice => slice.Website.Length > 0)
                 ? "Select a vendor to open its website."
-                : "Totals across rentals and subscriptions.";
+                : "Totals across rentals, subscriptions and purchases.";
         DrawSpendDonut(slices, total);
     }
 
@@ -509,6 +515,11 @@ public partial class MainWindow : Window
             var service = Text(item, "service", "name"); if (service.Length == 0) service = "Subscription";
             totals[service] = totals.GetValueOrDefault(service) + cost;
         }
+        foreach (var item in _vault.Collection("purchasedGames").OfType<JsonObject>())
+        {
+            var cost = (decimal)Number(item, "purchasePrice", "cost");
+            if (cost > 0) totals["Steam purchases"] = totals.GetValueOrDefault("Steam purchases") + cost;
+        }
         return totals.OrderByDescending(pair => pair.Value)
             // A recognised service keeps its own brand colour; the rest take the palette.
             .Select((pair, index) => (pair.Key, Color: BrandColors.For(pair.Key) ?? SpendPalette[index % SpendPalette.Length]))
@@ -536,6 +547,11 @@ public partial class MainWindow : Window
             if (!DateTime.TryParse(Text(item, "start", "startedAt", "date"), out var date)) continue;
             var service = Text(item, "service", "name"); if (service.Length == 0) service = "Subscription";
             Add(new DateTime(date.Year, date.Month, 1), service, (decimal)Number(item, "totalPaid", "cost"));
+        }
+        foreach (var item in _vault.Collection("purchasedGames").OfType<JsonObject>())
+        {
+            if (!DateTime.TryParse(Text(item, "purchaseDate", "added", "date"), out var date)) continue;
+            Add(new DateTime(date.Year, date.Month, 1), "Steam purchases", (decimal)Number(item, "purchasePrice", "cost"));
         }
 
         const double maxBar = 116;
@@ -697,6 +713,7 @@ public partial class MainWindow : Window
         var parts = (tab.Tag?.ToString() ?? "rentals").Split(':');
         _gameCollection = parts[0];
         _upcomingPlatform = parts.Length > 1 ? parts[1] : "";
+        AddGameButton.Content = _gameCollection == "purchasedGames" ? "Add Steam purchase" : "Add game";
         RefreshGames();
         _ = EnsureCurrentCatalogAsync();
         if (_gameCollection == "queue") _ = EnsureQueueAvailabilityAsync();
@@ -880,6 +897,7 @@ public partial class MainWindow : Window
         "uphw" or "queue" or "seriesupcoming" or "taseries" => "#E0952A",
         "bluray" or "enseries" => "#4A78E0",
         "relhw" or "catalogExtra" or "subscriptionGames" => "#8A63D2",
+        "purchasedGames" => "#1B8F5A",
         "mlup" or "upcoming" or "hiseries" => "#E0558A",
         "mlott" or "mlseries" => "#C455C7",
         "watched" or "played" => "#35B37E",
@@ -1005,9 +1023,10 @@ public partial class MainWindow : Window
             if (string.IsNullOrWhiteSpace(name)) continue;
             var date = collection == "rentals"
                 ? RentalReturnDate(node)
-                : Text(node, "returnDate", "end", "returnedAt", "date", "releaseDate", "firstAirDate", "latestDate", "year", "added");
+                : Text(node, "purchaseDate", "returnDate", "end", "returnedAt", "date", "releaseDate", "firstAirDate", "latestDate", "year", "added");
             var platformText = ArrayText(node, "platforms", "networks", "platform", "tier");
             var providerText = ArrayText(node, "providers", "provider");
+            if (collection == "purchasedGames") providerText = Text(node, "store").Length > 0 ? Text(node, "store") : "Steam";
             if (collection == "subscriptionGames")
             {
                 var subscriptionId = Text(node, "subscriptionId");
@@ -1044,7 +1063,7 @@ public partial class MainWindow : Window
                 Seasons = Integer(node, "seasons", "numberOfSeasons"),
                 Episodes = Integer(node, "episodeCount", "episodes"),
                 Rating = Number(node, "imdb", "rating", "rrating", "tmdb", "score"),
-                Cost = (decimal)Number(node, "cost"),
+                Cost = (decimal)Number(node, "purchasePrice", "cost"),
                 DaysLeft = days,
                 GroupName = GroupName(collection, Text(node, "status", "state"), days),
                 Badges = GameBadges(name, node, mediaType),
@@ -1077,7 +1096,7 @@ public partial class MainWindow : Window
     /// </summary>
     private static bool IsCuratedList(string collection) => collection is
         "rentals" or "rentalHistory" or "playing" or "queue" or "played" or "upcoming" or "upcomingRemoved"
-        or "subscriptions" or "subscriptionGames" or "hiddenGames"
+        or "subscriptions" or "subscriptionGames" or "purchasedGames" or "hiddenGames"
         or "movieWatchlist" or "watchingMovies" or "watchedMovies" or "hiddenMovies"
         or "seriesWatchlist" or "watchingSeries" or "watchedSeries" or "hiddenSeries";
 
@@ -1222,6 +1241,7 @@ public partial class MainWindow : Window
         "playing" when status.Contains("hold", StringComparison.OrdinalIgnoreCase) || status.Contains("drop", StringComparison.OrdinalIgnoreCase) => "On hold",
         "playing" => "Playing now",
         "subscriptionGames" => "Included games",
+        "purchasedGames" => "Owned permanently on Steam",
         /* Anything whose date has passed drops to its own section at the bottom, so
            a list of what is still to come is not mixed with what already arrived. */
         "upcoming" when days is < 0 => "Already released",
@@ -1266,7 +1286,7 @@ public partial class MainWindow : Window
         || DateTime.TryParse(value, CultureInfo.CurrentCulture, DateTimeStyles.AllowWhiteSpaces, out date) ? date.ToString("dd-MMMM-yyyy", CultureInfo.InvariantCulture) : value;
     /* "Included games" sits last so the Subscriptions tab reads as the
        subscriptions themselves first, then the games they include. */
-    private static int GroupOrder(string group) => group switch { "Active rentals" or "Playing now" or "Upcoming releases" or "Active subscriptions" => 0, "Resume later" => 1, "On hold" or "Released" or "Past subscriptions" => 2, "Rental history" => 3, "Removed games" => 4, "Included games" => 5, _ => 0 };
+    private static int GroupOrder(string group) => group switch { "Active rentals" or "Playing now" or "Upcoming releases" or "Active subscriptions" or "Owned permanently on Steam" => 0, "Resume later" => 1, "On hold" or "Released" or "Past subscriptions" => 2, "Rental history" => 3, "Removed games" => 4, "Included games" => 5, _ => 0 };
 
     private double RecommendationScore(LibraryRow candidate)
     {
@@ -2694,16 +2714,45 @@ public partial class MainWindow : Window
         {
             "Movie" => new[] { ("Add to Watchlist", "movieWatchlist", "Watchlist"), ("Watching", "watchingMovies", "Watching"), ("Watched", "watchedMovies", "Watched"), ("Not Interested", "hiddenMovies", "Not Interested") },
             "TV Show" => new[] { ("Add to Watchlist", "seriesWatchlist", "Watchlist"), ("Watching", "watchingSeries", "Watching"), ("Watched", "watchedSeries", "Watched"), ("Not Interested", "hiddenSeries", "Not Interested") },
-            _ => new[] { ("Rental Queue", "queue", "Queued"), ("Playing", "playing", "Playing"), ("Resume Later", "playing", "Resume Later"), ("On Hold", "playing", "On Hold"), ("Completed", "played", "Finished") }
+            _ => new[] { ("Purchased on Steam", "purchasedGames", "Owned"), ("Rental Queue", "queue", "Queued"), ("Playing", "playing", "Playing"), ("Resume Later", "playing", "Resume Later"), ("On Hold", "playing", "On Hold"), ("Completed", "played", "Finished") }
         };
         var menu = new ContextMenu();
         foreach (var action in actions)
         {
             var item = new MenuItem { Header = action.Item1 };
-            item.Click += async (_, _) => await MoveRowToAsync(row, action.Item2, action.Item3);
+            item.Click += async (_, _) =>
+            {
+                if (action.Item2 == "purchasedGames") await MarkPurchasedAsync(row);
+                else await MoveRowToAsync(row, action.Item2, action.Item3);
+            };
             menu.Items.Add(item);
         }
         menu.IsOpen = true;
+    }
+
+    private async Task MarkPurchasedAsync(LibraryRow row)
+    {
+        if (_vault.Collection("purchasedGames").OfType<JsonObject>().Any(item => VaultIdentity.Matches(item, row.Source)))
+        {
+            StatusText.Text = "This game is already in Purchased.";
+            return;
+        }
+        var owned = row.Source.DeepClone() as JsonObject ?? [];
+        owned["id"] = Guid.NewGuid().ToString("N");
+        owned["name"] = row.Name;
+        owned["store"] = "Steam";
+        owned["platform"] = "PC";
+        owned.Remove("cost");
+        owned["purchasePrice"] = 0;
+        owned["purchaseDate"] = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        owned["permanent"] = true;
+        owned["status"] = "Owned";
+        var dialog = new ItemEditorWindow("purchasedGames", owned) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        await RunBusyAsync("Saving Steam purchase...", () => _vault.AddAsync("purchasedGames", dialog.Item));
+        DetailsPage.Visibility = Visibility.Collapsed;
+        StatusText.Text = "Added to Purchased. Ownership remains permanent when playing or completing it.";
+        RefreshAll();
     }
 
     private async Task MoveRowToAsync(LibraryRow row, string destination, string status)
@@ -2715,7 +2764,9 @@ public partial class MainWindow : Window
         {
             await _vault.UpdateAsync(destination, clone);
             if (destination == "queue") await UpdateAvailabilityAsync(clone);
-            if (!IsCatalog(row) && row.Collection != "plex" && row.Collection != destination) await _vault.RemoveAsync(row.Collection, row.Id);
+            // Purchased is an ownership ledger, not a transient status. Starting
+            // or finishing a Steam game must never remove its purchase record.
+            if (!IsCatalog(row) && row.Collection != "plex" && row.Collection != "purchasedGames" && row.Collection != destination) await _vault.RemoveAsync(row.Collection, row.Id);
         });
         DetailsPage.Visibility = Visibility.Collapsed;
         RefreshAll();

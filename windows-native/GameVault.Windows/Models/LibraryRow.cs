@@ -109,6 +109,7 @@ public sealed class LibraryRow
         "playing" when Status.Contains("hold", StringComparison.OrdinalIgnoreCase) || Status.Contains("drop", StringComparison.OrdinalIgnoreCase) => "Resume",
         "playing" => "Mark completed",
         "subscriptionGames" => "Play now",
+        "purchasedGames" => "Play now",
         "catalogExtra" => "Add to queue",
         "upcoming" => "Add to queue",
         "movieWatchlist" or "seriesWatchlist" => "Mark watched",
@@ -126,6 +127,7 @@ public sealed class LibraryRow
         "playing" when Status.Contains("hold", StringComparison.OrdinalIgnoreCase) || Status.Contains("drop", StringComparison.OrdinalIgnoreCase) => "resume",
         "playing" => "mark-completed",
         "subscriptionGames" => "play-now",
+        "purchasedGames" => "play-now",
         "catalogExtra" or "upcoming" => "add-queue",
         "movieWatchlist" or "seriesWatchlist" or "watchingMovies" or "watchingSeries" => "mark-watched",
         _ => ""
@@ -156,6 +158,7 @@ public sealed class LibraryRow
         "rentalHistory" => "Returned rental",
         "subscriptions" => "Subscription",
         "subscriptionGames" => "Subscription game",
+        "purchasedGames" => "Owned on Steam",
         "playing" when Status.Contains("resume", StringComparison.OrdinalIgnoreCase) => "Resume later",
         "playing" when Status.Contains("hold", StringComparison.OrdinalIgnoreCase) || Status.Contains("drop", StringComparison.OrdinalIgnoreCase) => "On hold",
         "playing" => "Now playing",
@@ -181,7 +184,7 @@ public sealed class LibraryRow
     public string CategoryColor => Collection is "subscriptions" or "subscriptionGames"
         && Services.BrandColors.For(Name + " " + Providers + " " + Platform) is { } brand ? brand : Collection switch
     {
-        "rentals" => "#1689D8", "rentalHistory" => "#66758C", "subscriptions" or "subscriptionGames" => "#5D56C9",
+        "rentals" => "#1689D8", "rentalHistory" => "#66758C", "subscriptions" or "subscriptionGames" => "#5D56C9", "purchasedGames" => "#1B8F5A",
         "playing" => "#16836A", "queue" => "#B97816", "upcoming" => "#B13F68", "upcomingRemoved" => "#626D7D",
         "catalogExtra" or "relhw" or "enseries" or "mlseries" or "taseries" or "hiseries" => "#7255C7",
         "played" or "watchedMovies" or "watchedSeries" or "watched" => "#267A50",

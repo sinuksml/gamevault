@@ -20,6 +20,21 @@ public partial class ItemEditorWindow : Window
         Heading.Text = source is null ? "Add library item" : "Edit library item";
         SaveButton.Content = source is null ? "Add" : "Save changes";
         LoadValues();
+        if (_collection == "purchasedGames")
+        {
+            Heading.Text = source is null ? "Add Steam purchase" : "Edit Steam purchase";
+            Description.Text = "This is a permanent ownership record. Playing or completing the game will not remove it.";
+            StartDateLabel.Text = "Purchase date";
+            VendorLabel.Text = "Store";
+            CostLabel.Text = "Purchase price";
+            if (source is null)
+            {
+                PlatformBox.Text = "PC";
+                VendorBox.Text = "Steam";
+                StartDateBox.SelectedDate = DateTime.Today;
+                SelectStatus("Owned");
+            }
+        }
     }
 
     private void LoadValues()
@@ -27,14 +42,14 @@ public partial class ItemEditorWindow : Window
         NameBox.Text = Text("name", "title");
         SelectStatus(Text("status", "state"));
         PlatformBox.Text = Text("platform", "provider", "vendor");
-        VendorBox.Text = Text("vendor", "provider");
-        CostBox.Text = Text("cost");
+        VendorBox.Text = Text("store", "vendor", "provider");
+        CostBox.Text = Text("purchasePrice", "cost");
         RatingBox.Text = Text("userRating", "myRating");
         GenreBox.Text = Text("genre");
         ImageBox.Text = Text("img", "poster", "cover");
         OverviewBox.Text = Text("overview", "plot", "summary", "description");
         NoteBox.Text = Text("note", "remarks");
-        StartDateBox.SelectedDate = Date(Text("start", "date", "releaseDate", "added"));
+        StartDateBox.SelectedDate = Date(Text("purchaseDate", "start", "date", "releaseDate", "added"));
         EndDateBox.SelectedDate = Date(Text("returnDate", "end"));
     }
 
@@ -53,8 +68,8 @@ public partial class ItemEditorWindow : Window
         Item[titleKey] = name;
         Set("status", StatusBox.Text.Trim());
         Set("platform", PlatformBox.Text.Trim());
-        Set("vendor", VendorBox.Text.Trim());
-        SetNumber("cost", CostBox.Text);
+        Set(_collection == "purchasedGames" ? "store" : "vendor", VendorBox.Text.Trim());
+        SetNumber(_collection == "purchasedGames" ? "purchasePrice" : "cost", CostBox.Text);
         SetNumber("userRating", RatingBox.Text);
         Set("genre", GenreBox.Text.Trim());
         Set(Item.ContainsKey("poster") ? "poster" : "img", ImageBox.Text.Trim());
@@ -62,7 +77,7 @@ public partial class ItemEditorWindow : Window
         Set("note", NoteBox.Text.Trim());
         if (StartDateBox.SelectedDate is DateTime start)
         {
-            var key = _collection == "rentals" ? "start" : Item.ContainsKey("releaseDate") ? "releaseDate" : "date";
+            var key = _collection == "purchasedGames" ? "purchaseDate" : _collection == "rentals" ? "start" : Item.ContainsKey("releaseDate") ? "releaseDate" : "date";
             Item[key] = start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         }
         if (EndDateBox.SelectedDate is DateTime end)
@@ -72,6 +87,14 @@ public partial class ItemEditorWindow : Window
                 Item["days"] = Math.Max(1, (end.Date - rentalStart.Date).Days);
             if (_collection == "rentalHistory" && StartDateBox.SelectedDate is DateTime historyStart)
                 Item["used"] = Math.Max(0, (end.Date - historyStart.Date).Days);
+        }
+        if (_collection == "purchasedGames")
+        {
+            Item["store"] = VendorBox.Text.Trim().Length > 0 ? VendorBox.Text.Trim() : "Steam";
+            Item["platform"] = PlatformBox.Text.Trim().Length > 0 ? PlatformBox.Text.Trim() : "PC";
+            Item["permanent"] = true;
+            Item["status"] = "Owned";
+            Item["added"] ??= DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         }
         DialogResult = true;
     }

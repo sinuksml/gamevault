@@ -1,6 +1,6 @@
 # Sinu Game Vault Native TV
 
-Current native release: **3.0.0**
+Current native release: **3.0.1**
 
 The television client is optimized for a 4K Android TV controlled
 with a D-pad remote. It uses a cinematic home screen, remembers focus separately

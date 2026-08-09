@@ -24,7 +24,7 @@ public sealed class VaultRepository
         return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var real) ? (long)real : 0;
     }
 
-    public const int CurrentSchema = 14;
+    public const int CurrentSchema = 15;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -143,7 +143,7 @@ public sealed class VaultRepository
            an empty vault, and Drive sync treats an empty vault as a new device and
            adopts the cloud copy wholesale — so anything held only in the missing
            collection is discarded. */
-        string[] collections = ["rentals", "subscriptions", "subscriptionGames", "playing", "queue", "upcoming", "upcomingRemoved", "played", "hiddenGames", "rentalHistory",
+        string[] collections = ["rentals", "subscriptions", "subscriptionGames", "purchasedGames", "playing", "queue", "upcoming", "upcomingRemoved", "played", "hiddenGames", "rentalHistory",
             "movieWatchlist", "watchingMovies", "watchedMovies", "hiddenMovies", "seriesWatchlist", "watchingSeries", "watchedSeries", "hiddenSeries", "biglyHistory", "petrol"];
         return collections.Sum(name => Collection(name).Count);
     }
@@ -459,7 +459,7 @@ public sealed class VaultRepository
 
     private static JsonObject Normalize(JsonObject root)
     {
-        string[] arrays = ["rentals", "subscriptions", "subscriptionGames", "playing", "queue", "upcoming", "upcomingRemoved", "catalogExtra", "played", "hiddenGames", "rentalHistory",
+        string[] arrays = ["rentals", "subscriptions", "subscriptionGames", "purchasedGames", "playing", "queue", "upcoming", "upcomingRemoved", "catalogExtra", "played", "hiddenGames", "rentalHistory",
             "movieWatchlist", "watchingMovies", "watchedMovies", "hiddenMovies", "seriesWatchlist", "watchingSeries", "watchedSeries", "hiddenSeries", "biglyHistory", "petrol", "activity", "recentViewed"];
         foreach (var name in arrays) if (root[name] is not JsonArray) root[name] = new JsonArray();
         foreach (var name in arrays.Where(name => !AllowsDuplicates(name)))

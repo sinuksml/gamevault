@@ -16,7 +16,7 @@ import java.util.Locale;
 import java.util.Set;
 
 final class VaultData {
-    static final int DATA_SCHEMA = 14;
+    static final int DATA_SCHEMA = 15;
     final JSONObject root;
     long updatedAt;
 
@@ -28,7 +28,7 @@ final class VaultData {
     static VaultData empty() { return new VaultData(new JSONObject()); }
 
     int savedCount() {
-        return count("rentals") + count("subscriptions") + count("subscriptionGames")
+        return count("rentals") + count("subscriptions") + count("subscriptionGames") + count("purchasedGames")
             + count("playing") + count("queue") + count("played") + count("rentalHistory")
             + count("movieWatchlist") + count("watchingMovies") + count("watchedMovies")
             + count("seriesWatchlist") + count("watchingSeries") + count("watchedSeries");
@@ -114,6 +114,16 @@ final class VaultData {
 
     private boolean moveGame(MediaItem item, String action) throws Exception {
         String target;
+        if ("purchased".equals(action)) {
+            JSONArray owned = ensureArray("purchasedGames");
+            for (int i = 0; i < owned.length(); i++) if (matches(owned.optJSONObject(i), item)) return false;
+            JSONObject purchase = mediaCopy(item);
+            purchase.put("id", "steam-" + System.currentTimeMillis());
+            purchase.put("store", "Steam"); purchase.put("platform", "PC");
+            purchase.put("purchaseDate", isoToday()); purchase.put("permanent", true); purchase.put("status", "Owned");
+            owned.put(purchase);
+            return true;
+        }
         if ("queue".equals(action)) target = "queue";
         else if ("playing".equals(action)) target = "playing";
         else if ("completed".equals(action)) target = "played";
@@ -270,6 +280,9 @@ final class VaultData {
         Shelf subscriptionGames = new Shelf("games-subscription-games", "Included with Subscriptions", true);
         addGames(subscriptionGames, array("subscriptionGames"), "subscriptionGames", "Included game"); add(out, subscriptionGames);
 
+        Shelf purchased = new Shelf("games-purchased", "Purchased on Steam", true);
+        addGames(purchased, array("purchasedGames"), "purchasedGames", "Owned permanently"); add(out, purchased);
+
         Shelf queue = new Shelf("games-queue", "Rental Queue", true);
         addGames(queue, array("queue"), "queue", "Rental queue"); add(out, queue);
 
@@ -356,7 +369,7 @@ final class VaultData {
         Shelf shelf = new Shelf(id, title, true);
         for (JSONObject x : values) {
             if (!platformMatch(x, platform)) continue;
-            if (!upcoming && titleSaved(first(x, "name", "title"), new String[]{"rentals", "subscriptionGames", "playing", "queue", "played", "hiddenGames"})) continue;
+            if (!upcoming && titleSaved(first(x, "name", "title"), new String[]{"rentals", "subscriptionGames", "purchasedGames", "playing", "queue", "played", "hiddenGames"})) continue;
             String date = first(x, "date", "releaseDate");
             shelf.add(game(x, sourceName, upcoming ? dateLabel(date) : "Discover"));
         }
@@ -441,6 +454,9 @@ final class VaultData {
                 int days = daysUntil(first(subscription, "renewsAt", "end"));
                 if (days != Integer.MIN_VALUE) status = days < 0 ? "Subscription expired" : days == 0 ? "Renews today" : days + " days remaining";
             }
+        } else if ("purchasedGames".equals(source)) {
+            String store = first(x, "store");
+            status = "Owned permanently on " + (store.isEmpty() ? "Steam" : store);
         }
         String score = x.optString("rrating");
         if (score.isEmpty()) score = x.optString("score");

@@ -15,5 +15,5 @@ Rules:
 - Catalog caches are non-authoritative and must not advance the user-data
   revision by themselves.
 
-The fixture in `fixtures/vault-v14.json` intentionally contains a future field.
+The fixture in `fixtures/vault-v15.json` intentionally contains a future field.
 Every client must round-trip it unchanged.

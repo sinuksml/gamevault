@@ -144,6 +144,7 @@ public final class MainActivity extends Activity implements VaultTvView.Actions,
         if("watched".equals(action))return "Marked as Watched";
         if("queue".equals(action))return "Added to Rental Queue";
         if("playing".equals(action))return "Moved to Playing";
+        if("purchased".equals(action))return "Added to Purchased on Steam";
         if("completed".equals(action))return "Marked as Completed";
         if("return".equals(action))return "Rental returned and completed";
         if("not_interested".equals(action))return "Moved to Not Interested";

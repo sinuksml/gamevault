@@ -10,8 +10,8 @@ android {
         applicationId "in.sinu.gamevault.nativetv"
         minSdk 23
         targetSdk 35
-        versionCode 4
-        versionName "3.0.0-native-tv"
+        versionCode 5
+        versionName "3.0.1-native-tv"
     }
 
     compileOptions {

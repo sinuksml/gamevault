@@ -379,7 +379,7 @@
                     <Grid Grid.Row="2">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                         <WrapPanel Grid.Column="0">
-                            <Button Content="Add game" Style="{StaticResource PrimaryButton}" Click="AddGame_Click" Margin="0,0,8,8"/>
+                            <Button x:Name="AddGameButton" Content="Add game" Style="{StaticResource PrimaryButton}" Click="AddGame_Click" Margin="0,0,8,8"/>
                             <Button Content="Edit selected" Margin="0,0,8,8" Click="EditSelected_Click"/><Button x:Name="GamesCategoryButton" Content="Category" Margin="0,0,8,8" Click="CategoryView_Click"/><Button Content="Rental history" Margin="0,0,8,8" Click="RentalHistory_Click"/><Button Content="Vendor report" Margin="0,0,8,8" Click="VendorReport_Click"/><Button Content="Subscriptions" Margin="0,0,8,8" Click="ManageSubscriptions_Click"/><Button Content="Refresh online" Margin="0,0,8,8" Click="RefreshOnline_Click"/>
                         </WrapPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="18,0,0,0" VerticalAlignment="Top">
@@ -390,6 +390,7 @@
                     <TabControl x:Name="GamesTabs" SelectionChanged="GamesTabs_SelectionChanged">
                         <TabItem Tag="rentals" app:TabAccent.Color="#1E9BE0"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8B7;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Rentals"/></StackPanel></TabItem.Header></TabItem>
                         <TabItem Tag="subscriptionGames" app:TabAccent.Color="#7C5CFF"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8C7;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Subscriptions"/></StackPanel></TabItem.Header></TabItem>
+                        <TabItem Tag="purchasedGames" app:TabAccent.Color="#1B8F5A"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE719;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Purchased"/></StackPanel></TabItem.Header></TabItem>
                         <TabItem Tag="playing" app:TabAccent.Color="#16A97F"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE768;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Now Playing"/></StackPanel></TabItem.Header></TabItem>
                         <TabItem Tag="queue" app:TabAccent.Color="#E0952A"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8CB;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Rental Queue"/></StackPanel></TabItem.Header></TabItem>
                         <!-- PS5 and Xbox &amp; PC are separate tabs, never mixed in one list. -->

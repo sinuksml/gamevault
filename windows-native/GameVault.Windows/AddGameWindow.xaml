@@ -25,6 +25,7 @@
                     <ComboBoxItem Content="Completed" Tag="played" />
                     <ComboBoxItem Content="Upcoming" Tag="upcoming" />
                     <ComboBoxItem Content="Subscription game" Tag="subscriptionGames" />
+                    <ComboBoxItem Content="Purchased on Steam" Tag="purchasedGames" />
                 </ComboBox>
             </StackPanel>
             <StackPanel Grid.Column="2">

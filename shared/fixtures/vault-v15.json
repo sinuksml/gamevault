@@ -1,6 +1,6 @@
 {
-  "version": 14,
-  "schemaVersion": 14,
+  "version": 15,
+  "schemaVersion": 15,
   "updatedAt": 1786221000000,
   "revision": 14,
   "lastDevice": "contract-fixture",
@@ -8,6 +8,7 @@
   "rentalHistory": [],
   "subscriptions": [{ "id": "sub-1", "service": "Xbox Game Pass", "end": "2026-09-01" }],
   "subscriptionGames": [{ "id": "game-2", "name": "Included Game", "platform": "Xbox & PC" }],
+  "purchasedGames": [{ "id": "game-3", "name": "Owned Steam Game", "store": "Steam", "platform": "PC", "purchaseDate": "2026-08-10", "purchasePrice": 1999, "permanent": true }],
   "playing": [],
   "queue": [{ "id": "queue-1", "name": "Queued Game" }],
   "upcoming": [],

@@ -665,11 +665,12 @@ final class VaultTvView extends View {
     private String[] detailActions() {
         if ("game".equals(detail.kind)) {
             if ("plex".equals(detail.source)) return new String[]{"Trailer", "IMDb", "Load Story", "Mark Watched", "Delete Media", "Close"};
-            if ("subscriptions".equals(detail.source) || "subscriptionGames".equals(detail.source)) return new String[]{"Trailer", "IGN Review", "Google", "Load Story", "Rate", "Edit", "Playing", "Completed", "Close"};
+            if ("purchasedGames".equals(detail.source)) return new String[]{"Trailer", "IGN Review", "Google", "Load Story", "Rate", "Edit", "Playing", "Completed", "Close"};
+            if ("subscriptions".equals(detail.source) || "subscriptionGames".equals(detail.source)) return new String[]{"Trailer", "IGN Review", "Google", "Load Story", "Rate", "Edit", "Purchased", "Playing", "Completed", "Close"};
             if ("hiddenGames".equals(detail.source) || "upcomingRemoved".equals(detail.source)) return new String[]{"Trailer", "IGN Review", "Google", "Load Story", "Restore", "Close"};
-            if ("rental".equals(detail.source) || "rentalHistory".equals(detail.source)) return new String[]{"Trailer", "IGN Review", "Google", "Game Hub", "Gamer Planet", "Load Story", "Rate", "Edit", "Return", "Playing", "Resume Later", "On Hold", "Completed", "Not Interested", "Fandom", "Close"};
-            if ("playing".equals(detail.source)) return new String[]{"Trailer", "IGN Review", "Google", "Load Story", "Fandom", "Rate", "Edit", "Queue", "Resume Later", "On Hold", "Completed", "Not Interested", "Close"};
-            return new String[]{"Trailer", "IGN Review", "Google", "Game Hub", "Gamer Planet", "Load Story", "Rate", "Edit", "Queue", "Playing", "Resume Later", "On Hold", "Completed", "Not Interested", "AI Assistant", "Close"};
+            if ("rental".equals(detail.source) || "rentalHistory".equals(detail.source)) return new String[]{"Trailer", "IGN Review", "Google", "Game Hub", "Gamer Planet", "Load Story", "Rate", "Edit", "Purchased", "Return", "Playing", "Resume Later", "On Hold", "Completed", "Not Interested", "Fandom", "Close"};
+            if ("playing".equals(detail.source)) return new String[]{"Trailer", "IGN Review", "Google", "Load Story", "Fandom", "Rate", "Edit", "Purchased", "Queue", "Resume Later", "On Hold", "Completed", "Not Interested", "Close"};
+            return new String[]{"Trailer", "IGN Review", "Google", "Game Hub", "Gamer Planet", "Load Story", "Rate", "Edit", "Purchased", "Queue", "Playing", "Resume Later", "On Hold", "Completed", "Not Interested", "AI Assistant", "Close"};
         }
         if ("plex".equals(detail.source)) return new String[]{"Trailer", "IMDb", "Load Story", "Episodes", "Mark Watched", "Delete Media", "Close"};
         String episodesAction = "series".equals(detail.kind) ? "Episodes" : "";
@@ -858,7 +859,7 @@ final class VaultTvView extends View {
 
     private String navCount(int index) {
         switch (index) {
-            case 1: return String.valueOf(data.count("rentals") + data.count("subscriptionGames") + data.count("playing") + data.count("queue") + data.count("played"));
+            case 1: return String.valueOf(data.count("rentals") + data.count("subscriptionGames") + data.count("purchasedGames") + data.count("playing") + data.count("queue") + data.count("played"));
             case 2: return String.valueOf(data.count("movieWatchlist") + data.count("watchingMovies") + data.count("watchedMovies"));
             case 3: return String.valueOf(data.count("seriesWatchlist") + data.count("watchingSeries") + data.count("watchedSeries"));
             case 4: return plexItems.isEmpty() ? "" : String.valueOf(plexItems.size());
@@ -881,6 +882,7 @@ final class VaultTvView extends View {
         String s = title == null ? "" : title.toLowerCase(Locale.US);
         if (s.contains("rental")) return Color.rgb(30, 155, 224);
         if (s.contains("subscription") || s.contains("xbox")) return Color.rgb(124, 92, 255);
+        if (s.contains("purchased") || s.contains("steam")) return Color.rgb(27, 143, 90);
         if (s.contains("playing") || s.contains("watching")) return Color.rgb(22, 169, 127);
         if (s.contains("queue")) return Color.rgb(224, 149, 42);
         if (s.contains("upcoming") || s.contains("coming")) return Color.rgb(74, 120, 224);
@@ -1121,6 +1123,7 @@ final class VaultTvView extends View {
             else if ("Watchlist".equals(act)) actions.updateLibrary(detail, "watchlist");
             else if ("Watching".equals(act)) actions.updateLibrary(detail, "watching");
             else if ("Watched".equals(act)) actions.updateLibrary(detail, "watched");
+            else if ("Purchased".equals(act)) actions.updateLibrary(detail, "purchased");
             else if ("Queue".equals(act)) actions.updateLibrary(detail, "queue");
             else if ("Playing".equals(act)) actions.updateLibrary(detail, "playing");
             else if ("Resume Later".equals(act)) actions.updateLibrary(detail, "resume_later");

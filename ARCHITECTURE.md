@@ -8,7 +8,7 @@ GameVault has three first-class clients sharing one lossless Google Drive file:
 | Windows | `windows-native/GameVault.Windows` | `%LOCALAPPDATA%\SinuGameVault` with atomic saves and recovery snapshots | Windows Credential Manager |
 | Android TV | `android-tv-native` | App-private files with bounded recovery copies | Android Keystore |
 
-`shared/game-vault.schema.json` and `shared/fixtures/vault-v14.json` define the
+`shared/game-vault.schema.json` and `shared/fixtures/vault-v15.json` define the
 cross-client data contract. All clients preserve fields they do not own.
 
 ## Ownership boundaries

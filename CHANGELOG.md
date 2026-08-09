@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.7.1 - 2026-08-10
+
+- Added a permanent Steam Purchased library shared by web, Windows, and Android TV.
+- Purchased games retain ownership when moved to Now Playing or Completed.
+- Purchase date and price are included in synchronized backup data and spending summaries.
+
 ## v2.7.0 - 2026-08-09
 
 - Added a documented JSON Schema and compatibility fixture for the one Drive vault shared by web, Windows, and Android TV.

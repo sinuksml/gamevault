@@ -13,7 +13,7 @@ const biglyWorker=fs.readFileSync("biglybt-worker/worker.js","utf8");
 const manifest=JSON.parse(fs.readFileSync("manifest.webmanifest","utf8"));
 const pkg=JSON.parse(fs.readFileSync("package.json","utf8"));
 const vaultSchema=JSON.parse(fs.readFileSync("shared/game-vault.schema.json","utf8"));
-const vaultFixture=JSON.parse(fs.readFileSync("shared/fixtures/vault-v14.json","utf8"));
+const vaultFixture=JSON.parse(fs.readFileSync("shared/fixtures/vault-v15.json","utf8"));
 const nativeTvActivity=fs.readFileSync("android-tv-native/app/src/main/java/in/sinu/gamevault/nativetv/MainActivity.java","utf8");
 const nativeTvView=fs.readFileSync("android-tv-native/app/src/main/java/in/sinu/gamevault/nativetv/VaultTvView.java","utf8");
 const nativeTvData=fs.readFileSync("android-tv-native/app/src/main/java/in/sinu/gamevault/nativetv/VaultData.java","utf8");
@@ -24,7 +24,7 @@ assert.equal(vaultSchema.$schema,"https://json-schema.org/draft/2020-12/schema",
 assert.equal(vaultSchema.additionalProperties,true,"future client fields must remain valid");
 assert.equal(vaultFixture.version,release.schema,"fixture and release schema must agree");
 assert.ok(vaultFixture.futureClientField?.mustSurvive,"fixture must exercise forward-compatible field preservation");
-for(const key of ["rentals","rentalHistory","subscriptions","subscriptionGames","playing","queue","upcoming","upcomingRemoved","played","hiddenGames","movieWatchlist","watchingMovies","watchedMovies","hiddenMovies","seriesWatchlist","watchingSeries","watchedSeries","hiddenSeries","deletions"]){
+for(const key of ["rentals","rentalHistory","subscriptions","subscriptionGames","purchasedGames","playing","queue","upcoming","upcomingRemoved","played","hiddenGames","movieWatchlist","watchingMovies","watchedMovies","hiddenMovies","seriesWatchlist","watchingSeries","watchedSeries","hiddenSeries","deletions"]){
   assert.ok(Array.isArray(vaultFixture[key]),`shared fixture must include ${key}`);
   assert.ok(vaultSchema.properties[key],`shared schema must define ${key}`);
 }
@@ -78,7 +78,7 @@ for(const asset of ["app.css","core.js","app.js"]){
 }
 assert.ok(html.includes(`core.js?v=${version}`),"Core asset version must match APP_VERSION");
 assert.equal(release.version,version,"release manifest version must match APP_VERSION");
-assert.equal(release.schema,14,"release manifest must expose the current data schema");
+assert.equal(release.schema,15,"release manifest must expose the current data schema");
 assert.equal(manifest.name,"Sinu Game Vault");
 assert.match(html,/name="description"/);
 assert.match(html,/Content-Security-Policy/);
@@ -95,6 +95,10 @@ assert.match(js,/var APP_VERSION\s*=/);
 assert.match(js,/var APP_VERSION\s*=\s*"\d+\.\d+\.\d+"/);
 assert.match(js,/function gameKnownReleaseDate\s*\(/,"Game release dates must remain available across tabs");
 assert.match(js,/subscriptionGames/,"Subscription games must be part of the synced vault");
+assert.match(js,/purchasedGames/,"Purchased games must be part of the synced vault");
+assert.match(js,/mark-purchased/,"Any game detail can be recorded as a Steam purchase");
+assert.match(js,/function renderPurchased\(/,"Purchased Steam games must have a dedicated tab");
+assert.match(js,/data-act="purchased-play"/,"Purchased games must support Play Now without losing ownership");
 assert.match(js,/function syncSubscriptionPlaying\(/,"Active subscription games must feed Now Playing");
 assert.match(js,/data-act="add-subscription-game"/,"Subscriptions must allow Xbox and PC games to be added");
 assert.match(js,/platforms=187,186,4/,"RAWG feeds must include PS5, Xbox Series and PC");
@@ -163,7 +167,8 @@ assert.match(nativeTvView,/KEYCODE_DPAD_DOWN/);
 assert.match(nativeTvView,/Connect Google Drive/);
 assert.match(nativeTvView,/REELOAD Review/);
 assert.match(nativeTvData,/days left/);
-assert.match(nativeTvData,/DATA_SCHEMA = 14/,"TV edits must use the shared data schema");
+assert.match(nativeTvData,/DATA_SCHEMA = 15/,"TV edits must use the shared data schema");
+assert.match(nativeTvData,/Purchased on Steam/,"Native TV must expose the purchased-games shelf");
 assert.match(nativeTvDrive,/drive_last_synced_updated_at/,"TV Drive sync must persist the last observed remote revision");
 assert.match(nativeTvDrive,/cacheRecovery\(local, "drive-conflict"\)/,"TV sync must preserve local data before resolving a conflict");
 assert.match(nativeTvDrive,/Empty TV data was not allowed to replace your Drive library/);

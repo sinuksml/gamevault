@@ -15,6 +15,7 @@
     "rentalHistory": { "$ref": "#/$defs/records" },
     "subscriptions": { "$ref": "#/$defs/records" },
     "subscriptionGames": { "$ref": "#/$defs/records" },
+    "purchasedGames": { "$ref": "#/$defs/records" },
     "playing": { "$ref": "#/$defs/records" },
     "queue": { "$ref": "#/$defs/records" },
     "upcoming": { "$ref": "#/$defs/records" },

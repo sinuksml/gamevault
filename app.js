@@ -1,6 +1,6 @@
 "use strict";
-var APP_VERSION = "2.7.0";
-var APP_BUILD_DATE = "2026-08-09";
+var APP_VERSION = "2.7.1";
+var APP_BUILD_DATE = "2026-08-10";
 var APP_RELEASE_CHANNEL = "Stable";
 
 if(/iPhone|iPad|iPod/i.test(navigator.userAgent)){
@@ -137,7 +137,7 @@ var BUILTIN_CATALOG = [
 ].map(function(g){ return {name:g[0], year:g[1], score:g[2], genre:g[3], note:g[4], rem:g[5]||""}; });
 
 /* ---------- storage ---------- */
-var VAULT_ARRAY_FIELDS = ["rentals","upcoming","played","dismissed","catalogExtra","vendors","queue","rentalHistory","playing","upcomingRemoved","watchedMovies","movieWatchlist","watchingMovies","hiddenMovies","watchedSeries","seriesWatchlist","watchingSeries","hiddenSeries","biglyHistory","subscriptions","subscriptionGames","petrol","hiddenGames","deletions"];
+var VAULT_ARRAY_FIELDS = ["rentals","upcoming","played","dismissed","catalogExtra","vendors","queue","rentalHistory","playing","upcomingRemoved","watchedMovies","movieWatchlist","watchingMovies","hiddenMovies","watchedSeries","seriesWatchlist","watchingSeries","hiddenSeries","biglyHistory","subscriptions","subscriptionGames","purchasedGames","petrol","hiddenGames","deletions"];
 var VAULT_OBJECT_FIELDS = ["covers","gamePlatforms","dismissedNames","fandom","hubkeys","keys","seriesRatings","aiChats","health","finance","secureConfig","_sync"];
 var HEALTH_SYNC_STORE="gamevault-sync-health-v1";
 function healthDefaults(){
@@ -256,12 +256,12 @@ function vaultSize(d){
          ((d&&d.watchedMovies)||[]).length + ((d&&d.hiddenMovies)||[]).length +
          ((d&&d.seriesWatchlist)||[]).length + ((d&&d.watchingSeries)||[]).length + ((d&&d.watchedSeries)||[]).length +
          ((d&&d.hiddenSeries)||[]).length + ((d&&d.biglyHistory)||[]).length + ((d&&d.subscriptions)||[]).length +
-         ((d&&d.subscriptionGames)||[]).length +
+         ((d&&d.subscriptionGames)||[]).length + ((d&&d.purchasedGames)||[]).length +
          ((((d&&d.health)||{}).foodLog)||[]).length + ((d&&d.finance&&d.finance.cipher)?1:0);
 }
 /* Schema migrations: bump SCHEMA_VERSION when structure changes and add an
    upgrade step below. Old data is always upgraded in place, never recreated. */
-var SCHEMA_VERSION = 14;
+var SCHEMA_VERSION = 15;
 var SYNC_COLLECTIONS=VAULT_ARRAY_FIELDS.slice();
 function mediaCanonicalId(item,kind){
   if(!item)return "";
@@ -303,7 +303,7 @@ function normalizeStoredRecord(item,kind){
   return item;
 }
 function normalizeStoredLibrary(d){
-  ["rentals","upcoming","played","queue","rentalHistory","playing","upcomingRemoved","catalogExtra","subscriptionGames"].forEach(function(k){
+  ["rentals","upcoming","played","queue","rentalHistory","playing","upcomingRemoved","catalogExtra","subscriptionGames","purchasedGames"].forEach(function(k){
     (d[k]||[]).forEach(function(item){normalizeStoredRecord(item,"game");});
   });
   ["watchedMovies","movieWatchlist","watchingMovies","hiddenMovies"].forEach(function(k){
@@ -353,6 +353,7 @@ function migrate(d){
   if(!d.aiChats) d.aiChats = {}; // saved AI assistant conversation links by title/service, synced
   if(!d.biglyHistory) d.biglyHistory = []; // completed and manually removed torrents, synced
   if(!d.subscriptionGames) d.subscriptionGames = []; // games playable through an active cloud/subscription service
+  if(!d.purchasedGames) d.purchasedGames = []; // permanently owned games, normally purchased on Steam
   if(!d.finance || typeof d.finance!=="object" || Array.isArray(d.finance)) d.finance={}; // encrypted finance envelope only
   d.health=normalizeHealth(d.health);
   // v5: a game appears at most once per library — merge accidental duplicates
@@ -1078,6 +1079,7 @@ function totalSpent(){
   data.rentalHistory.forEach(function(h){ t+=Number(h.cost)||0; });
   data.played.forEach(function(p){ t+=Number(p.cost)||0; });
   (data.subscriptions||[]).forEach(function(s){ t+=Number(s.totalPaid)||0; });
+  (data.purchasedGames||[]).forEach(function(g){ t+=Number(g.purchasePrice||g.cost)||0; });
   return t;
 }
 function scoreBits(x){
@@ -1143,6 +1145,7 @@ function gameTileState(x,id,sub){
   if(tab==="upcoming") return ["UPCOMING","upcoming"];
   if(tab==="suggest") return ["DISCOVER","discover"];
   if(tab==="played") return ["COMPLETED","completed"];
+  if(tab==="purchased") return ["OWNED ON STEAM","playing"];
   return null;
 }
 function gameTilePrimary(x,id){
@@ -1152,6 +1155,7 @@ function gameTilePrimary(x,id){
     return '<button class="btn game-primary" data-act="hist-again" data-id="'+sid+'">Rent again</button>';
   }
   if(tab==="subscriptions") return '<button class="btn ghost danger" data-act="remove-subscription-game" data-id="'+esc(id)+'">Remove from subscription</button>';
+  if(tab==="purchased") return '<button class="btn blue game-primary" data-act="purchased-play" data-id="'+sid+'">&#9654; Play now</button>';
   if(tab==="playing"){
     if(byId(data.rentals,id)) return '<button class="btn blue game-primary" data-act="return-played" data-id="'+sid+'">&#10003; Finish game</button>';
     if(byId(data.playing,id)) return '<button class="btn blue game-primary" data-act="pl-played" data-id="'+sid+'">&#10003; Finish game</button>';
@@ -1178,7 +1182,7 @@ function rentalDaysChip(left){
   return '<span class="rent-days" style="color:'+urgency(left)+'">'+esc(label)+'</span>';
 }
 function gameFindById(id){
-  var lists=[data.rentals,data.rentalHistory,data.playing,data.subscriptionGames,data.queue,data.upcoming,data.played,fullCatalog(),webResults.items||[]];
+  var lists=[data.rentals,data.rentalHistory,data.playing,data.subscriptionGames,data.purchasedGames,data.queue,data.upcoming,data.played,fullCatalog(),webResults.items||[]];
   for(var li=0; li<lists.length; li++){
     for(var i=0;i<(lists[li]||[]).length;i++){
       var x=lists[li][i];
@@ -1193,7 +1197,7 @@ function gamePage(x,actionsHtml,extraHtml){
   var cinematic=coverUrl(x);
   var release=x.date?fmt(x.date):(x.year||"Not listed");
   var community=x.rating?(Math.round(Number(x.rating)*10)/10+" / 5"):(x.rrating?(Math.round(Number(x.rrating)*10)/10+" / 5"):"Not rated");
-  var context={rentals:"RENTAL",playing:"NOW PLAYING",queue:"RENTAL QUEUE",upcoming:"UPCOMING RELEASE",suggest:"DISCOVER",played:"COMPLETED"}[tab]||"GAME";
+  var context={rentals:"RENTAL",subscriptions:"SUBSCRIPTION",purchased:"OWNED ON STEAM",playing:"NOW PLAYING",queue:"RENTAL QUEUE",upcoming:"UPCOMING RELEASE",suggest:"DISCOVER",played:"COMPLETED"}[tab]||"GAME";
   return '<div class="game-page">'+detailToolbar("game",x)+(cinematic?'<div class="phone-detail-backdrop landscape" style="background-image:url(&quot;'+esc(cinematic)+'&quot;)"></div>':'')+
     '<div class="game-page-head"><div class="game-page-cover">'+gameCoverHero(x)+'</div>'+
     '<div class="game-page-info"><div class="game-page-kicker"><span>'+esc(gamePlatformLabel(x).toUpperCase())+'</span><span>'+context+'</span></div>'+
@@ -1207,8 +1211,12 @@ function gamePage(x,actionsHtml,extraHtml){
     '</div>'+
     gameReleaseMeta(x)+
     (x.note?'<div class="game-page-overview"><span>Overview</span><p>'+esc(x.note)+'</p></div>':'')+'</div></div>'+
-    gameLibraryDetails(x)+'<div class="detail-section-label">Actions &amp; links</div><div class="actions detail-actionbar">'+(actionsHtml||"")+linkBtns(x.name)+vendorSiteBtns(x.name)+'</div>'+
+    gameLibraryDetails(x)+'<div class="detail-section-label">Actions &amp; links</div><div class="actions detail-actionbar">'+(actionsHtml||"")+steamPurchaseButton(x)+linkBtns(x.name)+vendorSiteBtns(x.name)+'</div>'+
     (tab==="playing"?plotBlock(x.name):"")+(extraHtml||"")+'</div>';
+}
+function steamPurchaseButton(x){
+  if(tab==="purchased"||inList(data.purchasedGames||[],x.name))return "";
+  return '<button class="btn" data-act="mark-purchased" data-id="'+esc(String(x.id||expandedId||""))+'" data-name="'+esc(x.name)+'">&#9670; Purchased on Steam</button>';
 }
 function gameLibraryDetails(x){
   var items=[];
@@ -1224,6 +1232,10 @@ function gameLibraryDetails(x){
     if(x.start)items.push(["Started / rented",fmt(x.start)]);if(x.status)items.push(["Playing status",STATUS_LABEL[x.status]||x.status]);
   }else if(tab==="played"){
     if(x.status)items.push(["Library status",STATUS_LABEL[x.status]||x.status]);if(x.added)items.push(["Added",fmt(x.added)]);
+  }else if(tab==="purchased"){
+    items.push(["Ownership","Permanent"]);items.push(["Store",x.store||"Steam"]);
+    if(x.purchaseDate||x.added)items.push(["Purchased",fmt(x.purchaseDate||x.added)]);
+    if(Number(x.purchasePrice||x.cost))items.push(["Purchase price",fmtMoney(x.purchasePrice||x.cost)]);
   }
   if(x.playtime)items.push(["Typical playtime",x.playtime+" hours"]);
   if(!items.length)return "";
@@ -1232,6 +1244,7 @@ function gameLibraryDetails(x){
 function gameDetailActions(x){
   var id=String(expandedId||x.id||("name:"+norm(x.name)));
   if(tab==="subscriptions") return '<button class="btn ghost danger" data-act="remove-subscription-game" data-id="'+esc(id)+'">Remove from subscription</button>';
+  if(tab==="purchased") return '<button class="btn blue" data-act="purchased-play" data-id="'+esc(id)+'">&#9654; Play now</button><button class="btn" data-act="purchased-complete" data-id="'+esc(id)+'">&#10003; Mark completed</button><button class="btn ghost danger" data-act="purchased-remove" data-id="'+esc(id)+'">Remove purchase</button>';
   if(tab==="rentals"){
     var active=byId(data.rentals,id), hist=byId(data.rentalHistory,id);
     if(active) return '<button class="btn blue" data-act="return-played" data-id="'+esc(id)+'">Return → Played</button><button class="btn" data-act="return-only" data-id="'+esc(id)+'">Return</button><button class="btn ghost danger" data-act="remove-rental" data-id="'+esc(id)+'">Delete</button>';
@@ -1286,7 +1299,7 @@ function maybeRender(){
 var backfillBusy=false;
 var triedCovers={};
 function coverCandidate(){
-  var lists=[data.rentals,data.playing,data.subscriptionGames,data.queue,data.played,data.upcoming,data.rentalHistory,fullCatalog()];
+  var lists=[data.rentals,data.playing,data.subscriptionGames,data.purchasedGames,data.queue,data.played,data.upcoming,data.rentalHistory,fullCatalog()];
   for(var li=0; li<lists.length; li++){
     var arr=lists[li];
     for(var i=0;i<arr.length;i++){
@@ -1868,6 +1881,11 @@ function renderStats(){
     var subsDue=subsActive.map(function(x){return daysBetween(t0,parseD(x.renewsAt));}).sort(function(a,b){return a-b;})[0];
     var monthlyCost=subsActive.reduce(function(a,x){return a+(Number(x.cost)||0)/Math.max(1,Number(x.cycleDays)||30)*30;},0);
     html=uiStatTile(subsActive.length,"Active subscriptions","subscriptions")+uiStatTile(subsDue==null?"-":subsDue+"d","Nearest renewal","subscriptions",subsDue!=null&&subsDue<=3?"var(--danger)":"var(--text)")+uiStatTile(fmtMoney(Math.round(monthlyCost)),"~ Per month","subscriptions","var(--accent)")+uiStatTile(fmtMoney(totalSpent()),"Total games cost","rentals","var(--warning)");
+  }else if(tab==="purchased"){
+    var purchaseTotal=(data.purchasedGames||[]).reduce(function(sum,g){return sum+(Number(g.purchasePrice||g.cost)||0);},0);
+    var purchasedPlaying=(data.purchasedGames||[]).filter(function(g){return !!inList(data.playing,g.name);}).length;
+    var purchasedCompleted=(data.purchasedGames||[]).filter(function(g){return !!inList(data.played,g.name);}).length;
+    html=uiStatTile(data.purchasedGames.length,"Steam purchases","purchased","var(--success)")+uiStatTile(purchasedPlaying,"Playing now","playing","var(--accent)")+uiStatTile(purchasedCompleted,"Completed","played")+uiStatTile(fmtMoney(purchaseTotal),"Purchase value","purchased","var(--warning)");
   }else if(tab==="playing"){
     var resume=data.played.filter(function(x){return x.status==="Playing";}).length;
     var hold=data.played.filter(function(x){return x.status==="Dropped";}).length;
@@ -1925,6 +1943,7 @@ function tabCount(kind,key){
   if(kind==="game"){
     if(key==="rentals") return (data.rentals||[]).length;
     if(key==="subscriptions") return (data.subscriptions||[]).filter(function(x){return x.active!==false;}).length;
+    if(key==="purchased") return (data.purchasedGames||[]).length;
     if(key==="playing") return (data.rentals||[]).length+(data.playing||[]).length+(data.played||[]).filter(function(x){return x.status==="Playing"||x.status==="Dropped";}).length;
     if(key==="queue") return (data.queue||[]).length;
     if(key==="upcoming") return (data.upcoming||[]).length;
@@ -1994,7 +2013,7 @@ function renderTabs(){
     finishTabRender();
     return;
   }
-  var defs=[["rentals","✕","Rentals"],["subscriptions","⏳","Subscriptions"],["playing","▶","Now Playing"],["queue","◇","Rental Queue"],["upcoming","△","Upcoming Releases"],["suggest","○","Discover"],["played","□","Completed"]];
+  var defs=[["rentals","▤","Rentals"],["subscriptions","⏳","Subscriptions"],["purchased","◆","Purchased"],["playing","▶","Now Playing"],["queue","⇅","Rental Queue"],["upcoming","△","Upcoming Releases"],["suggest","○","Discover"],["played","✓","Completed"]];
   document.getElementById("tabs").innerHTML = defs.map(function(d){
     return '<button class="tab '+(tab===d[0]?"on":"")+'" data-tab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+tabCountHtml("game",d[0])+'</button>';
   }).join("");
@@ -2373,6 +2392,27 @@ function subscriptionGameCard(g){
     '<div class="game-tile-meta">'+gamePlatformBadges(g)+'<span class="game-pill">'+esc(subscriptionService(g.subscriptionId))+'</span></div>'+gameReleaseMeta(g)+'</div></div>'+
     '<div class="game-card-actions"><button class="btn ghost danger" data-act="remove-subscription-game" data-id="'+esc(String(g.id))+'">Remove</button></div></div>';
 }
+
+/* ---------- Purchased tab (permanent Steam ownership) ---------- */
+function renderPurchased(){
+  var items=(data.purchasedGames||[]).filter(function(g){return matchQ(g.name);});
+  var html=toolbar("Purchased game","Search purchased games...");
+  if(formOpen[tab]){
+    html+='<div class="form"><h3>Add a game purchased on Steam</h3><p class="meta">Purchased games are permanent. Playing or completing one never removes it from this library.</p><div class="fields">'+
+      '<div class="ac-wrap f-name"><input id="pgName" class="ac-input" placeholder="Steam game name" autocomplete="off"><div class="ac-drop"></div></div>'+
+      '<input class="f-sm" id="pgDate" type="date" value="'+localISO()+'" title="Purchase date">'+
+      '<input class="f-sm" id="pgPrice" type="number" min="0" placeholder="Price paid" title="Purchase price">'+
+      '<button class="btn blue" data-act="add-purchased-game">Add purchase</button></div></div>';
+  }
+  if(!items.length) return html+(q()?noMatch():uiEmptyState("No Steam purchases yet","Add games you own permanently on Steam.",'<button class="btn blue" data-act="toggle-form">+ Add purchased game</button>'));
+  if(gameView==="grid") return html+'<div class="game-grid">'+items.map(function(g){return gameTile(g,g.id,"Steam");}).join("")+'</div>';
+  html+='<div class="cards">';
+  items.forEach(function(g){
+    html+='<div class="card"><div class="row clickrow" data-act="game-open" data-id="'+esc(String(g.id))+'">'+coverImg(g)+'<div class="grow"><div class="gname">'+esc(g.name)+'</div><div class="meta"><b>Owned permanently on '+esc(g.store||"Steam")+'</b>'+(g.purchaseDate?' &middot; purchased '+fmt(g.purchaseDate):'')+(Number(g.purchasePrice||g.cost)?' &middot; '+fmtMoney(g.purchasePrice||g.cost):'')+scoreBits(g)+'</div>'+gameReleaseMeta(g)+'</div></div><div class="actions"><button class="btn blue" data-act="purchased-play" data-id="'+esc(String(g.id))+'">&#9654; Play now</button><button class="btn" data-act="purchased-complete" data-id="'+esc(String(g.id))+'">Mark completed</button><button class="btn ghost danger" data-act="purchased-remove" data-id="'+esc(String(g.id))+'">Remove</button></div></div>';
+  });
+  return html+'</div>';
+}
+
 function renderSubscriptions(){
   var t0=today();
   var gameMatches=(data.subscriptionGames||[]).some(function(g){return matchQ(g.name);});
@@ -4009,6 +4049,7 @@ function render(){
   renderContentHtml(
     tab==="rentals" ? renderRentals() :
     tab==="subscriptions" ? renderSubscriptions() :
+    tab==="purchased" ? renderPurchased() :
     tab==="playing" ? renderPlaying() :
     tab==="queue"   ? renderQueue() :
     tab==="upcoming"? renderUpcoming() :
@@ -6640,6 +6681,35 @@ document.getElementById("content").addEventListener("click",function(e){
       syncSubscriptionPlaying();save();flash("Subscription game removed");
     });
   }
+  else if(act==="add-purchased-game"){
+    var pgName=((document.getElementById("pgName")||{}).value||"").trim(); if(!pgName)return;
+    if(inList(data.purchasedGames,pgName)){flash("This game is already in Purchased");return;}
+    var pgId=uid(),pgDate=((document.getElementById("pgDate")||{}).value||localISO()),pgPrice=Number((document.getElementById("pgPrice")||{}).value)||0;
+    data.purchasedGames.unshift({id:pgId,name:pgName,store:"Steam",platform:"PC",platforms:["PC","Steam"],purchaseDate:pgDate,purchasePrice:pgPrice,cost:pgPrice,permanent:true,added:localISO(),status:"Owned"});
+    formOpen[tab]=false;save();flash("Added to Purchased - owned permanently on Steam");enrichScore("purchasedGames",pgId);
+  }
+  else if(act==="mark-purchased"){
+    var mpg=gameFindById(id),mpName=(mpg&&mpg.name)||b.getAttribute("data-name")||"";if(!mpName)return;
+    if(inList(data.purchasedGames,mpName)){flash("This game is already in Purchased");return;}
+    var paid=prompt("Purchase price paid on Steam (leave blank for 0)",""),mpPrice=paid===null?0:(Number(paid)||0);
+    var mpId=uid(),mpRecord=Object.assign({},mpg||{},{id:mpId,name:mpName,store:"Steam",platform:"PC",purchaseDate:localISO(),purchasePrice:mpPrice,cost:mpPrice,permanent:true,added:localISO(),status:"Owned"});
+    mpRecord.id=mpId;mpRecord.store="Steam";mpRecord.platform="PC";mpRecord.platforms=Array.from(new Set([].concat(mpRecord.platforms||[],["PC","Steam"])));mpRecord.purchaseDate=localISO();mpRecord.purchasePrice=mpPrice;mpRecord.cost=mpPrice;mpRecord.permanent=true;mpRecord.status="Owned";
+    data.purchasedGames.unshift(mpRecord);save();flash("Added to Purchased - owned permanently on Steam");enrichScore("purchasedGames",mpId);
+  }
+  else if(act==="purchased-play"){
+    var pg=byId(data.purchasedGames,id);if(!pg)return;
+    if(!inList(data.playing,pg.name)) data.playing.unshift({id:uid(),name:pg.name,added:localISO(),status:"Playing",source:"purchased",purchasedGameId:pg.id,store:pg.store||"Steam",platform:"PC",platforms:pg.platforms||["PC","Steam"],img:coverUrl(pg)||undefined,score:pg.score||null,rrating:pg.rrating||null,genre:pg.genre||"",date:pg.date||null});
+    save();flash("Now Playing - purchase remains in your Steam library");
+  }
+  else if(act==="purchased-complete"){
+    var pc=byId(data.purchasedGames,id);if(!pc)return;
+    data.playing=data.playing.filter(function(x){return norm(x.name)!==norm(pc.name);});
+    var pce=inList(data.played,pc.name);if(pce){pce.status="Finished";}else data.played.unshift({id:uid(),name:pc.name,rating:0,status:"Finished",added:localISO(),source:"purchased",purchasedGameId:pc.id,store:pc.store||"Steam",platform:"PC",platforms:pc.platforms||["PC","Steam"],img:coverUrl(pc)||undefined,score:pc.score||null,rrating:pc.rrating||null,genre:pc.genre||"",date:pc.date||null});
+    save();flash("Marked completed - purchase remains owned");
+  }
+  else if(act==="purchased-remove"){
+    var prg=byId(data.purchasedGames,id);confirmDestructive('Remove "'+(prg?prg.name:"this game")+'" from Purchased? This only removes the GameVault record.',"Remove purchase",function(){data.purchasedGames=data.purchasedGames.filter(function(g){return String(g.id)!==String(id);});save();flash("Purchase record removed");});
+  }
   else if(act==="add-subscription"){
     var svc=document.getElementById("sService").value.trim(); if(!svc) return;
     var sstart=document.getElementById("sStart").value||localISO();
@@ -7146,7 +7216,7 @@ document.getElementById("content").addEventListener("keydown",function(e){
   if(e.key!=="Enter") return;
   if(e.target.id==="financePin"){e.preventDefault();var unlock=document.querySelector('[data-act="finance-unlock"]');if(unlock)unlock.click();return;}
   if(e.target.id==="financePinAgain"){e.preventDefault();var setup=document.querySelector('[data-act="finance-setup"]');if(setup)setup.click();return;}
-  var map={rName:"add-rental",uName:"add-upcoming",qName:"add-queue",pName:"add-played",plName:"add-playing",sgName:"add-subscription-game"};
+  var map={rName:"add-rental",uName:"add-upcoming",qName:"add-queue",pName:"add-played",plName:"add-playing",sgName:"add-subscription-game",pgName:"add-purchased-game"};
   var actName=map[e.target.id];
   if(actName){
     e.preventDefault();

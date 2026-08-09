@@ -19,10 +19,10 @@
                 <StackPanel Grid.ColumnSpan="3" Margin="0,0,0,14"><TextBlock Text="Title" Margin="0,0,0,6"/><TextBox x:Name="NameBox"/></StackPanel>
                 <StackPanel Grid.Row="1" Margin="0,0,0,14"><TextBlock Text="Status" Margin="0,0,0,6"/><ComboBox x:Name="StatusBox"><ComboBoxItem Content="Playing"/><ComboBoxItem Content="Resume Later"/><ComboBoxItem Content="On Hold"/><ComboBoxItem Content="Finished"/><ComboBoxItem Content="Dropped"/><ComboBoxItem Content="Watching"/><ComboBoxItem Content="Watched"/></ComboBox></StackPanel>
                 <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,0,0,14"><TextBlock Text="Platform / service" Margin="0,0,0,6"/><TextBox x:Name="PlatformBox"/></StackPanel>
-                <StackPanel Grid.Row="2" Margin="0,0,0,14"><TextBlock Text="Start / release date" Margin="0,0,0,6"/><DatePicker x:Name="StartDateBox"/></StackPanel>
+                <StackPanel Grid.Row="2" Margin="0,0,0,14"><TextBlock x:Name="StartDateLabel" Text="Start / release date" Margin="0,0,0,6"/><DatePicker x:Name="StartDateBox"/></StackPanel>
                 <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,0,0,14"><TextBlock Text="Return / end date" Margin="0,0,0,6"/><DatePicker x:Name="EndDateBox"/></StackPanel>
-                <StackPanel Grid.Row="3" Margin="0,0,0,14"><TextBlock Text="Vendor / provider" Margin="0,0,0,6"/><TextBox x:Name="VendorBox"/></StackPanel>
-                <StackPanel Grid.Row="3" Grid.Column="2" Margin="0,0,0,14"><TextBlock Text="Cost" Margin="0,0,0,6"/><TextBox x:Name="CostBox"/></StackPanel>
+                <StackPanel Grid.Row="3" Margin="0,0,0,14"><TextBlock x:Name="VendorLabel" Text="Vendor / provider" Margin="0,0,0,6"/><TextBox x:Name="VendorBox"/></StackPanel>
+                <StackPanel Grid.Row="3" Grid.Column="2" Margin="0,0,0,14"><TextBlock x:Name="CostLabel" Text="Cost" Margin="0,0,0,6"/><TextBox x:Name="CostBox"/></StackPanel>
                 <StackPanel Grid.Row="4" Margin="0,0,0,14"><TextBlock Text="Your rating (0-10)" Margin="0,0,0,6"/><TextBox x:Name="RatingBox"/></StackPanel>
                 <StackPanel Grid.Row="4" Grid.Column="2" Margin="0,0,0,14"><TextBlock Text="Genre" Margin="0,0,0,6"/><TextBox x:Name="GenreBox"/></StackPanel>
                 <StackPanel Grid.Row="5" Grid.ColumnSpan="3" Margin="0,0,0,14"><TextBlock Text="Cover image URL" Margin="0,0,0,6"/><TextBox x:Name="ImageBox"/></StackPanel>

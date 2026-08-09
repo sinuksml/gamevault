@@ -2,7 +2,7 @@
 
 Sinu Game Vault for Windows is a native WPF application. It does not embed the website and does not require a browser or a separate .NET installation after publishing.
 
-## Version 2.6.7
+## Version 2.6.8
 
 - Native Home, Games, Movies, TV Shows, Plex, BiglyBT, and Settings areas.
 - Complete game workflows for rentals, subscriptions, playing, queue, upcoming, discovery, and completed games.
@@ -29,9 +29,9 @@ The script restores dependencies, builds the application, runs migration and rep
 
 ## Install
 
-Run `installer-output\SinuGameVault-Setup-v2.6.7.exe`. The installer upgrades the existing installation under `C:\Program Files\Sinu Game Vault`, creates a Start Menu entry, optionally creates a desktop shortcut, and registers a normal Windows uninstaller.
+Run `installer-output\SinuGameVault-Setup-v2.6.8.exe`. The installer upgrades the existing installation under `C:\Program Files\Sinu Game Vault`, creates a Start Menu entry, optionally creates a desktop shortcut, and registers a normal Windows uninstaller.
 
-The portable release is `SinuGameVault-Windows-v2.6.7.zip`. Extract it to a permanent directory and run `SinuGameVault.exe`.
+The portable release is `SinuGameVault-Windows-v2.6.8.zip`. Extract it to a permanent directory and run `SinuGameVault.exe`.
 
 Windows SmartScreen may display an unknown-publisher warning because this personal build is not code-signed.
 
