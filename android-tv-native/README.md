@@ -1,6 +1,6 @@
 # Sinu Game Vault Native TV
 
-Current native release: **2.2.0**
+Current native release: **3.0.0**
 
 The television client is optimized for a 4K Android TV controlled
 with a D-pad remote. It uses a cinematic home screen, remembers focus separately
@@ -14,11 +14,13 @@ from `android-tv`, which remains the working WebView fallback.
 ## Design
 
 - Native Android Canvas UI with deterministic D-pad navigation.
-- Read-only shelves for Games, Movies, TV Shows and Plex.
+- Windows-compatible shelves for Games, Movies, TV Shows, subscriptions, Plex and BiglyBT history.
 - Native BiglyBT list dashboard.
 - Google Drive device-code login and local offline backup cache.
 - Android Keystore encryption for refresh tokens and service credentials.
 - Native YouTube intents for trailers and reviews.
+- Essential rental, subscription, watch-state, Plex and torrent controls with confirmation prompts.
+- Separate PS5 and Xbox/PC upcoming and discovery shelves, Malayalam OTT states, hidden lists and rental history.
 
 ## Build
 
@@ -36,7 +38,7 @@ is being verified.
 
 ## First run on Shield
 
-1. Install `GameVault-Native-TV-v2.0.0-preview.apk`.
+1. Install `GameVault-Native-TV-v3.0.0.apk`.
 2. Open **Sinu Game Vault Native** and select **Settings** in the left rail.
 3. Select **Connect Google Drive**. Scan the QR code with the phone that uses
    the same Google account as GameVault.

@@ -24,6 +24,7 @@ final class DriveRepository {
 
     static final String DEFAULT_CLIENT_ID = "898110284062-76km1uptkth506kgaecoafohu15js0rh.apps.googleusercontent.com";
     private static final String FILE_NAME = "game-vault-backup.json";
+    private static final String LAST_SYNCED_KEY = "drive_last_synced_updated_at";
     private static final String SCOPE = "https://www.googleapis.com/auth/drive.file";
     private final Context context;
     private final SecurePrefs secure;
@@ -35,7 +36,10 @@ final class DriveRepository {
         this.context = context.getApplicationContext();
         secure = new SecurePrefs(context);
         prefs = context.getSharedPreferences("native_tv", Context.MODE_PRIVATE);
-        lastSyncedUpdatedAt = cached().updatedAt;
+        // This is the remote revision we actually observed, not the timestamp of
+        // the local cache. Reconstructing it from the cache after a restart can
+        // make an unsynced TV edit look like an acknowledged Drive revision.
+        lastSyncedUpdatedAt = prefs.getLong(LAST_SYNCED_KEY, 0L);
     }
 
     VaultData cached() {
@@ -61,7 +65,7 @@ final class DriveRepository {
 
     void disconnect() {
         secure.remove("drive_access"); secure.remove("drive_refresh"); secure.remove("drive_secret");
-        prefs.edit().remove("drive_exp").remove("drive_file").apply();
+        prefs.edit().remove("drive_exp").remove("drive_file").remove(LAST_SYNCED_KEY).apply();
     }
 
     void cache(VaultData value) {
@@ -89,8 +93,26 @@ final class DriveRepository {
                 JSONObject json = new JSONObject(download.body);
                 if (!json.has("rentals") && !json.has("played") && !json.has("queue")) throw new Exception("Drive file is not a GameVault backup.");
                 VaultData value = new VaultData(json);
+                VaultData local = cached();
+                if (local.updatedAt > value.updatedAt && local.savedCount() > 0) {
+                    if (lastSyncedUpdatedAt > 0L && value.updatedAt > lastSyncedUpdatedAt) {
+                        cacheRecovery(local, "drive-conflict");
+                        cache(value);
+                        markSynced(value.updatedAt);
+                        prefs.edit().putString("drive_file", id).apply();
+                        listener.onData(value);
+                        listener.onStatus("Both devices changed. Drive was kept and the TV copy was preserved in Recovery.");
+                        return;
+                    }
+                    prefs.edit().putString("drive_file", id).apply();
+                    markSynced(value.updatedAt);
+                    listener.onData(local);
+                    listener.onStatus("Newer local TV changes found; uploading them safely");
+                    save(local, listener);
+                    return;
+                }
                 cache(value);
-                lastSyncedUpdatedAt = value.updatedAt;
+                markSynced(value.updatedAt);
                 prefs.edit().putString("drive_file", id).apply();
                 listener.onData(value);
                 listener.onStatus("Synced with Google Drive");
@@ -119,23 +141,46 @@ final class DriveRepository {
                 Net.Response remoteResponse = Net.request("https://www.googleapis.com/drive/v3/files/" + id + "?alt=media", "GET", auth, null);
                 if (remoteResponse.code >= 400) throw new Exception("Could not check the latest Drive copy.");
                 VaultData remote = new VaultData(new JSONObject(remoteResponse.body));
+                if (value.savedCount() == 0 && remote.savedCount() > 0)
+                    throw new Exception("Empty TV data was not allowed to replace your Drive library.");
                 if (remote.updatedAt > lastSyncedUpdatedAt && !"android-tv-native".equals(remote.root.optString("lastDevice"))) {
+                    cacheRecovery(value, "drive-conflict");
                     cache(remote); lastSyncedUpdatedAt = remote.updatedAt;
+                    markSynced(remote.updatedAt);
                     listener.onData(remote);
-                    listener.onStatus("Newer Drive changes restored; repeat the TV action if still needed");
+                    listener.onStatus("Newer Drive changes restored. The unsynced TV copy is preserved in Recovery.");
                     return;
                 }
                 Map<String,String> headers = new HashMap<>(auth);
                 headers.put("Content-Type", "application/json; charset=UTF-8");
                 Net.Response upload = Net.request("https://www.googleapis.com/upload/drive/v3/files/" + id + "?uploadType=media", "PATCH", headers, value.root.toString());
                 if (upload.code >= 400) throw new Exception("Drive save failed: " + upload.code);
-                lastSyncedUpdatedAt = value.updatedAt;
+                markSynced(value.updatedAt);
                 cache(value);
                 listener.onStatus("TV change saved to Google Drive");
             } catch (Exception e) {
                 listener.onStatus(e.getMessage() == null ? "Drive save failed" : e.getMessage());
             }
         });
+    }
+
+    private void markSynced(long updatedAt) {
+        lastSyncedUpdatedAt = updatedAt;
+        prefs.edit().putLong(LAST_SYNCED_KEY, updatedAt).apply();
+    }
+
+    private void cacheRecovery(VaultData value, String reason) {
+        if (value == null || value.savedCount() == 0) return;
+        File folder = new File(context.getFilesDir(), "Recovery");
+        if (!folder.exists() && !folder.mkdirs()) return;
+        File target = new File(folder, reason + "-" + System.currentTimeMillis() + ".json");
+        try (FileOutputStream out = new FileOutputStream(target)) {
+            out.write(value.root.toString(2).getBytes(StandardCharsets.UTF_8));
+        } catch (Exception ignored) {}
+        File[] copies = folder.listFiles((dir, name) -> name.startsWith(reason + "-") && name.endsWith(".json"));
+        if (copies == null || copies.length <= 5) return;
+        java.util.Arrays.sort(copies, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+        for (int i = 5; i < copies.length; i++) copies[i].delete();
     }
 
     void startDeviceLogin(Listener listener) {

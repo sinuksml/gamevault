@@ -9,10 +9,12 @@ on:
     branches: ["main"]
     paths:
       - "windows-native/**"
+      - "shared/**"
       - ".github/workflows/windows.yml"
   pull_request:
     paths:
       - "windows-native/**"
+      - "shared/**"
       - ".github/workflows/windows.yml"
   workflow_dispatch:
 

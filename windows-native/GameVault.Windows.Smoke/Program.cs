@@ -8,6 +8,14 @@ Directory.CreateDirectory(temp);
 DiagnosticsService.UseFolder(Path.Combine(temp, "Diagnostics"));
 try
 {
+    var contractFixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "vault-v14.json");
+    Assert(File.Exists(contractFixture), "shared vault contract fixture is packaged for compatibility tests");
+    var contractRepository = new VaultRepository(Path.Combine(temp, "contract-store"));
+    await contractRepository.LoadAsync();
+    await contractRepository.ImportAsync(contractFixture);
+    Assert(contractRepository.Root["version"]?.GetValue<int>() == VaultRepository.CurrentSchema, "shared contract schema matches Windows");
+    Assert(contractRepository.Root["futureClientField"]?["mustSurvive"]?.GetValue<bool>() == true, "shared fixture future fields survive Windows import");
+
     var source = Path.Combine(temp, "source.json");
     var export = Path.Combine(temp, "export.json");
     await File.WriteAllTextAsync(source, """

@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sinuksml.github.io/gamevault/shared/game-vault.schema.json",
+  "title": "Sinu Game Vault backup",
+  "description": "The lossless cross-client contract for game-vault-backup.json. Unknown properties are preserved for forward compatibility.",
+  "type": "object",
+  "required": ["version", "updatedAt"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "updatedAt": { "type": "integer", "minimum": 0 },
+    "revision": { "type": "integer", "minimum": 0 },
+    "lastDevice": { "type": "string" },
+    "rentals": { "$ref": "#/$defs/records" },
+    "rentalHistory": { "$ref": "#/$defs/records" },
+    "subscriptions": { "$ref": "#/$defs/records" },
+    "subscriptionGames": { "$ref": "#/$defs/records" },
+    "playing": { "$ref": "#/$defs/records" },
+    "queue": { "$ref": "#/$defs/records" },
+    "upcoming": { "$ref": "#/$defs/records" },
+    "upcomingRemoved": { "$ref": "#/$defs/records" },
+    "played": { "$ref": "#/$defs/records" },
+    "hiddenGames": { "$ref": "#/$defs/records" },
+    "movieWatchlist": { "$ref": "#/$defs/records" },
+    "watchingMovies": { "$ref": "#/$defs/records" },
+    "watchedMovies": { "$ref": "#/$defs/records" },
+    "hiddenMovies": { "$ref": "#/$defs/records" },
+    "seriesWatchlist": { "$ref": "#/$defs/records" },
+    "watchingSeries": { "$ref": "#/$defs/records" },
+    "watchedSeries": { "$ref": "#/$defs/records" },
+    "hiddenSeries": { "$ref": "#/$defs/records" },
+    "deletions": { "$ref": "#/$defs/deletions" },
+    "_sync": { "$ref": "#/$defs/syncMetadata" }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "record": {
+      "type": "object",
+      "anyOf": [
+        { "required": ["id"] },
+        { "required": ["canonicalId"] },
+        { "required": ["name"] },
+        { "required": ["title"] },
+        { "required": ["service"] }
+      ],
+      "additionalProperties": true
+    },
+    "records": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/record" }
+    },
+    "deletions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["collection", "identity", "at"],
+        "properties": {
+          "collection": { "type": "string", "minLength": 1 },
+          "identity": { "type": "string", "minLength": 1 },
+          "at": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": true
+      }
+    },
+    "syncMetadata": {
+      "type": "object",
+      "properties": {
+        "version": { "type": "integer", "minimum": 1 },
+        "records": { "type": "object", "additionalProperties": { "type": "object" } },
+        "tombstones": { "type": "object", "additionalProperties": { "type": "object" } }
+      },
+      "additionalProperties": true
+    }
+  }
+}

@@ -1,6 +1,6 @@
 "use strict";
-var APP_VERSION = "2.6.2";
-var APP_BUILD_DATE = "2026-08-08";
+var APP_VERSION = "2.7.0";
+var APP_BUILD_DATE = "2026-08-09";
 var APP_RELEASE_CHANNEL = "Stable";
 
 if(/iPhone|iPad|iPod/i.test(navigator.userAgent)){
@@ -261,7 +261,7 @@ function vaultSize(d){
 }
 /* Schema migrations: bump SCHEMA_VERSION when structure changes and add an
    upgrade step below. Old data is always upgraded in place, never recreated. */
-var SCHEMA_VERSION = 12;
+var SCHEMA_VERSION = 14;
 var SYNC_COLLECTIONS=VAULT_ARRAY_FIELDS.slice();
 function mediaCanonicalId(item,kind){
   if(!item)return "";

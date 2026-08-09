@@ -27,7 +27,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Remote-first, view-only renderer for Android TV. The fixed 1920x1080 design
+ * Remote-first renderer for Android TV. The fixed 1920x1080 design
  * surface is scaled into the real display while preserving TV safe areas.
  */
 @SuppressLint("ViewConstructor")
@@ -44,6 +44,12 @@ final class VaultTvView extends View {
         void refreshBigly();
         void clearArtwork();
         void updateLibrary(MediaItem item, String action);
+        void editItem(MediaItem item);
+        void rateItem(MediaItem item);
+        void loadStory(MediaItem item);
+        void loadEpisodes(MediaItem item, int season);
+        void plexAction(MediaItem item, String action);
+        void biglyAction(String id, String action);
         void openYouTube(String query);
         void openWeb(String url);
     }
@@ -65,7 +71,7 @@ final class VaultTvView extends View {
     private final Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final ImageLoader images;
     private final Actions actions;
-    private final String[] nav = {"Home", "Games", "Movies", "TV Shows", "Plex", "BiglyBT", "System"};
+    private final String[] nav = {"Home", "Games", "Movies", "TV Shows", "Plex", "BiglyBT", "Settings"};
     private final String[] sections = {"home", "games", "movies", "series", "plex", "bigly", "settings"};
     private final Map<String, Integer> savedRows = new HashMap<>();
     private final Map<String, Integer> savedStarts = new HashMap<>();
@@ -75,8 +81,12 @@ final class VaultTvView extends View {
     private List<MediaItem> plexItems = new ArrayList<>();
     private List<ServiceRepository.TorrentItem> torrents = new ArrayList<>();
     private List<Shelf> shelves = new ArrayList<>();
-    private int navIndex, row, col, rowStart, focusArea, detailAction, settingIndex, detailScroll;
+    private int navIndex, row, col, rowStart, focusArea, detailAction, settingIndex, detailScroll, torrentAction;
     private MediaItem detail;
+    private MediaItem detailParent, episodeParent;
+    private List<ServiceRepository.EpisodeItem> episodes = new ArrayList<>();
+    private int episodeSeason = 1, episodeIndex;
+    private boolean episodeMode;
     private boolean torrentInspector;
     private String status = "Local library ready";
     private long statusChangedAt = SystemClock.uptimeMillis();
@@ -154,6 +164,24 @@ final class VaultTvView extends View {
         invalidate();
     }
 
+    void setDetailStory(MediaItem item, String story) {
+        if (detail == null || item == null || !detail.id.equals(item.id)) return;
+        detail = new MediaItem(detail.id, detail.kind, detail.source, detail.title, detail.eyebrow,
+            detail.meta, detail.poster, detail.backdrop, story == null ? "" : story, detail.progress, detail.raw);
+        detailScroll = 0;
+        invalidate();
+    }
+
+    void setEpisodes(MediaItem item, int season, List<ServiceRepository.EpisodeItem> value) {
+        if (item == null) return;
+        episodeParent = item;
+        episodeSeason = Math.max(1, season);
+        episodes = value == null ? new ArrayList<>() : value;
+        episodeIndex = clamp(episodeIndex, 0, Math.max(0, episodes.size() - 1));
+        episodeMode = true;
+        invalidate();
+    }
+
     private String section() { return sections[navIndex]; }
 
     private void savePosition() {
@@ -215,11 +243,12 @@ final class VaultTvView extends View {
         drawBackground(canvas);
         drawRail(canvas);
         if (!qrUrl.isEmpty()) drawQr(canvas);
+        else if (episodeMode) drawEpisodes(canvas);
         else if (detail != null) drawDetail(canvas);
         else if (navIndex == 6) drawSettings(canvas);
         else if (navIndex == 5) drawBigly(canvas);
         else if (navIndex == 0) drawHome(canvas);
-        else drawLibrary(canvas, 170f, 2);
+        else drawLibrary(canvas);
         drawStatusToast(canvas);
         if (idle >= DIM_AFTER_MS) {
             p.setColor(Color.argb(72, 0, 0, 0));
@@ -270,11 +299,15 @@ final class VaultTvView extends View {
             else if (selected) round(c, 25, y - 38, expanded ? 257 : 98, y + 38, 14, Color.argb(125, 24, 58, 70));
             int color = focused ? BG : selected ? ACCENT : MUTED;
             drawNavIcon(c, i, 59, y, color);
-            if (expanded) text(c, nav[i], 104, y + 8, 22, focused ? BG : TEXT, selected, Paint.Align.LEFT);
+            if (expanded) {
+                text(c, nav[i], 104, y + 1, 22, focused ? BG : TEXT, selected, Paint.Align.LEFT);
+                String count = navCount(i);
+                if (!count.isEmpty()) text(c, count, 250, y + 2, 15, focused ? BG : MUTED, true, Paint.Align.RIGHT);
+            }
         }
         if (expanded) {
             text(c, "TV COMPANION", 31, 1010, 12, MUTED, true, Paint.Align.LEFT);
-            text(c, "v2.2", 254, 1010, 12, MUTED, false, Paint.Align.RIGHT);
+            text(c, "v3.0", 254, 1010, 12, MUTED, false, Paint.Align.RIGHT);
         }
     }
 
@@ -310,17 +343,40 @@ final class VaultTvView extends View {
     private void drawHome(Canvas c) {
         MediaItem hero = firstItem();
         header(c, "Home", homeSubtitle());
+        drawHomeDashboard(c);
         if (hero == null) {
-            empty(c, 322, 250, "Your library is ready to connect", "Open System and sync Google Drive to bring your collection to this TV.");
+            empty(c, 322, 445, "Your library is ready to connect", "Open Settings and sync Google Drive to bring your collection to this TV.");
             return;
         }
-        text(c, hero.eyebrow.toUpperCase(Locale.US), 322, 184, 16, ACCENT, true, Paint.Align.LEFT);
-        drawMultilineTitle(c, hero.title, 322, 255, 46, 720, 2);
-        text(c, hero.meta, 322, 347, 18, TEXT, false, Paint.Align.LEFT, 720);
+        text(c, hero.eyebrow.toUpperCase(Locale.US), 322, 405, 16, ACCENT, true, Paint.Align.LEFT);
+        drawMultilineTitle(c, hero.title, 322, 476, 46, 720, 2);
+        text(c, hero.meta, 322, 568, 18, TEXT, false, Paint.Align.LEFT, 720);
         List<String> summary = wrap(hero.overview, 680, 18);
-        for (int i = 0; i < Math.min(2, summary.size()); i++) text(c, summary.get(i), 322, 390 + i * 28, 18, MUTED, false, Paint.Align.LEFT);
+        for (int i = 0; i < Math.min(2, summary.size()); i++) text(c, summary.get(i), 322, 611 + i * 28, 18, MUTED, false, Paint.Align.LEFT);
         if (shelves.isEmpty()) return;
-        drawShelves(c, 500, 1);
+        drawShelves(c, 730, 1);
+    }
+
+    private void drawHomeDashboard(Canvas c) {
+        int[] colors = {Color.rgb(30, 86, 130), Color.rgb(58, 69, 145), Color.rgb(32, 118, 92), Color.rgb(122, 76, 38)};
+        String[][] stats = {
+            {"ACTIVE RENTALS", String.valueOf(data.count("rentals")), "currently rented"},
+            {"WATCHLIST", String.valueOf(data.count("movieWatchlist") + data.count("seriesWatchlist")), "movies and TV shows"},
+            {"NOW PLAYING", String.valueOf(data.count("playing") + data.count("subscriptionGames")), "games in progress"},
+            {"COMPLETED", String.valueOf(data.count("played")), "finished games"}
+        };
+        float x = 322, y = 155, w = 355, h = 148;
+        for (int i = 0; i < stats.length; i++) {
+            float bx = x + i * (w + 24);
+            p.setShader(new LinearGradient(bx, y, bx + w, y + h, colors[i], Color.rgb(10, 24, 38), Shader.TileMode.CLAMP));
+            c.drawRoundRect(new RectF(bx, y, bx + w, y + h), 14, 14, p);
+            p.setShader(null);
+            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(2); p.setColor(Color.argb(140, 91, 175, 222));
+            c.drawRoundRect(new RectF(bx, y, bx + w, y + h), 14, 14, p); p.setStyle(Paint.Style.FILL);
+            text(c, stats[i][0], bx + 24, y + 42, 13, ACCENT, true, Paint.Align.LEFT);
+            text(c, stats[i][1], bx + 24, y + 88, 38, TEXT, true, Paint.Align.LEFT);
+            text(c, stats[i][2], bx + 24, y + 121, 15, Color.rgb(206, 219, 232), false, Paint.Align.LEFT, w - 48);
+        }
     }
 
     private String homeSubtitle() {
@@ -328,13 +384,31 @@ final class VaultTvView extends View {
         return data.savedCount() + " saved items";
     }
 
-    private void drawLibrary(Canvas c, float top, int count) {
+    private void drawLibrary(Canvas c) {
         header(c, nav[navIndex], librarySubtitle());
         if (shelves.isEmpty()) {
             empty(c, 322, 260, "Nothing saved here yet", "Content will appear after the next Google Drive sync.");
             return;
         }
-        drawShelves(c, top, count);
+        drawSectionTabs(c);
+        drawShelves(c, 248, 2);
+    }
+
+    private void drawSectionTabs(Canvas c) {
+        float x = 322, y = 145;
+        for (int i = 0; i < shelves.size() && i < 7; i++) {
+            Shelf shelf = shelves.get(i);
+            boolean selected = i == row;
+            p.setTextSize(16);
+            float w = Math.max(142, Math.min(248, p.measureText(tabTitle(shelf.title)) + 62));
+            int fill = selected ? Color.rgb(225, 244, 245) : Color.argb(212, 14, 28, 43);
+            round(c, x, y, x + w, y + 56, 13, fill);
+            drawTabGlyph(c, shelf.title, x + 28, y + 29, selected ? BG : accentForShelf(shelf.title));
+            text(c, tabTitle(shelf.title), x + 51, y + 36, 16, selected ? BG : TEXT, true, Paint.Align.LEFT, w - 62);
+            x += w + 14;
+            if (x > 1790) break;
+        }
+        text(c, "UP / DOWN switches sections   OK opens selected title", 322, 224, 14, MUTED, true, Paint.Align.LEFT);
     }
 
     private String librarySubtitle() {
@@ -352,6 +426,7 @@ final class VaultTvView extends View {
             float cardH = wide ? 208 : 350;
             float gap = 28;
             float x = 322;
+            sectionDivider(c, x, y - 22, 1840);
             text(c, shelf.title, x, y, 25, TEXT, true, Paint.Align.LEFT);
             text(c, shelf.items.size() + " titles", 1840, y, 14, MUTED, false, Paint.Align.RIGHT);
             y += 34;
@@ -390,7 +465,10 @@ final class VaultTvView extends View {
             c.drawRoundRect(box, 12, 12, p);
             p.setShader(null);
         } else {
-            p.setShader(new LinearGradient(box.left, box.top, box.right, box.bottom, Color.rgb(23, 56, 80), Color.rgb(13, 25, 42), Shader.TileMode.CLAMP));
+            String service = (item.title + " " + first(item.raw, "provider", "service", "platform")).toLowerCase(Locale.US);
+            int brand = service.contains("nvidia") || service.contains("geforce") ? Color.rgb(118, 185, 0)
+                : service.contains("xbox") || service.contains("game pass") ? Color.rgb(16, 124, 16) : Color.rgb(23, 56, 80);
+            p.setShader(new LinearGradient(box.left, box.top, box.right, box.bottom, brand, Color.rgb(13, 25, 42), Shader.TileMode.CLAMP));
             c.drawRoundRect(box, 12, 12, p);
             p.setShader(null);
             text(c, initials(item.title), box.centerX(), box.centerY() - 4, 38, Color.rgb(119, 154, 184), true, Paint.Align.CENTER);
@@ -407,7 +485,7 @@ final class VaultTvView extends View {
             round(c, x + 12, y + 12, x + 12 + chipW, y + 43, 15, Color.argb(220, 4, 10, 17));
             text(c, item.meta, x + 24, y + 33, 12, TEXT, true, Paint.Align.LEFT, chipW - 24);
         }
-        if ("rental".equals(item.source)) {
+        if ("rental".equals(item.source) || "subscriptions".equals(item.source) || "subscriptionGames".equals(item.source)) {
             p.setTextSize(25);
             float dueW = Math.min(w - 28, p.measureText(item.eyebrow.toUpperCase(Locale.US)) + 34);
             round(c, x + 14, y + 58, x + 14 + dueW, y + 104, 9, Color.argb(225, 3, 8, 13));
@@ -451,21 +529,96 @@ final class VaultTvView extends View {
         c.drawRect(250, 520, DESIGN_W, DESIGN_H, p);
         p.setShader(null);
 
-        text(c, detail.eyebrow.toUpperCase(Locale.US), 322, 126, 16, urgencyColor(detail), true, Paint.Align.LEFT);
+        text(c, detail.eyebrow.toUpperCase(Locale.US), 322, 126, 17, urgencyColor(detail), true, Paint.Align.LEFT);
         text(c, "BACK", 1790, 95, 16, MUTED, true, Paint.Align.RIGHT);
         drawMultilineTitle(c, detail.title, 322, 207, 51, 900, 2);
         drawChips(c, detail, 322, 300);
 
+        drawDetailFacts(c);
+
         c.save();
-        c.clipRect(315, 340, 1180, 712);
-        float startY = 385 - detailScroll * 72;
+        c.clipRect(315, 340, 1190, 704);
+        float startY = 385 - detailScroll * 31;
         List<String> lines = wrap(detail.overview.isEmpty() ? "No story summary is available in the synced library yet." : detail.overview, 790, 20);
         for (int i = 0; i < lines.size(); i++) text(c, lines.get(i), 322, startY + i * 31, 20, Color.rgb(212, 222, 234), false, Paint.Align.LEFT);
         c.restore();
         if (lines.size() > 10) text(c, detailScroll > 0 ? "UP / DOWN  Read story" : "DOWN  Continue reading", 322, 738, 14, MUTED, true, Paint.Align.LEFT);
 
         drawDetailActions(c);
-        text(c, "Essential changes save to Google Drive", 322, 918, 14, MUTED, false, Paint.Align.LEFT);
+    }
+
+    private void drawEpisodes(Canvas c) {
+        header(c, episodeParent == null ? "Episodes" : episodeParent.title, "Season " + episodeSeason);
+        text(c, "LEFT / RIGHT  Change season", 322, 154, 15, MUTED, true, Paint.Align.LEFT);
+        if (episodes.isEmpty()) {
+            empty(c, 322, 230, "No episodes loaded", "Check the synced TMDB key, then press Left or Right to retry another season.");
+            return;
+        }
+        int start = Math.max(0, episodeIndex - 6);
+        float y = 190;
+        for (int i = start; i < episodes.size() && i < start + 7; i++) {
+            ServiceRepository.EpisodeItem e = episodes.get(i);
+            boolean focused = i == episodeIndex;
+            round(c, 322, y, 1834, y + 102, 11, focused ? Color.rgb(24, 64, 82) : PANEL);
+            if (focused) c.drawRoundRect(new RectF(319, y - 3, 1837, y + 105), 14, 14, stroke);
+            text(c, String.format(Locale.US, "E%02d", e.number), 350, y + 42, 20, ACCENT, true, Paint.Align.LEFT);
+            text(c, e.name, 440, y + 42, 20, TEXT, true, Paint.Align.LEFT, 760);
+            text(c, e.airDate, 1240, y + 42, 15, MUTED, false, Paint.Align.LEFT, 220);
+            text(c, e.rating > 0 ? String.format(Locale.US, "IMDb %.1f", e.rating) : "Not rated", 1778, y + 42, 16, e.rating > 0 ? AMBER : MUTED, true, Paint.Align.RIGHT);
+            text(c, e.overview, 440, y + 76, 14, MUTED, false, Paint.Align.LEFT, 1280);
+            y += 114;
+        }
+        text(c, "OK  Open episode     BACK  Return to series", 322, 1025, 14, MUTED, true, Paint.Align.LEFT);
+    }
+
+    private void drawDetailFacts(Canvas c) {
+        JSONObject raw = detail.raw;
+        if (raw == null) return;
+        List<String[]> facts = new ArrayList<>();
+        fact(facts, "Release", first(raw, "releaseDate", "date", "airDate", "firstAirDate", "year"));
+        fact(facts, "Platform", first(raw, "platform", "platforms", "provider", "ott", "network"));
+        fact(facts, "Genre", first(raw, "genre", "genres"));
+        fact(facts, "Vendor", first(raw, "vendor"));
+        fact(facts, "Rental period", rentalPeriod(raw));
+        fact(facts, "Cost", money(first(raw, "cost", "monthlyCost", "totalPaid")));
+        fact(facts, "Availability", availabilityText(raw));
+        fact(facts, "Remarks", first(raw, "remarks", "note"));
+        if (facts.isEmpty()) return;
+        round(c, 1240, 350, 1828, 696, 14, Color.argb(218, 8, 18, 29));
+        text(c, "TITLE INFORMATION", 1270, 390, 13, ACCENT, true, Paint.Align.LEFT);
+        float y = 435;
+        for (int i = 0; i < Math.min(6, facts.size()); i++) {
+            String[] fact = facts.get(i);
+            text(c, fact[0].toUpperCase(Locale.US), 1270, y, 12, MUTED, true, Paint.Align.LEFT);
+            text(c, fact[1], 1440, y, 16, TEXT, true, Paint.Align.LEFT, 350);
+            y += 48;
+        }
+    }
+
+    private static void fact(List<String[]> facts, String label, String value) {
+        if (value != null && !value.trim().isEmpty() && !"{}".equals(value) && !"[]".equals(value)) facts.add(new String[]{label, value.trim()});
+    }
+
+    private static String rentalPeriod(JSONObject raw) {
+        String start = first(raw, "start", "rentalDate");
+        String end = first(raw, "returnDate", "end", "renewsAt");
+        if (start.isEmpty()) return end;
+        return end.isEmpty() ? start : start + " to " + end;
+    }
+
+    private static String money(String value) {
+        if (value == null || value.trim().isEmpty()) return "";
+        return value.trim().startsWith("Rs") || value.trim().startsWith("₹") ? value.trim() : "Rs " + value.trim();
+    }
+
+    private static String availabilityText(JSONObject raw) {
+        JSONObject availability = raw.optJSONObject("availability");
+        if (availability == null) return "";
+        JSONObject hub = availability.optJSONObject("hub"), gp = availability.optJSONObject("gp");
+        List<String> parts = new ArrayList<>();
+        if (hub != null && hub.optBoolean("found")) parts.add("Game Hub listed");
+        if (gp != null && gp.optBoolean("found")) parts.add(gp.optBoolean("stock") ? "Gamer Planet available" : "Gamer Planet listed");
+        return android.text.TextUtils.join(" | ", parts);
     }
 
     private void drawChips(Canvas c, MediaItem item, float x, float y) {
@@ -500,24 +653,35 @@ final class VaultTvView extends View {
 
     private void drawDetailActions(Canvas c) {
         String[] acts = detailActions();
-        int visible = Math.min(7, acts.length);
-        int start = Math.max(0, Math.min(detailAction - visible + 1, acts.length - visible));
-        float x = 322, width = 188, gap = 14;
-        for (int i = start; i < start + visible; i++) {
-            button(c, x, 790, x + width, 856, acts[i], focusArea == 2 && i == detailAction);
-            x += width + gap;
+        int columns = 6;
+        float width = 230, gap = 14;
+        for (int i = 0; i < acts.length; i++) {
+            int line = i / columns, column = i % columns;
+            float x = 322 + column * (width + gap), y = 752 + line * 78;
+            button(c, x, y, x + width, y + 64, acts[i], focusArea == 2 && i == detailAction);
         }
-        if (acts.length > visible) text(c, (detailAction + 1) + " / " + acts.length + " actions", 1736, 885, 13, MUTED, true, Paint.Align.RIGHT);
     }
 
     private String[] detailActions() {
         if ("game".equals(detail.kind)) {
-            if ("rental".equals(detail.source)) return new String[]{"Trailer", "IGN Review", "Wikipedia", "Return", "Playing", "Completed", "Not Interested", "Close"};
-            if ("playing".equals(detail.source)) return new String[]{"Trailer", "IGN Review", "Wikipedia", "Queue", "Completed", "Not Interested", "Close"};
-            return new String[]{"Trailer", "IGN Review", "Queue", "Playing", "Completed", "Not Interested", "Close"};
+            if ("plex".equals(detail.source)) return new String[]{"Trailer", "IMDb", "Load Story", "Mark Watched", "Delete Media", "Close"};
+            if ("subscriptions".equals(detail.source) || "subscriptionGames".equals(detail.source)) return new String[]{"Trailer", "IGN Review", "Google", "Load Story", "Rate", "Edit", "Playing", "Completed", "Close"};
+            if ("hiddenGames".equals(detail.source) || "upcomingRemoved".equals(detail.source)) return new String[]{"Trailer", "IGN Review", "Google", "Load Story", "Restore", "Close"};
+            if ("rental".equals(detail.source) || "rentalHistory".equals(detail.source)) return new String[]{"Trailer", "IGN Review", "Google", "Game Hub", "Gamer Planet", "Load Story", "Rate", "Edit", "Return", "Playing", "Resume Later", "On Hold", "Completed", "Not Interested", "Fandom", "Close"};
+            if ("playing".equals(detail.source)) return new String[]{"Trailer", "IGN Review", "Google", "Load Story", "Fandom", "Rate", "Edit", "Queue", "Resume Later", "On Hold", "Completed", "Not Interested", "Close"};
+            return new String[]{"Trailer", "IGN Review", "Google", "Game Hub", "Gamer Planet", "Load Story", "Rate", "Edit", "Queue", "Playing", "Resume Later", "On Hold", "Completed", "Not Interested", "AI Assistant", "Close"};
         }
-        if (isMalayalam(detail)) return new String[]{"Trailer", "IMDb", "Monsoon Review", "Aswanth Review", "Watchlist", "Watching", "Watched", "Not Interested", "Close"};
-        return new String[]{"Trailer", "IMDb", "REELOAD Review", "Watchlist", "Watching", "Watched", "Not Interested", "Close"};
+        if ("plex".equals(detail.source)) return new String[]{"Trailer", "IMDb", "Load Story", "Episodes", "Mark Watched", "Delete Media", "Close"};
+        String episodesAction = "series".equals(detail.kind) ? "Episodes" : "";
+        if ("hiddenMovies".equals(detail.source) || "hiddenSeries".equals(detail.source)) return compact(new String[]{"Trailer", "IMDb", "Google", "Load Story", episodesAction, "Rate", "Restore", "Close"});
+        if (isMalayalam(detail)) return compact(new String[]{"Trailer", "IMDb", "Google", "Load Story", episodesAction, "Monsoon Review", "Aswanth Review", "Rate", "Edit", "Watchlist", "Watching", "Watched", "Not Interested", "AI Assistant", "Close"});
+        return compact(new String[]{"Trailer", "IMDb", "Google", "Load Story", episodesAction, "REELOAD Review", "Rate", "Edit", "Watchlist", "Watching", "Watched", "Not Interested", "AI Assistant", "Close"});
+    }
+
+    private static String[] compact(String[] values) {
+        List<String> out = new ArrayList<>();
+        for (String value : values) if (value != null && !value.isEmpty()) out.add(value);
+        return out.toArray(new String[0]);
     }
 
     private boolean isMalayalam(MediaItem item) {
@@ -542,7 +706,7 @@ final class VaultTvView extends View {
             plexItems.isEmpty() ? "Connect or refresh your server" : plexItems.size() + " titles available",
             torrents.isEmpty() ? "Connect or refresh downloads" : torrents.size() + " active downloads",
             "Clear downloaded posters and backdrops",
-            "Native TV v2.2 - remote-first Shield companion",
+            "Native TV v3.0 - Windows-compatible Shield client",
             "Remove the encrypted Google session"
         };
         float x = 322, y = 190, w = 725, h = 112;
@@ -556,18 +720,29 @@ final class VaultTvView extends View {
             if (focused) c.drawRoundRect(new RectF(bx - 3, by - 3, bx + w + 3, by + h + 3), 15, 15, stroke);
         }
         round(c, 322, 784, 1804, 876, 12, Color.argb(210, 10, 22, 34));
-        text(c, "TV MODE", 348, 818, 13, ACCENT, true, Paint.Align.LEFT);
-        text(c, "Essential status changes work here. Detailed editing and administration remain on phone or PC.", 348, 851, 17, MUTED, false, Paint.Align.LEFT);
+        text(c, "SETUP GUIDE", 348, 818, 13, ACCENT, true, Paint.Align.LEFT);
+        text(c, settingGuide(), 348, 851, 17, MUTED, false, Paint.Align.LEFT, 1410);
+    }
+
+    private String settingGuide() {
+        if (settingIndex == 0) return driveConnected ? "Pull the newest game-vault-backup.json now. TV edits auto-save after 2.5 seconds." : "Scan the phone QR with the same Google account used by GameVault on Windows and mobile.";
+        if (settingIndex == 1) return "Create a Google OAuth client that supports TV/device authorization, then enter its Client ID and optional secret.";
+        if (settingIndex == 2) return "Get X-Plex-Token from Plex Web: open a title, Get Info, View XML. Leave Server URL blank to discover it.";
+        if (settingIndex == 3) return "Enter the HTTPS BiglyBT Worker gateway and the same username/password used by Web Remote.";
+        if (settingIndex == 4) return "Clears only downloaded artwork. Your library and Google Drive backup are not changed.";
+        if (settingIndex == 6) return "Disconnect removes the encrypted Google session from this Shield but does not delete Drive data.";
+        return "Native TV 3.0 parity release for NVIDIA Shield, optimized for D-pad navigation and safe essential edits.";
     }
 
     private void drawBigly(Canvas c) {
+        List<MediaItem> history = data.biglyHistory();
         header(c, "BiglyBT", torrents.isEmpty() ? "No active downloads" : torrents.size() + " active downloads");
-        if (torrents.isEmpty()) {
+        if (torrents.isEmpty() && history.isEmpty()) {
             empty(c, 322, 260, "BiglyBT is ready", "Open System to connect or refresh your secure gateway.");
             return;
         }
         float y = 170;
-        for (int i = 0; i < torrents.size() && i < 8; i++) {
+        for (int i = 0; i < torrents.size() && i < 5; i++) {
             ServiceRepository.TorrentItem t = torrents.get(i);
             boolean focused = focusArea == 1 && row == i;
             round(c, 322, y, 1838, y + 93, 10, focused ? Color.rgb(23, 61, 79) : PANEL);
@@ -580,6 +755,19 @@ final class VaultTvView extends View {
             text(c, "Down " + bytes(t.downSpeed) + "/s", 1490, y + 32, 14, TEXT, true, Paint.Align.LEFT);
             text(c, eta(t.eta) + "  |  " + t.peers + " peers  |  " + t.seeds + " seeds", 1490, y + 64, 13, MUTED, false, Paint.Align.LEFT);
             y += 106;
+        }
+        if (!history.isEmpty()) {
+            float historyTop = Math.max(720, y + 8);
+            p.setColor(Color.rgb(35, 52, 68)); c.drawRect(322, historyTop, 1838, historyTop + 2, p);
+            text(c, "RECENT TORRENT HISTORY", 322, historyTop + 38, 14, ACCENT, true, Paint.Align.LEFT);
+            float hy = historyTop + 76;
+            for (int i = 0; i < Math.min(3, history.size()) && hy < 985; i++) {
+                MediaItem item = history.get(i);
+                text(c, item.title, 342, hy, 17, TEXT, true, Paint.Align.LEFT, 850);
+                text(c, item.eyebrow, 1240, hy, 14, statusColor(item.eyebrow), true, Paint.Align.LEFT, 250);
+                text(c, item.meta, 1818, hy, 13, MUTED, false, Paint.Align.RIGHT, 280);
+                hy += 54;
+            }
         }
         text(c, "OK  Details     BACK  Navigation", 322, 1030, 14, MUTED, true, Paint.Align.LEFT);
         if (torrentInspector) drawTorrentInspector(c);
@@ -598,7 +786,9 @@ final class VaultTvView extends View {
         labelValue(c, "Downloaded", bytes(t.downloaded) + " / " + bytes(t.total), 480, 545);
         labelValue(c, "Speed", bytes(t.downSpeed) + "/s down  |  " + bytes(t.upSpeed) + "/s up", 480, 620);
         labelValue(c, "Availability", t.peers + " peers  |  " + t.seeds + " seeds  |  " + eta(t.eta), 480, 695);
-        text(c, "BACK  Close details", 480, 785, 16, MUTED, true, Paint.Align.LEFT);
+        String[] acts = {"Start / Resume", "Pause", "Remove torrent", "Remove + files"};
+        for (int i = 0; i < acts.length; i++) button(c, 480 + i * 235, 735, 695 + i * 235, 801, acts[i], torrentAction == i);
+        text(c, "BACK  Close details", 480, 830, 16, MUTED, true, Paint.Align.LEFT);
     }
 
     private void labelValue(Canvas c, String label, String value, float x, float y) {
@@ -658,6 +848,67 @@ final class VaultTvView extends View {
             round(c, 1838 - w, 66, 1838, 106, 20, Color.argb(205, 14, 28, 42));
             text(c, subtitle, 1821, 92, 14, driveConnected ? ACCENT : MUTED, true, Paint.Align.RIGHT, w - 34);
         }
+    }
+
+    private void sectionDivider(Canvas c, float left, float y, float right) {
+        p.setShader(new LinearGradient(left, y, right, y, Color.argb(160, 63, 135, 244), Color.TRANSPARENT, Shader.TileMode.CLAMP));
+        c.drawRect(left, y, right, y + 2, p);
+        p.setShader(null);
+    }
+
+    private String navCount(int index) {
+        switch (index) {
+            case 1: return String.valueOf(data.count("rentals") + data.count("subscriptionGames") + data.count("playing") + data.count("queue") + data.count("played"));
+            case 2: return String.valueOf(data.count("movieWatchlist") + data.count("watchingMovies") + data.count("watchedMovies"));
+            case 3: return String.valueOf(data.count("seriesWatchlist") + data.count("watchingSeries") + data.count("watchedSeries"));
+            case 4: return plexItems.isEmpty() ? "" : String.valueOf(plexItems.size());
+            case 5: return torrents.isEmpty() ? "" : String.valueOf(torrents.size());
+            default: return "";
+        }
+    }
+
+    private String tabTitle(String value) {
+        if (value == null) return "";
+        return value.replace("Gaming Subscriptions", "Subscriptions")
+            .replace("Included with Subscriptions", "Included")
+            .replace("Rental Queue", "Queue")
+            .replace("Upcoming Malayalam OTT", "Malayalam OTT")
+            .replace("Released Malayalam OTT", "Released OTT")
+            .replace("Xbox & PC", "Xbox/PC");
+    }
+
+    private int accentForShelf(String title) {
+        String s = title == null ? "" : title.toLowerCase(Locale.US);
+        if (s.contains("rental")) return Color.rgb(30, 155, 224);
+        if (s.contains("subscription") || s.contains("xbox")) return Color.rgb(124, 92, 255);
+        if (s.contains("playing") || s.contains("watching")) return Color.rgb(22, 169, 127);
+        if (s.contains("queue")) return Color.rgb(224, 149, 42);
+        if (s.contains("upcoming") || s.contains("coming")) return Color.rgb(74, 120, 224);
+        if (s.contains("completed") || s.contains("watched")) return Color.rgb(53, 179, 126);
+        if (s.contains("hidden") || s.contains("removed")) return Color.rgb(255, 99, 108);
+        return ACCENT;
+    }
+
+    private void drawTabGlyph(Canvas c, String title, float cx, float cy, int color) {
+        String s = title == null ? "" : title.toLowerCase(Locale.US);
+        p.setColor(color); p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(3); p.setStrokeCap(Paint.Cap.ROUND);
+        if (s.contains("rental")) {
+            c.drawRoundRect(new RectF(cx - 10, cy - 11, cx + 10, cy + 11), 3, 3, p);
+            c.drawLine(cx - 6, cy - 3, cx + 6, cy - 3, p);
+        } else if (s.contains("subscription")) {
+            c.drawCircle(cx, cy, 11, p); c.drawLine(cx - 6, cy, cx + 6, cy, p); c.drawLine(cx, cy - 6, cx, cy + 6, p);
+        } else if (s.contains("playing") || s.contains("watching")) {
+            p.setStyle(Paint.Style.FILL); Path play = new Path(); play.moveTo(cx - 6, cy - 11); play.lineTo(cx + 10, cy); play.lineTo(cx - 6, cy + 11); play.close(); c.drawPath(play, p);
+        } else if (s.contains("queue")) {
+            c.drawLine(cx - 10, cy - 7, cx + 10, cy - 7, p); c.drawLine(cx - 10, cy, cx + 10, cy, p); c.drawLine(cx - 10, cy + 7, cx + 10, cy + 7, p);
+        } else if (s.contains("upcoming") || s.contains("coming")) {
+            c.drawRoundRect(new RectF(cx - 11, cy - 10, cx + 11, cy + 11), 3, 3, p); c.drawLine(cx - 11, cy - 3, cx + 11, cy - 3, p);
+        } else if (s.contains("completed") || s.contains("watched")) {
+            Path check = new Path(); check.moveTo(cx - 10, cy); check.lineTo(cx - 2, cy + 8); check.lineTo(cx + 11, cy - 8); c.drawPath(check, p);
+        } else {
+            c.drawCircle(cx, cy, 10, p);
+        }
+        p.setStyle(Paint.Style.FILL);
     }
 
     private void drawStatusToast(Canvas c) {
@@ -721,6 +972,7 @@ final class VaultTvView extends View {
         if (event.getRepeatCount() > 0 && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) return true;
         boolean handled;
         if (!qrUrl.isEmpty()) handled = qrKey(keyCode);
+        else if (episodeMode) handled = episodeKey(keyCode);
         else if (detail != null) handled = detailKey(keyCode);
         else if (torrentInspector) handled = inspectorKey(keyCode);
         else if (focusArea == 0) handled = railKey(keyCode);
@@ -760,6 +1012,8 @@ final class VaultTvView extends View {
         savePosition();
         navIndex = clamp(index, 0, nav.length - 1);
         detail = null;
+        detailParent = null;
+        episodeMode = false;
         torrentInspector = false;
         rebuild();
     }
@@ -804,10 +1058,16 @@ final class VaultTvView extends View {
     }
 
     private boolean inspectorKey(int key) {
-        if (key == KeyEvent.KEYCODE_BACK || key == KeyEvent.KEYCODE_DPAD_LEFT || key == KeyEvent.KEYCODE_DPAD_CENTER || key == KeyEvent.KEYCODE_ENTER) {
+        if (key == KeyEvent.KEYCODE_BACK) {
             torrentInspector = false;
             invalidate();
+        } else if (key == KeyEvent.KEYCODE_DPAD_LEFT && torrentAction > 0) torrentAction--;
+        else if (key == KeyEvent.KEYCODE_DPAD_RIGHT && torrentAction < 3) torrentAction++;
+        else if ((key == KeyEvent.KEYCODE_DPAD_CENTER || key == KeyEvent.KEYCODE_ENTER) && row >= 0 && row < torrents.size()) {
+            String action = torrentAction == 0 ? "start" : torrentAction == 1 ? "pause" : torrentAction == 2 ? "remove" : "remove_files";
+            actions.biglyAction(torrents.get(row).id, action);
         }
+        invalidate();
         return true;
     }
 
@@ -828,8 +1088,14 @@ final class VaultTvView extends View {
         String[] acts = detailActions();
         if (key == KeyEvent.KEYCODE_DPAD_LEFT && detailAction > 0) detailAction--;
         else if (key == KeyEvent.KEYCODE_DPAD_RIGHT && detailAction + 1 < acts.length) detailAction++;
-        else if (key == KeyEvent.KEYCODE_DPAD_UP && detailScroll > 0) detailScroll--;
-        else if (key == KeyEvent.KEYCODE_DPAD_DOWN && detailScroll < 8) detailScroll++;
+        else if (key == KeyEvent.KEYCODE_DPAD_UP) {
+            if (detailAction >= 6) detailAction -= 6;
+            else if (detailScroll > 0) detailScroll--;
+        }
+        else if (key == KeyEvent.KEYCODE_DPAD_DOWN) {
+            if (detailAction + 6 < acts.length) detailAction += 6;
+            else if (detailScroll < detailMaxScroll()) detailScroll++;
+        }
         else if (key == KeyEvent.KEYCODE_BACK) closeDetail();
         else if (key == KeyEvent.KEYCODE_DPAD_CENTER || key == KeyEvent.KEYCODE_ENTER) {
             String act = acts[detailAction];
@@ -839,13 +1105,26 @@ final class VaultTvView extends View {
             else if ("REELOAD Review".equals(act)) actions.openYouTube("REELOAD MEDIA " + detail.title + " review");
             else if ("Monsoon Review".equals(act)) actions.openYouTube("Monsoon Media " + detail.title + " review");
             else if ("Aswanth Review".equals(act)) actions.openYouTube("Aswanth Kok " + detail.title + " review");
-            else if ("Wikipedia".equals(act)) actions.openWeb("https://en.wikipedia.org/wiki/Special:Search?search=" + urlEncode(detail.title + " video game plot"));
+            else if ("Google".equals(act)) actions.openWeb("https://www.google.com/search?q=" + urlEncode(detail.title));
+            else if ("Game Hub".equals(act)) actions.openWeb("https://thegamehub.in/?s=" + urlEncode(detail.title));
+            else if ("Gamer Planet".equals(act)) actions.openWeb("https://gamerplanet.in/?s=" + urlEncode(detail.title));
+            else if ("Fandom".equals(act)) actions.openWeb("https://www.google.com/search?q=" + urlEncode(detail.title + " Fandom plot"));
+            else if ("AI Assistant".equals(act)) actions.openWeb("https://chatgpt.com/?q=" + urlEncode(("game".equals(detail.kind) ? "What should I know before playing " : "What should I know before watching ") + detail.title + "? Include required prequels and lore but no spoilers."));
+            else if ("Load Story".equals(act)) actions.loadStory(detail);
+            else if ("Episodes".equals(act)) { episodeParent = detail; episodeSeason = 1; episodeIndex = 0; episodes = new ArrayList<>(); episodeMode = true; actions.loadEpisodes(detail, episodeSeason); }
             else if ("IMDb".equals(act)) actions.openWeb(imdbUrl(detail));
+            else if ("Rate".equals(act)) actions.rateItem(detail);
+            else if ("Edit".equals(act)) actions.editItem(detail);
+            else if ("Mark Watched".equals(act)) actions.plexAction(detail, "watched");
+            else if ("Delete Media".equals(act)) actions.plexAction(detail, "delete");
+            else if ("Restore".equals(act)) actions.updateLibrary(detail, "restore");
             else if ("Watchlist".equals(act)) actions.updateLibrary(detail, "watchlist");
             else if ("Watching".equals(act)) actions.updateLibrary(detail, "watching");
             else if ("Watched".equals(act)) actions.updateLibrary(detail, "watched");
             else if ("Queue".equals(act)) actions.updateLibrary(detail, "queue");
             else if ("Playing".equals(act)) actions.updateLibrary(detail, "playing");
+            else if ("Resume Later".equals(act)) actions.updateLibrary(detail, "resume_later");
+            else if ("On Hold".equals(act)) actions.updateLibrary(detail, "on_hold");
             else if ("Completed".equals(act)) actions.updateLibrary(detail, "completed");
             else if ("Return".equals(act)) actions.updateLibrary(detail, "return");
             else if ("Not Interested".equals(act)) actions.updateLibrary(detail, "not_interested");
@@ -855,9 +1134,43 @@ final class VaultTvView extends View {
     }
 
     private void closeDetail() {
+        if (detailParent != null) {
+            detail = detailParent;
+            detailParent = null;
+            detailScroll = 0;
+            detailAction = 0;
+            focusArea = 2;
+            return;
+        }
         detail = null;
         detailScroll = 0;
         focusArea = 1;
+    }
+
+    private boolean episodeKey(int key) {
+        if (key == KeyEvent.KEYCODE_BACK) { episodeMode = false; episodes = new ArrayList<>(); invalidate(); return true; }
+        if (key == KeyEvent.KEYCODE_DPAD_UP && episodeIndex > 0) episodeIndex--;
+        else if (key == KeyEvent.KEYCODE_DPAD_DOWN && episodeIndex + 1 < episodes.size()) episodeIndex++;
+        else if (key == KeyEvent.KEYCODE_DPAD_LEFT && episodeSeason > 1) { episodeSeason--; episodeIndex=0; episodes=new ArrayList<>(); actions.loadEpisodes(episodeParent,episodeSeason); }
+        else if (key == KeyEvent.KEYCODE_DPAD_RIGHT && episodeSeason < maxSeasons()) { episodeSeason++; episodeIndex=0; episodes=new ArrayList<>(); actions.loadEpisodes(episodeParent,episodeSeason); }
+        else if ((key == KeyEvent.KEYCODE_DPAD_CENTER || key == KeyEvent.KEYCODE_ENTER) && !episodes.isEmpty()) {
+            ServiceRepository.EpisodeItem e=episodes.get(episodeIndex);JSONObject raw=new JSONObject();
+            try{raw.put("season",episodeSeason);raw.put("episode",e.number);raw.put("airDate",e.airDate);raw.put("imdb",e.rating);raw.put("seriesTitle",episodeParent.title);}catch(Exception ignored){}
+            detailParent=episodeParent;
+            detail=new MediaItem(episodeParent.id+"-s"+episodeSeason+"e"+e.number,"series","episode",episodeParent.title+" - S"+String.format(Locale.US,"%02d",episodeSeason)+"E"+String.format(Locale.US,"%02d",e.number)+" "+e.name,"Episode story",e.rating>0?String.format(Locale.US,"IMDb %.1f | %s",e.rating,e.airDate):e.airDate,episodeParent.poster,episodeParent.backdrop,e.overview,-1,raw);
+            episodeMode=false;detailAction=0;detailScroll=0;
+        } else return false;
+        invalidate();return true;
+    }
+
+    private int maxSeasons() {
+        if (episodeParent == null || episodeParent.raw == null) return 1;
+        return Math.max(1, episodeParent.raw.optInt("seasons", episodeParent.raw.optInt("numberOfSeasons", 1)));
+    }
+
+    private int detailMaxScroll() {
+        if (detail == null) return 0;
+        return Math.max(0, wrap(detail.overview.isEmpty() ? "No story summary is available in the synced library yet." : detail.overview, 790, 20).size() - 10);
     }
 
     private void activateSetting() {
@@ -867,7 +1180,7 @@ final class VaultTvView extends View {
             case 2: actions.configurePlex(); break;
             case 3: actions.configureBigly(); break;
             case 4: actions.clearArtwork(); break;
-            case 5: setStatus("Sinu Game Vault Native TV v2.2"); break;
+            case 5: setStatus("Sinu Game Vault Native TV v3.0"); break;
             case 6: actions.disconnectDrive(); break;
             default: break;
         }
@@ -876,6 +1189,7 @@ final class VaultTvView extends View {
     boolean handleBack() {
         lastInteraction = SystemClock.uptimeMillis();
         if (!qrUrl.isEmpty()) { hideQr(); return true; }
+        if (episodeMode) { episodeMode=false;episodes=new ArrayList<>();invalidate();return true; }
         if (torrentInspector) { torrentInspector = false; invalidate(); return true; }
         if (detail != null) { closeDetail(); invalidate(); return true; }
         if (focusArea != 0) { focusArea = 0; invalidate(); return true; }

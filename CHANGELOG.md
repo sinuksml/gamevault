@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.7.0 - 2026-08-09
+
+- Added a documented JSON Schema and compatibility fixture for the one Drive vault shared by web, Windows, and Android TV.
+- Android TV now persists the last Drive revision it actually observed and creates a private recovery copy before resolving a concurrent-device conflict.
+- Added native Android TV CI builds and monthly dependency update checks for npm, Gradle, and GitHub Actions.
+- Added a browser Content Security Policy that blocks untrusted scripts, plugins, base-tag rewriting, and unsafe form destinations while retaining the existing Google sign-in and HTTPS integrations.
+- Corrected stale Windows release/install documentation and documented the intentional local-network security exceptions for Plex and BiglyBT.
+
 ## v2.5.1 - 2026-08-01
 
 - Added an eye button beside the RAWG, TMDB, OMDb, X-Plex-Token and encrypted-sync passphrase fields in web Settings so saved credentials can be temporarily revealed and checked.

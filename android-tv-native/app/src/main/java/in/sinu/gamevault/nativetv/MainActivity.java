@@ -19,6 +19,7 @@ import android.widget.Toast;
 
 import java.net.URLEncoder;
 import java.util.List;
+import org.json.JSONObject;
 
 public final class MainActivity extends Activity implements VaultTvView.Actions, DriveRepository.Listener, ServiceRepository.Listener {
     private VaultTvView tv;
@@ -28,6 +29,7 @@ public final class MainActivity extends Activity implements VaultTvView.Actions,
     private final Handler saveHandler = new Handler(Looper.getMainLooper());
     private Runnable pendingDriveSave;
     private boolean initialSyncStarted;
+    private long lastResumeSync;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -41,7 +43,7 @@ public final class MainActivity extends Activity implements VaultTvView.Actions,
         if(services.biglyConfigured()&&services.biglyConnected())services.loadBigly(this);
     }
 
-    @Override protected void onResume(){super.onResume();if(!initialSyncStarted&&drive.connected()){initialSyncStarted=true;drive.sync(this);}if(tv!=null)tv.requestFocus();}
+    @Override protected void onResume(){super.onResume();long now=System.currentTimeMillis();if(drive.connected()&&(!initialSyncStarted||now-lastResumeSync>300000L)){initialSyncStarted=true;lastResumeSync=now;drive.sync(this);}if(tv!=null)tv.requestFocus();}
 
     @Override public void onBackPressed(){if(tv!=null&&tv.handleBack())return;super.onBackPressed();}
 
@@ -54,7 +56,7 @@ public final class MainActivity extends Activity implements VaultTvView.Actions,
     }
 
     @Override public void configurePlex(){
-        showFields("Plex Library",new String[]{"Secure Plex server URL","X-Plex-Token"},new String[]{services.plexUrl(),""},true,values->{services.configurePlex(values[0],values[1]);tv.setStatus("Plex configuration saved");services.loadPlex(this);});
+        showFields("Plex Library",new String[]{"Server URL (leave blank to discover)","X-Plex-Token from Plex Web > Get Info > View XML"},new String[]{services.plexUrl(),""},true,values->{services.configurePlex(values[0],values[1]);tv.setStatus("Plex configuration saved");if(values[0].isEmpty())services.discoverPlex(this);else services.loadPlex(this);});
     }
 
     @Override public void refreshPlex(){services.loadPlex(this);}
@@ -66,6 +68,58 @@ public final class MainActivity extends Activity implements VaultTvView.Actions,
     @Override public void loginBigly(){configureBigly();}
     @Override public void refreshBigly(){if(services.biglyConnected())services.loadBigly(this);else configureBigly();}
     @Override public void clearArtwork(){tv.clearArtwork();tv.setStatus("Artwork cache cleared");}
+
+    @Override public void loadStory(MediaItem item){tv.setStatus("Loading Wikipedia story...");services.loadStory(item,this);}
+    @Override public void loadEpisodes(MediaItem item,int season){tv.setStatus("Loading season "+season+"...");services.loadEpisodes(item,season,this);}
+
+    @Override public void rateItem(MediaItem item){
+        showFields("Personal rating",new String[]{"Rating from 0 to 10 (0 clears it)"},
+            new String[]{first(item.raw,"userRating","myRating")},false,values->{
+                double rating;
+                try{rating=Double.parseDouble(values[0].trim());}catch(Exception ex){tv.setStatus("Enter a rating from 0 to 10");return;}
+                if(rating<0||rating>10){tv.setStatus("Rating must be from 0 to 10");return;}
+                JSONObject change=new JSONObject();try{change.put("userRating",rating);}catch(Exception ignored){}
+                saveItemEdit(item,change);
+            });
+    }
+
+    @Override public void editItem(MediaItem item){
+        if(item==null)return;
+        if("rental".equals(item.source)||"rentalHistory".equals(item.source)){
+            showFields("Edit rental",new String[]{"Return date (YYYY-MM-DD)","Vendor","Rental cost","Remarks"},
+                new String[]{first(item.raw,"returnDate","end"),first(item.raw,"vendor"),first(item.raw,"cost"),first(item.raw,"remarks","note")},false,
+                values->{JSONObject change=new JSONObject();try{change.put("returnDate",values[0]);if("rentalHistory".equals(item.source))change.put("end",values[0]);change.put("vendor",values[1]);change.put("cost",values[2]);change.put("remarks",values[3]);}catch(Exception ignored){}saveItemEdit(item,change);});
+            return;
+        }
+        if("subscriptions".equals(item.source)){
+            showFields("Edit subscription",new String[]{"Renewal date (YYYY-MM-DD)","Service","Cost per cycle","Remarks"},
+                new String[]{first(item.raw,"renewsAt","end"),first(item.raw,"service","name"),first(item.raw,"cost","monthlyCost"),first(item.raw,"remarks","note")},false,
+                values->{JSONObject change=new JSONObject();try{change.put("renewsAt",values[0]);change.put("service",values[1]);change.put("cost",values[2]);change.put("remarks",values[3]);}catch(Exception ignored){}saveItemEdit(item,change);});
+            return;
+        }
+        showFields("Edit title",new String[]{"Status","Release date (YYYY-MM-DD)","Provider / platform","Remarks"},
+            new String[]{first(item.raw,"status","state"),first(item.raw,"date","releaseDate"),first(item.raw,"provider","platform"),first(item.raw,"remarks","note")},false,
+            values->{JSONObject change=new JSONObject();try{change.put("status",values[0]);change.put("date",values[1]);change.put("provider",values[2]);change.put("remarks",values[3]);}catch(Exception ignored){}saveItemEdit(item,change);});
+    }
+
+    private void saveItemEdit(MediaItem item,JSONObject change){
+        if(currentData==null||!currentData.updateItem(item,change)){tv.setStatus("This synced catalog item is view-only");return;}
+        drive.cache(currentData);tv.setData(currentData);tv.setStatus("Changes saved locally");
+        if(pendingDriveSave!=null)saveHandler.removeCallbacks(pendingDriveSave);
+        pendingDriveSave=()->drive.save(currentData,this);saveHandler.postDelayed(pendingDriveSave,2500L);
+    }
+
+    @Override public void plexAction(MediaItem item,String action){
+        String message="delete".equals(action)?"Permanently delete this title and its media files from Plex?":"Mark this title watched in Plex?";
+        new AlertDialog.Builder(this,AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle("Confirm Plex action").setMessage(message).setNegativeButton("Cancel",null).setPositiveButton("Confirm",(d,w)->services.plexAction(item,action,this)).show();
+    }
+
+    @Override public void biglyAction(String id,String action){
+        boolean destructive=action.startsWith("remove");
+        if(!destructive){services.biglyAction(id,action,this);return;}
+        String message="remove_files".equals(action)?"Remove this torrent and permanently delete its downloaded files?":"Remove this torrent but keep its downloaded files?";
+        new AlertDialog.Builder(this,AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle("Confirm removal").setMessage(message).setNegativeButton("Cancel",null).setPositiveButton("Remove",(d,w)->services.biglyAction(id,action,this)).show();
+    }
 
     @Override public void updateLibrary(MediaItem item,String action){
         boolean confirm="return".equals(action)||"watched".equals(action)||"completed".equals(action)||"not_interested".equals(action);
@@ -116,6 +170,9 @@ public final class MainActivity extends Activity implements VaultTvView.Actions,
     @Override public void onDeviceCode(String verificationUrl,String userCode,long expiresAt){runOnUiThread(()->tv.showQr(verificationUrl,userCode,expiresAt));}
     @Override public void onPlex(List<MediaItem> items){runOnUiThread(()->tv.setPlex(items));}
     @Override public void onBigly(List<ServiceRepository.TorrentItem> items){runOnUiThread(()->tv.setTorrents(items));}
+    @Override public void onPlexServer(String url){runOnUiThread(()->tv.setStatus("Plex found at "+url));}
+    @Override public void onEpisodes(MediaItem item,int season,List<ServiceRepository.EpisodeItem> episodes){runOnUiThread(()->tv.setEpisodes(item,season,episodes));}
+    @Override public void onStory(MediaItem item,String story){runOnUiThread(()->{tv.setDetailStory(item,story);JSONObject change=new JSONObject();try{change.put("plot",story);}catch(Exception ignored){}if(currentData!=null&&currentData.updateItem(item,change)){drive.cache(currentData);pendingDriveSave=()->drive.save(currentData,this);saveHandler.postDelayed(pendingDriveSave,2500L);}});}
 
     private interface ValuesCallback{void accept(String[] values);}
 
@@ -127,4 +184,5 @@ public final class MainActivity extends Activity implements VaultTvView.Actions,
 
     private int dp(int value){return Math.round(value*getResources().getDisplayMetrics().density);}
     private void toast(String message){Toast.makeText(this,message,Toast.LENGTH_SHORT).show();}
+    private static String first(JSONObject object,String...keys){if(object==null)return "";for(String key:keys){String value=object.optString(key);if(!value.isEmpty())return value;}return "";}
 }

@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\GameVault.Windows\GameVault.Windows.csproj" />
+    <None Include="..\..\shared\fixtures\vault-v14.json" Link="Fixtures\vault-v14.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
