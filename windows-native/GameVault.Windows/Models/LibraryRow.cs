@@ -193,7 +193,24 @@ public sealed class LibraryRow
         ? (Availability.Length > 0 ? Availability : "Checking rental vendors...")
         : Status.Length > 0 ? Status : CategoryLabel;
     public string CostText => Cost > 0 ? $"₹{Cost:N0}" : "";
-    public string DaysText => Collection == "rentalHistory" ? "Returned" : DaysLeft is null ? "" : DaysLeft < 0 ? (Collection == "subscriptions" ? "Expired" : "Released") : DaysLeft == 0 ? (Collection == "rentals" ? "Return today" : Collection == "subscriptions" ? "Renews today" : "Releases today") : Collection is "rentals" or "subscriptions" or "subscriptionGames" ? $"{DaysLeft} days remaining" : $"{DaysLeft} days left";
+    public string DaysText => Collection == "rentalHistory" ? "Returned"
+        : DaysLeft is null ? ""
+        : DaysLeft < 0 ? Collection switch
+        {
+            "subscriptions" => "Expired",
+            "upcoming" or "uphw" or "seriesupcoming" or "mlup" => "Released",
+            _ => ""
+        }
+        : DaysLeft == 0 ? Collection switch
+        {
+            "rentals" => "Return today",
+            "subscriptions" or "subscriptionGames" => "Renews today",
+            "upcoming" or "uphw" or "seriesupcoming" or "mlup" => "Releases today",
+            _ => ""
+        }
+        : Collection is "rentals" or "subscriptions" or "subscriptionGames" ? $"{DaysLeft} days remaining"
+        : Collection is "upcoming" or "uphw" or "seriesupcoming" or "mlup" ? $"{DaysLeft} days left"
+        : "";
     public string CountdownColor => DaysLeft is null || DaysLeft < 0 ? "#98A5BA" : DaysLeft <= 7 ? "#FF6577" : DaysLeft <= 30 ? "#FFD166" : "#76E6C2";
     public string PrimaryMeta => Join(Genre, Platform);
     public string SecondaryMeta => Join(Date, Collection == "queue" ? CardStatusText : Status, Badges);

@@ -53,7 +53,13 @@ public sealed class CatalogService
             var root = await GetAsync($"https://api.rawg.io/api/games?key={Uri.EscapeDataString(RawgKey)}{dateFilter}&page_size=40&page={page}&platforms=4,186,187");
             combined.AddRange((root["results"] as JsonArray)?.OfType<JsonObject>().Select(Game) ?? []);
         }
-        return combined.GroupBy(item => item["canonicalId"]?.ToString()).Select(group => group.First()).ToList();
+        var distinct = combined.GroupBy(item => item["canonicalId"]?.ToString()).Select(group => group.First());
+        distinct = upcoming
+            ? distinct.Where(item => Date(item, "date") >= DateTime.Today)
+                .OrderBy(item => Date(item, "date")).ThenByDescending(item => Number(item, "rrating"))
+            : distinct.Where(item => Date(item, "date") <= DateTime.Today)
+                .OrderByDescending(item => Date(item, "date")).ThenByDescending(item => Number(item, "rrating"));
+        return distinct.ToList();
     }
 
     public async Task<IReadOnlyList<JsonObject>> SearchMediaAsync(string query, string type)

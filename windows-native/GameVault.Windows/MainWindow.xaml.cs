@@ -808,7 +808,7 @@ public partial class MainWindow : Window
         if (!isGameCatalog && !mediaCatalogs.Contains(_mediaMode)) return;
         if (isGameCatalog && _catalog.RawgKey.Length == 0 || !isGameCatalog && _catalog.TmdbKey.Length == 0) return;
         var mode = isGameCatalog ? _gameCollection : _mediaMode;
-        var key = isGameCatalog ? $"{_section}:{mode}:catalog-v3" : $"{_section}:{mode}:catalog-v3";
+        var key = isGameCatalog ? $"{_section}:{mode}:catalog-v4" : $"{_section}:{mode}:catalog-v3";
         if (!_catalogRefreshes.Add(key)) return;
         try
         {
