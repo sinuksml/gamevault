@@ -14,7 +14,7 @@
     "storybook:build": "storybook build"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.1",
+    "@playwright/test": "^1.62.1",
     "@storybook/addon-a11y": "^10.5.4",
     "@storybook/html-vite": "^10.5.4",
     "storybook": "^10.5.4"
