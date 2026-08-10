@@ -22,7 +22,34 @@ final class VaultData {
 
     VaultData(JSONObject root) {
         this.root = root == null ? new JSONObject() : root;
+        repairSubscriptionEntitlements();
         this.updatedAt = this.root.optLong("updatedAt", 0L);
+    }
+
+    private void repairSubscriptionEntitlements() {
+        try {
+            JSONArray entitlements = ensureArray("subscriptionGames");
+            for (String source : new String[]{"playing", "played"}) {
+                JSONArray states = array(source);
+                for (int i = 0; i < states.length(); i++) {
+                    JSONObject item = states.optJSONObject(i);
+                    if (item == null || (!"subscription".equals(item.optString("source")) && item.optString("subscriptionGameId").isEmpty())) continue;
+                    String title = item.optString("name");
+                    boolean exists = false;
+                    for (int j = 0; j < entitlements.length(); j++) {
+                        JSONObject game = entitlements.optJSONObject(j);
+                        if (game != null && (normalize(game.optString("name")).equals(normalize(title)) ||
+                            (!item.optString("subscriptionGameId").isEmpty() && item.optString("subscriptionGameId").equals(game.optString("id"))))) { exists = true; break; }
+                    }
+                    if (!exists && !title.isEmpty()) {
+                        JSONObject restored = new JSONObject(item.toString());
+                        restored.put("id", item.optString("subscriptionGameId", item.optString("id")));
+                        restored.put("status", "Included");
+                        entitlements.put(restored);
+                    }
+                }
+            }
+        } catch (Exception ignored) { }
     }
 
     static VaultData empty() { return new VaultData(new JSONObject()); }

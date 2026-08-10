@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.7.2 - 2026-08-10
+
+- Combined Rentals, Subscriptions and Purchased into one Games Library tab with three internal sections.
+- Preserved Xbox and other subscription entitlements when games are moved to Completed.
+- Added automatic recovery for subscription entries removed by older clients.
+
 ## v2.7.1 - 2026-08-10
 
 - Added a permanent Steam Purchased library shared by web, Windows, and Android TV.

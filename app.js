@@ -1,5 +1,5 @@
 "use strict";
-var APP_VERSION = "2.7.1";
+var APP_VERSION = "2.7.2";
 var APP_BUILD_DATE = "2026-08-10";
 var APP_RELEASE_CHANNEL = "Stable";
 
@@ -49,6 +49,8 @@ var STATUSES = ["Finished","Playing","Dropped","Platinum"];
 var STATUS_LABEL = {Finished:"Finished", Playing:"↺ Resume Later", Dropped:"⏸ On Hold", Platinum:"Platinum"};
 var PS5_LAUNCH = "2020-11-12";
 var tab = "rentals";
+var libraryTab = "rentals";
+var LIBRARY_TABS = ["rentals","subscriptions","purchased"];
 var showImport = false;
 var sugGenre = "All";
 var sugTier = "All";
@@ -359,6 +361,13 @@ function migrate(d){
   // v5: a game appears at most once per library — merge accidental duplicates
   d.played = dedupeList(d.played);
   d.playing = dedupeList(d.playing);
+  /* Subscription entries describe ownership/access, not a temporary status.
+     Recover entitlements removed by older clients when a game was completed. */
+  (d.playing||[]).concat(d.played||[]).forEach(function(item){
+    if(!item || (item.source!=="subscription" && !item.subscriptionGameId)) return;
+    if((d.subscriptionGames||[]).some(function(g){return String(g.id)===String(item.subscriptionGameId)||norm(g.name)===norm(item.name);})) return;
+    d.subscriptionGames.push({id:item.subscriptionGameId||uid(),subscriptionId:item.subscriptionId||"",name:item.name,platform:item.platform||"PC",platforms:item.platforms||[item.platform||"PC"],added:item.added||localISO(),img:item.img||"",score:item.score||null,rrating:item.rrating||null,genre:item.genre||""});
+  });
   if(!Array.isArray(d.audit)) d.audit=[];
   d.revision=Math.max(0,Number(d.revision)||0);
   if(!d.updatedAt) d.updatedAt = Date.now();
@@ -1918,6 +1927,8 @@ var tabScroll={};
 function tabScrollTarget(key){ return phoneUi()?0:(tabScroll[key]||0); }
 function switchTab(next){
   tabScroll[tab]=window.scrollY;
+  if(next==="library") next=libraryTab||"rentals";
+  if(LIBRARY_TABS.indexOf(next)>=0) libraryTab=next;
   tab=next; expandedId=null;
   render();
   window.scrollTo(0, tabScrollTarget(next));
@@ -1941,6 +1952,7 @@ function finishTabRender(){
 }
 function tabCount(kind,key){
   if(kind==="game"){
+    if(key==="library") return (data.rentals||[]).length+(data.subscriptionGames||[]).length+(data.purchasedGames||[]).length;
     if(key==="rentals") return (data.rentals||[]).length;
     if(key==="subscriptions") return (data.subscriptions||[]).filter(function(x){return x.active!==false;}).length;
     if(key==="purchased") return (data.purchasedGames||[]).length;
@@ -2013,11 +2025,19 @@ function renderTabs(){
     finishTabRender();
     return;
   }
-  var defs=[["rentals","▤","Rentals"],["subscriptions","⏳","Subscriptions"],["purchased","◆","Purchased"],["playing","▶","Now Playing"],["queue","⇅","Rental Queue"],["upcoming","△","Upcoming Releases"],["suggest","○","Discover"],["played","✓","Completed"]];
+  var defs=[["library","▤","Library"],["playing","▶","Now Playing"],["queue","⇅","Rental Queue"],["upcoming","△","Upcoming Releases"],["suggest","○","Discover"],["played","✓","Completed"]];
   document.getElementById("tabs").innerHTML = defs.map(function(d){
-    return '<button class="tab '+(tab===d[0]?"on":"")+'" data-tab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+tabCountHtml("game",d[0])+'</button>';
+    var active=d[0]==="library"?LIBRARY_TABS.indexOf(tab)>=0:tab===d[0];
+    return '<button class="tab '+(active?"on":"")+'" data-tab="'+d[0]+'"><span class="shp">'+d[1]+'</span>'+d[2]+tabCountHtml("game",d[0])+'</button>';
   }).join("");
   finishTabRender();
+}
+
+function librarySwitcher(){
+  var defs=[["rentals","Rentals"],["subscriptions","Subscriptions"],["purchased","Purchased"]];
+  return '<div class="chipbar library-switcher" aria-label="Game library section">'+defs.map(function(d){
+    return '<button class="gchip '+(tab===d[0]?"on":"")+'" data-library-tab="'+d[0]+'">'+d[1]+tabCountHtml("game",d[0])+'</button>';
+  }).join("")+'</div>';
 }
 
 function vendorOptions(sel){
@@ -2187,7 +2207,7 @@ function renderRentals(){
   }).filter(function(r){ return matchQ(r.name) && vendorMatch(r); })
     .sort(function(a,b){ return a.start<b.start?1:a.start>b.start?-1:0; }); // latest rented first
 
-  var html = toolbar("Add rental","Search rentals & history…");
+  var html = librarySwitcher()+toolbar("Add rental","Search rentals & history…");
   if(formOpen[tab]){
     html+=
     '<div class="form"><h3>Add a rental</h3><div class="fields">'+
@@ -2396,7 +2416,7 @@ function subscriptionGameCard(g){
 /* ---------- Purchased tab (permanent Steam ownership) ---------- */
 function renderPurchased(){
   var items=(data.purchasedGames||[]).filter(function(g){return matchQ(g.name);});
-  var html=toolbar("Purchased game","Search purchased games...");
+  var html=librarySwitcher()+toolbar("Purchased game","Search purchased games...");
   if(formOpen[tab]){
     html+='<div class="form"><h3>Add a game purchased on Steam</h3><p class="meta">Purchased games are permanent. Playing or completing one never removes it from this library.</p><div class="fields">'+
       '<div class="ac-wrap f-name"><input id="pgName" class="ac-input" placeholder="Steam game name" autocomplete="off"><div class="ac-drop"></div></div>'+
@@ -2420,7 +2440,7 @@ function renderSubscriptions(){
   var activeList=list.filter(function(s){ return s.active!==false; }).sort(function(a,b){ return a.left-b.left; });
   var endedList=list.filter(function(s){ return s.active===false; });
 
-  var html='<div class="toolbar"><button class="btn '+(formOpen[tab]?'':'blue')+'" data-act="toggle-form">'+(formOpen[tab]?"✕ Close":"+ Add subscription")+'</button>'+
+  var html=librarySwitcher()+'<div class="toolbar"><button class="btn '+(formOpen[tab]?'':'blue')+'" data-act="toggle-form">'+(formOpen[tab]?"✕ Close":"+ Add subscription")+'</button>'+
     '<div class="searchwrap"><span class="sic">⌕</span>'+
     '<input class="tab-search" id="tabSearch" placeholder="Search subscriptions…" value="'+esc(q())+'" autocomplete="off">'+
     (q()?'<button class="sclear" data-act="clear-search" title="Clear">✕</button>':'')+
@@ -6203,6 +6223,8 @@ document.getElementById("tabs").addEventListener("click",function(e){
   if(sb){ switchSeriesTab(sb.getAttribute("data-stab")); return; }
   var fb=e.target.closest("[data-ftab]");
   if(fb){ switchFilmTab(fb.getAttribute("data-ftab")); return; }
+  var lb=e.target.closest("[data-library-tab]");
+  if(lb){ switchTab(lb.getAttribute("data-library-tab")); return; }
   var b=e.target.closest("[data-tab]"); if(!b) return;
   switchTab(b.getAttribute("data-tab"));
 });
@@ -6365,6 +6387,8 @@ if(healthCloudInput) healthCloudInput.addEventListener("change",function(){
 });
 
 document.getElementById("content").addEventListener("click",function(e){
+  var libraryChoice=e.target.closest("[data-library-tab]");
+  if(libraryChoice){switchTab(libraryChoice.getAttribute("data-library-tab"));return;}
   var vc=e.target.closest("[data-vendor]");
   if(vc){ rentVendor=vc.getAttribute("data-vendor"); render(); return; }
   var tc=e.target.closest("[data-tier]");
@@ -6909,10 +6933,15 @@ document.getElementById("content").addEventListener("click",function(e){
         exF.status="Finished";
         if(!exF.rating && pl2.rating) exF.rating=pl2.rating;
         if(!exF.note && pl2.note) exF.note=pl2.note;
+        if(pl2.source==="subscription"){
+          exF.source="subscription";
+          exF.subscriptionId=pl2.subscriptionId;
+          exF.subscriptionGameId=pl2.subscriptionGameId;
+        }
         save(); flash("Finished — updated the existing entry in Played");
       } else {
         var ppId=uid();
-        data.played.unshift({id:ppId,name:pl2.name,rating:pl2.rating||0,note:pl2.note||"",vendor:pl2.vendor||"",cost:pl2.cost||0,status:"Finished",added:localISO(),score:pl2.score||null,rrating:pl2.rrating||null,img:coverUrl(pl2)||undefined});
+        data.played.unshift({id:ppId,name:pl2.name,rating:pl2.rating||0,note:pl2.note||"",vendor:pl2.vendor||"",cost:pl2.cost||0,status:"Finished",added:localISO(),score:pl2.score||null,rrating:pl2.rrating||null,img:coverUrl(pl2)||undefined,source:pl2.source||undefined,subscriptionId:pl2.subscriptionId||undefined,subscriptionGameId:pl2.subscriptionGameId||undefined});
         save(); flash(pl2.rating?"Moved to Played — rating kept":"Moved to Played — set a rating there");
         enrichScore("played",ppId);
       }

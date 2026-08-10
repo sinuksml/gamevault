@@ -462,6 +462,23 @@ public sealed class VaultRepository
         string[] arrays = ["rentals", "subscriptions", "subscriptionGames", "purchasedGames", "playing", "queue", "upcoming", "upcomingRemoved", "catalogExtra", "played", "hiddenGames", "rentalHistory",
             "movieWatchlist", "watchingMovies", "watchedMovies", "hiddenMovies", "seriesWatchlist", "watchingSeries", "watchedSeries", "hiddenSeries", "biglyHistory", "petrol", "activity", "recentViewed"];
         foreach (var name in arrays) if (root[name] is not JsonArray) root[name] = new JsonArray();
+        // Repair subscription entitlements removed by older status-transition
+        // code. Playing/Completed copies retain the original linkage fields.
+        var subscriptionGames = (JsonArray)root["subscriptionGames"]!;
+        foreach (var item in ((JsonArray)root["playing"]!).OfType<JsonObject>().Concat(((JsonArray)root["played"]!).OfType<JsonObject>()))
+        {
+            var linkedId = NodeText(item, "subscriptionGameId");
+            if (!string.Equals(NodeText(item, "source"), "subscription", StringComparison.OrdinalIgnoreCase) && linkedId.Length == 0) continue;
+            var title = NodeText(item, "name");
+            if (title.Length == 0) title = NodeText(item, "title");
+            if (title.Length == 0 || subscriptionGames.OfType<JsonObject>().Any(game =>
+                    (linkedId.Length > 0 && string.Equals(NodeText(game, "id"), linkedId, StringComparison.OrdinalIgnoreCase)) ||
+                    string.Equals(NodeText(game, "name").Length > 0 ? NodeText(game, "name") : NodeText(game, "title"), title, StringComparison.OrdinalIgnoreCase))) continue;
+            var restored = item.DeepClone() as JsonObject ?? [];
+            restored["id"] = linkedId.Length > 0 ? linkedId : Guid.NewGuid().ToString("N");
+            restored["status"] = "Included";
+            subscriptionGames.Add(restored);
+        }
         foreach (var name in arrays.Where(name => !AllowsDuplicates(name)))
         {
             var source = (JsonArray)root[name]!;

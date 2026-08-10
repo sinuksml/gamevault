@@ -45,6 +45,7 @@ public partial class MainWindow : Window
     private string _section = "Overview";
     private string _previousSection = "Overview";
     private string _gameCollection = "rentals";
+    private string _libraryCollection = "rentals";
     private string _mediaMode = "watchlist";
     private LibraryRow? _selectedRow;
     private bool _gamesListView;
@@ -116,6 +117,7 @@ public partial class MainWindow : Window
         BiglyAutoRemoveBox.IsChecked = !string.Equals(_vault.Root["biglyAutoRemoveCompleted"]?.ToString(), "false", StringComparison.OrdinalIgnoreCase);
         _loadingSettings = false;
         GameSortBox.SelectedIndex = 0;
+        LibrarySectionBox.SelectedIndex = 0;
         MediaSortBox.SelectedIndex = 0;
         UpdateDriveStatus();
         RefreshAll();
@@ -710,13 +712,26 @@ public partial class MainWindow : Window
         SetCategoryView(false);
         /* A tab tag is either a collection or "collection:platform" — the Upcoming
            and Discover feeds have one tab per platform so the two are never mixed. */
-        var parts = (tab.Tag?.ToString() ?? "rentals").Split(':');
-        _gameCollection = parts[0];
+        var parts = (tab.Tag?.ToString() ?? "library").Split(':');
+        _gameCollection = parts[0] == "library" ? _libraryCollection : parts[0];
         _upcomingPlatform = parts.Length > 1 ? parts[1] : "";
+        LibrarySectionBox.Visibility = parts[0] == "library" ? Visibility.Visible : Visibility.Collapsed;
         AddGameButton.Content = _gameCollection == "purchasedGames" ? "Add Steam purchase" : "Add game";
         RefreshGames();
         _ = EnsureCurrentCatalogAsync();
         if (_gameCollection == "queue") _ = EnsureQueueAvailabilityAsync();
+    }
+
+    private void LibrarySection_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (LibrarySectionBox.SelectedItem is not ComboBoxItem item) return;
+        _libraryCollection = item.Tag?.ToString() ?? "rentals";
+        if (!IsLoaded || GamesTabs.SelectedItem is not TabItem tab || !string.Equals(tab.Tag?.ToString(), "library", StringComparison.OrdinalIgnoreCase)) return;
+        CloseDetails();
+        _gameCollection = _libraryCollection;
+        _upcomingPlatform = "";
+        AddGameButton.Content = _gameCollection == "purchasedGames" ? "Add Steam purchase" : "Add game";
+        RefreshGames();
     }
 
     /// <summary>
@@ -1638,6 +1653,21 @@ public partial class MainWindow : Window
 
     private void SelectGameCollection(string collection)
     {
+        if (collection is "rentals" or "subscriptionGames" or "purchasedGames")
+        {
+            _libraryCollection = collection;
+            foreach (var option in LibrarySectionBox.Items.OfType<ComboBoxItem>())
+                if (string.Equals(option.Tag?.ToString(), collection, StringComparison.OrdinalIgnoreCase))
+                    LibrarySectionBox.SelectedItem = option;
+            foreach (var item in GamesTabs.Items.OfType<TabItem>())
+                if (string.Equals(item.Tag?.ToString(), "library", StringComparison.OrdinalIgnoreCase))
+                {
+                    GamesTabs.SelectedItem = item;
+                    _gameCollection = collection;
+                    RefreshGames();
+                    return;
+                }
+        }
         // Platform tabs carry "collection:platform"; match on the collection and
         // land on the first of its tabs.
         foreach (var item in GamesTabs.Items.OfType<TabItem>())
@@ -2766,7 +2796,7 @@ public partial class MainWindow : Window
             if (destination == "queue") await UpdateAvailabilityAsync(clone);
             // Purchased is an ownership ledger, not a transient status. Starting
             // or finishing a Steam game must never remove its purchase record.
-            if (!IsCatalog(row) && row.Collection != "plex" && row.Collection != "purchasedGames" && row.Collection != destination) await _vault.RemoveAsync(row.Collection, row.Id);
+            if (!IsCatalog(row) && row.Collection != "plex" && row.Collection is not ("purchasedGames" or "subscriptionGames") && row.Collection != destination) await _vault.RemoveAsync(row.Collection, row.Id);
         });
         DetailsPage.Visibility = Visibility.Collapsed;
         RefreshAll();
