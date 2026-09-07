@@ -48,7 +48,7 @@ public sealed class UserPreferences
     public double GetDouble(string key, double fallback)
     {
         var text = Get(key);
-        return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : fallback;
+        return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) && double.IsFinite(value) ? value : fallback;
     }
 
     public void SetDouble(string key, double value) => Set(key, value.ToString("R", CultureInfo.InvariantCulture));

@@ -48,7 +48,7 @@
                 <Button.ContextMenu><ContextMenu><MenuItem Header="Open details" Tag="open" Click="CardQuickAction_Click"/><MenuItem Header="Edit details" Tag="edit" Click="CardQuickAction_Click"/><Separator/><MenuItem Header="Primary action" Tag="primary" Click="CardQuickAction_Click"/><MenuItem Header="Add to watchlist / queue" Tag="watchlist" Click="CardQuickAction_Click"/><MenuItem Header="Mark watched / completed" Tag="watched" Click="CardQuickAction_Click"/><MenuItem Header="Not interested" Tag="hidden" Click="CardQuickAction_Click"/></ContextMenu></Button.ContextMenu>
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                    <Border Height="{Binding ArtHeight}" Background="{Binding PlaceholderColor}" CornerRadius="16,16,0,0" ClipToBounds="True">
+                    <Border Height="{Binding ArtHeight}" Background="{Binding PlaceholderColor}" CornerRadius="8,8,0,0" ClipToBounds="True">
                         <Grid>
                             <!-- Drawn locally so a title without a cover is never a blank card. -->
                             <TextBlock Text="{Binding Initials}" FontSize="44" FontWeight="Bold" Foreground="#66FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
@@ -61,15 +61,15 @@
                                 <Border Visibility="{Binding HasBadges, Converter={StaticResource BoolToVisibility}}" HorizontalAlignment="Left" Margin="0,5,0,0" Background="#C2050A12" BorderBrush="#4DFFFFFF" BorderThickness="1" CornerRadius="999" Padding="8,3"><TextBlock Text="{Binding Badges}" Foreground="White" FontSize="9" FontWeight="Bold" MaxWidth="150" TextTrimming="CharacterEllipsis"/></Border>
                             </StackPanel>
                             <StackPanel VerticalAlignment="Bottom" Margin="12,0,12,10">
-                                <TextBlock Text="{Binding CardRatingText}" Foreground="{DynamicResource WarningBrush}" FontWeight="Bold" FontSize="12" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Text="{Binding DaysText}" Foreground="{Binding CountdownColor}" FontWeight="Bold" FontSize="17" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding CardRatingText}" Foreground="#FFD166" FontWeight="Bold" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding DaysText}" Foreground="White" FontWeight="Bold" FontSize="20" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
                         </Grid>
                     </Border>
                     <StackPanel Grid.Row="1" Margin="14,12,14,14">
-                        <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="16" TextWrapping="Wrap" MaxHeight="44" LineHeight="21"/>
+                        <TextBlock Text="{Binding Name}" ToolTip="{Binding Name}" FontWeight="SemiBold" FontSize="18" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" Height="72" LineHeight="24"/>
                         <TextBlock Text="{Binding PrimaryMeta}" Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/>
-                        <TextBlock Text="{Binding Date}" Foreground="{DynamicResource AccentBrush}" FontSize="13" FontWeight="Bold" Margin="0,5,0,0" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding Date}" Foreground="{DynamicResource AccentBrush}" FontSize="15" FontWeight="SemiBold" Margin="0,5,0,0" TextTrimming="CharacterEllipsis"/>
                         <!-- The obvious next step, without opening the title first. -->
                         <Button Content="{Binding QuickActionLabel}" Tag="{Binding}" Click="CardQuickButton_Click"
                                 Visibility="{Binding HasQuickAction, Converter={StaticResource BoolToVisibility}}"
@@ -164,7 +164,17 @@
                     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                         <TextBlock x:Name="FeaturedTitleText" Text="" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,12,0" TextTrimming="CharacterEllipsis" MaxWidth="150"/>
                         <TextBlock x:Name="DriveHeaderStatus" Text="Drive offline" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,14,0" />
-                        <TextBox x:Name="SearchBox" Width="260" Margin="0,0,10,0" ToolTip="Search the current tab (Ctrl+K)" TextChanged="SearchBox_TextChanged" />
+                        <Grid Margin="0,0,10,0">
+                            <TextBox x:Name="SearchBox" Width="260" Padding="32,9,32,9" AutomationProperties.Name="Search current tab" ToolTip="Search the current tab (Ctrl+K)" TextChanged="SearchBox_TextChanged" />
+                            <TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" Margin="10,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{DynamicResource MutedBrush}"/>
+                            <TextBlock Text="Search titles" Margin="32,0,32,0" VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{DynamicResource MutedBrush}">
+                                <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value=""><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                            </TextBlock>
+                            <Button Click="ClearSearch_Click" Width="28" MinHeight="28" Padding="0" Margin="0,0,4,0" HorizontalAlignment="Right" VerticalAlignment="Center" ToolTip="Clear search" AutomationProperties.Name="Clear search">
+                                <Button.Style><Style TargetType="Button" BasedOn="{StaticResource QuietButton}"><Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Button.Style>
+                                <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="11"/>
+                            </Button>
+                        </Grid>
                         <Button x:Name="ThemeButton" Content="Light mode" Margin="0,0,8,0" Click="Theme_Click"/>
                         <Button Content="Refresh" Click="GlobalRefresh_Click"/>
                     </StackPanel>

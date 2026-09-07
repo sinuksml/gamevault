@@ -1,5 +1,12 @@
 using SinuGameVault.Services;
 using System.Text.Json.Nodes;
+using System.IO;
+
+if (args.Contains("--visual"))
+{
+    VisualChecks.Run();
+    return;
+}
 
 var temp = Path.Combine(Path.GetTempPath(), "gamevault-native-smoke-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(temp);
@@ -8,6 +15,11 @@ Directory.CreateDirectory(temp);
 DiagnosticsService.UseFolder(Path.Combine(temp, "Diagnostics"));
 try
 {
+    Assert(SafeDates.FromUnixMilliseconds(long.MaxValue) is null, "invalid imported timestamp cannot crash details");
+    Assert(SafeDates.FromUnixMilliseconds(-1) is null, "missing timestamp remains unknown");
+    var now = DateTimeOffset.UtcNow;
+    Assert(SafeDates.IsStale(now.AddDays(1).ToUnixTimeMilliseconds(), TimeSpan.FromDays(7), now), "future cache timestamps are refreshed");
+    Assert(!SafeDates.IsStale(now.ToUnixTimeMilliseconds(), TimeSpan.FromDays(7), now), "fresh metadata is reused");
     var contractFixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "vault-v15.json");
     Assert(File.Exists(contractFixture), "shared vault contract fixture is packaged for compatibility tests");
     var contractRepository = new VaultRepository(Path.Combine(temp, "contract-store"));

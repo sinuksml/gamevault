@@ -81,8 +81,8 @@
             </DrawingBrush.Drawing>
         </DrawingBrush>
 
-        <DropShadowEffect x:Key="CardShadow" BlurRadius="22" ShadowDepth="5" Direction="270" Color="#000000" Opacity="0.42" />
-        <DropShadowEffect x:Key="RaisedShadow" BlurRadius="34" ShadowDepth="9" Direction="270" Color="#000000" Opacity="0.5" />
+        <DropShadowEffect x:Key="CardShadow" BlurRadius="8" ShadowDepth="2" Direction="270" Color="#000000" Opacity="0.12" />
+        <DropShadowEffect x:Key="RaisedShadow" BlurRadius="12" ShadowDepth="3" Direction="270" Color="#000000" Opacity="0.20" />
 
         <!-- Canonical corner radii: 8 controls, 12 panels, 16 cards. -->
         <CornerRadius x:Key="ControlRadius">8</CornerRadius>
@@ -95,6 +95,8 @@
             <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            <Setter Property="UseLayoutRounding" Value="True" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
         </Style>
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
@@ -181,7 +183,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7" Padding="{TemplateBinding Padding}">
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                               VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
                         </Border>

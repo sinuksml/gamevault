@@ -1429,7 +1429,8 @@ public partial class MainWindow : Window
         SetBrush("TextBrush", light ? "#182131" : "#F5F7FB");
         SetBrush("MutedBrush", light ? "#526177" : "#A7B3C7");
         SetBrush("RailBrush", light ? "#E2EAF3" : oled ? "#030405" : "#0D121C");
-        SetBrush("CardBrush", light ? "#FFFFFF" : oled ? "#080B10" : "#111925");
+        SetBrush("CardBrush", light ? "#F8FAFD" : oled ? "#080B10" : "#111925");
+        SetBrush("AccentBrush", light ? "#086C9C" : "#4CC9F0");
         SetBrush("CardBorderBrush", light ? "#BCC8D7" : oled ? "#263040" : "#2B3A51");
         SetBrush("InputBrush", light ? "#FFFFFF" : oled ? "#030405" : "#0C111A");
         SetBrush("DividerBrush", light ? "#B8C4D3" : oled ? "#1D2531" : "#263247");
@@ -1449,10 +1450,10 @@ public partial class MainWindow : Window
         SectionBackdrop.Opacity = light ? 0.045 : 0.12;
         /* The ambient glow and weave are tuned per theme: barely there in light
            mode, absent on OLED where the point is a true black background. */
-        AuroraLayer.Opacity = light ? 0.30 : oled ? 0.0 : 1.0;
-        AuroraLayerTwo.Opacity = light ? 0.22 : oled ? 0.0 : 0.85;
-        PatternLayer.Opacity = light ? 0.18 : oled ? 0.14 : 0.35;
-        VignetteLayer.Opacity = light ? 0.0 : oled ? 0.5 : 1.0;
+        AuroraLayer.Opacity = 0;
+        AuroraLayerTwo.Opacity = 0;
+        PatternLayer.Opacity = 0;
+        VignetteLayer.Opacity = 0;
         ThemeButton.Content = light ? "Dark mode" : oled ? "Light mode" : "Light mode";
         UpdateRailSelection();
     }
@@ -2008,7 +2009,7 @@ public partial class MainWindow : Window
             var at = (long)JsonNumber(item, "at");
             _torrentHistoryRows.Add(new TorrentHistoryRow
             {
-                Name = Text(item, "name"), Outcome = Text(item, "outcome"), Date = at > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(at).LocalDateTime.ToString("g") : "",
+                Name = Text(item, "name"), Outcome = Text(item, "outcome"), Date = SafeDates.FromUnixMilliseconds(at)?.LocalDateTime.ToString("g") ?? "",
                 Progress = $"{JsonNumber(item, "progress"):0.#}%", Downloaded = FormatBytes((long)JsonNumber(item, "downloaded")), Files = item["filesDeleted"]?.ToString() == "true" ? "Deleted" : "Kept"
             });
         }
@@ -2362,7 +2363,7 @@ public partial class MainWindow : Window
     {
         var explicitDate = Text(node, "returnDate");
         if (explicitDate.Length > 0) return explicitDate;
-        if (DateTime.TryParse(Text(node, "start"), out var start) && Integer(node, "days") > 0)
+        if (DateTime.TryParse(Text(node, "start"), out var start) && Integer(node, "days") > 0 && Integer(node, "days") <= (DateTime.MaxValue - start).TotalDays)
             return start.AddDays(Integer(node, "days")).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         return Text(node, "date", "added");
     }
@@ -2460,7 +2461,7 @@ public partial class MainWindow : Window
         if (row.MediaType is "Movie" or "TV Show")
         {
             var checkedAt = Long(row.Source, "imdbCheckedAt");
-            var ratingIsStale = checkedAt <= 0 || DateTimeOffset.UtcNow - DateTimeOffset.FromUnixTimeMilliseconds(checkedAt) > TimeSpan.FromDays(7);
+            var ratingIsStale = SafeDates.IsStale(checkedAt, TimeSpan.FromDays(7), DateTimeOffset.UtcNow);
             if (row.Image.Length == 0 || row.Overview.Length == 0 || row.Providers.Length == 0 || row.ImdbId.Length == 0 || ratingIsStale)
             {
                 if (DetailOverview.Text.Length == 0 || !DetailStorySection.IsVisible) DetailOverview.Text = "Loading Wikipedia story...";
@@ -2554,6 +2555,8 @@ public partial class MainWindow : Window
 
     private static string PrimaryActionLabel(LibraryRow row)
     {
+        if (row.Collection == "subscriptions") return "Manage subscription";
+        if (row.Collection is "subscriptionGames" or "purchasedGames") return "Play now";
         if (row.Collection == "plex") return row.Status == "Watched" ? "Mark unwatched" : "Mark watched";
         if (row.Collection == "rentals") return "Return rental";
         if (row.Collection == "rentalHistory") return "Rent again";
@@ -2787,6 +2790,11 @@ public partial class MainWindow : Window
 
     private async Task MoveRowToAsync(LibraryRow row, string destination, string status)
     {
+        if (row.Collection == "subscriptions")
+        {
+            StatusText.Text = "Subscription plans stay in Library. Use Subscriptions to edit the plan; mark individual games completed instead.";
+            return;
+        }
         CaptureUndo();
         var clone = row.Source.DeepClone() as JsonObject ?? [];
         clone["status"] = status;
@@ -2861,7 +2869,23 @@ public partial class MainWindow : Window
         switch (row.QuickActionKey)
         {
             case "return-complete":
-                await MoveRowToAsync(row, "played", "Finished");
+                if (MessageBox.Show(this, $"Return '{row.Name}' and mark it completed? The rental will be preserved in Rental History.", "Return and complete", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                CaptureUndo();
+                var returned = row.Source.DeepClone() as JsonObject ?? [];
+                returned["end"] = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                returned["status"] = "Returned";
+                if (DateTime.TryParse(Text(returned, "start"), out var rentalStart)) returned["used"] = Math.Max(0, (DateTime.Today - rentalStart.Date).Days);
+                await RunBusyAsync("Returning rental...", async () =>
+                {
+                    await _vault.BulkAsync(async () =>
+                    {
+                        await _vault.MoveAsync("rentals", "rentalHistory", returned);
+                        var completed = row.Source.DeepClone() as JsonObject ?? [];
+                        completed["status"] = "Finished";
+                        await _vault.UpdateAsync("played", completed);
+                    });
+                });
+                RefreshAll();
                 StatusText.Text = $"{row.Name} returned and marked completed.";
                 return;
             case "rent-again":
@@ -2979,6 +3003,11 @@ public partial class MainWindow : Window
     {
         var row = _selectedRow;
         if (row is null) return;
+        if (row.Collection == "subscriptions")
+        {
+            ManageSubscriptions_Click(sender, e);
+            return;
+        }
         if (row.Collection == "plex")
         {
             var key = Text(row.Source, "plexRatingKey");
@@ -3032,7 +3061,7 @@ public partial class MainWindow : Window
             "TV Show" when row.Collection == "watchedSeries" => "watchingSeries",
             "TV Show" => "seriesWatchlist",
             _ when row.Collection is "upcoming" or "catalogExtra" => "queue",
-            _ when row.Collection == "queue" => "playing",
+            _ when row.Collection is "queue" or "subscriptionGames" or "purchasedGames" => "playing",
             _ => "played"
         };
         var clone = row.Source.DeepClone() as JsonObject ?? [];
@@ -3041,7 +3070,7 @@ public partial class MainWindow : Window
         {
             if (!CollectionContains(destination, row)) await _vault.AddAsync(destination, clone);
             if (destination == "queue") await UpdateAvailabilityAsync(clone);
-            if (!IsCatalog(row)) await _vault.RemoveAsync(row.Collection, row.Id);
+            if (!IsCatalog(row) && row.Collection is not ("subscriptionGames" or "purchasedGames")) await _vault.RemoveAsync(row.Collection, row.Id);
         });
         DetailsPage.Visibility = Visibility.Collapsed;
         RefreshAll();
@@ -3135,12 +3164,18 @@ public partial class MainWindow : Window
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.K) { SearchBox.Focus(); SearchBox.SelectAll(); e.Handled = true; return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.R) { GlobalRefresh_Click(this, new RoutedEventArgs()); e.Handled = true; return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.OemComma) { _previousSection = _section; _section = "Settings"; ShowSection(); e.Handled = true; return; }
-        if (Keyboard.Modifiers == ModifierKeys.Alt && e.Key == Key.Left)
+        if (Keyboard.Modifiers == ModifierKeys.Alt && (e.Key == Key.Left || e.SystemKey == Key.Left))
         {
             if (DetailsPage.Visibility == Visibility.Visible) CloseDetails();
             else { (_section, _previousSection) = (_previousSection, _section); ShowSection(); }
             e.Handled = true;
         }
+    }
+
+    private void ClearSearch_Click(object sender, RoutedEventArgs e)
+    {
+        SearchBox.Clear();
+        SearchBox.Focus();
     }
 
     private void Window_PreviewMouseUp(object sender, MouseButtonEventArgs e)

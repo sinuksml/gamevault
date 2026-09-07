@@ -79,7 +79,7 @@ public static class DiagnosticsService
     {
         var info = new FileInfo(LogPath);
         if (!info.Exists || info.Length < 2_000_000) return;
-        var lines = File.ReadLines(LogPath).TakeLast(3000);
+        var lines = File.ReadLines(LogPath).TakeLast(3000).ToArray();
         File.WriteAllLines(LogPath, lines, Encoding.UTF8);
     }
 }

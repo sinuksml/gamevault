@@ -1,4 +1,18 @@
-# Sinu Game Vault for Windows 2.6.6
+# Sinu Game Vault for Windows 2.6.10
+
+## 2.6.10 Library readability and reliability
+
+- Larger, three-line card titles with consistent action positions and full-title tooltips.
+- Readable artwork ratings in light mode, stronger light-theme date contrast, quieter backgrounds and lighter shadows.
+- Search field label, search icon and one-click clear action; corrected Alt+Left navigation.
+- Subscription plans cannot be moved into game lists. Playing from details preserves both subscription-game and permanent-purchase records.
+- Return and complete keeps Rental History and requests confirmation.
+- Artwork requests are bounded to six concurrent operations; concurrent sizes use separate temporary files. Invalid local artwork is never deleted.
+- Invalid metadata timestamps are treated as stale instead of crashing; invalid saved window sizes fall back to defaults.
+- Diagnostic log rotation retains previous entries instead of truncating its lazy input.
+- Native WPF card layout checks cover long titles at 1080 and 1440 logical pixels in light and dark themes. Run the smoke executable with --visual.
+
+Validation scope: compilation, repository smoke tests, timestamp tests and card-template renders. Live Google Drive, Plex and BiglyBT accounts and every full-page layout were not re-tested in this release.
 
 ## 2.6.6 Game artwork fills its card
 

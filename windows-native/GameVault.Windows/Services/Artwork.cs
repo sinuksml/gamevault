@@ -41,7 +41,8 @@ public static class Artwork
     private static readonly Dictionary<string, ImageSource> Cache = new(StringComparer.Ordinal);
     private static readonly LinkedList<string> Order = new();
     // One download per URL no matter how many cards ask for it at once.
-    private static readonly ConcurrentDictionary<string, Task<ImageSource?>> InFlight = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, Lazy<Task<ImageSource?>>> InFlight = new(StringComparer.Ordinal);
+    private static readonly SemaphoreSlim Downloads = new(6);
 
     private static HttpClient CreateClient()
     {
@@ -73,7 +74,7 @@ public static class Artwork
         var image = await GetAsync(url, width);
         // Panels recycle their containers, so the row behind this Image may have
         // changed while the download was running. Only paint what is still wanted.
-        if (image is not null && GetUrl(target) == url) target.Source = image;
+        if (image is not null && GetUrl(target) == url && GetDecodeWidth(target) == width) target.Source = image;
     }
 
     /// <summary>The decoded artwork, downloading and caching it on first use.</summary>
@@ -93,11 +94,24 @@ public static class Artwork
             }
         }
 
-        return InFlight.GetOrAdd(key, _ => FetchAsync(uri, key, decodeWidth));
+        var pending = InFlight.GetOrAdd(key, _ => new Lazy<Task<ImageSource?>>(() => FetchAsync(uri, key, decodeWidth)));
+        return CompleteAsync(key, pending);
+    }
+
+    private static async Task<ImageSource?> CompleteAsync(string key, Lazy<Task<ImageSource?>> pending)
+    {
+        try { return await pending.Value; }
+        finally
+        {
+            // A late waiter must not remove a newer retry for the same cover.
+            ((ICollection<KeyValuePair<string, Lazy<Task<ImageSource?>>>>)InFlight)
+                .Remove(new(key, pending));
+        }
     }
 
     private static async Task<ImageSource?> FetchAsync(Uri uri, string key, int decodeWidth)
     {
+        await Downloads.WaitAsync();
         try
         {
             var image = await Task.Run(async () =>
@@ -111,19 +125,24 @@ public static class Artwork
                     Directory.CreateDirectory(Folder);
                     // Write beside the target and move into place so a cancelled
                     // download cannot leave a truncated file to be read forever.
-                    var staging = path + ".part";
-                    await File.WriteAllBytesAsync(staging, bytes);
-                    File.Move(staging, path, overwrite: true);
+                    var staging = path + "." + Guid.NewGuid().ToString("N") + ".part";
+                    try
+                    {
+                        await File.WriteAllBytesAsync(staging, bytes);
+                        File.Move(staging, path, overwrite: true);
+                    }
+                    finally { if (File.Exists(staging)) File.Delete(staging); }
                     TrimFolder();
                 }
-                return Decode(path, decodeWidth);
+                return Decode(path, decodeWidth, !uri.IsFile);
             });
 
             if (image is null) return null;
             lock (Gate)
             {
                 Cache[key] = image;
-                Order.AddLast(key);
+                    Order.Remove(key);
+                    Order.AddLast(key);
                 while (Order.Count > MaxEntries && Order.First is { } oldest)
                 {
                     Cache.Remove(oldest.Value);
@@ -141,11 +160,11 @@ public static class Artwork
         }
         finally
         {
-            InFlight.TryRemove(key, out _);
+            Downloads.Release();
         }
     }
 
-    private static ImageSource? Decode(string path, int decodeWidth)
+    private static ImageSource? Decode(string path, int decodeWidth, bool cachedDownload)
     {
         try
         {
@@ -165,7 +184,8 @@ public static class Artwork
         {
             /* A half written or non-image file decodes to nothing. Drop it so the
                next request downloads it again instead of failing forever. */
-            try { File.Delete(path); } catch { /* best effort */ }
+            if (cachedDownload)
+                try { File.Delete(path); } catch { /* best effort */ }
             return null;
         }
     }
