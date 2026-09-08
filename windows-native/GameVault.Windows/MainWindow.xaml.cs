@@ -83,6 +83,7 @@ public partial class MainWindow : Window
         ApplyViewPreferences();
         ApplyTheme();
         RestoreWindowPlacement();
+        ConfigureExperience();
         _driveSyncTimer.Tick += DriveSyncTimer_Tick;
         _biglyRefreshTimer.Tick += BiglyRefreshTimer_Tick;
         _searchDebounceTimer.Tick += (_, _) =>
@@ -161,6 +162,9 @@ public partial class MainWindow : Window
 
     private void ShowSection()
     {
+        if (_shownSection != _section) { CloseDetails(); SearchBox.Clear(); }
+        _shownSection = _section;
+        LibraryEmptyState.Visibility = Visibility.Collapsed;
         UpdateRailSelection();
         if (_section != "BiglyBT") _biglyRefreshTimer.Stop();
         OverviewPage.Visibility = Visibility.Collapsed;
@@ -172,7 +176,6 @@ public partial class MainWindow : Window
         PetrolPage.Visibility = Visibility.Collapsed;
         SettingsPage.Visibility = Visibility.Collapsed;
         SearchBox.IsEnabled = _section is "Games" or "Movies" or "Series";
-        SearchBox.Text = "";
 
         switch (_section)
         {
@@ -239,6 +242,7 @@ public partial class MainWindow : Window
 
     private void RefreshDashboard()
     {
+        RefreshHomeContinue();
         RentalCount.Text = _vault.Collection("rentals").Count.ToString();
         PlayingCount.Text = (_vault.Collection("playing").Count + _vault.Collection("rentals").Count).ToString();
         WatchlistCount.Text = (_vault.Collection("movieWatchlist").Count + _vault.Collection("seriesWatchlist").Count).ToString();
@@ -714,7 +718,8 @@ public partial class MainWindow : Window
            and Discover feeds have one tab per platform so the two are never mixed. */
         var parts = (tab.Tag?.ToString() ?? "library").Split(':');
         _gameCollection = parts[0] == "library" ? _libraryCollection : parts[0];
-        _upcomingPlatform = parts.Length > 1 ? parts[1] : "";
+        _upcomingPlatform = parts[0] is "upcoming" or "catalogExtra" ? (GamePlatformBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "ps5" : "";
+        GamePlatformBox.Visibility = parts[0] is "upcoming" or "catalogExtra" ? Visibility.Visible : Visibility.Collapsed;
         LibrarySectionBox.Visibility = parts[0] == "library" ? Visibility.Visible : Visibility.Collapsed;
         AddGameButton.Content = _gameCollection == "purchasedGames" ? "Add Steam purchase" : "Add game";
         RefreshGames();
@@ -729,6 +734,7 @@ public partial class MainWindow : Window
         if (!IsLoaded || GamesTabs.SelectedItem is not TabItem tab || !string.Equals(tab.Tag?.ToString(), "library", StringComparison.OrdinalIgnoreCase)) return;
         CloseDetails();
         _gameCollection = _libraryCollection;
+        SetCategoryView(false);
         _upcomingPlatform = "";
         AddGameButton.Content = _gameCollection == "purchasedGames" ? "Add Steam purchase" : "Add game";
         RefreshGames();
@@ -758,21 +764,10 @@ public partial class MainWindow : Window
     /// </summary>
     private static void ApplyTabColor(object _, string hex, bool selected, Action<Brush> setBackground, Action<Brush> setBorder, Action<Brush> setForeground)
     {
-        var color = (Color)ColorConverter.ConvertFromString(hex);
-        var solid = new SolidColorBrush(color); solid.Freeze();
-        if (selected)
-        {
-            setBackground(solid);
-            setBorder(solid);
-            setForeground(Brushes.White);
-        }
-        else
-        {
-            var tint = new SolidColorBrush(color) { Opacity = 0.16 }; tint.Freeze();
-            setBackground(tint);
-            setBorder(solid);
-            setForeground(solid);
-        }
+        var resources = Application.Current.Resources;
+        setBackground(selected ? (Brush)resources["SelectedBrush"] : Brushes.Transparent);
+        setBorder(selected ? (Brush)resources["AccentBrush"] : Brushes.Transparent);
+        setForeground((Brush)resources[selected ? "TextBrush" : "MutedBrush"]);
     }
 
     private void RefreshGames()
@@ -827,7 +822,7 @@ public partial class MainWindow : Window
     private void SetCategoryView(bool on)
     {
         _categoryView = on;
-        var label = on ? "Exit category" : "Category";
+        var label = on ? "Ungroup" : "Group by year";
         GamesCategoryButton.Content = label;
         MediaCategoryButton.Content = label;
     }
@@ -888,20 +883,34 @@ public partial class MainWindow : Window
             ? new[] { ("watchlist", "My Watchlist"), ("watching", "Watching"), ("uphw", "Coming Soon"), ("bluray", "New on Blu-ray"), ("relhw", "Discover"), ("mlup", "Coming to Malayalam OTT"), ("mlott", "Malayalam OTT"), ("watched", "Watched"), ("hidden", "Not Interested") }
             : new[] { ("watchlist", "My Watchlist"), ("watching", "Watching"), ("seriesnew", "New Episodes"), ("seriesupcoming", "Upcoming"), ("enseries", "English"), ("mlseries", "Malayalam"), ("taseries", "Tamil"), ("hiseries", "Hindi"), ("watched", "Watched"), ("hidden", "Not Interested") };
         if (!definitions.Any(item => item.Item1 == _mediaMode)) _mediaMode = "watchlist";
-        foreach (var (key, label) in definitions)
+        var family = MediaFamily(_mediaMode);
+        foreach (var (group, label, glyph) in new[] { ("library", "Library", "\uE8B7"), ("watching", "Watching", "\uE768"), ("discover", "Discover", "\uE721"), ("upcoming", "Upcoming", "\uE787") })
         {
+            var key = group == family ? _mediaMode : definitions.First(item => MediaFamily(item.Item1) == group).Item1;
             var button = new Button
             {
-                Content = LibraryTabHeader(MediaTabGlyph(key), label), Tag = key, Margin = new Thickness(0, 0, 8, 8),
+                Content = LibraryTabHeader(glyph, label), Tag = key, Margin = new Thickness(0, 0, 8, 0),
                 Style = (Style)FindResource("LibraryTabButton")
             };
             // Each tab keeps its own permanent colour: the selected one is filled,
             // the rest carry a light tint, a coloured border and coloured text, so
             // Movies and TV tabs are identifiable by colour like the Games tabs.
-            ApplyTabColor(button, TabColor(key), key == _mediaMode, b => button.Background = b, b => button.BorderBrush = b, b => button.Foreground = b);
+            ApplyTabColor(button, TabColor(key), group == family, b => button.Background = b, b => button.BorderBrush = b, b => button.Foreground = b);
             button.Click += MediaFilter_Click;
             MediaTabsPanel.Children.Add(button);
         }
+        _buildingMediaFilters = true;
+        try
+        {
+            MediaBrowseBox.Items.Clear();
+            foreach (var (key, label) in definitions.Where(item => MediaFamily(item.Item1) == family))
+            {
+                var option = new ComboBoxItem { Content = label, Tag = key };
+                MediaBrowseBox.Items.Add(option);
+                if (key == _mediaMode) MediaBrowseBox.SelectedItem = option;
+            }
+        }
+        finally { _buildingMediaFilters = false; }
     }
 
     /// <summary>A distinct highlight colour per library tab, shared by Games, Movies and TV.</summary>
@@ -1189,6 +1198,23 @@ public partial class MainWindow : Window
            deferred". Rebuilding into a fresh list and swapping the ItemsSource
            in one step gives the same benefit without that hazard. */
         _rows = source.Where(x => query.Length == 0 || x.Name.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+        var viewKey = $"{_section}|{_gameCollection}|{_mediaMode}|{_upcomingPlatform}|{query}|{sortItem?.Tag}|{_categoryView}";
+        var signatures = _rows.Select(row => $"{row.Collection}|{row.Name}|{row.Date}|{row.DaysText}|{row.Source.ToJsonString()}").ToList();
+        var sameView = viewKey == _renderedViewKey;
+        if (!sameView && _renderedViewKey.Length > 0)
+        {
+            var oldScroll = _renderedViewKey.StartsWith("Games|") ? GamesCardScroll : MediaCardScroll;
+            _viewPositions[_renderedViewKey] = (oldScroll.VerticalOffset, _visibleRows.Count);
+        }
+        LibraryEmptyState.Visibility = _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        LibraryEmptyAction.Content = query.Length > 0 ? "Clear filters" : "Find a title";
+        if (sameView && signatures.SequenceEqual(_renderedRows)) return;
+        var scroll = _section == "Games" ? GamesCardScroll : MediaCardScroll;
+        var remembered = _viewPositions.GetValueOrDefault(viewKey);
+        var offset = sameView ? scroll.VerticalOffset : remembered.Offset;
+        var visibleCount = Math.Max(CardPageSize, sameView ? _visibleRows.Count : remembered.Count);
+        _renderedViewKey = viewKey;
+        _renderedRows = signatures;
 
         /* A fresh view per refresh, given only to the page being shown.
            One shared view used to feed all four card and list controls, so turning
@@ -1202,7 +1228,7 @@ public partial class MainWindow : Window
            two decoded bitmaps, so building all three hundred of a discovery feed up
            front cost hundreds of megabytes and a visible pause on every tab change.
            The list view is left whole because its ListBox already virtualizes. */
-        _visibleRows = new ObservableCollection<LibraryRow>(_rows.Take(CardPageSize));
+        _visibleRows = new ObservableCollection<LibraryRow>(_rows.Take(visibleCount));
         var cardView = new ListCollectionView(_visibleRows);
         var listView = new ListCollectionView(_rows);
         foreach (var view in new[] { cardView, listView })
@@ -1218,13 +1244,13 @@ public partial class MainWindow : Window
         {
             GamesCards.ItemsSource = cardView;
             GamesList.ItemsSource = listView;
-            GamesCardScroll.ScrollToTop();
+            GamesCardScroll.ScrollToVerticalOffset(offset);
         }
         else
         {
             MediaCards.ItemsSource = cardView;
             MediaList.ItemsSource = listView;
-            MediaCardScroll.ScrollToTop();
+            MediaCardScroll.ScrollToVerticalOffset(offset);
         }
         UpdateRowCountStatus();
     }
@@ -1454,7 +1480,11 @@ public partial class MainWindow : Window
         AuroraLayerTwo.Opacity = 0;
         PatternLayer.Opacity = 0;
         VignetteLayer.Opacity = 0;
-        ThemeButton.Content = light ? "Dark mode" : oled ? "Light mode" : "Light mode";
+        ThemeButton.Content = new TextBlock { Text = light ? "\uE708" : "\uE706", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 18 };
+        ThemeButton.ToolTip = light ? "Switch to dark mode" : "Switch to light mode";
+        System.Windows.Automation.AutomationProperties.SetName(ThemeButton, ThemeButton.ToolTip.ToString());
+        StyleGameTabs();
+        if (_section is "Movies" or "Series") BuildMediaTabs();
         UpdateRailSelection();
     }
     private static void SetBrush(string key, string color)
@@ -1480,7 +1510,16 @@ public partial class MainWindow : Window
     private async void AddMedia_Click(object sender, RoutedEventArgs e)
     {
         var collection = _section == "Movies" ? "movieWatchlist" : "seriesWatchlist";
-        var dialog = new ItemEditorWindow(collection) { Owner = this };
+        JsonObject? seed = null;
+        if (_catalog.TmdbKey.Length > 0)
+        {
+            var search = new CatalogSearchWindow(_catalog, _section == "Movies" ? "Movie" : "TV Show") { Owner = this };
+            if (search.ShowDialog() != true) return;
+            seed = search.SelectedItem;
+        }
+        var dialog = new ItemEditorWindow(collection, seed) { Owner = this };
+        dialog.Heading.Text = "Add title";
+        dialog.SaveButton.Content = "Add to watchlist";
         if (dialog.ShowDialog() != true) return;
         await RunBusyAsync("Adding title...", () => _vault.AddAsync(collection, dialog.Item));
         _mediaMode = "watchlist";
@@ -1491,7 +1530,15 @@ public partial class MainWindow : Window
     {
         var type = _section == "Games" ? "Game" : _section == "Movies" ? "Movie" : "TV Show";
         var dialog = new CatalogSearchWindow(_catalog, type) { Owner = this };
-        if (dialog.ShowDialog() != true || dialog.SelectedItem is null) return;
+        if (dialog.ShowDialog() != true) return;
+        if (dialog.ManualEntry)
+        {
+            var destinationManual = type == "Game" ? "queue" : type == "Movie" ? "movieWatchlist" : "seriesWatchlist";
+            var manual = new ItemEditorWindow(destinationManual) { Owner = this };
+            if (manual.ShowDialog() == true) { await _vault.AddAsync(destinationManual, manual.Item); RefreshAll(); }
+            return;
+        }
+        if (dialog.SelectedItem is null) return;
         var destination = type == "Game" ? "queue" : type == "Movie" ? "movieWatchlist" : "seriesWatchlist";
         await RunBusyAsync("Adding online result...", async () =>
         {
@@ -1627,7 +1674,17 @@ public partial class MainWindow : Window
     private async void AddGame_Click(object sender, RoutedEventArgs e)
     {
         var collection = _gameCollection == "rentalHistory" ? "rentals" : _gameCollection;
-        var dialog = new ItemEditorWindow(collection) { Owner = this };
+        if (collection is "upcoming" or "catalogExtra") collection = "queue";
+        JsonObject? seed = null;
+        if (_catalog.RawgKey.Length > 0)
+        {
+            var search = new CatalogSearchWindow(_catalog, "Game") { Owner = this };
+            if (search.ShowDialog() != true) return;
+            seed = search.SelectedItem;
+        }
+        var dialog = new ItemEditorWindow(collection, seed) { Owner = this };
+        dialog.Heading.Text = "Add game";
+        dialog.SaveButton.Content = "Add to library";
         if (dialog.ShowDialog() != true) return;
         if (collection == "subscriptionGames" && _vault.Collection("subscriptions").OfType<JsonObject>().Any())
         {
@@ -1654,7 +1711,7 @@ public partial class MainWindow : Window
 
     private void SelectGameCollection(string collection)
     {
-        if (collection is "rentals" or "subscriptionGames" or "purchasedGames")
+        if (collection is "rentals" or "subscriptionGames" or "purchasedGames" or "queue" or "played")
         {
             _libraryCollection = collection;
             foreach (var option in LibrarySectionBox.Items.OfType<ComboBoxItem>())
@@ -1665,6 +1722,9 @@ public partial class MainWindow : Window
                 {
                     GamesTabs.SelectedItem = item;
                     _gameCollection = collection;
+                    _upcomingPlatform = "";
+                    LibrarySectionBox.Visibility = Visibility.Visible;
+                    GamePlatformBox.Visibility = Visibility.Collapsed;
                     RefreshGames();
                     return;
                 }
@@ -1748,6 +1808,8 @@ public partial class MainWindow : Window
 
     private async Task RefreshPlexAsync(bool force = false)
     {
+        foreach (var button in PlexModeTabs.Children.OfType<Button>())
+            ApplyTabColor(button, "", button.Tag?.ToString() == _plexMode, b => button.Background = b, b => button.BorderBrush = b, b => button.Foreground = b);
         PlexSetupPanel.Visibility = _plex.Connected ? Visibility.Collapsed : Visibility.Visible;
         PlexLibraryScroll.Visibility = _plex.Connected ? Visibility.Visible : Visibility.Collapsed;
         if (!_plex.Connected) { PlexStatusText.Text = "Not connected"; return; }
@@ -2165,7 +2227,7 @@ public partial class MainWindow : Window
             var updatedBefore = _vault.UpdatedAt;
             var result = await _drive.SyncAsync(_vault);
             DriveSettingsStatus.Text = result;
-            DriveHeaderStatus.Text = "Drive connected";
+            DriveHeaderStatus.Text = $"Backed up {DateTime.Now:t}";
             await UpdateDriveBackupInfoAsync();
             /* Only rebuild the lists when the sync actually brought something back.
                Refreshing unconditionally rewrote every view on each background
@@ -2189,6 +2251,7 @@ public partial class MainWindow : Window
 
     private void ScheduleDriveSync()
     {
+        DriveHeaderStatus.Text = _drive.Connected ? "Saved locally; sync pending" : "Saved on this PC";
         if (!_drive.Connected) return;
         /* A save that lands while a sync is already running used to be dropped
            entirely — the timer was never re-armed, so that change waited for the
@@ -2410,7 +2473,7 @@ public partial class MainWindow : Window
     {
         _selectedRow = row;
         // 260-wide frame: 2:3 for posters, 16:9 for game art.
-        DetailPosterFrame.Height = row.IsPortraitArt ? 390 : 146;
+        DetailPosterFrame.Height = row.IsPortraitArt ? 330 : 124;
         SetArtwork(DetailPoster, row.Image, 420);
         SetArtwork(DetailBackdrop, row.Backdrop.Length > 0 ? row.Backdrop : row.Image, 1280);
         DetailType.Text = $"{row.MediaType.ToUpperInvariant()}  /  {row.CategoryLabel.ToUpperInvariant()}";
@@ -2418,7 +2481,7 @@ public partial class MainWindow : Window
         var duration = Integer(row.Source, "used", "days");
         DetailMeta.Text = string.Join("  |  ", new[] { row.DetailMeta, row.Vendor, row.CostText,
             Text(row.Source, "start") is { Length: > 0 } start ? $"Started {DisplayDate(start)}" : "", duration > 0 ? $"{duration} days" : "" }.Where(value => value.Length > 0).Distinct());
-        DetailRating.Text = $"IMDb / rating  {row.RatingText}";
+        DetailRating.Text = row.AttributedRating;
         DetailCountdown.Text = row.DaysText.Length > 0 ? row.DaysText : row.Status;
         DetailEpisodes.Text = string.Join("  |  ", new[] { row.SeasonsText, row.EpisodesText }.Where(x => x.Length > 0));
         DetailEpisodesBadge.Visibility = row.HasEpisodeInfo ? Visibility.Visible : Visibility.Collapsed;
@@ -2428,7 +2491,7 @@ public partial class MainWindow : Window
         DetailSynopsis.Text = row.Overview;
         DetailSynopsisSection.Visibility = row.HasOverview ? Visibility.Visible : Visibility.Collapsed;
         var openWiki = CatalogService.CleanStoryText(Text(row.Source, "wikipediaPlot"));
-        DetailStorySection.Visibility = row.MediaType is "Movie" or "TV Show" || row.Collection == "playing" ? Visibility.Visible : Visibility.Collapsed;
+        DetailStorySection.Visibility = Visibility.Visible;
         DetailOverview.Text = openWiki.Length > 0 ? openWiki
             : row.MediaType is "Movie" or "TV Show" ? "Loading Wikipedia story..."
             : row.MediaType == "Game" && row.Collection == "playing" ? "Loading Wikipedia plot..."
@@ -2436,7 +2499,7 @@ public partial class MainWindow : Window
         DetailAvailability.Text = row.Availability.Length > 0 ? row.Availability : "No provider or vendor information stored.";
         DetailNote.Text = row.Note;
         FandomButton.Visibility = row.MediaType == "Game" && row.Collection == "playing" ? Visibility.Visible : Visibility.Collapsed;
-        RefreshPlotButton.Visibility = row.MediaType is "Movie" or "TV Show" || row.MediaType == "Game" && row.Collection == "playing" ? Visibility.Visible : Visibility.Collapsed;
+        RefreshPlotButton.Visibility = Visibility.Visible;
         VendorLinksButton.Visibility = row.MediaType == "Game" && row.Collection is "queue" or "rentals" ? Visibility.Visible : Visibility.Collapsed;
         VendorRefreshButton.Visibility = row.MediaType == "Game" && row.Collection == "queue" ? Visibility.Visible : Visibility.Collapsed;
         EpisodePicker.Visibility = row.MediaType == "TV Show" ? Visibility.Visible : Visibility.Collapsed;
@@ -2450,6 +2513,7 @@ public partial class MainWindow : Window
         DetailScroll.ScrollToHorizontalOffset(0);
         DetailScroll.ScrollToTop();
         await _vault.MarkViewedAsync(row.Source, row.MediaType, row.Collection);
+        if (!ReferenceEquals(_selectedRow, row)) return;
         await EnrichOpenTitleAsync(row);
         if (row.Collection == "queue") _ = EnsureQueueAvailabilityAsync();
     }
@@ -2479,6 +2543,7 @@ public partial class MainWindow : Window
                     catch { }
                 }
                 await _catalog.EnrichMediaAsync(row.Source, row.MediaType);
+                if (!ReferenceEquals(_selectedRow, row)) return;
                 changed = true;
             }
             var cachedWikipedia = CatalogService.CleanStoryText(Text(row.Source, "wikipediaPlot"));
@@ -2486,6 +2551,7 @@ public partial class MainWindow : Window
             {
                 DetailOverview.Text = "Loading Wikipedia story...";
                 cachedWikipedia = await _catalog.WikipediaSummaryAsync(row.Name, row.MediaType, Text(row.Source, "year", "date"));
+                if (!ReferenceEquals(_selectedRow, row)) return;
                 if (cachedWikipedia.Length > 0) { row.Source["wikipediaPlot"] = cachedWikipedia; changed = true; }
             }
             if (cachedWikipedia.Length > 0) DetailOverview.Text = cachedWikipedia;
@@ -2501,10 +2567,12 @@ public partial class MainWindow : Window
                 }
                 catch { }
             }
-            if (row.Collection == "playing" && row.Overview.Length == 0)
+            if (!ReferenceEquals(_selectedRow, row)) return;
+            if (row.Overview.Length == 0)
             {
                 DetailOverview.Text = "Loading Wikipedia plot...";
                 var plot = await _catalog.WikipediaSummaryAsync(row.Name, "Game", Text(row.Source, "year"));
+                if (!ReferenceEquals(_selectedRow, row)) return;
                 if (plot.Length > 0) { row.Source["overview"] = plot; changed = true; }
             }
         }
@@ -2516,19 +2584,19 @@ public partial class MainWindow : Window
         }
         var refreshed = ReadNodes(new JsonArray(row.Source.DeepClone()), row.Collection).First();
         _selectedRow = refreshed;
-        DetailPosterFrame.Height = refreshed.IsPortraitArt ? 390 : 146;
+        DetailPosterFrame.Height = refreshed.IsPortraitArt ? 330 : 124;
         SetArtwork(DetailPoster, refreshed.Image, 420);
         SetArtwork(DetailBackdrop, refreshed.Backdrop.Length > 0 ? refreshed.Backdrop : refreshed.Image, 1280);
         // The IMDb/TMDB synopsis now that enrichment has filled it in.
         DetailSynopsis.Text = refreshed.Overview;
         DetailSynopsisSection.Visibility = refreshed.HasOverview ? Visibility.Visible : Visibility.Collapsed;
         DetailOverview.Text = CatalogService.CleanStoryText(Text(refreshed.Source, "wikipediaPlot")) is { Length: > 0 } wikipediaPlot ? wikipediaPlot
-            : refreshed.MediaType == "Game" && refreshed.Collection == "playing" && refreshed.Overview.Length > 0 ? refreshed.Overview
+            : refreshed.MediaType == "Game" && refreshed.Overview.Length > 0 ? refreshed.Overview
             : refreshed.MediaType is "Movie" or "TV Show" ? "No matching Wikipedia story section was found."
             : refreshed.MediaType == "Game" && refreshed.Collection != "playing" ? "Story summaries are available for games in Now Playing."
             : "No matching summary was found for this title.";
         DetailAvailability.Text = refreshed.Availability.Length > 0 ? refreshed.Availability : "No streaming or rental provider information found.";
-        DetailRating.Text = $"IMDb / rating  {refreshed.RatingText}";
+        DetailRating.Text = refreshed.AttributedRating;
         if (refreshed.MediaType == "TV Show") PopulateEpisodePicker(refreshed);
         if (!IsCatalog(row)) await _vault.UpdateAsync(row.Collection, row.Source);
         else await PersistCatalogMetadataAsync(row);
@@ -2605,8 +2673,8 @@ public partial class MainWindow : Window
     {
         if (_selectedRow is not { } row) return;
         DetailOverview.Text = "Loading Wikipedia plot...";
-        if (row.MediaType == "Game" && row.Collection != "playing") { DetailOverview.Text = "Story summaries are available for games in Now Playing."; return; }
         var plot = await _catalog.WikipediaSummaryAsync(row.Name, row.MediaType, Text(row.Source, "year", "date"));
+        if (!ReferenceEquals(_selectedRow, row)) return;
         if (plot.Length == 0) { DetailOverview.Text = "No matching Wikipedia story section was found."; return; }
         row.Source[row.MediaType == "Game" ? "overview" : "wikipediaPlot"] = plot;
         DetailOverview.Text = plot;
@@ -2976,12 +3044,13 @@ public partial class MainWindow : Window
         try
         {
             var episodes = await _catalog.SeasonEpisodesAsync(row.TmdbId, row.ImdbId, season);
+            if (!ReferenceEquals(_selectedRow, row) || !Equals(DetailSeasonBox.SelectedItem, season)) return;
             DetailEpisodeBox.Items.Clear();
             foreach (var episode in episodes) DetailEpisodeBox.Items.Add(episode);
             if (DetailEpisodeBox.Items.Count > 0) DetailEpisodeBox.SelectedIndex = 0;
             else PopulateEpisodes();
         }
-        catch { DetailEpisodeBox.Items.Clear(); PopulateEpisodes(); }
+        catch { if (ReferenceEquals(_selectedRow, row) && Equals(DetailSeasonBox.SelectedItem, season)) { DetailEpisodeBox.Items.Clear(); PopulateEpisodes(); } }
     }
 
     private async void EpisodePlot_Click(object sender, RoutedEventArgs e)
@@ -2992,6 +3061,7 @@ public partial class MainWindow : Window
         var tmdbId = row.TmdbId;
         var details = await _catalog.EpisodeAsync(tmdbId, row.ImdbId, season, episode);
         var overview = await _catalog.WikipediaSummaryAsync($"{row.Name} season {season} episode {episode} {details.Name}", "TV Show", Text(row.Source, "year"));
+        if (!ReferenceEquals(_selectedRow, row) || !Equals(DetailSeasonBox.SelectedItem, season)) return;
         if (overview.Length == 0) overview = details.Overview;
         DetailOverview.Text = overview.Length > 0 ? $"S{season:00}E{episode:00} {details.Name}\n\n{overview}" : "No Wikipedia episode story was found. TMDB also has no episode summary.";
         var selectedRating = DetailEpisodeBox.SelectedItem is EpisodeChoice selected && selected.Rating > 0 ? selected.Rating : details.Rating;
@@ -3241,6 +3311,7 @@ public partial class MainWindow : Window
         PageSubtitle.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         ThemeButton.Visibility = ActualWidth < 1180 ? Visibility.Collapsed : Visibility.Visible;
         OverviewStats.Columns = ActualWidth < 1500 ? 3 : 6;
+        if (GameToolbarOptions is not null && MediaToolbarOptions is not null) UpdateTileSize(ActualWidth);
     }
 
     private void OpenVaultFolder_Click(object sender, RoutedEventArgs e) => Process.Start(new ProcessStartInfo(_vault.StorageFolder) { UseShellExecute = true });

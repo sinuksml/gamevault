@@ -19,6 +19,15 @@ public partial class ItemEditorWindow : Window
         Item = _source;
         Heading.Text = source is null ? "Add library item" : "Edit library item";
         SaveButton.Content = source is null ? "Add" : "Save changes";
+        var media = collection.Contains("Movie", StringComparison.OrdinalIgnoreCase) || collection.Contains("Series", StringComparison.OrdinalIgnoreCase);
+        StatusBox.Items.Clear();
+        foreach (var status in media ? new[] { "Watchlist", "Watching", "Watched", "On Hold", "Dropped" }
+            : new[] { "Queued", "Playing", "On Hold", "Completed", "Dropped" })
+            StatusBox.Items.Add(new ComboBoxItem { Content = status });
+        var rental = collection is "rentals" or "rentalHistory";
+        StartDateLabel.Text = rental ? "Rental start date" : "Release date";
+        ((FrameworkElement)EndDateBox.Parent).Visibility = rental ? Visibility.Visible : Visibility.Collapsed;
+        ((FrameworkElement)CostBox.Parent).Visibility = rental || collection == "purchasedGames" ? Visibility.Visible : Visibility.Collapsed;
         LoadValues();
         if (_collection == "purchasedGames")
         {
@@ -63,6 +72,17 @@ public partial class ItemEditorWindow : Window
             return;
         }
         Item = _source.DeepClone() as JsonObject ?? new JsonObject();
+        if (_collection is "rentals" or "rentalHistory" && StartDateBox.SelectedDate is DateTime from
+            && EndDateBox.SelectedDate is DateTime to && to < from)
+        {
+            MessageBox.Show(this, "The return date must be on or after the rental start date.", "Check dates");
+            return;
+        }
+        if (!ValidNumber(CostBox.Text, 0, double.MaxValue) || !ValidNumber(RatingBox.Text, 0, 10))
+        {
+            MessageBox.Show(this, "Enter a non-negative cost and a rating between 0 and 10.", "Check values");
+            return;
+        }
         Item["id"] ??= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
         var titleKey = Item.ContainsKey("title") || _collection.Contains("Movie", StringComparison.OrdinalIgnoreCase) || _collection.Contains("Series", StringComparison.OrdinalIgnoreCase) ? "title" : "name";
         Item[titleKey] = name;
@@ -77,7 +97,7 @@ public partial class ItemEditorWindow : Window
         Set("note", NoteBox.Text.Trim());
         if (StartDateBox.SelectedDate is DateTime start)
         {
-            var key = _collection == "purchasedGames" ? "purchaseDate" : _collection == "rentals" ? "start" : Item.ContainsKey("releaseDate") ? "releaseDate" : "date";
+            var key = _collection == "purchasedGames" ? "purchaseDate" : _collection is "rentals" or "rentalHistory" ? "start" : Item.ContainsKey("releaseDate") ? "releaseDate" : "date";
             Item[key] = start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         }
         if (EndDateBox.SelectedDate is DateTime end)
@@ -110,6 +130,8 @@ public partial class ItemEditorWindow : Window
     }
 
     private static DateTime? Date(string value) => DateTime.TryParse(value, out var date) ? date : null;
+    private static bool ValidNumber(string text, double min, double max) => string.IsNullOrWhiteSpace(text)
+        || double.TryParse(text, NumberStyles.Number, CultureInfo.CurrentCulture, out var value) && double.IsFinite(value) && value >= min && value <= max;
     private void SelectStatus(string status)
     {
         if (status.Length == 0) { StatusBox.SelectedIndex = 0; return; }

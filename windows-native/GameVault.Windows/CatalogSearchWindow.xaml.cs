@@ -6,7 +6,10 @@ using System.Windows.Input;
 
 namespace SinuGameVault;
 
-public sealed record SearchResultRow(string Title, string Date, string Rating, string Genre, JsonObject Source);
+public sealed record SearchResultRow(string Title, string Date, string Rating, string Genre, JsonObject Source)
+{
+    public string Image => Source["img"]?.ToString() ?? Source["poster"]?.ToString() ?? Source["cover"]?.ToString() ?? "";
+}
 
 public partial class CatalogSearchWindow : Window
 {
@@ -14,6 +17,7 @@ public partial class CatalogSearchWindow : Window
     private readonly string _type;
     private readonly ObservableCollection<SearchResultRow> _results = [];
     public JsonObject? SelectedItem { get; private set; }
+    public bool ManualEntry { get; private set; }
 
     public CatalogSearchWindow(CatalogService catalog, string type)
     {
@@ -49,6 +53,7 @@ public partial class CatalogSearchWindow : Window
     }
     private void Results_DoubleClick(object sender, MouseButtonEventArgs e) => Choose();
     private void Add_Click(object sender, RoutedEventArgs e) => Choose();
+    private void Manual_Click(object sender, RoutedEventArgs e) { ManualEntry = true; DialogResult = true; }
     private void Choose()
     {
         if (ResultsGrid.SelectedItem is not SearchResultRow row) return;

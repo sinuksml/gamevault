@@ -47,6 +47,7 @@ internal static class VisualChecks
             foreach (var width in new[] { 1080, 1440 })
             {
                 var root = new StackPanel { Background = (Brush)app.Resources["WindowBrush"], Width = width };
+                root.Resources["LibraryTileWidth"] = 248d;
                 root.Children.Add(new TextBlock { Text = "Library - layout test fixtures", FontSize = 28, Margin = new Thickness(24) });
                 var cards = new WrapPanel { Margin = new Thickness(24, 0, 24, 24) };
                 root.Children.Add(cards);
@@ -70,5 +71,28 @@ internal static class VisualChecks
             }
         }
         Console.WriteLine($"PASS: four native WPF card layout renders: {output}");
+        foreach (var light in new[] { false, true })
+        foreach (var width in new[] { 1280, 1920 })
+        foreach (var section in new[] { "Overview", "Games", "Movies", "Series", "Plex", "BiglyBT", "Settings", "Details" })
+        {
+            var fixtures = Enumerable.Range(1, 12).Select(i => new LibraryRow
+            {
+                Name = i % 3 == 0 ? "A longer library title with multiple words" : $"Sample title {i}",
+                Collection = section == "Games" ? "queue" : "watchlistMovies",
+                MediaType = section == "Games" ? "Game" : section == "Series" ? "TV Show" : "Movie",
+                Genre = "Adventure", Date = "06-April-2026", Rating = 8.5
+            }).ToList();
+            var root = window.PrepareLayoutPreview(section, light, width, fixtures);
+            root.Measure(new Size(width, 900));
+            root.Arrange(new Rect(0, 0, width, 900));
+            root.UpdateLayout();
+            var bitmap = new RenderTargetBitmap(width, 900, 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(root);
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using var file = File.Create(Path.Combine(output, $"page-{section}-{(light ? "light" : "dark")}-{width}.png"));
+            encoder.Save(file);
+        }
+        Console.WriteLine("PASS: 32 offline full-page WPF renders");
     }
 }

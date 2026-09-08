@@ -5,6 +5,8 @@
         Title="Sinu Game Vault" Icon="Assets/GameVault.ico" Width="1440" Height="900" MinWidth="1100" MinHeight="700"
         WindowStartupLocation="CenterScreen" PreviewKeyDown="Window_PreviewKeyDown" SizeChanged="Window_SizeChanged">
     <Window.Resources>
+        <app:ArtworkHeightConverter x:Key="ArtworkHeight"/>
+        <sys:Double xmlns:sys="clr-namespace:System;assembly=System.Runtime" x:Key="LibraryTileWidth">248</sys:Double>
         <DataTemplate x:Key="DashboardRowTemplate">
             <Button Tag="{Binding}" Click="LibraryCard_Click" Padding="0" Margin="0,0,0,10" Height="86"
                     Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
@@ -29,7 +31,7 @@
             <!-- The art frame takes its height from the row so 2:3 posters and 16:9
                  game art each fill their own frame exactly, instead of one fixed
                  box cropping landscape art down to its middle third. -->
-            <Button Tag="{Binding}" Click="LibraryCard_Click" Padding="0" Margin="0,0,18,20" Width="236"
+            <Button Tag="{Binding}" Click="LibraryCard_Click" Padding="0" Margin="0,0,16,20" Width="{DynamicResource LibraryTileWidth}"
                     Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
                     HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
                 <Button.Style>
@@ -48,32 +50,32 @@
                 <Button.ContextMenu><ContextMenu><MenuItem Header="Open details" Tag="open" Click="CardQuickAction_Click"/><MenuItem Header="Edit details" Tag="edit" Click="CardQuickAction_Click"/><Separator/><MenuItem Header="Primary action" Tag="primary" Click="CardQuickAction_Click"/><MenuItem Header="Add to watchlist / queue" Tag="watchlist" Click="CardQuickAction_Click"/><MenuItem Header="Mark watched / completed" Tag="watched" Click="CardQuickAction_Click"/><MenuItem Header="Not interested" Tag="hidden" Click="CardQuickAction_Click"/></ContextMenu></Button.ContextMenu>
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                    <Border Height="{Binding ArtHeight}" Background="{Binding PlaceholderColor}" CornerRadius="8,8,0,0" ClipToBounds="True">
+                    <Border Background="{Binding PlaceholderColor}" CornerRadius="8,8,0,0" ClipToBounds="True">
+                        <Border.Height><MultiBinding Converter="{StaticResource ArtworkHeight}"><Binding Path="ActualWidth" RelativeSource="{RelativeSource AncestorType=Button}"/><Binding Path="IsPortraitArt"/></MultiBinding></Border.Height>
                         <Grid>
                             <!-- Drawn locally so a title without a cover is never a blank card. -->
                             <TextBlock Text="{Binding Initials}" FontSize="44" FontWeight="Bold" Foreground="#66FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             <Image app:Artwork.Url="{Binding Image}" app:Artwork.DecodeWidth="320" Stretch="{Binding ArtStretch}" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <Border Background="{StaticResource ArtScrimBrush}"/>
                             <!-- Stacked rather than left/right: on a 236px card the two
                                  pills sat shoulder to shoulder and visibly collided. -->
                             <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10">
-                                <Border HorizontalAlignment="Left" Background="{Binding CategoryColor}" CornerRadius="999" Padding="9,4"><TextBlock Text="{Binding CategoryLabel}" Foreground="White" FontSize="10" FontWeight="Bold" MaxWidth="150" TextTrimming="CharacterEllipsis"/></Border>
-                                <Border Visibility="{Binding HasBadges, Converter={StaticResource BoolToVisibility}}" HorizontalAlignment="Left" Margin="0,5,0,0" Background="#C2050A12" BorderBrush="#4DFFFFFF" BorderThickness="1" CornerRadius="999" Padding="8,3"><TextBlock Text="{Binding Badges}" Foreground="White" FontSize="9" FontWeight="Bold" MaxWidth="150" TextTrimming="CharacterEllipsis"/></Border>
-                            </StackPanel>
-                            <StackPanel VerticalAlignment="Bottom" Margin="12,0,12,10">
-                                <TextBlock Text="{Binding CardRatingText}" Foreground="#FFD166" FontWeight="Bold" FontSize="13" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Text="{Binding DaysText}" Foreground="White" FontWeight="Bold" FontSize="20" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                                <Border HorizontalAlignment="Left" Background="{Binding CategoryColor}" CornerRadius="4" Padding="9,5"><TextBlock Text="{Binding CategoryLabel}" Foreground="White" FontSize="12" FontWeight="SemiBold" MaxWidth="180" TextTrimming="CharacterEllipsis"/></Border>
                             </StackPanel>
                         </Grid>
                     </Border>
                     <StackPanel Grid.Row="1" Margin="14,12,14,14">
                         <TextBlock Text="{Binding Name}" ToolTip="{Binding Name}" FontWeight="SemiBold" FontSize="18" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" Height="72" LineHeight="24"/>
-                        <TextBlock Text="{Binding PrimaryMeta}" Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding PrimaryMeta}" Foreground="{DynamicResource MutedBrush}" FontSize="13" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding CardRatingText}" Foreground="{DynamicResource WarningBrush}" FontSize="13" FontWeight="SemiBold" Margin="0,6,0,0" Height="18"/>
                         <TextBlock Text="{Binding Date}" Foreground="{DynamicResource AccentBrush}" FontSize="15" FontWeight="SemiBold" Margin="0,5,0,0" TextTrimming="CharacterEllipsis"/>
+                        <StackPanel Visibility="{Binding HasCountdown, Converter={StaticResource BoolToVisibility}}" Margin="0,10,0,0">
+                            <TextBlock Text="{Binding DaysText}" Foreground="{DynamicResource TextBrush}" FontSize="22" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                            <ProgressBar Value="{Binding PeriodRemainingPercent, Mode=OneWay}" Maximum="100" Height="4" Margin="0,8,0,0" Foreground="{Binding PeriodColor}" Background="{DynamicResource DividerBrush}" BorderThickness="0" Visibility="{Binding HasPeriod, Converter={StaticResource BoolToVisibility}}"/>
+                        </StackPanel>
                         <!-- The obvious next step, without opening the title first. -->
                         <Button Content="{Binding QuickActionLabel}" Tag="{Binding}" Click="CardQuickButton_Click"
                                 Visibility="{Binding HasQuickAction, Converter={StaticResource BoolToVisibility}}"
-                                Margin="0,10,0,0" Padding="10,6" MinHeight="32" FontSize="12" FontWeight="SemiBold"
+                                Margin="0,14,0,0" Padding="10,6" MinHeight="38" FontSize="13" FontWeight="SemiBold"
                                 HorizontalAlignment="Stretch"/>
                     </StackPanel>
                 </Grid>
@@ -182,9 +184,18 @@
             </Border>
 
             <Grid Grid.Row="1" Margin="28,22">
-                <Grid x:Name="OverviewPage">
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="18"/><RowDefinition Height="Auto"/><RowDefinition Height="18"/><RowDefinition Height="Auto"/><RowDefinition Height="18"/><RowDefinition Height="Auto"/><RowDefinition Height="0"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                    <Border Style="{StaticResource SurfaceCard}" Padding="26">
+                <ScrollViewer x:Name="OverviewPage" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="24"/><RowDefinition Height="Auto"/><RowDefinition Height="24"/><RowDefinition Height="Auto"/><RowDefinition Height="24"/><RowDefinition Height="Auto"/><RowDefinition Height="24"/><RowDefinition Height="Auto"/><RowDefinition Height="24"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="Pick up where you left off" FontSize="30" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding Text, ElementName=HomeSummaryText}" Foreground="{DynamicResource MutedBrush}" Margin="0,8,0,24"/>
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel><DockPanel Margin="0,0,0,14"><Button Content="View all" Tag="Games" Click="HomeShortcut_Click" DockPanel.Dock="Right" HorizontalAlignment="Right" Style="{StaticResource QuietButton}"/><TextBlock Text="Continue playing" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel><ItemsControl x:Name="HomeContinuePlaying" ItemTemplate="{StaticResource DashboardRowTemplate}"/><TextBlock x:Name="HomePlayingEmpty" Text="Your active games will appear here." Foreground="{DynamicResource MutedBrush}" Margin="0,12"/></StackPanel>
+                            <StackPanel Grid.Column="2"><DockPanel Margin="0,0,0,14"><Button Content="View all" Tag="Movies" Click="HomeWatching_Click" DockPanel.Dock="Right" HorizontalAlignment="Right" Style="{StaticResource QuietButton}"/><TextBlock Text="Continue watching" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel><ItemsControl x:Name="HomeContinueWatching" ItemTemplate="{StaticResource DashboardRowTemplate}"/><TextBlock x:Name="HomeWatchingEmpty" Text="Movies and shows you are watching will appear here." Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,12"/></StackPanel>
+                        </Grid>
+                    </StackPanel>
+                    <Border Style="{StaticResource SurfaceCard}" Padding="26" Visibility="Collapsed">
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                             <StackPanel VerticalAlignment="Center">
@@ -213,7 +224,7 @@
                             </WrapPanel>
                         </Grid>
                     </Border>
-                    <UniformGrid x:Name="OverviewStats" Grid.Row="2" Columns="6">
+                    <UniformGrid x:Name="OverviewStats" Grid.Row="6" Columns="6">
                         <Border Style="{StaticResource SurfaceCard}" Padding="18" Margin="0,0,8,0">
                             <StackPanel><TextBlock Text="ACTIVE RENTALS" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12"/><TextBlock x:Name="RentalCount" Text="0" FontSize="30" FontWeight="Bold" Margin="0,8,0,0"/><TextBlock Text="games currently rented" Style="{StaticResource MutedText}"/></StackPanel>
                         </Border>
@@ -229,7 +240,7 @@
                         <Border Style="{StaticResource SurfaceCard}" Padding="18" Margin="4,0,4,0"><StackPanel><TextBlock Text="TOTAL RENTED" Foreground="#A45BDD" FontWeight="Bold" FontSize="12"/><TextBlock x:Name="TotalRentedCount" Text="0" FontSize="30" FontWeight="Bold" Margin="0,8,0,0"/><TextBlock Text="all rental periods" Style="{StaticResource MutedText}"/></StackPanel></Border>
                         <Border Style="{StaticResource SurfaceCard}" Padding="18" Margin="4,0,0,0"><StackPanel><TextBlock Text="TOTAL SPENT" Foreground="#C28A00" FontWeight="Bold" FontSize="12"/><TextBlock x:Name="TotalSpentCount" Text="₹0" FontSize="24" FontWeight="Bold" Margin="0,8,0,0"/><TextBlock Text="rentals + subscriptions" Style="{StaticResource MutedText}"/></StackPanel></Border>
                     </UniformGrid>
-                    <Border Grid.Row="4" Style="{StaticResource SurfaceCard}" Padding="18,14">
+                    <Border Grid.Row="8" Style="{StaticResource SurfaceCard}" Padding="0,20" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0">
                         <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="230"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                             <StackPanel VerticalAlignment="Top">
                                 <TextBlock Text="GAME SPENDING" Style="{StaticResource KickerText}"/>
@@ -274,7 +285,7 @@
                         </Grid>
                     </Border>
                     <!-- Petrol refills per month, on their own timeline. -->
-                    <Border Grid.Row="6" Style="{StaticResource SurfaceCard}" Padding="18,14" Margin="0,0,0,18">
+                    <Border Grid.Row="10" Style="{StaticResource SurfaceCard}" Padding="0,20" Margin="0,0,0,18" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0">
                         <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="230"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                             <StackPanel VerticalAlignment="Center">
                                 <TextBlock Text="PETROL REFILLS" Style="{StaticResource KickerText}"/>
@@ -297,14 +308,14 @@
                             </ItemsControl>
                         </Grid>
                     </Border>
-                    <Grid Grid.Row="8">
+                    <StackPanel Grid.Row="4"><TextBlock Text="On the horizon" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,14"/><ItemsControl x:Name="HomeUpcoming" ItemTemplate="{StaticResource DashboardRowTemplate}"/><TextBlock x:Name="HomeUpcomingEmpty" Text="Upcoming titles will appear after refreshing your release catalogs." Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"/></StackPanel>
+                    <Grid Grid.Row="2" Margin="0,0,0,20">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="1.15*"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <!-- Every rental return and subscription renewal, soonest first.
                              Both panels hug their content and only grow to the height the
                              row can give them, so a short list does not leave the bottom
                              half of the page empty while a long one still scrolls. -->
-                        <Border Style="{StaticResource SurfaceCard}" VerticalAlignment="Top"
-                                MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}">
+                        <Border Style="{StaticResource SurfaceCard}" VerticalAlignment="Top">
                             <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                                 <StackPanel>
                                     <TextBlock Text="Due dates" Style="{StaticResource SectionTitle}"/>
@@ -347,8 +358,7 @@
                                 </ScrollViewer>
                             </Grid>
                         </Border>
-                        <Border Grid.Column="2" Style="{StaticResource SurfaceCard}" VerticalAlignment="Top"
-                                MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}">
+                        <Border Grid.Column="2" Style="{StaticResource SurfaceCard}" VerticalAlignment="Top">
                             <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                                 <StackPanel>
                                     <TextBlock Text="Where the money went" Style="{StaticResource SectionTitle}"/>
@@ -383,35 +393,41 @@
                         </Border>
                     </Grid>
                 </Grid>
+                </ScrollViewer>
 
                 <Grid x:Name="GamesPage" Visibility="Collapsed">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="12"/><RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                     <Grid Grid.Row="2">
+                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                         <WrapPanel Grid.Column="0">
                             <ComboBox x:Name="LibrarySectionBox" Width="170" Margin="0,0,8,8" SelectionChanged="LibrarySection_Changed">
                                 <ComboBoxItem Content="Rentals" Tag="rentals"/>
                                 <ComboBoxItem Content="Subscriptions" Tag="subscriptionGames"/>
                                 <ComboBoxItem Content="Purchased" Tag="purchasedGames"/>
+                                <ComboBoxItem Content="Rental queue" Tag="queue"/>
+                                <ComboBoxItem Content="Completed" Tag="played"/>
+                            </ComboBox>
+                            <ComboBox x:Name="GamePlatformBox" Width="160" SelectedIndex="0" Visibility="Collapsed" Margin="0,0,8,8" SelectionChanged="GamePlatform_Changed" AutomationProperties.Name="Game platform">
+                                <ComboBoxItem Content="PlayStation 5" Tag="ps5"/><ComboBoxItem Content="Xbox and PC" Tag="xboxpc"/>
                             </ComboBox>
                             <Button x:Name="AddGameButton" Content="Add game" Style="{StaticResource PrimaryButton}" Click="AddGame_Click" Margin="0,0,8,8"/>
-                            <Button Content="Edit selected" Margin="0,0,8,8" Click="EditSelected_Click"/><Button x:Name="GamesCategoryButton" Content="Category" Margin="0,0,8,8" Click="CategoryView_Click"/><Button Content="Rental history" Margin="0,0,8,8" Click="RentalHistory_Click"/><Button Content="Vendor report" Margin="0,0,8,8" Click="VendorReport_Click"/><Button Content="Subscriptions" Margin="0,0,8,8" Click="ManageSubscriptions_Click"/><Button Content="Refresh online" Margin="0,0,8,8" Click="RefreshOnline_Click"/>
+                            <Button x:Name="GamesCategoryButton" Content="Group by year" Margin="0,0,8,8" Click="CategoryView_Click"/>
+                            <Button Content="More" Margin="0,0,8,8" Click="OpenActionsMenu_Click"><Button.ContextMenu><ContextMenu>
+                                <MenuItem Header="Edit selected title" Click="EditSelected_Click"/><MenuItem Header="Rental history" Click="RentalHistory_Click"/><MenuItem Header="Vendor report" Click="VendorReport_Click"/><MenuItem Header="Manage subscriptions" Click="ManageSubscriptions_Click"/><Separator/><MenuItem Header="Refresh online catalog" Click="RefreshOnline_Click"/>
+                            </ContextMenu></Button.ContextMenu></Button>
                         </WrapPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="18,0,0,0" VerticalAlignment="Top">
+                        <StackPanel x:Name="GameToolbarOptions" Grid.Column="1" Orientation="Horizontal" Margin="18,0,0,0" VerticalAlignment="Top">
                             <ComboBox x:Name="GameSortBox" Width="150" SelectionChanged="LibrarySort_Changed"><ComboBoxItem Content="Newest first" Tag="new"/><ComboBoxItem Content="Title A-Z" Tag="title"/><ComboBoxItem Content="Release date" Tag="date"/><ComboBoxItem Content="Rating" Tag="rating"/></ComboBox>
                             <Button x:Name="GameViewButton" Content="List view" Margin="8,0,0,0" Click="GameView_Click"/>
+                            <Button Content="Density" ToolTip="Switch between comfortable and compact cards" Margin="8,0,0,0" Click="Density_Click"/>
                         </StackPanel>
                     </Grid>
                     <TabControl x:Name="GamesTabs" SelectionChanged="GamesTabs_SelectionChanged">
                         <TabItem Tag="library" app:TabAccent.Color="#1E9BE0"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8B7;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Library"/></StackPanel></TabItem.Header></TabItem>
                         <TabItem Tag="playing" app:TabAccent.Color="#16A97F"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE768;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Now Playing"/></StackPanel></TabItem.Header></TabItem>
-                        <TabItem Tag="queue" app:TabAccent.Color="#E0952A"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8CB;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Rental Queue"/></StackPanel></TabItem.Header></TabItem>
-                        <!-- PS5 and Xbox &amp; PC are separate tabs, never mixed in one list. -->
-                        <TabItem Tag="upcoming:ps5" app:TabAccent.Color="#0070D1"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE787;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="PS5 Upcoming"/></StackPanel></TabItem.Header></TabItem>
-                        <TabItem Tag="upcoming:xboxpc" app:TabAccent.Color="#107C10"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE787;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Xbox &amp; PC Upcoming"/></StackPanel></TabItem.Header></TabItem>
-                        <TabItem Tag="catalogExtra:ps5" app:TabAccent.Color="#4A78E0"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE721;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="PS5 Discover"/></StackPanel></TabItem.Header></TabItem>
-                        <TabItem Tag="catalogExtra:xboxpc" app:TabAccent.Color="#8A63D2"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE721;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Xbox &amp; PC Discover"/></StackPanel></TabItem.Header></TabItem>
-                        <TabItem Tag="played" app:TabAccent.Color="#35B37E"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE73E;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Completed"/></StackPanel></TabItem.Header></TabItem>
+                        <TabItem Tag="catalogExtra" app:TabAccent.Color="#4A78E0"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE721;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Discover"/></StackPanel></TabItem.Header></TabItem>
+                        <TabItem Tag="upcoming" app:TabAccent.Color="#0070D1"><TabItem.Header><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE787;" FontFamily="Segoe Fluent Icons" FontSize="16" Margin="0,0,8,0"/><TextBlock Text="Upcoming"/></StackPanel></TabItem.Header></TabItem>
                     </TabControl>
                     <ScrollViewer x:Name="GamesCardScroll" Grid.Row="6" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ScrollChanged="CardScroll_ScrollChanged">
                         <ItemsControl x:Name="GamesCards" ItemTemplate="{StaticResource LibraryCardTemplate}">
@@ -426,19 +442,20 @@
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="Auto"/><RowDefinition Height="12"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                     <WrapPanel x:Name="MediaTabsPanel"/>
                     <Grid Grid.Row="2">
+                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                             <WrapPanel Grid.Column="0">
+                                <ComboBox x:Name="MediaBrowseBox" Width="210" Margin="0,0,8,8" SelectionChanged="MediaBrowse_Changed" AutomationProperties.Name="Library filter"/>
                                 <Button Content="Add title" Style="{StaticResource PrimaryButton}" Click="AddMedia_Click" Margin="0,0,8,8"/>
-                                <Button Content="Edit selected" Margin="0,0,8,8" Click="EditSelected_Click"/>
-                                <Button x:Name="MediaCategoryButton" Content="Category" Margin="0,0,8,8" Click="CategoryView_Click"/>
-                                <Button Content="Find online" Margin="0,0,8,8" Click="FindOnline_Click"/>
-                                <Button Content="Refresh this catalog" Margin="0,0,8,8" Click="RefreshOnline_Click"/>
+                                <Button x:Name="MediaCategoryButton" Content="Group by year" Margin="0,0,8,8" Click="CategoryView_Click"/>
+                                <Button Content="More" Margin="0,0,8,8" Click="OpenActionsMenu_Click"><Button.ContextMenu><ContextMenu><MenuItem Header="Edit selected title" Click="EditSelected_Click"/><MenuItem Header="Find a title online" Click="FindOnline_Click"/><MenuItem Header="Refresh this catalog" Click="RefreshOnline_Click"/></ContextMenu></Button.ContextMenu></Button>
                             </WrapPanel>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="18,0,0,0" VerticalAlignment="Top">
+                            <StackPanel x:Name="MediaToolbarOptions" Grid.Column="1" Orientation="Horizontal" Margin="18,0,0,0" VerticalAlignment="Top">
                                 <ComboBox x:Name="MediaYearBox" Width="115" SelectionChanged="MediaFilter_Changed"><ComboBoxItem Content="All years" Tag=""/></ComboBox>
-                                <TextBox x:Name="MediaGenreBox" Width="140" Margin="8,0,0,0" ToolTip="Genre filter" TextChanged="MediaGenre_TextChanged"/>
+                                <TextBox x:Name="MediaGenreBox" Width="110" Margin="8,0,0,0" ToolTip="Filter by genre" AutomationProperties.Name="Genre filter" TextChanged="MediaGenre_TextChanged"/>
                                 <ComboBox x:Name="MediaSortBox" Width="145" Margin="8,0,0,0" SelectionChanged="LibrarySort_Changed"><ComboBoxItem Content="Newest first" Tag="new"/><ComboBoxItem Content="Title A-Z" Tag="title"/><ComboBoxItem Content="Rating" Tag="rating"/></ComboBox>
                                 <Button x:Name="MediaViewButton" Content="List view" Margin="8,0,0,0" Click="MediaView_Click"/>
+                                <Button Content="Density" ToolTip="Switch between comfortable and compact cards" Margin="8,0,0,0" Click="Density_Click"/>
                             </StackPanel>
                     </Grid>
                     <ScrollViewer x:Name="MediaCardScroll" Grid.Row="4" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ScrollChanged="CardScroll_ScrollChanged">
@@ -461,10 +478,10 @@
 
                 <Grid x:Name="PlexPage" Visibility="Collapsed">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="12"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                    <DockPanel>
-                        <StackPanel Orientation="Horizontal"><Button Content="Continue Watching" Tag="continue" Style="{StaticResource PrimaryButton}" Click="PlexMode_Click"/><Button Content="All Library" Tag="all" Margin="8,0,0,0" Click="PlexMode_Click"/><Button Content="Movies" Tag="movie" Margin="8,0,0,0" Click="PlexMode_Click"/><Button Content="TV Shows" Tag="show" Margin="8,0,0,0" Click="PlexMode_Click"/><Button Content="Recently Added" Tag="recent" Margin="8,0,0,0" Click="PlexMode_Click"/></StackPanel>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><TextBlock x:Name="PlexStatusText" Text="Not connected" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,12,0"/><Button Content="Refresh library" Click="PlexRefresh_Click"/></StackPanel>
-                    </DockPanel>
+                    <StackPanel>
+                        <WrapPanel x:Name="PlexModeTabs"><Button Content="Continue Watching" Tag="continue" Click="PlexMode_Click"/><Button Content="All Library" Tag="all" Margin="8,0,0,0" Click="PlexMode_Click"/><Button Content="Movies" Tag="movie" Margin="8,0,0,0" Click="PlexMode_Click"/><Button Content="TV Shows" Tag="show" Margin="8,0,0,0" Click="PlexMode_Click"/><Button Content="Recently Added" Tag="recent" Margin="8,0,0,0" Click="PlexMode_Click"/></WrapPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0"><TextBlock x:Name="PlexStatusText" Text="Not connected" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,12,0"/><Button Content="Refresh library" Click="PlexRefresh_Click"/></StackPanel>
+                    </StackPanel>
                     <Border x:Name="PlexSetupPanel" Grid.Row="2" Style="{StaticResource SurfaceCard}" Padding="28" MaxWidth="760" HorizontalAlignment="Left" VerticalAlignment="Top">
                         <StackPanel><TextBlock Text="Connect Plex Media Server" FontSize="24" FontWeight="Bold"/><TextBlock Text="Add the server URL and X-Plex-Token in Settings, then select Discover Plex library. Credentials stay in Windows Credential Manager." Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,8,0,16"/><WrapPanel><Button Content="Open Settings" Tag="Settings" Style="{StaticResource PrimaryButton}" Click="Navigate_Click" Margin="0,0,8,0"/><Button Content="How to get X-Plex-Token" Click="PlexTokenHelp_Click"/></WrapPanel></StackPanel>
                     </Border>
@@ -493,21 +510,21 @@
                             <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
                             <!-- Visual progress bar with the percentage sitting on top,
                                  like the web dashboard, instead of a bare number. -->
-                            <DataGridTemplateColumn Header="Progress" Width="190">
+                            <DataGridTemplateColumn Header="Progress" Width="120">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Grid VerticalAlignment="Center" Margin="4,0" Height="20">
-                                            <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}" Height="18"
+                                        <StackPanel VerticalAlignment="Center" Margin="4,4">
+                                            <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress, Mode=OneWay}" Height="4"
                                                          Background="{DynamicResource PanelRaisedBrush}" BorderThickness="0"
                                                          Foreground="{DynamicResource AccentBrush}"/>
                                             <TextBlock Text="{Binding ProgressText}" HorizontalAlignment="Center" VerticalAlignment="Center"
                                                        FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TextBrush}"/>
-                                        </Grid>
+                                        </StackPanel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTextColumn Header="Downloaded / Total" Binding="{Binding AmountText}" Width="170"/>
-                            <DataGridTextColumn Header="Speed" Binding="{Binding SpeedText}" Width="200"/>
+                            <DataGridTextColumn Header="Speed" Binding="{Binding SpeedText}" Width="130"/>
                             <DataGridTextColumn Header="Time left" Binding="{Binding EtaText}" Width="90"/>
                             <DataGridTextColumn Header="Peers" Binding="{Binding Peers}" Width="60"/>
                         </DataGrid.Columns>
@@ -616,73 +633,79 @@
                     </TabControl>
                 </Grid>
 
-                <Border x:Name="DetailsPage" Visibility="Collapsed" Background="{DynamicResource DetailsBrush}" Panel.ZIndex="20" Padding="34">
+                <StackPanel x:Name="LibraryEmptyState" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="400">
+                    <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="36" Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center" Margin="0,0,0,18"/>
+                    <TextBlock Text="No titles to show" FontSize="24" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                    <TextBlock Text="Find a title to add, or clear your current filters." TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource MutedBrush}" Margin="0,10,0,20"/>
+                    <Button x:Name="LibraryEmptyAction" Content="Find a title" Click="LibraryEmpty_Click" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Center"/>
+                </StackPanel>
+                <Border x:Name="DetailsPage" Visibility="Collapsed" Background="{DynamicResource WindowBrush}" Panel.ZIndex="20">
                     <Grid>
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                        <Image x:Name="DetailBackdrop" Grid.RowSpan="2" Stretch="UniformToFill" Opacity="0.13" IsHitTestVisible="False"/>
-                        <Border Grid.RowSpan="2" Background="{DynamicResource BackdropScrimBrush}" IsHitTestVisible="False"/>
-                        <Button Content="X" Width="44" Height="44" Padding="0" HorizontalAlignment="Right" VerticalAlignment="Top"
-                                FontSize="17" FontWeight="Bold" Click="CloseDetails_Click" Panel.ZIndex="3"/>
-                        <ScrollViewer x:Name="DetailScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" Margin="0,14,0,0">
-                            <Grid MaxWidth="1220" HorizontalAlignment="Stretch" Margin="0,0,12,24">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="260"/><ColumnDefinition Width="28"/><ColumnDefinition Width="*" MinWidth="0"/></Grid.ColumnDefinitions>
-                                <!-- Height is set per title so 16:9 game art is not stranded
-                                     inside a portrait frame with empty bands around it. -->
-                                <Border x:Name="DetailPosterFrame" Width="260" Height="390" Background="{DynamicResource PanelRaisedBrush}" CornerRadius="12" ClipToBounds="True" VerticalAlignment="Top" Effect="{StaticResource CardShadow}">
-                                    <Grid><TextBlock Text="GV" FontSize="48" FontWeight="Bold" Foreground="#2C3F57" HorizontalAlignment="Center" VerticalAlignment="Center"/><Image x:Name="DetailPoster" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/></Grid>
-                                </Border>
-                                <Border Grid.Column="2" MinWidth="0" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="28" CornerRadius="8">
-                                <StackPanel>
-                                    <TextBlock x:Name="DetailType" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12"/>
-                                    <TextBox x:Name="DetailTitle" Style="{StaticResource SelectableText}" FontSize="40" FontWeight="Bold" Margin="0,8,56,8"/>
-                                    <TextBox x:Name="DetailMeta" Style="{StaticResource SelectableMutedText}" FontSize="16"/>
-                                    <WrapPanel Margin="0,18,0,6">
-                                        <Border Background="{DynamicResource PanelRaisedBrush}" BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8"><TextBlock x:Name="DetailRating" Foreground="{DynamicResource WarningBrush}" FontWeight="Bold" FontSize="16"/></Border>
-                                        <Border Background="{DynamicResource PanelRaisedBrush}" BorderBrush="#277A65" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8"><TextBlock x:Name="DetailCountdown" Foreground="{DynamicResource SuccessBrush}" FontWeight="Bold" FontSize="21"/></Border>
-                                        <Border x:Name="DetailEpisodesBadge" Background="{DynamicResource PanelRaisedBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8"><TextBlock x:Name="DetailEpisodes" Foreground="{DynamicResource TextBrush}"/></Border>
-                                    </WrapPanel>
-                                    <TextBlock Text="AVAILABILITY" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12" Margin="0,22,0,7"/>
-                                    <TextBox x:Name="DetailAvailability" Style="{StaticResource SelectableMutedText}" FontSize="14"/>
-                                    <TextBox x:Name="DetailNote" Style="{StaticResource SelectableMutedText}" FontSize="13" Margin="0,14,0,0"/>
-                                    <!-- The short IMDb/TMDB synopsis, shown above the actions; the
-                                         longer Wikipedia plot keeps its own section below them. -->
-                                    <StackPanel x:Name="DetailSynopsisSection" Visibility="Collapsed">
-                                        <TextBlock Text="OVERVIEW" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12" Margin="0,22,0,7"/>
-                                        <TextBox x:Name="DetailSynopsis" Style="{StaticResource SelectableText}" FontSize="15"/>
-                                    </StackPanel>
-                                    <WrapPanel x:Name="EpisodePicker" Visibility="Collapsed" Margin="0,18,0,0"><TextBlock Text="Season" VerticalAlignment="Center" Margin="0,0,7,0"/><ComboBox x:Name="DetailSeasonBox" Width="110" SelectionChanged="DetailSeason_Changed"/><TextBlock Text="Episode" VerticalAlignment="Center" Margin="14,0,7,0"/><ComboBox x:Name="DetailEpisodeBox" Width="360" SelectionChanged="DetailEpisode_Changed"/><Button Content="Load Wikipedia story" Margin="10,0,0,0" Click="EpisodePlot_Click"/></WrapPanel>
-                                    <WrapPanel Margin="0,16,0,0"><TextBlock Text="My rating" VerticalAlignment="Center" Margin="0,0,8,0"/><ComboBox x:Name="PersonalRatingBox" Width="100"><ComboBoxItem Content="Not rated" Tag="0"/><ComboBoxItem Content="1 / 10" Tag="1"/><ComboBoxItem Content="2 / 10" Tag="2"/><ComboBoxItem Content="3 / 10" Tag="3"/><ComboBoxItem Content="4 / 10" Tag="4"/><ComboBoxItem Content="5 / 10" Tag="5"/><ComboBoxItem Content="6 / 10" Tag="6"/><ComboBoxItem Content="7 / 10" Tag="7"/><ComboBoxItem Content="8 / 10" Tag="8"/><ComboBoxItem Content="9 / 10" Tag="9"/><ComboBoxItem Content="10 / 10" Tag="10"/></ComboBox><Button Content="Save rating" Margin="8,0,0,0" Click="SaveRating_Click"/></WrapPanel>
-                                    <WrapPanel Margin="0,26,0,0">
-                                        <Button Content="Watch trailer" Style="{StaticResource PrimaryButton}" Click="Trailer_Click" Margin="0,0,8,8"/>
-                                        <Button Content="IMDb" Click="Imdb_Click" Margin="0,0,8,8"/>
-                                        <Button Content="Wikipedia" Click="Wikipedia_Click" Margin="0,0,8,8"/>
-                                        <Button x:Name="RefreshPlotButton" Content="Refresh plot" Click="RefreshPlot_Click" Margin="0,0,8,8" AutomationProperties.Name="Refresh Wikipedia plot"/>
-                                        <Button Content="Google search" Click="Google_Click" Margin="0,0,8,8"/>
-                                        <Button Content="IGN review" Click="IgnReview_Click" Margin="0,0,8,8"/>
-                                        <Button Content="Reeload Media review" Click="ReeloadReview_Click" Margin="0,0,8,8"/>
-                                        <Button x:Name="FandomButton" Content="Fandom" Click="Fandom_Click" Margin="0,0,8,8"/>
-                                        <Button Content="AI assistant" Click="AiAssistant_Click" Margin="0,0,8,8"/>
+                        <DockPanel Margin="0,0,0,14">
+                            <Button Click="CloseDetails_Click" ToolTip="Back to library (Esc)" AutomationProperties.Name="Back to library" Width="44" Padding="0" DockPanel.Dock="Left" Margin="0,0,12,0"><TextBlock Text="&#xE72B;" FontFamily="Segoe MDL2 Assets" FontSize="18"/></Button>
+                            <Button Click="CloseDetails_Click" ToolTip="Close title" AutomationProperties.Name="Close title" Width="44" Padding="0" DockPanel.Dock="Right"><TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="16"/></Button>
+                            <TextBlock Text="Title details" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <ScrollViewer x:Name="DetailScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False">
+                            <StackPanel Margin="0,0,16,28">
+                                <Grid MinHeight="280">
+                                    <Image x:Name="DetailBackdrop" Stretch="UniformToFill" Opacity="0.22" IsHitTestVisible="False"/>
+                                    <Border Background="{DynamicResource BackdropScrimBrush}" IsHitTestVisible="False"/>
+                                    <Grid Margin="24">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="220"/><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <Border x:Name="DetailPosterFrame" Width="220" Height="330" Background="{DynamicResource PanelRaisedBrush}" CornerRadius="8" ClipToBounds="True" VerticalAlignment="Top">
+                                            <Grid><TextBlock Text="GV" FontSize="48" FontWeight="Bold" Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/><Image x:Name="DetailPoster" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/></Grid>
+                                        </Border>
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <TextBlock x:Name="DetailType" Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold" FontSize="13"/>
+                                            <TextBox x:Name="DetailTitle" Style="{StaticResource SelectableText}" FontSize="34" FontWeight="SemiBold" Margin="0,10,0,12"/>
+                                            <TextBox x:Name="DetailMeta" Style="{StaticResource SelectableMutedText}" FontSize="15"/>
+                                            <WrapPanel Margin="0,18,0,0">
+                                                <TextBlock x:Name="DetailRating" Foreground="{DynamicResource WarningBrush}" FontWeight="SemiBold" FontSize="17" Margin="0,0,20,10"/>
+                                                <TextBlock x:Name="DetailCountdown" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" FontSize="24" Margin="0,0,20,10"/>
+                                                <Border x:Name="DetailEpisodesBadge"><TextBlock x:Name="DetailEpisodes" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,10"/></Border>
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Grid>
+                                </Grid>
+                                <WrapPanel Margin="0,20,0,18">
+                                    <Button x:Name="DetailMoveButton" Content="Start watching" Style="{StaticResource PrimaryButton}" Click="MoveStatus_Click" Margin="0,0,8,8"/>
+                                    <Button Content="Watch trailer" Click="Trailer_Click" Margin="0,0,8,8"/>
+                                    <Button Content="Change status" Click="ChangeStatus_Click" Margin="0,0,8,8"/>
+                                    <Button Content="Edit details" Click="EditSelected_Click" Margin="0,0,8,8"/>
+                                    <Button x:Name="DetailRemoveButton" Content="Remove" Foreground="{DynamicResource DangerBrush}" Click="RemoveDetail_Click" Margin="0,0,8,8"/>
+                                </WrapPanel>
+                                <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0"/>
+                                <StackPanel Margin="0,20,0,0">
+                                    <TextBlock Text="Overview" FontSize="23" FontWeight="SemiBold" Margin="0,0,0,14"/>
+                                    <StackPanel x:Name="DetailSynopsisSection" Visibility="Collapsed"><TextBox x:Name="DetailSynopsis" Style="{StaticResource SelectableText}" FontSize="17" MaxWidth="920" HorizontalAlignment="Left"/></StackPanel>
+                                    <TextBlock Text="Availability" FontSize="17" FontWeight="SemiBold" Margin="0,20,0,8"/>
+                                    <TextBox x:Name="DetailAvailability" Style="{StaticResource SelectableMutedText}" FontSize="15"/>
+                                    <WrapPanel Margin="0,14,0,0">
                                         <Button x:Name="VendorLinksButton" Content="Rental vendors" Click="VendorLinks_Click" Margin="0,0,8,8"/>
                                         <Button x:Name="VendorRefreshButton" Content="Refresh vendors" Click="VendorRefresh_Click" Margin="0,0,8,8"/>
-                                        <Button Content="Edit details" Click="EditSelected_Click" Margin="0,0,8,8"/>
-                                        <Button Content="Change status" Click="ChangeStatus_Click" Margin="0,0,8,8"/>
-                                        <Button x:Name="DetailMoveButton" Content="Mark watched" Click="MoveStatus_Click" Margin="0,0,8,8"/>
-                                        <Button x:Name="DetailRemoveButton" Content="Remove" Foreground="#FF93A0" Click="RemoveDetail_Click" Margin="0,0,8,8"/>
                                     </WrapPanel>
-                                    <WrapPanel x:Name="MalayalamReviewButtons" Visibility="Collapsed"><Button Content="Monsoon Media review" Click="MonsoonReview_Click" Margin="0,0,8,8"/><Button Content="Aswanth Kok review" Click="AswanthReview_Click" Margin="0,0,8,8"/></WrapPanel>
-
-                                    <!-- The Wikipedia story sits below the actions: it is long-form
-                                         reading, and keeping it above pushed every button off screen. -->
-                                    <Border x:Name="DetailStorySection" Background="#14FFFFFF" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
-                                            CornerRadius="12" Padding="22,18" Margin="0,26,0,0">
-                                        <StackPanel>
-                                            <TextBlock Text="STORY / PLOT" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12" Margin="0,0,0,10"/>
-                                            <TextBox x:Name="DetailOverview" Style="{StaticResource SelectableText}" FontSize="16"/>
+                                    <Border x:Name="DetailStorySection" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="0,20" Margin="0,12,0,0">
+                                        <StackPanel><DockPanel Margin="0,0,0,14"><Button x:Name="RefreshPlotButton" Content="Refresh plot" Click="RefreshPlot_Click" DockPanel.Dock="Right" HorizontalAlignment="Right"/><TextBlock Text="Story and plot" FontSize="23" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel><TextBox x:Name="DetailOverview" Style="{StaticResource SelectableText}" FontSize="17" MaxWidth="920" HorizontalAlignment="Left"/></StackPanel>
+                                    </Border>
+                                    <StackPanel x:Name="EpisodePicker" Visibility="Collapsed" Margin="0,18,0,0">
+                                        <TextBlock Text="Episodes" FontSize="23" FontWeight="SemiBold" Margin="0,0,0,14"/>
+                                        <WrapPanel><StackPanel Margin="0,0,12,12"><TextBlock Text="Season" Margin="0,0,0,6" Foreground="{DynamicResource MutedBrush}"/><ComboBox x:Name="DetailSeasonBox" Width="110" SelectionChanged="DetailSeason_Changed"/></StackPanel><StackPanel Margin="0,0,12,12"><TextBlock Text="Episode" Margin="0,0,0,6" Foreground="{DynamicResource MutedBrush}"/><ComboBox x:Name="DetailEpisodeBox" Width="340" SelectionChanged="DetailEpisode_Changed"/></StackPanel><Button Content="Load episode story" VerticalAlignment="Bottom" Margin="0,0,0,12" Click="EpisodePlot_Click"/></WrapPanel>
+                                    </StackPanel>
+                                    <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,20,0,0" Padding="0,20">
+                                        <StackPanel><TextBlock Text="Your activity" FontSize="23" FontWeight="SemiBold" Margin="0,0,0,14"/><TextBox x:Name="DetailNote" Style="{StaticResource SelectableMutedText}" FontSize="15"/>
+                                            <WrapPanel Margin="0,12,0,0"><TextBlock Text="My rating" VerticalAlignment="Center" Margin="0,0,12,0"/><ComboBox x:Name="PersonalRatingBox" Width="120"><ComboBoxItem Content="Not rated" Tag="0"/><ComboBoxItem Content="1 / 10" Tag="1"/><ComboBoxItem Content="2 / 10" Tag="2"/><ComboBoxItem Content="3 / 10" Tag="3"/><ComboBoxItem Content="4 / 10" Tag="4"/><ComboBoxItem Content="5 / 10" Tag="5"/><ComboBoxItem Content="6 / 10" Tag="6"/><ComboBoxItem Content="7 / 10" Tag="7"/><ComboBoxItem Content="8 / 10" Tag="8"/><ComboBoxItem Content="9 / 10" Tag="9"/><ComboBoxItem Content="10 / 10" Tag="10"/></ComboBox><Button Content="Save rating" Margin="8,0,0,0" Click="SaveRating_Click"/></WrapPanel>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="0,20">
+                                        <StackPanel><TextBlock Text="Reviews and links" FontSize="23" FontWeight="SemiBold" Margin="0,0,0,14"/>
+                                            <WrapPanel><Button Content="IMDb" Click="Imdb_Click" Margin="0,0,8,8"/><Button Content="Wikipedia" Click="Wikipedia_Click" Margin="0,0,8,8"/><Button Content="Google search" Click="Google_Click" Margin="0,0,8,8"/><Button Content="IGN review" Click="IgnReview_Click" Margin="0,0,8,8"/><Button Content="Reeload Media review" Click="ReeloadReview_Click" Margin="0,0,8,8"/><Button x:Name="FandomButton" Content="Fandom" Click="Fandom_Click" Margin="0,0,8,8"/><Button Content="AI assistant" Click="AiAssistant_Click" Margin="0,0,8,8"/></WrapPanel>
+                                            <WrapPanel x:Name="MalayalamReviewButtons" Visibility="Collapsed"><Button Content="Monsoon Media review" Click="MonsoonReview_Click" Margin="0,0,8,8"/><Button Content="Aswanth Kok review" Click="AswanthReview_Click" Margin="0,0,8,8"/></WrapPanel>
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
-                                </Border>
-                            </Grid>
+                            </StackPanel>
                         </ScrollViewer>
                     </Grid>
                 </Border>

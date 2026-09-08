@@ -9,7 +9,7 @@
             <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <TextBlock Text="Add to GameVault" FontSize="26" FontWeight="Bold" />
-        <TextBlock Grid.Row="1" Text="Create a native library entry. Cover enrichment will be added in the online-services phase."
+        <TextBlock Grid.Row="1" Text="Add a game to your personal library."
                    Style="{StaticResource MutedText}" Margin="0,6,0,20" TextWrapping="Wrap" />
         <StackPanel Grid.Row="2" Margin="0,0,0,14">
             <TextBlock Text="Game title" Margin="0,0,0,6" />

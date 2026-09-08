@@ -149,9 +149,14 @@ public sealed class LibraryRow
     public int YearValue => int.TryParse(YearGroup, out var year) ? year : 0;
 
     public string RatingText => Rating > 0 ? $"{Rating:0.0}" : "Not rated";
+    public string RatingLabel => new[] { "imdb", "rating", "rrating", "tmdb", "score" }
+        .FirstOrDefault(key => double.TryParse(Source[key]?.ToString(), System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var value) && value > 0) switch
+        { "imdb" => "IMDb", "rrating" => "RAWG", "tmdb" => "TMDB", _ => "Rating" };
+    public string AttributedRating => Rating > 0 ? $"{RatingLabel} {RatingText}" : "Rating unavailable";
     public string CardRatingText => Collection is "rentals" or "rentalHistory" ? ""
         : Collection == "subscriptions" ? (Cost > 0 ? $"\u20B9{Cost:N0} / cycle" : Status)
-        : $"Rating {RatingText}";
+        : Rating > 0 ? AttributedRating : "";
     public string CategoryLabel => Collection switch
     {
         "rentals" => "Rental",
@@ -226,6 +231,19 @@ public sealed class LibraryRow
     public bool HasRating => Rating > 0;
     public bool HasEpisodeInfo => Seasons > 0 || Episodes > 0;
     public bool HasBadges => !string.IsNullOrWhiteSpace(Badges);
+    public bool HasCountdown => DaysText.Length > 0;
+    public bool HasPeriod => Collection is "rentals" or "subscriptions" or "subscriptionGames" && PeriodDays > 0 && DaysLeft is not null;
+    private double PeriodDays
+    {
+        get
+        {
+            var start = Source["start"]?.ToString() ?? Source["startDate"]?.ToString();
+            var end = Source["returnDate"]?.ToString() ?? Source["endDate"]?.ToString() ?? Source["end"]?.ToString();
+            return DateTime.TryParse(start, out var from) && DateTime.TryParse(end, out var to) ? Math.Max(0, (to.Date - from.Date).TotalDays) : 0;
+        }
+    }
+    public double PeriodRemainingPercent => PeriodDays > 0 ? Math.Clamp((DaysLeft ?? 0) * 100d / PeriodDays, 0, 100) : 0;
+    public string PeriodColor => DaysLeft is <= 0 ? "#D84958" : DaysLeft is <= 7 ? "#B57915" : "#249774";
 
     private static string Join(params string[] values) => string.Join("  |  ", values.Where(value => !string.IsNullOrWhiteSpace(value)).Distinct());
 }

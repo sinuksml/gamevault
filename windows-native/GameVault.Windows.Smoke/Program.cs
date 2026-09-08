@@ -15,6 +15,12 @@ Directory.CreateDirectory(temp);
 DiagnosticsService.UseFolder(Path.Combine(temp, "Diagnostics"));
 try
 {
+    var ratingRow = new SinuGameVault.Models.LibraryRow { Rating = 8.1, Source = new JsonObject { ["tmdb"] = 8.1 } };
+    Assert(ratingRow.AttributedRating == "TMDB 8.1", "TMDB score is not mislabeled IMDb");
+    Assert(new SinuGameVault.Models.LibraryRow().CardRatingText == "", "missing ratings do not clutter cards");
+    var period = new SinuGameVault.Models.LibraryRow { Collection = "rentals", DaysLeft = 5,
+        Source = new JsonObject { ["start"] = "2026-09-01", ["returnDate"] = "2026-09-11" } };
+    Assert(period.HasPeriod && period.PeriodRemainingPercent == 50, "rental progress reflects remaining period");
     Assert(SafeDates.FromUnixMilliseconds(long.MaxValue) is null, "invalid imported timestamp cannot crash details");
     Assert(SafeDates.FromUnixMilliseconds(-1) is null, "missing timestamp remains unknown");
     var now = DateTimeOffset.UtcNow;

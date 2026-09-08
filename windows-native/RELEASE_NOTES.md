@@ -1,4 +1,20 @@
-# Sinu Game Vault for Windows 2.6.10
+# Sinu Game Vault for Windows 2.7.0
+
+## 2.7.0 Library workspace redesign
+
+- Four primary browsing views with secondary ownership, language and platform filters.
+- Responsive comfortable/compact cards; portrait media and landscape game artwork; ratings and dates below images.
+- Scrollable Home with continue-playing/watching sections ahead of reports.
+- Rebuilt title details with stable artwork dimensions, wrapped actions and readable story sections.
+- Search-first adding with cover thumbnails and manual fallback; contextual editor statuses and date/value validation.
+- Guard stale title, story and season responses; game plots are no longer restricted to Now Playing.
+- Attribute ratings to known sources and omit missing rating noise on cards.
+- Preserve unchanged grids and remember card scroll positions within the session.
+- Responsive Plex toolbar, slimmer download progress columns, stable keyboard focus rings and precise local/backup status.
+
+Validation: clean release build, repository smoke tests, rating/progress checks, four card renders and 32 offline full-page renders. Live Plex, Drive and torrent operations were not exercised. Fixture renders are not a substitute for live integration testing.
+
+Remaining redesign work: full page-view-model extraction; bulk library editing; resizable library-list columns; full episode watched-state editor; activity centre; subscription save-flow consolidation; persistent per-view filters; shared cross-client release-rule migration. These are not claimed complete in this release.
 
 ## 2.6.10 Library readability and reliability
 
