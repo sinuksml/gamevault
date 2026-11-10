@@ -34,8 +34,11 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      - name: Build the Windows application
-        run: dotnet build windows-native/GameVault.Windows/GameVault.Windows.csproj -c Release --nologo
-
       - name: Run vault and sync smoke checks
         run: dotnet run --project windows-native/GameVault.Windows.Smoke/GameVault.Windows.Smoke.csproj -c Release --nologo
+
+      - name: Build the Windows application (WinUI 3)
+        run: dotnet build windows-native/GameVault.WinUI/GameVault.WinUI.csproj -c Release --nologo
+
+      - name: Build the legacy WPF edition
+        run: dotnet build windows-native/GameVault.Windows/GameVault.Windows.csproj -c Release --nologo

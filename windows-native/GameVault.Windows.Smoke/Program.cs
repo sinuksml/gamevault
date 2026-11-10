@@ -2,11 +2,6 @@ using SinuGameVault.Services;
 using System.Text.Json.Nodes;
 using System.IO;
 
-if (args.Contains("--visual"))
-{
-    VisualChecks.Run();
-    return;
-}
 
 var temp = Path.Combine(Path.GetTempPath(), "gamevault-native-smoke-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(temp);

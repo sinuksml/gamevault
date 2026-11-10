@@ -1,8 +1,10 @@
 # Sinu Game Vault for Windows
 
-Sinu Game Vault for Windows is a native WPF application. It does not embed the website and does not require a browser or a separate .NET installation after publishing.
+Sinu Game Vault for Windows is a native WinUI 3 application in the Windows 11 Fluent style. It does not embed the website and does not require a browser or a separate .NET installation after publishing.
 
-## Version 2.6.9
+## Version 3.0.0
+
+The interface lives in `GameVault.WinUI`; storage, sync and services live in `GameVault.Core`. `GameVault.Windows` is the previous WPF edition, kept buildable as a fallback. See `RELEASE_NOTES.md` for what changed.
 
 - Native Home, Games, Movies, TV Shows, Plex, BiglyBT, and Settings areas.
 - Complete game workflows for rentals, subscriptions, playing, queue, upcoming, discovery, and completed games.
@@ -13,8 +15,8 @@ Sinu Game Vault for Windows is a native WPF application. It does not embed the w
 - Native BiglyBT dashboard, history, torrent controls, magnet entry, background refresh, and optional auto-removal after completion.
 - Google Drive OAuth and timestamp-based synchronization with the shared `game-vault-backup.json` file.
 - Lossless import/export, atomic local saves, duplicate cleanup, and automatic recovery snapshots.
-- Dark and light themes, dynamic artwork backgrounds, and layouts optimized for 16:9 laptops and desktop monitors.
-- OLED black theme, responsive navigation, keyboard shortcuts, contextual card actions, and persistent last-section navigation.
+- Light, dark and follow-Windows themes, a Mica background, and layouts that adapt from laptops to desktop monitors.
+- Keyboard shortcuts, right-click card actions, Undo after changes, and navigation that remembers the last section and list.
 - Activity history, manual restore points, recovery browsing, stale catalog caching, and privacy-safe diagnostic exports.
 
 ## Build and test
@@ -25,13 +27,13 @@ From the `windows-native` directory:
 .\build-release.ps1
 ```
 
-The script restores dependencies, builds the application, runs migration and repository smoke tests, publishes a self-contained single-file executable, creates a portable ZIP, and creates an installer when Inno Setup is available.
+The script runs the vault and sync smoke tests, builds the application, publishes a self-contained folder (application, .NET and the Windows App SDK together), creates a portable ZIP, and creates an installer when Inno Setup is available. The first build downloads the Windows App SDK from nuget.org.
 
 ## Install
 
-Run `installer-output\SinuGameVault-Setup-v2.6.9.exe`. The installer upgrades the existing installation under `C:\Program Files\Sinu Game Vault`, creates a Start Menu entry, optionally creates a desktop shortcut, and registers a normal Windows uninstaller.
+Run `installer-output\SinuGameVault-Setup-v3.0.0.exe`. The installer upgrades the existing installation under `C:\Program Files\Sinu Game Vault`, creates a Start Menu entry, optionally creates a desktop shortcut, and registers a normal Windows uninstaller.
 
-The portable release is `SinuGameVault-Windows-v2.6.9.zip`. Extract it to a permanent directory and run `SinuGameVault.exe`.
+The portable release is `SinuGameVault-Windows-v3.0.0.zip`. Extract the whole folder to a permanent directory and run `SinuGameVault.exe` from it.
 
 Windows SmartScreen may display an unknown-publisher warning because this personal build is not code-signed.
 

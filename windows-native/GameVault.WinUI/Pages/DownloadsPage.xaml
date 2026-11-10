@@ -1,0 +1,147 @@
+<Page
+    x:Class="SinuGameVault.Pages.DownloadsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:SinuGameVault.Models"
+    PointerMoved="Page_PointerMoved">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Padding="{StaticResource PagePadding}" Spacing="20">
+            <StackPanel>
+                <TextBlock Text="Downloads" Style="{StaticResource PageTitleStyle}" />
+                <TextBlock x:Name="StatusText" Text="BiglyBT" Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <StackPanel x:Name="Setup" Visibility="Collapsed" HorizontalAlignment="Center" Spacing="10" MaxWidth="480" Margin="0,60,0,0">
+                <FontIcon Glyph="&#xE896;" FontSize="40" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                <TextBlock Text="Connect BiglyBT" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
+                <TextBlock Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" TextAlignment="Center"
+                           Text="Sign in to your BiglyBT gateway in Settings. The address and session are kept in Windows Credential Manager." />
+                <Button Content="Open Settings" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Center" Margin="0,8,0,0" Click="OpenSettings_Click" />
+            </StackPanel>
+
+            <StackPanel x:Name="Dashboard" Spacing="20">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition />
+                        <ColumnDefinition />
+                        <ColumnDefinition />
+                    </Grid.ColumnDefinitions>
+                    <Border Style="{StaticResource CardStyle}">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="DOWNLOADING" Style="{StaticResource OverlineStyle}" />
+                            <TextBlock x:Name="ActiveCount" Text="0" Style="{StaticResource FigureStyle}" />
+                            <TextBlock Text="torrents not finished" Style="{StaticResource CaptionSecondaryStyle}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="1" Style="{StaticResource CardStyle}">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="SPEED" Style="{StaticResource OverlineStyle}" />
+                            <TextBlock x:Name="DownSpeed" Text="0 B/s" Style="{StaticResource FigureStyle}" />
+                            <TextBlock x:Name="UpSpeed" Text="Upload 0 B/s" Style="{StaticResource CaptionSecondaryStyle}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="2" Style="{StaticResource CardStyle}">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="LEFT TO DOWNLOAD" Style="{StaticResource OverlineStyle}" />
+                            <TextBlock x:Name="Remaining" Text="0 B" Style="{StaticResource FigureStyle}" />
+                            <TextBlock Text="across all torrents" Style="{StaticResource CaptionSecondaryStyle}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button Style="{StaticResource AccentButtonStyle}" Click="AddMagnet_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE77F;" FontSize="14" />
+                            <TextBlock Text="Add magnet from clipboard" />
+                        </StackPanel>
+                    </Button>
+                    <StackPanel x:Name="SelectionActions" Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                        <Button Content="Start" Click="Start_Click" />
+                        <Button Content="Pause" Click="Pause_Click" />
+                        <DropDownButton Content="Priority">
+                            <DropDownButton.Flyout>
+                                <MenuFlyout Placement="Bottom">
+                                    <MenuFlyoutItem Text="High" Tag="1" Click="Priority_Click" />
+                                    <MenuFlyoutItem Text="Normal" Tag="0" Click="Priority_Click" />
+                                    <MenuFlyoutItem Text="Low" Tag="-1" Click="Priority_Click" />
+                                </MenuFlyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
+                        <DropDownButton Content="Remove">
+                            <DropDownButton.Flyout>
+                                <MenuFlyout Placement="Bottom">
+                                    <MenuFlyoutItem Text="Remove and keep the files" Click="Remove_Click" />
+                                    <MenuFlyoutItem Text="Remove and delete the files…" Click="Delete_Click" />
+                                </MenuFlyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock x:Name="EmptyText" Text="No torrents in BiglyBT right now." Style="{StaticResource SecondaryTextStyle}" Visibility="Collapsed" />
+
+                <ListView x:Name="Torrents" SelectionMode="Single" SelectionChanged="Torrents_SelectionChanged"
+                          ScrollViewer.VerticalScrollMode="Disabled" ScrollViewer.VerticalScrollBarVisibility="Hidden">
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="Padding" Value="12,10" />
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="models:TorrentRow">
+                            <Grid ColumnSpacing="20" RowSpacing="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="180" />
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="70" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Name}" />
+                                <TextBlock Grid.Column="1" Text="{x:Bind AmountText}" Style="{StaticResource CaptionSecondaryStyle}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="{x:Bind Status}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="3" Text="{x:Bind ProgressText}" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                <ProgressBar Grid.Row="1" Grid.ColumnSpan="4" Maximum="100" Value="{x:Bind Progress}" />
+                                <TextBlock Grid.Row="2" Grid.ColumnSpan="4" Style="{StaticResource CaptionSecondaryStyle}"
+                                           Text="{x:Bind Detail}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+
+                <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Header="History">
+                    <StackPanel Spacing="4">
+                        <TextBlock x:Name="HistoryEmpty" Text="Torrents you remove, and ones that finish, are recorded here." Style="{StaticResource SecondaryTextStyle}" />
+                        <ItemsRepeater x:Name="History">
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="models:TorrentHistoryRow">
+                                    <Grid ColumnSpacing="16" Padding="0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="220" />
+                                            <ColumnDefinition Width="150" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Name}" />
+                                        <TextBlock Grid.Column="1" Text="{x:Bind Outcome}" Style="{StaticResource SecondaryTextStyle}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="2" Text="{x:Bind Date}" Style="{StaticResource SecondaryTextStyle}" HorizontalAlignment="Right" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </StackPanel>
+                </Expander>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Page>
