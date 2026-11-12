@@ -32,6 +32,9 @@ self.addEventListener("fetch", event => {
   const req = event.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
+  // The rebuilt site under /next/ has its own service worker. Without this, its
+  // first page would be cached here as the classic site's offline index.html.
+  if (url.origin === location.origin && url.pathname.includes("/next/")) return;
   const cacheableImage = req.destination === "image" &&
     (url.hostname === "image.tmdb.org" || url.hostname.endsWith("rawg.io"));
   if (cacheableImage) {
