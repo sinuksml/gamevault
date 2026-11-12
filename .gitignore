@@ -34,3 +34,7 @@ shield-termux*.png
 tmp/
 .claude/
 .agents/
+
+# new web app
+web/dist/
+web/dev-dist/
