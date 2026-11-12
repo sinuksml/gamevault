@@ -1,0 +1,63 @@
+name: Publish site
+
+# Publishes GitHub Pages from main:
+#   /        the classic site, exactly the files at the repository root
+#   /next/   the rebuilt site, built from web/
+# Pages must be set to "GitHub Actions" as its source for this to deploy.
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Test and build the rebuilt site
+        working-directory: web
+        run: |
+          npm ci
+          npm test
+          npm run build
+
+      - name: Assemble the published folder
+        run: |
+          mkdir _site
+          # Every tracked file, as the previous branch-based Pages published,
+          # except the sources of the new site and the CI configuration.
+          git ls-files -z | grep -zv -e '^web/' -e '^\.github/' | xargs -0 cp --parents -t _site
+          cp -r web/dist _site/next
+          touch _site/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
