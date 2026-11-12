@@ -1,0 +1,175 @@
+<Page
+    x:Class="SinuGameVault.Pages.LibraryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:SinuGameVault"
+    xmlns:controls="using:SinuGameVault.Controls"
+    xmlns:models="using:SinuGameVault.Models"
+    xmlns:pages="using:SinuGameVault.Pages"
+    NavigationCacheMode="Required">
+
+    <Page.Resources>
+        <DataTemplate x:Key="CardTemplate" x:DataType="models:LibraryRow">
+            <controls:TitleCard Row="{x:Bind}" />
+        </DataTemplate>
+        <DataTemplate x:Key="CompactCardTemplate" x:DataType="models:LibraryRow">
+            <controls:TitleCard Row="{x:Bind}" Compact="True" />
+        </DataTemplate>
+        <DataTemplate x:Key="GroupHeaderTemplate" x:DataType="pages:RowGroup">
+            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,8,0,0">
+                <TextBlock Text="{x:Bind Key}" Style="{StaticResource SectionTitleStyle}" />
+                <TextBlock Text="{x:Bind Total}" Style="{StaticResource SecondaryTextStyle}" VerticalAlignment="Bottom" Margin="0,0,0,2" />
+            </StackPanel>
+        </DataTemplate>
+    </Page.Resources>
+
+    <Grid Padding="36,8,0,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Heading -->
+        <Grid Margin="0,0,36,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock x:Name="Heading" Text="Games" Style="{StaticResource PageTitleStyle}" />
+                <TextBlock x:Name="CountText" Style="{StaticResource SecondaryTextStyle}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Button x:Name="AddButton" Style="{StaticResource AccentButtonStyle}" Click="Add_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE710;" FontSize="14" />
+                        <TextBlock x:Name="AddLabel" Text="Add game" />
+                    </StackPanel>
+                </Button>
+                <DropDownButton AutomationProperties.Name="More actions" ToolTipService.ToolTip="More actions">
+                    <FontIcon Glyph="&#xE712;" FontSize="14" />
+                    <DropDownButton.Flyout>
+                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                            <MenuFlyoutItem x:Name="RefreshCatalogItem" Text="Refresh this catalog" Click="RefreshCatalog_Click">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72C;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem x:Name="AvailabilityItem" Text="Check rental availability" Click="CheckAvailability_Click">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7BF;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem x:Name="SubscriptionsItem" Text="Manage subscriptions" Click="ManageSubscriptions_Click">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C7;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem x:Name="VendorReportItem" Text="Rental spending by vendor" Click="VendorReport_Click">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9D2;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                        </MenuFlyout>
+                    </DropDownButton.Flyout>
+                </DropDownButton>
+            </StackPanel>
+        </Grid>
+
+        <!-- The four ways to browse a section -->
+        <SelectorBar x:Name="Families" Grid.Row="1" Margin="-12,8,36,0" SelectionChanged="Families_SelectionChanged" />
+
+        <!-- Filters for the view on screen -->
+        <Grid Grid.Row="2" Margin="0,8,36,8" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <ComboBox x:Name="ViewBox" MinWidth="190" SelectionChanged="ViewBox_SelectionChanged" AutomationProperties.Name="List" />
+                <ComboBox x:Name="PlatformBox" MinWidth="150" SelectionChanged="Filter_Changed" AutomationProperties.Name="Platform">
+                    <ComboBoxItem Content="PlayStation 5" Tag="ps5" IsSelected="True" />
+                    <ComboBoxItem Content="Xbox and PC" Tag="xboxpc" />
+                </ComboBox>
+                <ComboBox x:Name="YearBox" MinWidth="120" SelectionChanged="Filter_Changed" AutomationProperties.Name="Year" />
+                <TextBox x:Name="GenreBox" Width="150" PlaceholderText="Genre" TextChanged="Genre_TextChanged" AutomationProperties.Name="Genre" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                <ComboBox x:Name="SortBox" MinWidth="150" SelectionChanged="Filter_Changed" AutomationProperties.Name="Sort by">
+                    <ComboBoxItem Content="Newest first" Tag="new" IsSelected="True" />
+                    <ComboBoxItem Content="Title A–Z" Tag="title" />
+                    <ComboBoxItem Content="Soonest date" Tag="date" />
+                    <ComboBoxItem Content="Highest rated" Tag="rating" />
+                </ComboBox>
+                <ToggleButton x:Name="YearToggle" Click="Filter_Clicked" ToolTipService.ToolTip="Group by year" AutomationProperties.Name="Group by year">
+                    <FontIcon Glyph="&#xE787;" FontSize="14" />
+                </ToggleButton>
+                <ToggleButton x:Name="CompactToggle" Click="Compact_Click" ToolTipService.ToolTip="Smaller cards" AutomationProperties.Name="Smaller cards">
+                    <FontIcon Glyph="&#xE80A;" FontSize="14" />
+                </ToggleButton>
+                <ToggleButton x:Name="ListToggle" Click="ListToggle_Click" ToolTipService.ToolTip="Show as a list" AutomationProperties.Name="Show as a list">
+                    <FontIcon Glyph="&#xEA37;" FontSize="14" />
+                </ToggleButton>
+            </StackPanel>
+        </Grid>
+
+        <!-- Cards -->
+        <GridView x:Name="Cards" Grid.Row="3" Padding="0,4,24,36"
+                  SelectionMode="None" IsItemClickEnabled="True" ItemClick="Rows_ItemClick"
+                  ItemTemplate="{StaticResource CardTemplate}">
+            <GridView.ItemContainerStyle>
+                <Style TargetType="GridViewItem" BasedOn="{StaticResource DefaultGridViewItemStyle}">
+                    <Setter Property="Margin" Value="0,0,12,16" />
+                    <Setter Property="Padding" Value="6" />
+                    <Setter Property="VerticalContentAlignment" Value="Top" />
+                </Style>
+            </GridView.ItemContainerStyle>
+            <GridView.GroupStyle>
+                <GroupStyle HeaderTemplate="{StaticResource GroupHeaderTemplate}" HidesIfEmpty="True" />
+            </GridView.GroupStyle>
+        </GridView>
+
+        <!-- List -->
+        <ListView x:Name="Rows" Grid.Row="3" Padding="0,4,24,36" Visibility="Collapsed"
+                  SelectionMode="None" IsItemClickEnabled="True" ItemClick="Rows_ItemClick">
+            <ListView.GroupStyle>
+                <GroupStyle HeaderTemplate="{StaticResource GroupHeaderTemplate}" HidesIfEmpty="True" />
+            </ListView.GroupStyle>
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="models:LibraryRow">
+                    <Grid ColumnSpacing="16" Padding="0,8" Background="Transparent" ContextRequested="ListRow_ContextRequested">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="64" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="170" />
+                            <ColumnDefinition Width="200" />
+                        </Grid.ColumnDefinitions>
+                        <Grid Width="64" Height="64" CornerRadius="6">
+                            <Border Background="{x:Bind local:Ui.Brush(PlaceholderColor)}">
+                                <TextBlock Text="{x:Bind Initials}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontWeight="SemiBold" />
+                            </Border>
+                            <Image Stretch="UniformToFill" local:Art.DecodeWidth="128" local:Art.Url="{x:Bind Image}" />
+                        </Grid>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{x:Bind PrimaryMeta}" Style="{StaticResource CaptionSecondaryStyle}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock Text="{x:Bind Date}" />
+                            <TextBlock Text="{x:Bind CardRatingText}" Style="{StaticResource CaptionSecondaryStyle}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="3" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock Text="{x:Bind CardStatusText}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{x:Bind DaysText}" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold"
+                                       Foreground="{x:Bind local:Ui.CountdownBrush(DaysLeft)}" />
+                        </StackPanel>
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <!-- Nothing to show -->
+        <StackPanel x:Name="Empty" Grid.Row="3" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Spacing="10" MaxWidth="460" Margin="0,0,36,60">
+            <FontIcon Glyph="&#xE8F1;" FontSize="40" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+            <TextBlock x:Name="EmptyTitle" Text="Nothing here yet" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
+            <TextBlock x:Name="EmptyText" Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center" />
+            <Button x:Name="EmptyAction" Content="Add a title" HorizontalAlignment="Center" Margin="0,8,0,0" Click="EmptyAction_Click" />
+        </StackPanel>
+    </Grid>
+</Page>

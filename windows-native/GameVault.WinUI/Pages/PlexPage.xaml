@@ -1,0 +1,67 @@
+<Page
+    x:Class="SinuGameVault.Pages.PlexPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SinuGameVault.Controls"
+    xmlns:models="using:SinuGameVault.Models"
+    NavigationCacheMode="Required">
+
+    <Grid Padding="36,8,0,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Margin="0,0,36,0">
+            <StackPanel>
+                <TextBlock Text="Plex" Style="{StaticResource PageTitleStyle}" />
+                <TextBlock x:Name="StatusText" Text="Your media server library" Style="{StaticResource SecondaryTextStyle}" />
+            </StackPanel>
+            <Button x:Name="RefreshButton" HorizontalAlignment="Right" VerticalAlignment="Center" Click="Refresh_Click">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE72C;" FontSize="14" />
+                    <TextBlock Text="Refresh library" />
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <SelectorBar x:Name="Modes" Grid.Row="1" Margin="-12,8,36,8" SelectionChanged="Modes_SelectionChanged">
+            <SelectorBarItem Text="Continue watching" Tag="continue" IsSelected="True" />
+            <SelectorBarItem Text="Recently added" Tag="recent" />
+            <SelectorBarItem Text="Movies" Tag="movie" />
+            <SelectorBarItem Text="TV shows" Tag="show" />
+            <SelectorBarItem Text="Everything" Tag="all" />
+        </SelectorBar>
+
+        <GridView x:Name="Cards" Grid.Row="2" Padding="0,4,24,36"
+                  SelectionMode="None" IsItemClickEnabled="True" ItemClick="Cards_ItemClick">
+            <GridView.ItemContainerStyle>
+                <Style TargetType="GridViewItem" BasedOn="{StaticResource DefaultGridViewItemStyle}">
+                    <Setter Property="Margin" Value="0,0,12,16" />
+                    <Setter Property="Padding" Value="6" />
+                    <Setter Property="VerticalContentAlignment" Value="Top" />
+                </Style>
+            </GridView.ItemContainerStyle>
+            <GridView.ItemTemplate>
+                <DataTemplate x:DataType="models:LibraryRow">
+                    <controls:TitleCard Row="{x:Bind}" />
+                </DataTemplate>
+            </GridView.ItemTemplate>
+        </GridView>
+
+        <ProgressRing x:Name="Busy" Grid.Row="2" IsActive="False" Width="40" Height="40" />
+
+        <StackPanel x:Name="Setup" Grid.Row="2" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Spacing="10" MaxWidth="480" Margin="0,0,36,60">
+            <FontIcon Glyph="&#xE768;" FontSize="40" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+            <TextBlock x:Name="SetupTitle" Text="Connect your Plex server" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
+            <TextBlock x:Name="SetupText" Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" TextAlignment="Center"
+                       Text="Add the server address and your X-Plex-Token in Settings. They are kept in Windows Credential Manager, not in the library file." />
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,8,0,0">
+                <Button Content="Open Settings" Style="{StaticResource AccentButtonStyle}" Click="OpenSettings_Click" />
+                <Button Content="How to find the token" Click="TokenHelp_Click" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</Page>

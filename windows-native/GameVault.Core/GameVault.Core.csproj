@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Everything that is not user interface: vault storage, Drive sync, catalog,
+    Plex and BiglyBT clients, and the rules that turn stored records into rows.
+    Both the WinUI application and the smoke checks build on this library, so the
+    data engine can be tested without starting a window.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>SinuGameVault.Core</AssemblyName>
+    <RootNamespace>SinuGameVault</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="SinuGameVault" />
+    <InternalsVisibleTo Include="GameVault.Windows.Smoke" />
+  </ItemGroup>
+</Project>

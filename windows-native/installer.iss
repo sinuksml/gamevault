@@ -2,7 +2,7 @@
 ; Supplied by build-release.ps1 from Directory.Build.props (ISCC /DMyAppVersion=...).
 ; The literal below is only a fallback for compiling installer.iss by hand.
 #ifndef MyAppVersion
-  #define MyAppVersion "2.3.0"
+  #define MyAppVersion "3.0.0"
 #endif
 #define MyAppPublisher "Sinu Game Vault"
 #define MyAppExeName "SinuGameVault.exe"
@@ -34,8 +34,13 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 
+[InstallDelete]
+; The WinUI edition is a folder of files rather than one executable. Clearing the
+; program folder first stops files from an older version being left behind.
+Type: filesandordirs; Name: "{app}\*"
+
 [Files]
-Source: "publish\SinuGameVault.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\Sinu Game Vault"; Filename: "{app}\{#MyAppExeName}"

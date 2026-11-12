@@ -64,8 +64,6 @@ public sealed class LibraryRow
     /// </summary>
     public double ArtHeight => IsPortraitArt ? 354 : 133;
 
-    /// <summary>The frame matches the artwork's shape, so filling it crops nothing worth keeping.</summary>
-    public System.Windows.Media.Stretch ArtStretch => System.Windows.Media.Stretch.UniformToFill;
 
     /* Placeholder artwork is generated locally rather than fetched from an image
        service, so a title without a cover still shows something recognisable when

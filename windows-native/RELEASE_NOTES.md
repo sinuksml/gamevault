@@ -1,4 +1,26 @@
-# Sinu Game Vault for Windows 2.7.0
+# Sinu Game Vault for Windows 3.0.0
+
+## 3.0.0 Rebuilt on WinUI 3
+
+The interface was rewritten from scratch in WinUI 3 with the Windows 11 Fluent design. The data engine — vault storage, Google Drive sync, Plex, BiglyBT and the catalogs — is the same code as 2.7.0, moved into its own library. The vault file, its location and the Drive backup are unchanged.
+
+- New shell: Mica background, a title bar with search and sync status, and a left navigation pane. Back works from the title bar, Alt+Left and the mouse back button.
+- Follows the Windows light or dark theme, or can be set to either. The OLED black theme is gone.
+- Games, Movies and TV Shows share one layout: four ways to browse (Library, in progress, Discover, Upcoming), a list picker, then sort and filters. The last list used in each section is remembered.
+- Card grids are virtualized, so long discovery lists no longer load a page at a time.
+- A title opens as a full page with a backdrop banner. Your rating is a ten-star control that saves as you click.
+- Every change that moves or removes a title shows a message with Undo.
+- Home shows continue playing, continue watching, due dates, coming up, spending by vendor and by month, and petrol.
+- Downloads keeps the selected torrent while the list refreshes.
+- Sort by title or rating now works in Discover lists; they previously ignored the choice.
+- Dates read "06 Apr 2026".
+- The release is a folder of files rather than a single executable. The installer upgrades an existing installation in place.
+
+Under the hood: `GameVault.Core` holds storage, sync, services and the rules that turn records into rows; `GameVault.WinUI` is the interface. The 3,400-line main window is gone. The WPF edition remains in `GameVault.Windows` as a fallback and is no longer what releases are built from.
+
+Validation: release build, vault and sync smoke checks, installer compilation, and a start-up run against a real vault that opened every section, a game and a movie detail page, and Settings through UI Automation. Not exercised: adding, editing, moving or removing titles through the new interface, the dialogs, Google sign-in, torrent controls, a reachable Plex server, the installer upgrade path, and how the layout looks on screen.
+
+## 2.7.0 Library workspace redesign
 
 ## 2.7.0 Library workspace redesign
 

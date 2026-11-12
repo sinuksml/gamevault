@@ -18,6 +18,8 @@ public sealed class TorrentRow
     public string AmountText => $"{Bytes(Downloaded)} / {Bytes(TotalSize)}";
     public string SpeedText => $"Down {Bytes(RateDown)}/s  Up {Bytes(RateUp)}/s";
     public string EtaText => Eta < 0 || Eta > 604800 ? "--" : TimeSpan.FromSeconds(Eta).ToString(Eta >= 3600 ? @"h\h\ m\m" : @"m\m\ s\s");
+    /// <summary>Speed, time left and peers on one line, for the row under the progress bar.</summary>
+    public string Detail => $"{SpeedText}  ·  {(EtaText == "--" ? "time left unknown" : EtaText + " left")}  ·  {Peers} peer{(Peers == 1 ? "" : "s")}";
 
     private static string Bytes(long value)
     {

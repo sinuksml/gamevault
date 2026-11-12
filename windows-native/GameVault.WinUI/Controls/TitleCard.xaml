@@ -1,0 +1,56 @@
+<UserControl
+    x:Class="SinuGameVault.Controls.TitleCard"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:SinuGameVault"
+    PointerEntered="Card_PointerEntered"
+    PointerExited="Card_PointerExited">
+
+    <Grid x:Name="Root" Width="168" RowSpacing="8" Background="Transparent" ContextRequested="Root_ContextRequested">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Artwork. The frame matches the picture's shape: 2:3 for posters, 16:9 for game art. -->
+        <Grid x:Name="ArtFrame" Height="252" CornerRadius="8"
+              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+            <Border Background="{x:Bind local:Ui.Brush(Row.PlaceholderColor), Mode=OneWay}">
+                <TextBlock Text="{x:Bind Row.Initials, Mode=OneWay}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           FontSize="34" FontWeight="SemiBold" Foreground="White" Opacity="0.85" />
+            </Border>
+            <Image x:Name="ArtImage" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center"
+                   local:Art.Url="{x:Bind Row.Image, Mode=OneWay}" />
+
+            <Border x:Name="CategoryPill" Visibility="Collapsed"
+                    HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8"
+                    Padding="8,3" CornerRadius="4"
+                    Background="{x:Bind local:Ui.Brush(Row.CategoryColor), Mode=OneWay}">
+                <TextBlock Text="{x:Bind Row.CategoryLabel, Mode=OneWay}" FontSize="11" FontWeight="SemiBold" Foreground="White" />
+            </Border>
+
+            <Button x:Name="MoreButton" Opacity="0"
+                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6" Padding="6"
+                    Background="{ThemeResource AcrylicInAppFillColorDefaultBrush}"
+                    Click="More_Click"
+                    ToolTipService.ToolTip="Actions" AutomationProperties.Name="Actions">
+                <FontIcon Glyph="&#xE712;" FontSize="14" />
+            </Button>
+
+            <ProgressBar VerticalAlignment="Bottom" Maximum="100"
+                         Value="{x:Bind Row.PeriodRemainingPercent, Mode=OneWay}"
+                         Visibility="{x:Bind Row.HasPeriod, Mode=OneWay}" />
+        </Grid>
+
+        <StackPanel Grid.Row="1" Spacing="2">
+            <TextBlock Text="{x:Bind Row.Name, Mode=OneWay}"
+                       Style="{StaticResource BodyStrongTextBlockStyle}"
+                       TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
+                       ToolTipService.ToolTip="{x:Bind Row.Name, Mode=OneWay}" />
+            <TextBlock x:Name="MetaText" Style="{StaticResource CaptionSecondaryStyle}" TextTrimming="CharacterEllipsis" />
+            <TextBlock x:Name="StatusText" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold"
+                       TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+    </Grid>
+</UserControl>

@@ -1,6 +1,7 @@
 $ErrorActionPreference = "Stop"
 $Root = (Resolve-Path "..").Path
 $Dotnet = Join-Path $Root ".dotnet\dotnet.exe"
+if (-not (Test-Path $Dotnet)) { $Dotnet = "dotnet" }
 
 $env:DOTNET_CLI_HOME = $Root
 $env:APPDATA = $Root
@@ -12,19 +13,21 @@ function Assert-LastCommand([string]$Step) {
     if ($LASTEXITCODE -ne 0) { throw "$Step failed with exit code $LASTEXITCODE." }
 }
 
-& $Dotnet restore ".\GameVault.Windows\GameVault.Windows.csproj" -r win-x64 --configfile "..\NuGet\NuGet.Config"
-Assert-LastCommand "Windows restore"
-& $Dotnet build ".\GameVault.Windows\GameVault.Windows.csproj" -c Release --no-restore
-Assert-LastCommand "Windows build"
-& $Dotnet restore ".\GameVault.Windows.Smoke\GameVault.Windows.Smoke.csproj" --configfile "..\NuGet\NuGet.Config"
-Assert-LastCommand "Smoke restore"
-& $Dotnet run --project ".\GameVault.Windows.Smoke\GameVault.Windows.Smoke.csproj" -c Release --no-restore
+$App = ".\GameVault.WinUI\GameVault.WinUI.csproj"
+$Smoke = ".\GameVault.Windows.Smoke\GameVault.Windows.Smoke.csproj"
+
+# The data engine is checked first: a release must never be built from a vault layer that fails its own tests.
+& $Dotnet run --project $Smoke -c Release
 Assert-LastCommand "Smoke checks"
-& $Dotnet restore ".\GameVault.Windows\GameVault.Windows.csproj" -r win-x64 --configfile "..\NuGet\NuGet.Config"
-Assert-LastCommand "Publish restore"
-& $Dotnet publish ".\GameVault.Windows\GameVault.Windows.csproj" -c Release -r win-x64 --self-contained true `
-    -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ".\publish" --no-restore
+
+& $Dotnet build $App -c Release
+Assert-LastCommand "Windows build"
+
+# WinUI 3 ships as a folder (application, .NET and the Windows App SDK together), not a single file.
+if (Test-Path ".\publish") { Remove-Item ".\publish" -Recurse -Force }
+& $Dotnet publish $App -c Release -r win-x64 --self-contained true -o ".\publish" -p:DebugType=none
 Assert-LastCommand "Windows publish"
+if (-not (Test-Path ".\publish\SinuGameVault.exe")) { throw "Publish did not produce SinuGameVault.exe." }
 
 # One version for the app, the archive and the installer: Directory.Build.props.
 [xml]$BuildProps = Get-Content ".\Directory.Build.props"
