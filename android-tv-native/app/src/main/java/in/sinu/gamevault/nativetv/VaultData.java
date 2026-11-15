@@ -231,6 +231,11 @@ final class VaultData {
         return result;
     }
 
+    /** Marks a merge result as the newest copy. The merge already carries each record's own timestamp. */
+    synchronized void stampMerged() throws Exception {
+        touch(System.currentTimeMillis());
+    }
+
     /** Records what an edit changed for the other clients, then stamps the vault as edited. */
     private void commit(SyncTracker.Snapshot before) throws Exception {
         long now = System.currentTimeMillis();

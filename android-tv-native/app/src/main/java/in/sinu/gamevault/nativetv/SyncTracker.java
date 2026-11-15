@@ -141,6 +141,20 @@ final class SyncTracker {
         return titleIdentity(item);
     }
 
+    /** Every identity a record could be known by on another client, strongest first. */
+    static List<String> identityCandidates(JSONObject item) {
+        List<String> out = new ArrayList<>();
+        if (item == null) return out;
+        for (String key : IDENTITY_KEYS) {
+            if (!present(item, key)) continue;
+            String value = String.valueOf(item.opt(key));
+            if (!value.isEmpty()) out.add(key + ":" + value);
+        }
+        String title = titleIdentity(item);
+        if (!title.isEmpty()) out.add(title);
+        return out;
+    }
+
     private static String titleIdentity(JSONObject item) {
         String title = text(item, "name");
         if (title.isEmpty()) title = text(item, "title");

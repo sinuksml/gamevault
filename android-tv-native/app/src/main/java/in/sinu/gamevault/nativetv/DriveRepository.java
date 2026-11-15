@@ -25,6 +25,9 @@ final class DriveRepository {
     static final String DEFAULT_CLIENT_ID = "898110284062-76km1uptkth506kgaecoafohu15js0rh.apps.googleusercontent.com";
     private static final String FILE_NAME = "game-vault-backup.json";
     private static final String LAST_SYNCED_KEY = "drive_last_synced_updated_at";
+    /* Set when the TV has an edit Drive has not acknowledged. Timestamps alone cannot say so
+       reliably: the TV and the other devices have different clocks. */
+    private static final String UNSYNCED_KEY = "tv_has_unsynced_edits";
     private static final String SCOPE = "https://www.googleapis.com/auth/drive.file";
     private final Context context;
     private final SecurePrefs secure;
@@ -69,7 +72,7 @@ final class DriveRepository {
 
     void disconnect() {
         secure.remove("drive_access"); secure.remove("drive_refresh"); secure.remove("drive_secret");
-        prefs.edit().remove("drive_exp").remove("drive_file").remove(LAST_SYNCED_KEY).apply();
+        prefs.edit().remove("drive_exp").remove("drive_file").remove(LAST_SYNCED_KEY).remove(UNSYNCED_KEY).apply();
     }
 
     /**
@@ -128,16 +131,26 @@ final class DriveRepository {
                 if (!json.has("rentals") && !json.has("played") && !json.has("queue")) throw new Exception("Drive file is not a GameVault backup.");
                 VaultData value = new VaultData(json);
                 VaultData local = cached();
+                /* Both sides changed since they last agreed: the TV holds edits Drive has
+                   never seen, and Drive has changes the TV has never seen. Merge them
+                   record by record, as every other client does, rather than keeping
+                   one whole copy and parking the other in Recovery. A TV that has
+                   never synced has no common history to merge from, so it falls
+                   through to the newest-copy rules below. */
+                boolean tvHasUnsyncedEdits = lastSyncedUpdatedAt > 0L && local.savedCount() > 0
+                    && (prefs.getBoolean(UNSYNCED_KEY, false) || local.updatedAt > lastSyncedUpdatedAt);
+                if (tvHasUnsyncedEdits && value.updatedAt != lastSyncedUpdatedAt) {
+                    cacheRecovery(local, "before-merge");
+                    VaultData merged = VaultMerge.mergeData(local, value);
+                    cache(merged);
+                    markSynced(value.updatedAt);
+                    prefs.edit().putString("drive_file", id).apply();
+                    listener.onData(merged);
+                    listener.onStatus("Merged TV changes with Drive; uploading");
+                    save(merged, listener);
+                    return;
+                }
                 if (local.updatedAt > value.updatedAt && local.savedCount() > 0) {
-                    if (lastSyncedUpdatedAt > 0L && value.updatedAt > lastSyncedUpdatedAt) {
-                        cacheRecovery(local, "drive-conflict");
-                        cache(value);
-                        markSynced(value.updatedAt);
-                        prefs.edit().putString("drive_file", id).apply();
-                        listener.onData(value);
-                        listener.onStatus("Both devices changed. Drive was kept and the TV copy was preserved in Recovery.");
-                        return;
-                    }
                     prefs.edit().putString("drive_file", id).apply();
                     markSynced(value.updatedAt);
                     listener.onData(local);
@@ -145,18 +158,11 @@ final class DriveRepository {
                     save(local, listener);
                     return;
                 }
-                /* Drive is newer than this TV copy. If the TV also has edits Drive has
-                   never seen, replacing the cache here used to discard them silently,
-                   because the conflict check above only runs when the TV copy is the
-                   newer one. Keep them in Recovery before they are overwritten. */
-                // lastSyncedUpdatedAt is 0 until a sync has succeeded (and after a disconnect), when nothing can be called unsynced.
-                boolean unsyncedTvEdits = lastSyncedUpdatedAt > 0L && local.savedCount() > 0 && local.updatedAt > lastSyncedUpdatedAt && value.updatedAt != local.updatedAt;
-                if (unsyncedTvEdits) cacheRecovery(local, "drive-conflict");
                 cache(value);
                 markSynced(value.updatedAt);
-                prefs.edit().putString("drive_file", id).apply();
+                prefs.edit().putString("drive_file", id).putBoolean(UNSYNCED_KEY, false).apply();
                 listener.onData(value);
-                listener.onStatus(unsyncedTvEdits ? "Drive had newer changes. Your unsynced TV edits were kept in Recovery." : "Synced with Google Drive");
+                listener.onStatus("Synced with Google Drive");
             } catch (Exception e) { listener.onStatus(e.getMessage() == null ? "Drive sync failed" : e.getMessage()); }
         });
     }
@@ -164,7 +170,9 @@ final class DriveRepository {
     void save(VaultData value, Listener listener) {
         if (value == null) return;
         cache(value);
+        prefs.edit().putBoolean(UNSYNCED_KEY, true).apply();
         io.execute(() -> {
+            VaultData payload = value;   // replaced by the merge result when another device changed Drive
             try {
                 listener.onStatus("Saving TV change...");
                 String token = accessToken();
@@ -184,21 +192,32 @@ final class DriveRepository {
                 VaultData remote = new VaultData(new JSONObject(remoteResponse.body));
                 if (value.savedCount() == 0 && remote.savedCount() > 0)
                     throw new Exception("Empty TV data was not allowed to replace your Drive library.");
+                boolean merged = false;
                 if (remote.updatedAt > lastSyncedUpdatedAt && !"android-tv-native".equals(remote.root.optString("lastDevice"))) {
                     cacheRecovery(value, "drive-conflict");
-                    cache(remote); lastSyncedUpdatedAt = remote.updatedAt;
+                    if (lastSyncedUpdatedAt == 0L) {
+                        // Never synced before: there is no common history to merge from, so Drive wins.
+                        cache(remote);
+                        markSynced(remote.updatedAt);
+                        listener.onData(remote);
+                        listener.onStatus("Newer Drive changes restored. The unsynced TV copy is preserved in Recovery.");
+                        return;
+                    }
+                    // Another device changed Drive while the TV was editing: keep both sets of changes.
+                    payload = VaultMerge.mergeData(value, remote);
+                    cache(payload);
                     markSynced(remote.updatedAt);
-                    listener.onData(remote);
-                    listener.onStatus("Newer Drive changes restored. The unsynced TV copy is preserved in Recovery.");
-                    return;
+                    listener.onData(payload);
+                    merged = true;
                 }
                 Map<String,String> headers = new HashMap<>(auth);
                 headers.put("Content-Type", "application/json; charset=UTF-8");
-                Net.Response upload = Net.request("https://www.googleapis.com/upload/drive/v3/files/" + id + "?uploadType=media", "PATCH", headers, value.root.toString());
+                Net.Response upload = Net.request("https://www.googleapis.com/upload/drive/v3/files/" + id + "?uploadType=media", "PATCH", headers, payload.root.toString());
                 if (upload.code >= 400) throw new Exception("Drive save failed: " + upload.code);
-                markSynced(value.updatedAt);
-                cache(value);
-                listener.onStatus("TV change saved to Google Drive");
+                markSynced(payload.updatedAt);
+                prefs.edit().putBoolean(UNSYNCED_KEY, false).apply();
+                cache(payload);
+                listener.onStatus(merged ? "TV and Drive changes merged and saved" : "TV change saved to Google Drive");
             } catch (Exception e) {
                 listener.onStatus(e.getMessage() == null ? "Drive save failed" : e.getMessage());
             }
