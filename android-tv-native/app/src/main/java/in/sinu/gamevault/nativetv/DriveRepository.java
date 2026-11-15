@@ -150,7 +150,13 @@ final class DriveRepository {
                     save(merged, listener);
                     return;
                 }
-                if (local.updatedAt > value.updatedAt && local.savedCount() > 0) {
+                boolean flagged = prefs.getBoolean(UNSYNCED_KEY, false);
+                /* The TV copy is the one to upload when it is newer, or when it holds an edit Drive has
+                   not acknowledged and Drive has not moved since: a Shield clock running behind must
+                   not make a real edit look older than Drive and get overwritten. */
+                boolean uploadLocal = local.savedCount() > 0 && (local.updatedAt > value.updatedAt
+                    || (flagged && lastSyncedUpdatedAt > 0L && value.updatedAt == lastSyncedUpdatedAt));
+                if (uploadLocal) {
                     prefs.edit().putString("drive_file", id).apply();
                     markSynced(value.updatedAt);
                     listener.onData(local);
@@ -158,6 +164,8 @@ final class DriveRepository {
                     save(local, listener);
                     return;
                 }
+                // Adopting Drive replaces the TV copy. If that copy holds unacknowledged edits, keep it first.
+                if (flagged && local.savedCount() > 0) cacheRecovery(local, "drive-conflict");
                 cache(value);
                 markSynced(value.updatedAt);
                 prefs.edit().putString("drive_file", id).putBoolean(UNSYNCED_KEY, false).apply();
