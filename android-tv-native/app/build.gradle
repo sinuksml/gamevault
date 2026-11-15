@@ -19,3 +19,9 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 }
+
+dependencies {
+    // Plain-JVM tests. A device supplies org.json itself; a unit test does not.
+    testImplementation "junit:junit:4.13.2"
+    testImplementation "org.json:json:20250517"
+}

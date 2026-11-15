@@ -31,9 +31,9 @@ jobs:
       - name: Make Gradle wrapper executable
         working-directory: android-tv-native
         run: chmod +x gradlew
-      - name: Build native Android TV APK
+      - name: Run sync tests and build the native Android TV APK
         working-directory: android-tv-native
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew testDebugUnitTest assembleDebug --no-daemon
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:

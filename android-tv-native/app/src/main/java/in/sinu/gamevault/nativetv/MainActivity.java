@@ -173,7 +173,7 @@ public final class MainActivity extends Activity implements VaultTvView.Actions,
     @Override public void onBigly(List<ServiceRepository.TorrentItem> items){runOnUiThread(()->tv.setTorrents(items));}
     @Override public void onPlexServer(String url){runOnUiThread(()->tv.setStatus("Plex found at "+url));}
     @Override public void onEpisodes(MediaItem item,int season,List<ServiceRepository.EpisodeItem> episodes){runOnUiThread(()->tv.setEpisodes(item,season,episodes));}
-    @Override public void onStory(MediaItem item,String story){runOnUiThread(()->{tv.setDetailStory(item,story);JSONObject change=new JSONObject();try{change.put("plot",story);}catch(Exception ignored){}if(currentData!=null&&currentData.updateItem(item,change)){drive.cache(currentData);pendingDriveSave=()->drive.save(currentData,this);saveHandler.postDelayed(pendingDriveSave,2500L);}});}
+    @Override public void onStory(MediaItem item,String story){runOnUiThread(()->{tv.setDetailStory(item,story);JSONObject change=new JSONObject();try{change.put("plot",story);}catch(Exception ignored){}if(currentData!=null&&currentData.updateCache(item,change))drive.cache(currentData);});}
 
     private interface ValuesCallback{void accept(String[] values);}
 
