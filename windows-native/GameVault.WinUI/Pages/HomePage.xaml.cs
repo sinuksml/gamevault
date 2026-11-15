@@ -40,8 +40,10 @@ public sealed partial class HomePage : Page
         var hour = DateTime.Now.Hour;
         Greeting.Text = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
-        var playing = data.ContinuePlaying(4);
-        var watching = data.ContinueWatching(7);
+        var playing = data.ContinuePlaying(12);
+        var watching = data.ContinueWatching(12);
+        ShowHero(watching.FirstOrDefault(row => row.Backdrop.Length > 0) ?? playing.FirstOrDefault(row => row.Backdrop.Length > 0)
+            ?? watching.FirstOrDefault() ?? playing.FirstOrDefault(), hour);
         PlayingRepeater.ItemsSource = playing;
         WatchingRepeater.ItemsSource = watching;
         PlayingShelf.Visibility = Ui.Show(playing.Count > 0);
@@ -68,6 +70,45 @@ public sealed partial class HomePage : Page
     }
 
     private int _dueCount;
+    private LibraryRow? _heroRow;
+
+    /// <summary>The artwork banner at the top: the title most recently in progress, with the actions for it.</summary>
+    private void ShowHero(LibraryRow? row, int hour)
+    {
+        _heroRow = row;
+        Hero.Visibility = Ui.Show(row is not null);
+        Greeting.Visibility = Ui.Show(row is null);
+        if (row is null) return;
+        var greeting = hour < 12 ? "GOOD MORNING" : hour < 17 ? "GOOD AFTERNOON" : "GOOD EVENING";
+        HeroEyebrow.Text = $"{greeting}  ·  CONTINUE " + (row.Collection is "playing" ? "PLAYING" : "WATCHING");
+        HeroTitle.Text = row.Name;
+        HeroMeta.Text = row.DetailMeta;
+        HeroMeta.Visibility = Ui.ShowText(row.DetailMeta);
+        HeroOverview.Text = row.Overview;
+        HeroOverview.Visibility = Ui.ShowText(row.Overview);
+        Art.SetUrl(HeroImage, row.Backdrop.Length > 0 ? row.Backdrop : row.Image);
+    }
+
+    private void HeroOpen_Click(object sender, RoutedEventArgs e)
+    {
+        if (_heroRow is { } row) LibraryCommands.Open(row);
+    }
+
+    private void HeroMore_Click(object sender, RoutedEventArgs e)
+    {
+        if (_heroRow is { } row) LibraryCommands.CardMenu(row).ShowAt(HeroMore);
+    }
+
+    /// <summary>Moves a shelf by most of its visible width; the arrows are for people without a sideways wheel.</summary>
+    private void Scroll_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not string tag) return;
+        var parts = tag.Split(':');
+        if (FindName(parts[0]) is not ScrollViewer scroller) return;
+        var direction = parts[1] == "-1" ? -1 : 1;
+        var target = Math.Clamp(scroller.HorizontalOffset + direction * scroller.ViewportWidth * 0.8, 0, scroller.ScrollableWidth);
+        scroller.ChangeView(target, null, null);
+    }
 
     private void RefreshSummary()
     {

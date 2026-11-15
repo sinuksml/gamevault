@@ -1,3 +1,4 @@
+using System.Numerics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -21,7 +22,12 @@ public sealed partial class TitleCard : UserControl
     public static readonly DependencyProperty ShowCategoryProperty = DependencyProperty.Register(
         nameof(ShowCategory), typeof(bool), typeof(TitleCard), new PropertyMetadata(false, (d, _) => ((TitleCard)d).Update()));
 
-    public TitleCard() => InitializeComponent();
+    public TitleCard()
+    {
+        InitializeComponent();
+        // The card rises a few pixels under the pointer. Windows skips this when animation effects are turned off.
+        Root.TranslationTransition = new Vector3Transition { Duration = TimeSpan.FromMilliseconds(140) };
+    }
 
     public LibraryRow? Row
     {
@@ -70,8 +76,17 @@ public sealed partial class TitleCard : UserControl
         StatusText.Foreground = row.HasCountdown ? Ui.CountdownBrush(row.DaysLeft) : Ui.ThemeBrush("TextFillColorSecondaryBrush");
     }
 
-    private void Card_PointerEntered(object sender, PointerRoutedEventArgs e) => MoreButton.Opacity = 1;
-    private void Card_PointerExited(object sender, PointerRoutedEventArgs e) => MoreButton.Opacity = 0;
+    private void Card_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        MoreButton.Opacity = 1;
+        Root.Translation = new Vector3(0, -4, 0);
+    }
+
+    private void Card_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        MoreButton.Opacity = 0;
+        Root.Translation = Vector3.Zero;
+    }
 
     private void More_Click(object sender, RoutedEventArgs e)
     {

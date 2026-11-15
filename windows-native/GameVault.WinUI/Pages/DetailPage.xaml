@@ -3,25 +3,34 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:SinuGameVault"
+    Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
     SizeChanged="Page_SizeChanged">
 
     <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto">
-        <StackPanel Padding="36,8,36,48" Spacing="20" MaxWidth="1240" HorizontalAlignment="Stretch">
+        <StackPanel Spacing="20">
 
             <!-- Hero: backdrop with the title over a dark scrim, so the text reads in both themes. -->
-            <Grid Height="340" CornerRadius="12" RequestedTheme="Dark">
+            <Grid Height="460" RequestedTheme="Dark">
                 <Border x:Name="HeroFill" Background="#1F2937" />
                 <Image x:Name="Backdrop" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" local:Art.DecodeWidth="1280" />
                 <Rectangle>
                     <Rectangle.Fill>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                            <GradientStop Color="#33000000" Offset="0" />
-                            <GradientStop Color="#99000000" Offset="0.55" />
-                            <GradientStop Color="#E6000000" Offset="1" />
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="#E6000000" Offset="0" />
+                            <GradientStop Color="#66000000" Offset="0.55" />
+                            <GradientStop Color="#00000000" Offset="0.9" />
                         </LinearGradientBrush>
                     </Rectangle.Fill>
                 </Rectangle>
-                <Grid Padding="28" ColumnSpacing="24" VerticalAlignment="Bottom">
+                <Rectangle>
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#00000000" Offset="0.45" />
+                            <GradientStop Color="{ThemeResource SolidBackgroundFillColorBase}" Offset="1" />
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+                <Grid Padding="40,28,40,48" ColumnSpacing="28" VerticalAlignment="Bottom">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
@@ -35,7 +44,7 @@
                     </Grid>
                     <StackPanel Grid.Column="1" VerticalAlignment="Bottom" Spacing="6">
                         <TextBlock x:Name="TypeText" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold" CharacterSpacing="80" Opacity="0.8" />
-                        <TextBlock x:Name="TitleText" FontSize="34" FontWeight="SemiBold" FontFamily="Segoe UI Variable Display"
+                        <TextBlock x:Name="TitleText" FontSize="44" FontWeight="Bold" FontFamily="Segoe UI Variable Display"
                                    TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" IsTextSelectionEnabled="True" />
                         <TextBlock x:Name="MetaText" TextWrapping="Wrap" Opacity="0.85" IsTextSelectionEnabled="True" />
                         <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
@@ -56,6 +65,7 @@
                 </Grid>
             </Grid>
 
+            <StackPanel Padding="36,0,36,48" Spacing="20" MaxWidth="1240" HorizontalAlignment="Stretch">
             <!-- Actions -->
             <Grid ColumnSpacing="8">
                 <Grid.ColumnDefinitions>
@@ -164,6 +174,7 @@
                     </Border>
                 </StackPanel>
             </Grid>
+            </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </Page>
