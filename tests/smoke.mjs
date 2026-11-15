@@ -15,7 +15,8 @@ const pkg=JSON.parse(fs.readFileSync("package.json","utf8"));
 const vaultSchema=JSON.parse(fs.readFileSync("shared/game-vault.schema.json","utf8"));
 const vaultFixture=JSON.parse(fs.readFileSync("shared/fixtures/vault-v15.json","utf8"));
 const nativeTvActivity=fs.readFileSync("android-tv-native/app/src/main/java/in/sinu/gamevault/nativetv/MainActivity.java","utf8");
-const nativeTvView=fs.readFileSync("android-tv-native/app/src/main/java/in/sinu/gamevault/nativetv/VaultTvView.java","utf8");
+// The detail buttons live in DetailActions.java, shared by both TV layouts.
+const nativeTvView=fs.readFileSync("android-tv-native/app/src/main/java/in/sinu/gamevault/nativetv/VaultTvView.java","utf8")+fs.readFileSync("android-tv-native/app/src/main/java/in/sinu/gamevault/nativetv/DetailActions.java","utf8");
 const nativeTvData=fs.readFileSync("android-tv-native/app/src/main/java/in/sinu/gamevault/nativetv/VaultData.java","utf8");
 const nativeTvDrive=fs.readFileSync("android-tv-native/app/src/main/java/in/sinu/gamevault/nativetv/DriveRepository.java","utf8");
 const version=(js.match(/var APP_VERSION\s*=\s*"(\d+\.\d+\.\d+)"/)||[])[1];

@@ -21,8 +21,11 @@ import java.net.URLEncoder;
 import java.util.List;
 import org.json.JSONObject;
 
-public final class MainActivity extends Activity implements VaultTvView.Actions, DriveRepository.Listener, ServiceRepository.Listener {
-    private VaultTvView tv;
+public final class MainActivity extends androidx.activity.ComponentActivity implements VaultTvView.Actions, DriveRepository.Listener, ServiceRepository.Listener {
+    private TvScreen tv;
+    private static final String UI_PREFS = "native_tv";
+    private static final String UI_COMPOSE = "ui_compose";
+    private static final String UI_PENDING = "ui_compose_pending";
     private DriveRepository drive;
     private ServiceRepository services;
     private VaultData currentData;
@@ -36,16 +39,51 @@ public final class MainActivity extends Activity implements VaultTvView.Actions,
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|View.SYSTEM_UI_FLAG_LAYOUT_STABLE|View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN|View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
-        drive=new DriveRepository(this);services=new ServiceRepository(this);tv=new VaultTvView(this,this);tv.setBackgroundColor(Color.rgb(5,8,13));setContentView(tv);tv.requestFocus();
+        drive=new DriveRepository(this);services=new ServiceRepository(this);tv=createScreen();tv.view().setBackgroundColor(Color.rgb(5,8,13));setContentView(tv.view());tv.view().requestFocus();
         currentData=drive.cached();tv.setData(currentData);tv.setDriveConnected(drive.connected());
         services.importTrustedConfig(currentData.root.optJSONObject("trustedDeviceConfig"));
         if(services.plexConfigured())services.loadPlex(this);
         if(services.biglyConfigured()&&services.biglyConnected())services.loadBigly(this);
     }
 
-    @Override protected void onResume(){super.onResume();long now=System.currentTimeMillis();if(drive.connected()&&(!initialSyncStarted||now-lastResumeSync>300000L)){initialSyncStarted=true;lastResumeSync=now;drive.sync(this);}if(tv!=null)tv.requestFocus();}
+    @Override protected void onResume(){super.onResume();long now=System.currentTimeMillis();if(drive.connected()&&(!initialSyncStarted||now-lastResumeSync>300000L)){initialSyncStarted=true;lastResumeSync=now;drive.sync(this);}if(tv!=null)tv.view().requestFocus();}
 
     @Override public void onBackPressed(){if(tv!=null&&tv.handleBack())return;super.onBackPressed();}
+
+    /**
+     * Picks the layout. The Compose layout is the default, but a launch that never drew
+     * its first frame (a crash while starting) is remembered, and the next launch falls
+     * back to the classic layout instead of crashing again, since a crash loop would
+     * leave no way into Settings to switch back.
+     */
+    private TvScreen createScreen(){
+        android.content.SharedPreferences prefs=getSharedPreferences(UI_PREFS,MODE_PRIVATE);
+        boolean compose=prefs.getBoolean(UI_COMPOSE,true);
+        if(compose&&prefs.getBoolean(UI_PENDING,false)){
+            prefs.edit().putBoolean(UI_COMPOSE,false).putBoolean(UI_PENDING,false).apply();
+            compose=false;
+            toast("The new layout did not start last time, so the classic layout was restored.");
+        }
+        if(compose){
+            try{
+                prefs.edit().putBoolean(UI_PENDING,true).apply();
+                return new ComposeScreen(this,this);
+            }catch(Throwable error){
+                prefs.edit().putBoolean(UI_COMPOSE,false).putBoolean(UI_PENDING,false).apply();
+                toast("The new layout could not start, so the classic layout is being used.");
+            }
+        }
+        return new ClassicScreen(new VaultTvView(this,this));
+    }
+
+    @Override public void setLayout(boolean compose){
+        getSharedPreferences(UI_PREFS,MODE_PRIVATE).edit().putBoolean(UI_COMPOSE,compose).putBoolean(UI_PENDING,false).apply();
+        recreate();
+    }
+
+    @Override public void layoutReady(){
+        getSharedPreferences(UI_PREFS,MODE_PRIVATE).edit().putBoolean(UI_PENDING,false).apply();
+    }
 
     @Override public void syncDrive(){drive.sync(this);}
     @Override public void connectDrive(){drive.startDeviceLogin(this);}
