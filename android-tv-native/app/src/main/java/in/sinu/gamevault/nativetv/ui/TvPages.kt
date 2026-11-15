@@ -45,12 +45,6 @@ internal fun HomePage(state: TvState) {
         title = "Home",
         subtitle = if (state.driveConnected) "${data.savedCount()} saved items" else "Local library",
         shelves = shelves,
-        headerExtras = {
-            StatChip("Active rentals", data.count("rentals").toString())
-            StatChip("Watchlist", (data.count("movieWatchlist") + data.count("seriesWatchlist")).toString())
-            StatChip("Now playing", (data.count("playing") + data.count("subscriptionGames")).toString())
-            StatChip("Completed", data.count("played").toString())
-        },
         empty = { EmptyState("Your library is ready to connect", "Open Settings and sync Google Drive to bring your collection to this TV.", "Open Settings", !state.autoFocusAllowed()) { state.section = 6 } },
     )
 }
@@ -132,10 +126,10 @@ internal fun BiglyPage(state: TvState, actions: VaultTvView.Actions) {
     val first = remember { FocusRequester() }
     LaunchedEffect(torrents.isEmpty()) { delay(80); state.requestContentFocus(first) }
 
-    Column(Modifier.fillMaxSize().padding(start = 20.dp, top = 20.dp, end = 28.dp)) {
+    Column(Modifier.fillMaxSize().padding(start = PageStart, top = BarHeight + 12.dp, end = 40.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("BIGLYBT", style = Type.Label)
+                Text("DOWNLOADS", style = Type.Label)
                 Text(if (torrents.isEmpty()) "No active downloads" else "${torrents.size} active downloads", style = Type.Muted)
             }
             TvButton("Refresh", { actions.refreshBigly() }, requester = if (torrents.isEmpty()) first else null)
@@ -214,9 +208,15 @@ internal fun SettingsPage(state: TvState, actions: VaultTvView.Actions) {
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { delay(80); state.requestContentFocus(first) }
 
-    Column(Modifier.fillMaxSize().padding(start = 20.dp, top = 20.dp, end = 28.dp)) {
-        Text("SYSTEM", style = Type.Label)
+    Column(Modifier.fillMaxSize().padding(start = PageStart, top = BarHeight + 12.dp, end = 40.dp)) {
+        Text("SETTINGS", style = Type.Label)
         Text(if (state.driveConnected) "Google Drive connected" else "Local data only", style = Type.Display)
+        val data = state.data
+        Text(
+            "${data.savedCount()} saved  ·  ${data.count("rentals")} active rentals  ·  " +
+                "${data.count("movieWatchlist") + data.count("seriesWatchlist")} on watchlist  ·  ${data.count("played")} completed",
+            style = Type.Muted, modifier = Modifier.padding(top = 2.dp),
+        )
         Column(Modifier.padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             cards.chunked(2).forEachIndexed { row, pair ->
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

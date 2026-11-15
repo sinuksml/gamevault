@@ -12,19 +12,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SportsEsports
-import androidx.compose.material.icons.filled.Tv
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -43,7 +37,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -55,10 +48,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private val RAIL_ICONS: List<ImageVector> = listOf(
-    Icons.Filled.Home, Icons.Filled.SportsEsports, Icons.Filled.Movie, Icons.Filled.Tv,
-    Icons.Filled.PlayCircle, Icons.Filled.Download, Icons.Filled.Settings,
-)
 
 /** The whole layout: navigation rail, the current page, and whatever is open on top of it. */
 @Composable
@@ -100,20 +89,17 @@ internal fun TvApp(state: TvState, actions: VaultTvView.Actions) {
             when {
                 episodes != null -> EpisodesScreen(state, episodes, actions)
                 detail != null -> DetailScreen(state, detail, actions)
-                else -> Row(Modifier.fillMaxSize()) {
-                    Box(Modifier.width(RailCollapsed))
-                    Box(Modifier.weight(1f).fillMaxHeight()) {
-                        when (state.section) {
-                            0 -> HomePage(state)
-                            1, 2, 3 -> LibraryPage(state)
-                            4 -> PlexPage(state, actions)
-                            5 -> BiglyPage(state, actions)
-                            else -> SettingsPage(state, actions)
-                        }
+                else -> Box(Modifier.fillMaxSize()) {
+                    when (state.section) {
+                        0 -> HomePage(state)
+                        1, 2, 3 -> LibraryPage(state)
+                        4 -> PlexPage(state, actions)
+                        5 -> BiglyPage(state, actions)
+                        else -> SettingsPage(state, actions)
                     }
                 }
             }
-            if (episodes == null && detail == null) NavRail(state, railRequester)
+            if (episodes == null && detail == null) TopBar(state, railRequester)
             state.qr?.let { QrDialog(state, it) }
             StatusToast(state)
             IdleOverlay(idle)
@@ -121,74 +107,54 @@ internal fun TvApp(state: TvState, actions: VaultTvView.Actions) {
     }
 }
 
-/** A collapsed icon rail that opens over the page when it has focus. */
+/** The top navigation bar: a pill of section names, centred, with the logo at the left. Focusing a name switches page. */
 @Composable
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
-private fun NavRail(state: TvState, requester: FocusRequester) {
-    var expanded by remember { mutableStateOf(false) }
+private fun TopBar(state: TvState, requester: FocusRequester) {
     DisposableEffect(Unit) { onDispose { state.railFocused = false } }
-    val width by animateDpAsState(if (expanded) RailExpanded else RailCollapsed, tween(180), label = "rail")
-    val counts = remember(state.version, state.torrents.size) {
-        intArrayOf(
-            0,
-            state.data.shelves("games").sumOf { it.items.size },
-            state.data.shelves("movies").sumOf { it.items.size },
-            state.data.shelves("series").sumOf { it.items.size },
-            0, state.torrents.size, 0,
+    Box(Modifier.fillMaxWidth().height(BarHeight)) {
+        Icon(
+            painter = androidx.compose.ui.res.painterResource(R.drawable.gv_mark), contentDescription = "Sinu Game Vault",
+            tint = Color.White, modifier = Modifier.align(Alignment.CenterStart).padding(start = PageStart).size(26.dp),
         )
-    }
-    Column(
-        Modifier
-            .fillMaxHeight()
-            .width(width)
-            .background(Brush.horizontalGradient(0f to Palette.Background, (if (expanded) 0.88f else 0.7f) to Palette.Background.copy(alpha = 0.97f), 1f to Color.Transparent))
-            .onFocusChanged { expanded = it.hasFocus; state.railFocused = it.hasFocus }
-            // Entering the rail from a card lands on the current section, not whichever icon is nearest.
-            .focusProperties { enter = { requester } }
-            .focusGroup()
-            .padding(start = 10.dp, top = 24.dp, bottom = 16.dp),
-        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
-    ) {
-        Row(Modifier.padding(start = 8.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(34.dp).clip(RoundedCornerShape(9.dp)).background(Palette.Accent), contentAlignment = Alignment.Center) {
-                Text("GV", style = Type.Body.copy(color = Palette.Background, fontWeight = FontWeight.Black))
+        Row(
+            Modifier
+                .align(Alignment.Center)
+                .padding(top = 6.dp)
+                .clip(RoundedCornerShape(50))
+                .background(Color(0xFF1C1C1E).copy(alpha = 0.72f))
+                .onFocusChanged { state.railFocused = it.hasFocus }
+                // Moving up from a card lands on the current section, not whichever name is nearest.
+                .focusProperties { enter = { requester } }
+                .focusGroup()
+                .padding(4.dp),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(2.dp),
+        ) {
+            SECTION_TITLES.forEachIndexed { index, name ->
+                BarItem(
+                    label = name, selected = state.section == index,
+                    requester = if (state.section == index) requester else null,
+                    onFocus = { state.section = index },
+                )
             }
-            if (expanded) Column(Modifier.padding(start = 10.dp)) {
-                Text("SINU", style = Type.Label.copy(fontSize = 9.sp))
-                Text("GAME VAULT", style = Type.Body.copy(fontWeight = FontWeight.Bold))
-            }
-        }
-        SECTION_TITLES.forEachIndexed { index, name ->
-            RailItem(
-                icon = RAIL_ICONS[index], label = name, count = counts[index], expanded = expanded,
-                selected = state.section == index,
-                requester = if (state.section == index) requester else null,
-                onFocus = { state.section = index },
-            )
         }
     }
 }
 
 @Composable
-private fun RailItem(icon: ImageVector, label: String, count: Int, expanded: Boolean, selected: Boolean, requester: FocusRequester?, onFocus: () -> Unit) {
+private fun BarItem(label: String, selected: Boolean, requester: FocusRequester?, onFocus: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(12.dp)
-    Row(
+    Box(
         Modifier
             .then(if (requester != null) Modifier.focusRequester(requester) else Modifier)
             .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocus() }
-            .clip(shape)
-            .background(if (focused) Palette.Accent else if (selected) Palette.PanelRaised else Color.Transparent)
+            .clip(RoundedCornerShape(50))
+            .background(if (focused) Color.White else if (selected) Color.White.copy(alpha = 0.2f) else Color.Transparent)
             .clickable(onClick = onFocus)
-            .padding(horizontal = 12.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 16.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        val ink = if (focused) Palette.Background else if (selected) Palette.Accent else Palette.Muted
-        Icon(icon, contentDescription = label, tint = ink, modifier = Modifier.size(22.dp))
-        if (expanded) {
-            Text(label, style = Type.Body.copy(color = if (focused) Palette.Background else Palette.Text, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(start = 14.dp).weight(1f))
-            if (count > 0) Text(count.toString(), style = Type.Muted.copy(color = if (focused) Palette.Background else Palette.Muted), modifier = Modifier.padding(end = 6.dp))
-        }
+        Text(label, style = Type.Body.copy(fontWeight = FontWeight.SemiBold, color = if (focused) Color.Black else if (selected) Color.White else Color(0xFFB4B4BA)), maxLines = 1)
     }
 }
 

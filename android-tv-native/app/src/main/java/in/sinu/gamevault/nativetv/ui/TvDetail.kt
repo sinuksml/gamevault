@@ -50,7 +50,7 @@ internal fun DetailScreen(state: TvState, item: MediaItem, actions: VaultTvView.
 
     Box(Modifier.fillMaxSize()) {
         Backdrop(item.image(true))
-        Row(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 32.dp)) {
+        Row(Modifier.fillMaxSize().padding(horizontal = PageStart, vertical = 40.dp), verticalAlignment = Alignment.Bottom) {
             if (item.poster.isNotEmpty() && item.kind != "game") {
                 AsyncImage(
                     model = item.poster, contentDescription = null, contentScale = ContentScale.Crop,
@@ -59,7 +59,7 @@ internal fun DetailScreen(state: TvState, item: MediaItem, actions: VaultTvView.
             }
             Column(Modifier.weight(1f).padding(start = if (item.poster.isNotEmpty() && item.kind != "game") 28.dp else 0.dp)) {
                 if (item.eyebrow.isNotEmpty()) Text(item.eyebrow.uppercase(), style = Type.Label)
-                Text(item.title, style = Type.Display.copy(fontSize = 34.sp), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(item.title, style = Type.Hero, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 if (item.meta.isNotEmpty()) Text(item.meta, style = Type.Body.copy(color = Palette.Muted), modifier = Modifier.padding(top = 4.dp))
                 val story = cleanStory(item.overview)
                 Text(
@@ -108,7 +108,7 @@ internal fun EpisodesScreen(state: TvState, episodes: EpisodesState, actions: Va
 
     Box(Modifier.fillMaxSize()) {
         Backdrop(parent.image(true))
-        Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 28.dp)) {
+        Column(Modifier.fillMaxSize().padding(horizontal = PageStart, vertical = 32.dp)) {
             Text("EPISODES", style = Type.Label)
             Text(parent.title, style = Type.Display, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Row(Modifier.padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -164,7 +164,7 @@ internal fun QrDialog(state: TvState, info: QrInfo) {
     LaunchedEffect(info.code) { delay(80); runCatching { close.requestFocus() } }
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.82f)), contentAlignment = Alignment.Center) {
         Row(
-            Modifier.clip(RoundedCornerShape(20.dp)).background(Palette.Panel).padding(32.dp),
+            Modifier.clip(RoundedCornerShape(24.dp)).background(Palette.Panel).padding(32.dp),
             horizontalArrangement = Arrangement.spacedBy(32.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

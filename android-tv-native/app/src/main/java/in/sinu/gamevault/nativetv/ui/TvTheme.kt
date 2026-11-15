@@ -7,10 +7,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,7 +34,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -39,24 +44,26 @@ import androidx.tv.material3.darkColorScheme
 import coil3.compose.AsyncImage
 
 internal object Palette {
-    val Background = Color(0xFF03060A)
-    val Panel = Color(0xFF0D1723)
-    val PanelRaised = Color(0xFF16283B)
-    val Text = Color(0xFFF2F7FC)
-    val Muted = Color(0xFF9EAEC2)
-    val Accent = Color(0xFF54F2D2)
-    val Blue = Color(0xFF3F87F4)
-    val Amber = Color(0xFFFFBE4A)
-    val Red = Color(0xFFFF636C)
+    val Background = Color(0xFF000000)
+    val Panel = Color(0xFF1C1C1E)
+    val PanelRaised = Color(0xFF2C2C2E)
+    val Text = Color(0xFFFFFFFF)
+    val Muted = Color(0xFF98989F)
+    /** The focus colour: white. Kept under the old name so every focus state follows it. */
+    val Accent = Color(0xFFFFFFFF)
+    val Blue = Color(0xFFFFFFFF)
+    val Amber = Color(0xFFFFD60A)
+    val Red = Color(0xFFFF453A)
 }
 
 /** Type scale for a ten-foot screen. Sizes are in sp on a 540dp-high canvas. */
 internal object Type {
-    val Display = TextStyle(fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Palette.Text, letterSpacing = (-0.5).sp)
-    val Title = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Palette.Text)
+    val Display = TextStyle(fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Palette.Text, letterSpacing = (-0.6).sp)
+    val Hero = TextStyle(fontSize = 46.sp, fontWeight = FontWeight.Bold, color = Palette.Text, letterSpacing = (-1).sp, lineHeight = 48.sp)
+    val Title = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Palette.Text)
     val Body = TextStyle(fontSize = 13.sp, color = Palette.Text, lineHeight = 19.sp)
     val Muted = TextStyle(fontSize = 12.sp, color = Palette.Muted, lineHeight = 17.sp)
-    val Label = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Palette.Accent, letterSpacing = 1.2.sp)
+    val Label = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Palette.Muted, letterSpacing = 1.6.sp)
 }
 
 @Composable
@@ -76,11 +83,11 @@ internal fun cleanStory(text: String): String =
         .replace(Regex("\\[(?:edit|\\d+)]", RegexOption.IGNORE_CASE), "")
         .trim()
 
-/** A stable colour per title, so a card without artwork is still recognisable. */
+/** A stable muted colour per title, so a card without artwork is still recognisable. */
 internal fun tint(name: String): Color {
     var hash = 0
     for (ch in name) hash = (hash * 31 + ch.code) and 0x7FFFFFFF
-    val palette = listOf(0xFF1E3A52, 0xFF3A2E5C, 0xFF4F2A3C, 0xFF21493F, 0xFF4B3F23, 0xFF2B3F5C)
+    val palette = listOf(0xFF26262B, 0xFF2B2630, 0xFF30262B, 0xFF222A28, 0xFF2D2A22, 0xFF232A33)
     return Color(palette[hash % palette.size])
 }
 
@@ -94,13 +101,13 @@ internal fun Backdrop(url: String, modifier: Modifier = Modifier.fillMaxSize()) 
         Crossfade(targetState = url, animationSpec = tween(450), label = "backdrop") { current ->
             if (current.isNotEmpty()) AsyncImage(model = current, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         }
-        // Left and bottom scrims keep text readable over any picture.
-        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Palette.Background.copy(alpha = 0.92f), 0.55f to Palette.Background.copy(alpha = 0.55f), 1f to Color.Transparent)))
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 1f to Palette.Background)))
+        // Scrims keep text readable over any picture: left for the text, top for the bar, bottom to fade into the shelves.
+        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Color.Black.copy(alpha = 0.85f), 0.5f to Color.Black.copy(alpha = 0.35f), 0.8f to Color.Transparent)))
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.55f), 0.2f to Color.Transparent, 0.5f to Color.Transparent, 0.92f to Color.Black)))
     }
 }
 
-/** The shape every focusable thing shares: lifts and gains an accent ring when it has focus. */
+/** The shape every focusable thing shares: it lifts and gains a white outline when it has focus. */
 @Composable
 internal fun Modifier.focusLift(
     focused: Boolean, shape: RoundedCornerShape = RoundedCornerShape(14.dp), lift: Float = 1.06f,
@@ -110,9 +117,16 @@ internal fun Modifier.focusLift(
         .zIndex(if (focused) 1f else 0f)
         .graphicsLayer { scaleX = scale; scaleY = scale }
         .clip(shape)
-        .then(if (focused) Modifier.border(3.dp, Palette.Accent, shape) else Modifier)
+        .then(if (focused) Modifier.border(2.5.dp, Color.White, shape) else Modifier)
 }
 
+/** Badges worth showing on a card: they say something about the title, unlike "Watchlist" on every poster. */
+private fun badgeWorthy(label: String): Boolean {
+    val l = label.lowercase()
+    return l.isNotEmpty() && listOf("day", "left", "expire", "hold", "rent", "new").any { it in l }
+}
+
+/** Artwork on its own, with the title appearing underneath only while the card has focus. */
 @Composable
 internal fun TitleCard(
     item: MediaItem,
@@ -123,43 +137,47 @@ internal fun TitleCard(
     requester: FocusRequester? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val width = if (wide) 208.dp else 116.dp
-    val height = if (wide) 117.dp else 174.dp
-    val shape = RoundedCornerShape(12.dp)
-    Box(
-        modifier
-            .then(if (requester != null) Modifier.focusRequester(requester) else Modifier)
-            .padding(vertical = 10.dp)
-            .size(width, height)
-            .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocus() }
-            .focusLift(focused, shape)
-            .background(tint(item.title))
-            .clickable(onClick = onOpen),
-    ) {
-        Text(initials(item.title), style = Type.Display.copy(color = Color.White.copy(alpha = 0.7f)), modifier = Modifier.align(Alignment.Center))
-        val image = item.image(wide)
-        if (image.isNotEmpty()) AsyncImage(model = image, contentDescription = item.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.85f))))
-        if (item.eyebrow.isNotEmpty()) {
-            Text(
-                item.eyebrow, style = Type.Label.copy(fontSize = 9.sp, color = Color.White), maxLines = 1,
-                modifier = Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 6.dp, vertical = 2.dp),
-            )
-        }
-        Text(
-            item.title, style = Type.Body.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, lineHeight = 15.sp), maxLines = 2,
-            modifier = Modifier.align(Alignment.BottomStart).padding(horizontal = 8.dp, vertical = 8.dp),
-        )
-        if (item.progress in 1..99) {
-            Box(Modifier.align(Alignment.BottomStart).fillMaxSize().padding(top = height - 4.dp)) {
-                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)))
-                Box(Modifier.fillMaxSize(fraction = item.progress / 100f).background(Palette.Accent))
+    val width = if (wide) 200.dp else 116.dp
+    val height = if (wide) 112.dp else 174.dp
+    val shape = RoundedCornerShape(14.dp)
+    val image = item.image(wide)
+    Column(modifier.width(width)) {
+        Box(
+            Modifier
+                .then(if (requester != null) Modifier.focusRequester(requester) else Modifier)
+                .padding(top = 8.dp)
+                .size(width, height)
+                .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocus() }
+                .focusLift(focused, shape, lift = 1.08f)
+                .background(tint(item.title))
+                .clickable(onClick = onOpen),
+        ) {
+            if (image.isEmpty()) {
+                // Without artwork the title is the only way to tell cards apart, so it stays visible.
+                Text(item.title, style = Type.Body.copy(fontWeight = FontWeight.SemiBold), maxLines = 3, modifier = Modifier.align(Alignment.Center).padding(10.dp))
+            } else {
+                AsyncImage(model = image, contentDescription = item.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            }
+            if (badgeWorthy(item.eyebrow)) {
+                Text(
+                    item.eyebrow, style = Type.Body.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color.White), maxLines = 1,
+                    modifier = Modifier.align(Alignment.BottomStart).padding(8.dp).clip(RoundedCornerShape(6.dp)).background(Color.Black.copy(alpha = 0.62f)).padding(horizontal = 7.dp, vertical = 2.dp),
+                )
+            }
+            if (item.progress in 1..99) {
+                Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color.Black.copy(alpha = 0.55f))) {
+                    Box(Modifier.fillMaxHeight().fillMaxWidth(fraction = item.progress / 100f).background(Color.White))
+                }
             }
         }
+        Text(
+            if (focused) item.title else "", style = Type.Body.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), maxLines = 1,
+            overflow = TextOverflow.Ellipsis, modifier = Modifier.height(22.dp).padding(top = 5.dp, start = 2.dp),
+        )
     }
 }
 
-/** A text button for a ten-foot screen. [primary] fills it with the accent colour. */
+/** A pill button for a ten-foot screen. White with dark text when focused; [primary] is a little brighter at rest. */
 @Composable
 internal fun TvButton(
     label: String,
@@ -170,15 +188,15 @@ internal fun TvButton(
     onFocus: () -> Unit = {},
 ) {
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(50)
     Box(
         modifier
             .then(if (requester != null) Modifier.focusRequester(requester) else Modifier)
             .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocus() }
             .focusLift(focused, shape, lift = 1.05f)
-            .background(if (focused) Palette.Accent else if (primary) Palette.PanelRaised else Palette.Panel)
+            .background(if (focused) Color.White else if (primary) Color.White.copy(alpha = 0.24f) else Color.White.copy(alpha = 0.13f))
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 22.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(label, style = Type.Body.copy(fontWeight = FontWeight.SemiBold, color = if (focused) Palette.Background else Palette.Text), maxLines = 1)
@@ -186,5 +204,7 @@ internal fun TvButton(
 }
 
 internal val ContentPadding = PaddingValues(horizontal = 24.dp)
-internal val RailCollapsed: Dp = 72.dp
-internal val RailExpanded: Dp = 232.dp
+/** Left edge of page content, matching the hero text. */
+internal val PageStart = 40.dp
+/** Height of the top navigation bar area that pages leave clear. */
+internal val BarHeight = 64.dp
