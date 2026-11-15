@@ -88,6 +88,24 @@
 
         <StackPanel Padding="{StaticResource PagePadding}" Spacing="28">
 
+            <!-- Needs attention: anything overdue or due within three days, so it is seen before it costs money. -->
+            <Border x:Name="Attention" Style="{StaticResource CardStyle}" Visibility="Collapsed" Padding="16,12"
+                    BorderBrush="{ThemeResource SystemFillColorCriticalBrush}">
+                <Grid ColumnSpacing="14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE7BA;" FontSize="20" Foreground="{ThemeResource SystemFillColorCriticalBrush}" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                        <TextBlock x:Name="AttentionTitle" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock x:Name="AttentionLines" Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Button Grid.Column="2" Content="See dates" Click="Attention_Click" VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+
             <StackPanel x:Name="Header">
                 <TextBlock x:Name="Greeting" Text="Welcome back" Style="{StaticResource PageTitleStyle}" />
                 <TextBlock x:Name="Summary" Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" />

@@ -23,6 +23,7 @@ public sealed partial class SettingsPage : Page
     {
         _loading = true;
         if (!Ui.SelectTag(ThemeBox, _state.Preferences.Get("Theme", "system"))) Ui.SelectTag(ThemeBox, "dark");
+        RemindersSwitch.IsOn = Services.Reminders.Enabled;
         DriveClientId.Text = _state.Drive.ClientId;
         DriveClientSecret.Password = _state.Drive.ClientSecret;
         RawgKey.Password = _state.Catalog.RawgKey;
@@ -54,6 +55,13 @@ public sealed partial class SettingsPage : Page
     }
 
     // ---- Appearance ---------------------------------------------------------
+
+    private void Reminders_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        Services.Reminders.Enabled = RemindersSwitch.IsOn;
+        if (RemindersSwitch.IsOn) Services.Reminders.Check();
+    }
 
     private void Theme_Changed(object sender, SelectionChangedEventArgs e)
     {

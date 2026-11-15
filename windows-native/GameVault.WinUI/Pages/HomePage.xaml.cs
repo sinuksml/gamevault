@@ -58,6 +58,7 @@ public sealed partial class HomePage : Page
             : urgent > 0 ? $"{due.Count} tracked · {urgent} due within 3 days"
             : $"{due.Count} tracked · nothing urgent";
 
+        ShowAttention(due);
         BuildUpcoming(data.ComingUp(6));
         BuildStats(data);
         BuildSpending(data);
@@ -71,6 +72,18 @@ public sealed partial class HomePage : Page
 
     private int _dueCount;
     private LibraryRow? _heroRow;
+
+    private void ShowAttention(List<DueDateRow> due)
+    {
+        var urgent = due.Where(row => row.DaysLeft is { } left && left <= 3).OrderBy(row => row.DaysLeft).ToList();
+        Attention.Visibility = Ui.Show(urgent.Count > 0);
+        if (urgent.Count == 0) return;
+        AttentionTitle.Text = urgent.Count == 1 ? "1 date needs attention" : $"{urgent.Count} dates need attention";
+        AttentionLines.Text = string.Join("   ·   ", urgent.Take(3).Select(row => $"{row.Title} ({row.Countdown})"))
+            + (urgent.Count > 3 ? $"   ·   and {urgent.Count - 3} more" : "");
+    }
+
+    private void Attention_Click(object sender, RoutedEventArgs e) => DuePanel.StartBringIntoView();
 
     /// <summary>The artwork banner at the top: the title most recently in progress, with the actions for it.</summary>
     private void ShowHero(LibraryRow? row, int hour)

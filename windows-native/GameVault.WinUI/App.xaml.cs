@@ -61,5 +61,6 @@ public partial class App : Application
         DiagnosticsService.Log("Startup", "Application started");
         Window = new MainWindow();
         Window.Activate();
+        Reminders.Start();
     }
 }

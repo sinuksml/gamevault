@@ -39,6 +39,23 @@
                 </Grid>
             </Border>
 
+            <!-- Reminders -->
+            <Border Style="{StaticResource CardStyle}" Padding="16,12">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xEA8F;" FontSize="18" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Due-date reminders" />
+                        <TextBlock Text="A Windows notification when a rental return or subscription renewal is overdue or within two days." Style="{StaticResource CaptionSecondaryStyle}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ToggleSwitch x:Name="RemindersSwitch" Grid.Column="2" OnContent="On" OffContent="Off" Toggled="Reminders_Toggled" />
+                </Grid>
+            </Border>
+
             <!-- Sync -->
             <TextBlock Text="Sync and catalogs" Style="{StaticResource GroupLabel}" />
             <Expander Style="{StaticResource SettingExpander}">
