@@ -51,7 +51,7 @@ internal fun HomePage(state: TvState) {
             StatChip("Now playing", (data.count("playing") + data.count("subscriptionGames")).toString())
             StatChip("Completed", data.count("played").toString())
         },
-        empty = { EmptyState("Your library is ready to connect", "Open Settings and sync Google Drive to bring your collection to this TV.", "Open Settings") { state.section = 6 } },
+        empty = { EmptyState("Your library is ready to connect", "Open Settings and sync Google Drive to bring your collection to this TV.", "Open Settings", !state.autoFocusAllowed()) { state.section = 6 } },
     )
 }
 
@@ -65,7 +65,7 @@ internal fun LibraryPage(state: TvState) {
         title = name,
         subtitle = "$total titles across ${shelves.size} lists",
         shelves = shelves,
-        empty = { EmptyState("Nothing in $name yet", "Titles appear here after your library syncs from Google Drive.", "Open Settings") { state.section = 6 } },
+        empty = { EmptyState("Nothing in $name yet", "Titles appear here after your library syncs from Google Drive.", "Open Settings", !state.autoFocusAllowed()) { state.section = 6 } },
     )
 }
 
@@ -93,7 +93,7 @@ internal fun PlexPage(state: TvState, actions: VaultTvView.Actions) {
         subtitle = if (state.plex.isEmpty()) "Not loaded" else "${state.plex.size} titles available",
         shelves = shelves,
         headerExtras = { TvButton("Refresh", { actions.refreshPlex() }) },
-        empty = { EmptyState("Connect Plex", "Add your server address and token, or leave the address blank to discover it.", "Set up Plex") { actions.configurePlex() } },
+        empty = { EmptyState("Connect Plex", "Add your server address and token, or leave the address blank to discover it.", "Set up Plex", !state.autoFocusAllowed()) { actions.configurePlex() } },
     )
 }
 
@@ -130,7 +130,7 @@ internal fun BiglyPage(state: TvState, actions: VaultTvView.Actions) {
     val history = remember(state.version) { state.data.biglyHistory() }
     val torrents = state.torrents
     val first = remember { FocusRequester() }
-    LaunchedEffect(torrents.isEmpty()) { delay(80); runCatching { first.requestFocus() } }
+    LaunchedEffect(torrents.isEmpty()) { delay(80); state.requestContentFocus(first) }
 
     Column(Modifier.fillMaxSize().padding(start = 20.dp, top = 20.dp, end = 28.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -141,7 +141,7 @@ internal fun BiglyPage(state: TvState, actions: VaultTvView.Actions) {
             TvButton("Refresh", { actions.refreshBigly() }, requester = if (torrents.isEmpty()) first else null)
         }
         if (torrents.isEmpty() && history.isEmpty()) {
-            EmptyState("BiglyBT is ready", "Connect your secure gateway to see downloads here.", "Connect BiglyBT") { actions.configureBigly() }
+            EmptyState("BiglyBT is ready", "Connect your secure gateway to see downloads here.", "Connect BiglyBT", !state.autoFocusAllowed()) { actions.configureBigly() }
             return@Column
         }
         LazyColumn(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -212,7 +212,7 @@ internal fun SettingsPage(state: TvState, actions: VaultTvView.Actions) {
         SettingCard("About", "Native TV $version  ·  Windows-compatible Shield client") { state.updateStatus("Sinu Game Vault Native TV $version") },
     )
     val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) { delay(80); runCatching { first.requestFocus() } }
+    LaunchedEffect(Unit) { delay(80); state.requestContentFocus(first) }
 
     Column(Modifier.fillMaxSize().padding(start = 20.dp, top = 20.dp, end = 28.dp)) {
         Text("SYSTEM", style = Type.Label)

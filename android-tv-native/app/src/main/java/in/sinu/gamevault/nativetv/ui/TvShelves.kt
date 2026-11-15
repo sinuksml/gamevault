@@ -59,9 +59,9 @@ internal fun ShelvesScreen(
 
     // Land on the card that had focus, so coming back from a title does not lose the place.
     LaunchedEffect(key, shelves.isEmpty()) {
-        if (shelves.isNotEmpty()) {
+        if (shelves.isNotEmpty() && state.autoFocusAllowed()) {
             delay(80)
-            runCatching { requester.requestFocus() }
+            state.requestContentFocus(requester)
         }
     }
 
@@ -140,13 +140,13 @@ private fun ShelfRow(
 
 /** What a page says when it has nothing to show, with the way to fix it. */
 @Composable
-internal fun EmptyState(heading: String, text: String, action: String? = null, onAction: () -> Unit = {}) {
+internal fun EmptyState(heading: String, text: String, action: String? = null, railFocused: Boolean = false, onAction: () -> Unit = {}) {
     Column(Modifier.fillMaxSize().padding(end = 60.dp, bottom = 60.dp), verticalArrangement = Arrangement.Center) {
         Text(heading, style = Type.Display)
         Text(text, style = Type.Muted, modifier = Modifier.padding(top = 6.dp).widthIn(max = 460.dp))
         if (action != null) {
             val requester = remember { FocusRequester() }
-            LaunchedEffect(Unit) { delay(80); runCatching { requester.requestFocus() } }
+            LaunchedEffect(Unit) { delay(80); if (!railFocused) runCatching { requester.requestFocus() } }
             TvButton(action, onAction, primary = true, requester = requester, modifier = Modifier.padding(top = 16.dp))
         }
     }

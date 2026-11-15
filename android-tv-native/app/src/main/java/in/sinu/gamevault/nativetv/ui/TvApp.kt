@@ -37,6 +37,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -87,6 +89,7 @@ internal fun TvApp(state: TvState, actions: VaultTvView.Actions) {
             Modifier.fillMaxSize().background(Palette.Background).onPreviewKeyEvent {
                 // The first key after ambient mode only wakes the screen.
                 val wasAmbient = idle == 2
+                state.userNavigated = true
                 state.touch()
                 idle = 0
                 wasAmbient
@@ -120,8 +123,10 @@ internal fun TvApp(state: TvState, actions: VaultTvView.Actions) {
 
 /** A collapsed icon rail that opens over the page when it has focus. */
 @Composable
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 private fun NavRail(state: TvState, requester: FocusRequester) {
     var expanded by remember { mutableStateOf(false) }
+    DisposableEffect(Unit) { onDispose { state.railFocused = false } }
     val width by animateDpAsState(if (expanded) RailExpanded else RailCollapsed, tween(180), label = "rail")
     val counts = remember(state.version, state.torrents.size) {
         intArrayOf(
@@ -137,7 +142,10 @@ private fun NavRail(state: TvState, requester: FocusRequester) {
             .fillMaxHeight()
             .width(width)
             .background(Brush.horizontalGradient(0f to Palette.Background, (if (expanded) 0.88f else 0.7f) to Palette.Background.copy(alpha = 0.97f), 1f to Color.Transparent))
-            .onFocusChanged { expanded = it.hasFocus }
+            .onFocusChanged { expanded = it.hasFocus; state.railFocused = it.hasFocus }
+            // Entering the rail from a card lands on the current section, not whichever icon is nearest.
+            .focusProperties { enter = { requester } }
+            .focusGroup()
             .padding(start = 10.dp, top = 24.dp, bottom = 16.dp),
         verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
     ) {

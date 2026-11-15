@@ -38,6 +38,27 @@ internal class TvState {
     var qr by mutableStateOf<QrInfo?>(null); private set
 
     var section by mutableIntStateOf(0)
+    /**
+     * True while focus is in the navigation rail. Pages move focus into themselves when they
+     * appear, but not then: otherwise stepping down the rail would switch the page and the
+     * new page would take focus away before the next step.
+     */
+    var railFocused by mutableStateOf(false)
+    /** Set by the first key press. Until then a page may take focus even if Android put it in the rail at start-up. */
+    var userNavigated = false
+
+    /** Whether a page that just appeared should move focus into itself. */
+    fun autoFocusAllowed(): Boolean = forceContentFocus || !railFocused || !userNavigated
+
+    /** Set when a title page or episode list closes, so the page under it takes focus back from the rail. */
+    var forceContentFocus = false
+
+    /** Moves focus into a page, if a page may do so now. */
+    fun requestContentFocus(requester: androidx.compose.ui.focus.FocusRequester) {
+        if (!autoFocusAllowed()) return
+        runCatching { requester.requestFocus() }
+        forceContentFocus = false
+    }
     var detail by mutableStateOf<MediaItem?>(null); private set
     /** The series a single episode was opened from, so Back returns to it. */
     var detailParent by mutableStateOf<MediaItem?>(null); private set
@@ -107,7 +128,7 @@ internal class TvState {
 
     fun closeDetail() {
         val parent = detailParent
-        if (parent != null) { detail = parent; detailParent = null } else detail = null
+        if (parent != null) { detail = parent; detailParent = null } else { detail = null; forceContentFocus = true }
     }
 
     fun closeEpisodes() { episodes = null }
@@ -121,7 +142,7 @@ internal class TvState {
     fun back(): Boolean {
         touch()
         if (qr != null) { qr = null; return true }
-        if (episodes != null) { episodes = null; return true }
+        if (episodes != null) { episodes = null; forceContentFocus = detail == null; return true }
         if (detail != null) { closeDetail(); return true }
         val now = SystemClock.uptimeMillis()
         if (now - lastBack < 2000) return false

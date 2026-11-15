@@ -118,7 +118,12 @@ internal fun EpisodesScreen(state: TvState, episodes: EpisodesState, actions: Va
             }
             val list = episodes.episodes
             when {
-                list == null -> Text("Loading season ${episodes.season}…", style = Type.Muted)
+                list == null -> {
+                    Text("Loading season ${episodes.season}…", style = Type.Muted)
+                    // A failed lookup reports itself as a status message; keep it on screen instead of loading forever.
+                    val problem = state.status.takeIf { it.isNotEmpty() && !it.startsWith("Loading") && !it.contains("loaded") }
+                    if (problem != null) Text(problem, style = Type.Body.copy(color = Palette.Amber), modifier = Modifier.padding(top = 8.dp))
+                }
                 list.isEmpty() -> Text("No episodes were found for this season.", style = Type.Muted)
                 else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth(0.8f)) {
                     itemsIndexed(list, key = { index, _ -> index }) { index, episode ->
