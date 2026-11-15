@@ -77,12 +77,24 @@ Recommended fix, as its own change and tested against all three clients: key `re
 
 ## Getting the fix onto the Shield
 
-The app has no release signing config, so it is signed with whatever debug key built it. Android refuses to install over an app signed with a different key, and uninstalling first would lose the Drive and Plex logins stored on the device.
+The app has no release signing config, so it is signed with the machine's Android debug key. Android only installs an update over an app signed with the same key.
 
-- This PC has no `~/.android/debug.keystore`, so a build here would use a brand-new key.
-- The CI artifact uses a throwaway key and cannot be installed over the existing app either.
-- Before sideloading, find the machine or keystore that built the APK currently on the Shield, or accept a one-time re-sign-in to Drive, Plex and BiglyBT after reinstalling.
-- `versionCode` is now 7 (`3.0.3-native-tv`), above the installed 6.
+- **A build on this PC installs over the existing app.** `~/.android/debug.keystore` exists here, and an APK built locally has the same signing certificate (SHA-256 `d7d7a69b…`) as the earlier `GameVault-Native-TV-*.apk` files. The Drive and Plex logins are kept.
+- **The CI artifact does not.** Each CI run uses a throwaway debug key, so its APK cannot be installed over the existing app; installing it would mean uninstalling first and signing back in to Drive, Plex and BiglyBT. Do not sideload the CI APK.
+- **Building locally on Windows.** Gradle fails with "Unable to establish loopback connection" when the profile path contains spaces. Setting a short socket directory fixes it:
+
+  ```powershell
+  $env:JAVA_HOME = 'C:Program FilesAndroidAndroid Studiojbr'
+  $env:ANDROID_HOME = "$env:LOCALAPPDATAAndroidSdk"
+  New-Item -ItemType Directory -Force C:gvtmp | Out-Null
+  $env:JAVA_TOOL_OPTIONS = '-Djdk.net.unixdomain.tmpdir=C:/gvtmp'
+  cd android-tv-native
+  .gradlew.bat testDebugUnitTest assembleDebug
+  ```
+
+  The APK is `app/build/outputs/apk/debug/app-debug.apk`.
+- `versionCode` is 7 (`3.0.3-native-tv`), above the installed 6.
+- A stable release key would remove this dependence on one PC's debug key. That is a decision for the owner: back up `~/.android/debug.keystore` or create a release keystore and sign with it from now on.
 
 ## Verification status of the Windows claim
 
