@@ -52,7 +52,11 @@ final class DriveRepository {
                 while ((count = in.read(buffer)) > 0) out.write(buffer, 0, count);
             }
             return new VaultData(new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8)));
-        } catch (Exception ignored) { return VaultData.empty(); }
+        } catch (Exception ignored) {
+            File damaged = new File(context.getFilesDir(), FILE_NAME);
+            if (damaged.exists()) preserveDamaged(damaged);
+            return VaultData.empty();
+        }
     }
 
     boolean connected() { return !secure.get("drive_refresh").isEmpty() || !secure.get("drive_access").isEmpty(); }
@@ -68,11 +72,41 @@ final class DriveRepository {
         prefs.edit().remove("drive_exp").remove("drive_file").remove(LAST_SYNCED_KEY).apply();
     }
 
-    void cache(VaultData value) {
+    /**
+     * Saves the offline copy. The text is proven to parse, written beside the real
+     * file and renamed into place, so a crash or a full disk mid-write leaves the
+     * previous copy intact instead of a truncated file that reads back as empty.
+     */
+    synchronized void cache(VaultData value) {
+        // Edits run on the main thread and syncs on the io thread; one writer at a
+        // time, because both use the same temporary file name.
         if (value == null) return;
-        try (FileOutputStream out = new FileOutputStream(new File(context.getFilesDir(), FILE_NAME))) {
-            out.write(value.root.toString().getBytes(StandardCharsets.UTF_8));
-        } catch (Exception ignored) {}
+        File target = new File(context.getFilesDir(), FILE_NAME);
+        File temporary = new File(context.getFilesDir(), FILE_NAME + ".tmp");
+        try {
+            String text = value.root.toString();
+            new JSONObject(text);
+            try (FileOutputStream out = new FileOutputStream(temporary)) {
+                out.write(text.getBytes(StandardCharsets.UTF_8));
+                out.getFD().sync();
+            }
+            if (!temporary.renameTo(target)) temporary.delete();
+        } catch (Exception ignored) { temporary.delete(); }
+    }
+
+    /** Keeps an unreadable cache file for inspection rather than letting the next save overwrite it. */
+    private void preserveDamaged(File file) {
+        File folder = new File(context.getFilesDir(), "Recovery");
+        if (!folder.exists() && !folder.mkdirs()) return;
+        File copy = new File(folder, "unreadable-" + System.currentTimeMillis() + ".json");
+        try (FileInputStream in = new FileInputStream(file); FileOutputStream out = new FileOutputStream(copy)) {
+            byte[] buffer = new byte[16384]; int count;
+            while ((count = in.read(buffer)) > 0) out.write(buffer, 0, count);
+        } catch (Exception ignored) { }
+        File[] copies = folder.listFiles((dir, name) -> name.startsWith("unreadable-"));
+        if (copies == null || copies.length <= 5) return;
+        java.util.Arrays.sort(copies, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+        for (int i = 5; i < copies.length; i++) copies[i].delete();
     }
 
     void sync(Listener listener) {
@@ -111,11 +145,18 @@ final class DriveRepository {
                     save(local, listener);
                     return;
                 }
+                /* Drive is newer than this TV copy. If the TV also has edits Drive has
+                   never seen, replacing the cache here used to discard them silently,
+                   because the conflict check above only runs when the TV copy is the
+                   newer one. Keep them in Recovery before they are overwritten. */
+                // lastSyncedUpdatedAt is 0 until a sync has succeeded (and after a disconnect), when nothing can be called unsynced.
+                boolean unsyncedTvEdits = lastSyncedUpdatedAt > 0L && local.savedCount() > 0 && local.updatedAt > lastSyncedUpdatedAt && value.updatedAt != local.updatedAt;
+                if (unsyncedTvEdits) cacheRecovery(local, "drive-conflict");
                 cache(value);
                 markSynced(value.updatedAt);
                 prefs.edit().putString("drive_file", id).apply();
                 listener.onData(value);
-                listener.onStatus("Synced with Google Drive");
+                listener.onStatus(unsyncedTvEdits ? "Drive had newer changes. Your unsynced TV edits were kept in Recovery." : "Synced with Google Drive");
             } catch (Exception e) { listener.onStatus(e.getMessage() == null ? "Drive sync failed" : e.getMessage()); }
         });
     }

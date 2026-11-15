@@ -61,8 +61,22 @@ final class VaultData {
             + count("seriesWatchlist") + count("watchingSeries") + count("watchedSeries");
     }
 
+    /**
+     * Saves details the app fetched itself (a story, artwork) without counting as
+     * an edit. Cached details never advance updatedAt or revision, so an idle TV
+     * filling in plots cannot out-timestamp a real edit made on another device.
+     */
+    synchronized boolean updateCache(MediaItem item, JSONObject values) {
+        return writeValues(item, values, false);
+    }
+
     synchronized boolean updateItem(MediaItem item, JSONObject values) {
+        return writeValues(item, values, true);
+    }
+
+    private boolean writeValues(MediaItem item, JSONObject values, boolean edit) {
         if (item == null || values == null) return false;
+        SyncTracker.Snapshot before = SyncTracker.capture(root);
         for (JSONArray source : sourceArrays(item.source)) {
             for (int i = 0; i < source.length(); i++) {
                 JSONObject candidate = source.optJSONObject(i);
@@ -73,7 +87,7 @@ final class VaultData {
                         String key = keys.next();
                         candidate.put(key, values.opt(key));
                     }
-                    touch();
+                    if (edit) commit(before);
                     return true;
                 } catch (Exception ignored) { return false; }
             }
@@ -98,6 +112,7 @@ final class VaultData {
 
     synchronized boolean applyAction(MediaItem item, String action) {
         if (item == null || action == null) return false;
+        SyncTracker.Snapshot before = SyncTracker.capture(root);
         try {
             boolean changed;
             if ("restore".equals(action)) changed = restore(item);
@@ -107,7 +122,7 @@ final class VaultData {
             else if ("series".equals(item.kind)) changed = moveMedia(item, action,
                 new String[]{"seriesWatchlist", "watchingSeries", "watchedSeries", "hiddenSeries"});
             else changed = moveGame(item, action);
-            if (changed) touch();
+            if (changed) commit(before);
             return changed;
         } catch (Exception ignored) { return false; }
     }
@@ -216,8 +231,15 @@ final class VaultData {
         return result;
     }
 
-    private void touch() throws Exception {
-        updatedAt = System.currentTimeMillis();
+    /** Records what an edit changed for the other clients, then stamps the vault as edited. */
+    private void commit(SyncTracker.Snapshot before) throws Exception {
+        long now = System.currentTimeMillis();
+        SyncTracker.apply(root, before, now);
+        touch(now);
+    }
+
+    private void touch(long now) throws Exception {
+        updatedAt = now;
         root.put("version", DATA_SCHEMA);
         root.put("schemaVersion", DATA_SCHEMA);
         root.put("updatedAt", updatedAt);
