@@ -62,3 +62,28 @@ Decided with you: TV app only, rebuilt with Compose for TV, and the WebView laun
 - **Keep the vault untyped.** Read the fields the app shows; carry everything else through untouched.
 - **Pin sync before UI.** Tests against `shared/fixtures/vault-v15.json` and `core.js` come before screens.
 - **No on-device testing was possible here.** There is no Shield, emulator or attached device on this machine, and Gradle could not start locally. The Java was compiled and tested directly on the JVM; the APK was not rebuilt.
+
+## Found while testing: repeated rentals lose history in `core.js`
+
+Not caused by this change, and not fixed here. `core.js` merges `rentalHistory` by the record key, and every rental of the same game shares one key (its `canonicalId`). Merging a vault with **itself** turns two history entries for the same game into one:
+
+```
+history before: 2   after a self-merge: 1
+```
+
+So whenever the classic site merges a vault that holds two rental periods of one game, one of them is dropped. The Windows app knows this: `AllowsDuplicates` exempts `rentalHistory` and `biglyHistory` from de-duplication. `web/src/lib/syncMerge.ts` is a faithful port, and its parity tests would lock the same behaviour in.
+
+Recommended fix, as its own change and tested against all three clients: key `rentalHistory` and `biglyHistory` records by `id` in `core.js`, `syncMerge.ts` and the TV's `SyncTracker`. The TV's own return action keeps both history entries in the file it uploads; it is the next merge on another device that drops one.
+
+## Getting the fix onto the Shield
+
+The app has no release signing config, so it is signed with whatever debug key built it. Android refuses to install over an app signed with a different key, and uninstalling first would lose the Drive and Plex logins stored on the device.
+
+- This PC has no `~/.android/debug.keystore`, so a build here would use a brand-new key.
+- The CI artifact uses a throwaway key and cannot be installed over the existing app either.
+- Before sideloading, find the machine or keystore that built the APK currently on the Shield, or accept a one-time re-sign-in to Drive, Plex and BiglyBT after reinstalling.
+- `versionCode` is now 7 (`3.0.3-native-tv`), above the installed 6.
+
+## Verification status of the Windows claim
+
+`VaultIdentity.cs` was read in full: its strongest-identifier order and title identity match `SyncTracker.deletionIdentity`. `DriveService.MergeVaults` reads `deletions` markers with `{collection, identity, at}`. The merge itself was not run against the Windows app; only against `core.js`.

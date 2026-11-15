@@ -77,7 +77,9 @@ final class DriveRepository {
      * file and renamed into place, so a crash or a full disk mid-write leaves the
      * previous copy intact instead of a truncated file that reads back as empty.
      */
-    void cache(VaultData value) {
+    synchronized void cache(VaultData value) {
+        // Edits run on the main thread and syncs on the io thread; one writer at a
+        // time, because both use the same temporary file name.
         if (value == null) return;
         File target = new File(context.getFilesDir(), FILE_NAME);
         File temporary = new File(context.getFilesDir(), FILE_NAME + ".tmp");
@@ -147,7 +149,8 @@ final class DriveRepository {
                    never seen, replacing the cache here used to discard them silently,
                    because the conflict check above only runs when the TV copy is the
                    newer one. Keep them in Recovery before they are overwritten. */
-                boolean unsyncedTvEdits = local.savedCount() > 0 && local.updatedAt > lastSyncedUpdatedAt && value.updatedAt != local.updatedAt;
+                // lastSyncedUpdatedAt is 0 until a sync has succeeded (and after a disconnect), when nothing can be called unsynced.
+                boolean unsyncedTvEdits = lastSyncedUpdatedAt > 0L && local.savedCount() > 0 && local.updatedAt > lastSyncedUpdatedAt && value.updatedAt != local.updatedAt;
                 if (unsyncedTvEdits) cacheRecovery(local, "drive-conflict");
                 cache(value);
                 markSynced(value.updatedAt);
