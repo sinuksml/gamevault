@@ -97,6 +97,24 @@ final class VaultTvView extends View {
     private long focusStartedAt = SystemClock.uptimeMillis();
     private String lastA11y = "";
 
+    private String versionLabel;
+
+    /**
+     * The installed version, read from the package rather than written into the
+     * drawing code. The labels used to say "v3.0" on every 3.0.x build, so an update
+     * could not be told apart from the old app. Cached because the rail is redrawn
+     * constantly.
+     */
+    private String appVersion() {
+        if (versionLabel == null) {
+            try {
+                String name = getContext().getPackageManager().getPackageInfo(getContext().getPackageName(), 0).versionName;
+                versionLabel = name == null ? "" : name.replace("-native-tv", "");
+            } catch (Exception e) { versionLabel = ""; }
+        }
+        return versionLabel;
+    }
+
     VaultTvView(Context context, Actions actions) {
         super(context);
         this.actions = actions;
@@ -307,7 +325,7 @@ final class VaultTvView extends View {
         }
         if (expanded) {
             text(c, "TV COMPANION", 31, 1010, 12, MUTED, true, Paint.Align.LEFT);
-            text(c, "v3.0", 254, 1010, 12, MUTED, false, Paint.Align.RIGHT);
+            text(c, "v" + appVersion(), 254, 1010, 12, MUTED, false, Paint.Align.RIGHT);
         }
     }
 
@@ -707,7 +725,7 @@ final class VaultTvView extends View {
             plexItems.isEmpty() ? "Connect or refresh your server" : plexItems.size() + " titles available",
             torrents.isEmpty() ? "Connect or refresh downloads" : torrents.size() + " active downloads",
             "Clear downloaded posters and backdrops",
-            "Native TV v3.0 - Windows-compatible Shield client",
+            "Native TV v" + appVersion() + " - Windows-compatible Shield client",
             "Remove the encrypted Google session"
         };
         float x = 322, y = 190, w = 725, h = 112;
@@ -1183,7 +1201,7 @@ final class VaultTvView extends View {
             case 2: actions.configurePlex(); break;
             case 3: actions.configureBigly(); break;
             case 4: actions.clearArtwork(); break;
-            case 5: setStatus("Sinu Game Vault Native TV v3.0"); break;
+            case 5: setStatus("Sinu Game Vault Native TV v" + appVersion()); break;
             case 6: actions.disconnectDrive(); break;
             default: break;
         }

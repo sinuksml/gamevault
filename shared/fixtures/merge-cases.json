@@ -1,0 +1,5749 @@
+{
+ "collections": [
+  "rentals",
+  "upcoming",
+  "played",
+  "dismissed",
+  "catalogExtra",
+  "vendors",
+  "queue",
+  "rentalHistory",
+  "playing",
+  "upcomingRemoved",
+  "watchedMovies",
+  "movieWatchlist",
+  "watchingMovies",
+  "hiddenMovies",
+  "watchedSeries",
+  "seriesWatchlist",
+  "watchingSeries",
+  "hiddenSeries",
+  "biglyHistory",
+  "subscriptions",
+  "subscriptionGames",
+  "purchasedGames",
+  "petrol",
+  "hiddenGames",
+  "deletions"
+ ],
+ "cases": [
+  {
+   "name": "edits on both sides to different lists",
+   "local": {
+    "version": 15,
+    "updatedAt": 2000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     },
+     {
+      "id": "d",
+      "name": "Delta",
+      "canonicalId": "game:title:delta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:delta|": 2000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     }
+    }
+   },
+   "remote": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 3,
+      "title": "Three",
+      "key": "tmdb:3",
+      "canonicalId": "tmdb:movie:3"
+     },
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:3": 3000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     }
+    }
+   },
+   "merged": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     },
+     {
+      "id": "d",
+      "name": "Delta",
+      "canonicalId": "game:title:delta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     },
+     {
+      "id": 3,
+      "title": "Three",
+      "key": "tmdb:3",
+      "canonicalId": "tmdb:movie:3"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 3000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000,
+       "game:title:beta|": 3000,
+       "game:title:delta|": 2000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 3000,
+       "tmdb:movie:2": 3000,
+       "tmdb:movie:3": 3000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 3000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": []
+   },
+   "mergedFromRemote": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     },
+     {
+      "id": "d",
+      "name": "Delta",
+      "canonicalId": "game:title:delta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 3,
+      "title": "Three",
+      "key": "tmdb:3",
+      "canonicalId": "tmdb:movie:3"
+     },
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 3000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000,
+       "game:title:beta|": 3000,
+       "game:title:delta|": 2000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:3": 3000,
+       "tmdb:movie:1": 3000,
+       "tmdb:movie:2": 3000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 3000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": []
+   }
+  },
+  {
+   "name": "the same record edited on both sides",
+   "local": {
+    "version": 15,
+    "updatedAt": 2000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300,
+      "note": "local"
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 2000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     }
+    }
+   },
+   "remote": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300,
+      "note": "remote"
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 3000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     }
+    }
+   },
+   "merged": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300,
+      "note": "remote"
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 3000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000,
+       "game:title:beta|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 3000,
+       "tmdb:movie:2": 3000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 3000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": []
+   },
+   "mergedFromRemote": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300,
+      "note": "remote"
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 3000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000,
+       "game:title:beta|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 3000,
+       "tmdb:movie:2": 3000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 3000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": []
+   }
+  },
+  {
+   "name": "a deletion against an older edit",
+   "local": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     }
+    }
+   },
+   "remote": {
+    "version": 15,
+    "updatedAt": 2000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|",
+      "note": "edited before the delete"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 2000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     }
+    }
+   },
+   "merged": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 3000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:beta|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 3000,
+       "tmdb:movie:2": 3000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 3000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": []
+   },
+   "mergedFromRemote": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 3000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:beta|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 3000,
+       "tmdb:movie:2": 3000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 3000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": []
+   }
+  },
+  {
+   "name": "a deletion against a newer edit",
+   "local": {
+    "version": 15,
+    "updatedAt": 2000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 2000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     }
+    }
+   },
+   "remote": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|",
+      "note": "edited after the delete"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     }
+    }
+   },
+   "merged": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     },
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|",
+      "note": "edited after the delete"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 3000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:beta|": 3000,
+       "game:title:alpha|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 3000,
+       "tmdb:movie:2": 3000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 3000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": []
+   },
+   "mergedFromRemote": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|",
+      "note": "edited after the delete"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 3000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000,
+       "game:title:beta|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 3000,
+       "tmdb:movie:2": 3000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 3000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": []
+   }
+  },
+  {
+   "name": "a title moved between lists on one side",
+   "local": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "playing": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|",
+      "status": "Playing"
+     }
+    ],
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {
+       "game:title:alpha|": 3000
+      },
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     }
+    }
+   },
+   "remote": {
+    "version": 15,
+    "updatedAt": 1000,
+    "revision": 4,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    }
+   },
+   "merged": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "playing": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|",
+      "status": "Playing"
+     }
+    ],
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 3000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:beta|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {
+       "game:title:alpha|": 3000
+      },
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 3000,
+       "tmdb:movie:2": 3000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 3000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": []
+   },
+   "mergedFromRemote": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "playing": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|",
+      "status": "Playing"
+     }
+    ],
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 3000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:beta|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {
+       "game:title:alpha|": 3000
+      },
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 3000,
+       "tmdb:movie:2": 3000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 3000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": []
+   }
+  },
+  {
+   "name": "the same move merged from the other side",
+   "local": {
+    "version": 15,
+    "updatedAt": 1000,
+    "revision": 4,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    }
+   },
+   "remote": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "playing": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|",
+      "status": "Playing"
+     }
+    ],
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {
+       "game:title:alpha|": 3000
+      },
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     }
+    }
+   },
+   "merged": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "playing": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|",
+      "status": "Playing"
+     }
+    ],
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 3000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:beta|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {
+       "game:title:alpha|": 3000
+      },
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 3000,
+       "tmdb:movie:2": 3000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 3000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": []
+   },
+   "mergedFromRemote": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "playing": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|",
+      "status": "Playing"
+     }
+    ],
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 3000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:beta|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {
+       "game:title:alpha|": 3000
+      },
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 3000,
+       "tmdb:movie:2": 3000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 3000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": []
+   }
+  },
+  {
+   "name": "a desktop deletion marker",
+   "local": {
+    "version": 15,
+    "updatedAt": 2000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     },
+     {
+      "id": "d",
+      "name": "Delta",
+      "canonicalId": "game:title:delta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:delta|": 2000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     }
+    }
+   },
+   "remote": {
+    "version": 15,
+    "updatedAt": 2500,
+    "revision": 4,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "deletions": [
+     {
+      "collection": "movieWatchlist",
+      "identity": "canonicalId:tmdb:movie:2",
+      "at": 2500
+     }
+    ]
+   },
+   "merged": {
+    "version": 15,
+    "updatedAt": 2500,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     },
+     {
+      "id": "d",
+      "name": "Delta",
+      "canonicalId": "game:title:delta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "deletions": [
+     {
+      "collection": "movieWatchlist",
+      "identity": "canonicalId:tmdb:movie:2",
+      "at": 2500
+     }
+    ],
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 2500
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 2500,
+       "game:title:beta|": 2500,
+       "game:title:delta|": 2000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 2500,
+       "tmdb:movie:2": 2000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 2500
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": []
+   },
+   "mergedFromRemote": {
+    "version": 15,
+    "updatedAt": 2500,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     },
+     {
+      "id": "d",
+      "name": "Delta",
+      "canonicalId": "game:title:delta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "deletions": [
+     {
+      "collection": "movieWatchlist",
+      "identity": "canonicalId:tmdb:movie:2",
+      "at": 2500
+     }
+    ],
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 2500
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 2500,
+       "game:title:beta|": 2500,
+       "game:title:delta|": 2000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 2500,
+       "tmdb:movie:2": 2000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 2500
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": []
+   }
+  },
+  {
+   "name": "a re-add after a desktop deletion",
+   "local": {
+    "version": 15,
+    "updatedAt": 2600,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|",
+      "note": "added again"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 2600
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     }
+    }
+   },
+   "remote": {
+    "version": 15,
+    "updatedAt": 1500,
+    "revision": 4,
+    "queue": [
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "deletions": [
+     {
+      "collection": "queue",
+      "identity": "id:a",
+      "at": 1500
+     }
+    ]
+   },
+   "merged": {
+    "version": 15,
+    "updatedAt": 2600,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|",
+      "note": "added again"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 2600
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 2600,
+       "game:title:beta|": 2600
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 2600,
+       "tmdb:movie:2": 2600
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 2600
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": [
+     {
+      "collection": "queue",
+      "identity": "id:a",
+      "at": 1500
+     }
+    ]
+   },
+   "mergedFromRemote": {
+    "version": 15,
+    "updatedAt": 2600,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     },
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|",
+      "note": "added again"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 2600
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:beta|": 2600,
+       "game:title:alpha|": 2600
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 2600,
+       "tmdb:movie:2": 2600
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 2600
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": [
+     {
+      "collection": "queue",
+      "identity": "id:a",
+      "at": 1500
+     }
+    ]
+   }
+  },
+  {
+   "name": "a list only the other client knows",
+   "local": {
+    "version": 15,
+    "updatedAt": 2000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     },
+     {
+      "name": "Another"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:another": 2000
+      },
+      "deletions": {}
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     }
+    }
+   },
+   "remote": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "desktopOnly": [
+     {
+      "id": "x",
+      "name": "From desktop"
+     }
+    ],
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     }
+    }
+   },
+   "merged": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     },
+     {
+      "name": "Another"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "desktopOnly": [
+     {
+      "id": "x",
+      "name": "From desktop"
+     }
+    ],
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 3000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000,
+       "game:title:beta|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 3000,
+       "tmdb:movie:2": 3000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 3000,
+       "name:another": 2000
+      },
+      "desktopOnly": {
+       "id:x": 3000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "desktopOnly": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": []
+   },
+   "mergedFromRemote": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     },
+     {
+      "name": "Another"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "desktopOnly": [
+     {
+      "id": "x",
+      "name": "From desktop"
+     }
+    ],
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 3000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000,
+       "game:title:beta|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 3000,
+       "tmdb:movie:2": 3000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 3000,
+       "name:another": 2000
+      },
+      "desktopOnly": {
+       "id:x": 3000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "desktopOnly": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": []
+   }
+  },
+  {
+   "name": "an empty local vault against a full remote",
+   "local": {
+    "updatedAt": 0,
+    "version": 15
+   },
+   "remote": {
+    "version": 15,
+    "updatedAt": 1000,
+    "revision": 4,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    }
+   },
+   "merged": {
+    "version": 15,
+    "updatedAt": 1000,
+    "revision": 4,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 1000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 1000,
+       "game:title:beta|": 1000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 1000,
+       "tmdb:movie:2": 1000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 1000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": []
+   },
+   "mergedFromRemote": {
+    "version": 15,
+    "updatedAt": 1000,
+    "revision": 4,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 1000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 1000,
+       "game:title:beta|": 1000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 1000,
+       "tmdb:movie:2": 1000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 1000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": []
+   }
+  },
+  {
+   "name": "records with no identifier at all",
+   "local": {
+    "version": 15,
+    "updatedAt": 2000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "petrol": [
+     {
+      "date": "2026-10-01"
+     }
+    ],
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {
+       "name:date20261001": 2000
+      },
+      "hiddenGames": {},
+      "deletions": {}
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     }
+    }
+   },
+   "remote": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "petrol": [
+     {
+      "date": "2026-11-01"
+     }
+    ],
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {
+       "name:date20261101": 3000
+      },
+      "hiddenGames": {},
+      "deletions": {}
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     }
+    }
+   },
+   "merged": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "petrol": [
+     {
+      "date": "2026-10-01"
+     },
+     {
+      "date": "2026-11-01"
+     }
+    ],
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 3000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000,
+       "game:title:beta|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 3000,
+       "tmdb:movie:2": 3000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {
+       "name:date20261001": 2000,
+       "name:date20261101": 3000
+      },
+      "hiddenGames": {
+       "name:hiddenondesktop": 3000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "deletions": []
+   },
+   "mergedFromRemote": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "petrol": [
+     {
+      "date": "2026-11-01"
+     },
+     {
+      "date": "2026-10-01"
+     }
+    ],
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 3000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000,
+       "game:title:beta|": 3000
+      },
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 3000,
+       "tmdb:movie:2": 3000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {
+       "name:date20261101": 3000,
+       "name:date20261001": 2000
+      },
+      "hiddenGames": {
+       "name:hiddenondesktop": 3000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "rentalHistory": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "deletions": []
+   }
+  },
+  {
+   "name": "repeated rentals of one game",
+   "local": {
+    "version": 15,
+    "updatedAt": 2000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "rentalHistory": [
+     {
+      "id": "r1",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|",
+      "start": "2026-08-01",
+      "end": "2026-08-30"
+     },
+     {
+      "id": "r2",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|",
+      "start": "2026-11-01",
+      "end": "2026-11-20"
+     }
+    ],
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {
+       "game:title:alpha|": 2000
+      },
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     }
+    }
+   },
+   "remote": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "rentalHistory": [
+     {
+      "id": "r1",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|",
+      "start": "2026-08-01",
+      "end": "2026-08-30"
+     }
+    ],
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {
+       "game:title:alpha|": 3000
+      },
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {},
+      "deletions": {}
+     }
+    }
+   },
+   "merged": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "rentalHistory": [
+     {
+      "id": "r1",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|",
+      "start": "2026-08-01",
+      "end": "2026-08-30"
+     }
+    ],
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 3000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000,
+       "game:title:beta|": 3000
+      },
+      "rentalHistory": {
+       "game:title:alpha|": 3000
+      },
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 3000,
+       "tmdb:movie:2": 3000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 3000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": []
+   },
+   "mergedFromRemote": {
+    "version": 15,
+    "updatedAt": 3000,
+    "revision": 5,
+    "queue": [
+     {
+      "id": "a",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|"
+     },
+     {
+      "id": "b",
+      "name": "Beta",
+      "canonicalId": "game:title:beta|"
+     }
+    ],
+    "played": [
+     {
+      "id": "c",
+      "name": "Gamma",
+      "canonicalId": "game:title:gamma|",
+      "cost": 300
+     }
+    ],
+    "movieWatchlist": [
+     {
+      "id": 1,
+      "title": "One",
+      "key": "tmdb:1",
+      "canonicalId": "tmdb:movie:1"
+     },
+     {
+      "id": 2,
+      "title": "Two",
+      "key": "tmdb:2",
+      "canonicalId": "tmdb:movie:2"
+     }
+    ],
+    "hiddenGames": [
+     {
+      "name": "Hidden on desktop"
+     }
+    ],
+    "finance": {
+     "cipher": "opaque"
+    },
+    "futureField": {
+     "keep": true
+    },
+    "rentalHistory": [
+     {
+      "id": "r1",
+      "name": "Alpha",
+      "canonicalId": "game:title:alpha|",
+      "start": "2026-08-01",
+      "end": "2026-08-30"
+     }
+    ],
+    "_sync": {
+     "version": 1,
+     "records": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {
+       "game:title:gamma|": 3000
+      },
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {
+       "game:title:alpha|": 3000,
+       "game:title:beta|": 3000
+      },
+      "rentalHistory": {
+       "game:title:alpha|": 3000
+      },
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {
+       "tmdb:movie:1": 3000,
+       "tmdb:movie:2": 3000
+      },
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {
+       "name:hiddenondesktop": 3000
+      }
+     },
+     "tombstones": {
+      "rentals": {},
+      "upcoming": {},
+      "played": {},
+      "dismissed": {},
+      "catalogExtra": {},
+      "vendors": {},
+      "queue": {},
+      "rentalHistory": {},
+      "playing": {},
+      "upcomingRemoved": {},
+      "watchedMovies": {},
+      "movieWatchlist": {},
+      "watchingMovies": {},
+      "hiddenMovies": {},
+      "watchedSeries": {},
+      "seriesWatchlist": {},
+      "watchingSeries": {},
+      "hiddenSeries": {},
+      "biglyHistory": {},
+      "subscriptions": {},
+      "subscriptionGames": {},
+      "purchasedGames": {},
+      "petrol": {},
+      "hiddenGames": {}
+     }
+    },
+    "rentals": [],
+    "upcoming": [],
+    "dismissed": [],
+    "catalogExtra": [],
+    "vendors": [],
+    "playing": [],
+    "upcomingRemoved": [],
+    "watchedMovies": [],
+    "watchingMovies": [],
+    "hiddenMovies": [],
+    "watchedSeries": [],
+    "seriesWatchlist": [],
+    "watchingSeries": [],
+    "hiddenSeries": [],
+    "biglyHistory": [],
+    "subscriptions": [],
+    "subscriptionGames": [],
+    "purchasedGames": [],
+    "petrol": [],
+    "deletions": []
+   }
+  }
+ ]
+}

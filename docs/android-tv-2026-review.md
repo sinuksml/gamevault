@@ -50,7 +50,7 @@ Saving a Wikipedia plot went through the normal edit path, which advanced `updat
 Decided with you: TV app only, rebuilt with Compose for TV, and the WebView launcher retired once the native app is solid.
 
 1. **Sync foundation (done here).** Items 1 to 4 above, with tests and a cross-client check.
-2. **Port the merge to Java.** Replace newest-wins with the same record-level merge as `core.js`, pinned by tests that run both over the same inputs, as the new website does. This removes the remaining conflict-copy case.
+2. **Port the merge to Java (done).** `VaultMerge.java` replaces newest-wins when both the TV and Drive have changed. It is pinned by `shared/fixtures/merge-cases.json`, generated from `core.js` and checked by the Java tests, the web tests and a freshness test. See "Merge port" below.
 3. **Toolchain.** Merge Dependabot's wrapper update, then the plugin update. Move to Kotlin.
 4. **Compose for TV.** Rebuild the screens one at a time on `androidx.tv:tv-material`, keeping the vault as a raw JSON tree. Typed models would silently drop fields the app does not know, which would erase finance, health and `_sync` on upload.
 5. **Recovery and diagnostics screen** on the TV.
@@ -99,3 +99,15 @@ The app has no release signing config, so it is signed with the machine's Androi
 ## Verification status of the Windows claim
 
 `VaultIdentity.cs` was read in full: its strongest-identifier order and title identity match `SyncTracker.deletionIdentity`. `DriveService.MergeVaults` reads `deletions` markers with `{collection, identity, at}`. The merge itself was not run against the Windows app; only against `core.js`.
+
+## Merge port
+
+When both the TV and another device have changed the library, the TV now merges the two copies record by record instead of keeping one whole file and parking the other in Recovery. It uses the same algorithm as `core.js`.
+
+- `shared/fixtures/merge-cases.mjs` builds `merge-cases.json`: twelve pairs of vaults and the merged result `core.js` produces for each, in both directions.
+- The TV's Java tests, the new website's tests and a freshness test all check against that file, so a change to the merge has to update all three on purpose. The repeated-rentals case is included and pinned as it behaves today.
+- A merge keeps a "before-merge" recovery copy of the TV's version first.
+- A TV that has never synced has no common history to merge from, so it keeps the old rules: the newer whole copy wins and the other goes to Recovery.
+- A persistent "unsynced TV edits" flag decides whether the TV has edits Drive has not seen. Comparing timestamps alone can mislabel a TV edit as already synced when the Shield's clock and the phone's clock disagree.
+
+Not covered by tests: the wiring in `DriveRepository` (it needs Android). It compiles against the Android SDK and was reviewed by reading, but no sync was run against a real Drive file or a device.
